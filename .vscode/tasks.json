@@ -1,0 +1,48 @@
+{
+ "version": "2.0.0",
+ "tasks": [
+  {
+   "label": "1. Supabase",
+   "type": "shell",
+   "command": "npx supabase start",
+   "presentation": {
+    "panel": "dedicated",
+    "group": "aba_supabase",
+    "clear": true
+   }
+  },
+  {
+   "label": "2. Ngrok",
+   "type": "shell",
+   "command": "ngrok http --domain=towardly-insensately-mose.ngrok-free.dev 54321",
+   "presentation": {
+    "panel": "dedicated",
+    "group": "aba_ngrok",
+    "clear": true
+   }
+  },
+  {
+   "label": "3. Expo",
+   "type": "shell",
+   "command": "npx expo start",
+   "presentation": {
+    "panel": "dedicated",
+    "group": "aba_expo",
+    "clear": true
+   }
+  },
+  {
+   "label": "▶ Iniciar Ambiente Studo Core",
+   "dependsOn": [
+    "1. Supabase",
+    "2. Ngrok",
+    "3. Expo"
+   ],
+   "dependsOrder": "parallel",
+   "group": {
+    "kind": "build",
+    "isDefault": true
+   }
+  }
+ ]
+}
