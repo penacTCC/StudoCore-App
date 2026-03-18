@@ -201,7 +201,7 @@ export default function ProfileScreen() {
                         </View>
                         <View className="flex-1">
                             <Text className="font-medium text-slate-200">Meus Grupos</Text>
-                            <Text className="text-xs text-slate-400">Manage your group memberships</Text>
+                            <Text className="text-xs text-slate-400">Gerencie seus grupos</Text>
                         </View>
                         <ChevronRight size={20} color={COLORS.textMuted} />
                     </TouchableOpacity>
@@ -220,8 +220,8 @@ export default function ProfileScreen() {
                             <CalendarDays size={24} color={COLORS.violetLight} />
                         </View>
                         <View className="flex-1">
-                            <Text className="font-medium text-slate-200">Study Cronogram</Text>
-                            <Text className="text-xs text-slate-400">Plan and organize your schedule</Text>
+                            <Text className="font-medium text-slate-200">Cronograma de Estudo</Text>
+                            <Text className="text-xs text-slate-400">Planeje e organize seu cronograma</Text>
                         </View>
                         <ChevronRight size={20} color={COLORS.textMuted} />
                     </TouchableOpacity>

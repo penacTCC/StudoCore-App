@@ -4,83 +4,28 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     Alert,
     StatusBar,
     Dimensions,
-    Image,
 } from "react-native";
 import { router } from "expo-router";
-import { Eye, EyeOff, Github, ArrowLeft } from "lucide-react-native";
+import { Eye, EyeOff, Github } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 import { supabase } from "../supabase";
-import * as WebBrowser from 'expo-web-browser';
-import * as QueryParams from 'expo-auth-session/build/QueryParams';
-import * as Linking from 'expo-linking';
+import * as WebBrowser from "expo-web-browser";
+import * as QueryParams from "expo-auth-session/build/QueryParams";
+import * as Linking from "expo-linking";
+import DotPattern from "@/components/auth/DotPattern";
+import LogoMark from "@/components/auth/LogoMark";
+import BackButton from "@/components/auth/BackButton";
+import DragHandle from "@/components/auth/DragHandle";
+import PrimaryButton from "@/components/form/PrimaryButton";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const DOT_GAP = 26;
-const DOT_R = 2.2;
-const COLS = Math.ceil(SCREEN_WIDTH / DOT_GAP) + 1;
-const ROWS = 10;
-
-function DotPattern() {
-    const dots: { key: string; x: number; y: number }[] = [];
-    for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-            dots.push({ key: `${r}-${c}`, x: c * DOT_GAP, y: r * DOT_GAP });
-        }
-    }
-    return (
-        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none">
-            {dots.map((d) => (
-                <View
-                    key={d.key}
-                    style={{
-                        position: "absolute",
-                        left: d.x,
-                        top: d.y,
-                        width: DOT_R * 2,
-                        height: DOT_R * 2,
-                        borderRadius: DOT_R,
-                        backgroundColor: "rgba(16,24,43,0.10)",
-                    }}
-                />
-            ))}
-        </View>
-    );
-}
-
-function StudoCoreLogoMark() {
-    return (
-        <View style={{ alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
-            <View
-                style={{
-                    width: 88,
-                    height: 88,
-                    borderRadius: 24,
-                    backgroundColor: "#fff",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    shadowColor: COLORS.bgPrimary,
-                    shadowOffset: { width: 0, height: 8 },
-                    shadowOpacity: 0.18,
-                    shadowRadius: 20,
-                    elevation: 12,
-                    borderWidth: 1.5,
-                    borderColor: "rgba(16,24,43,0.07)",
-                }}
-            >
-                <Image source={require("../../assets/LogoStudoCore.png")} style={{ width: 62, height: 62 }} />
-            </View>
-        </View>
-    );
-}
-
-// 1. Isso avisa ao sistema para fechar o navegador automaticamente quando terminar
+// Avisa ao sistema para fechar o navegador automaticamente quando terminar
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
@@ -91,31 +36,25 @@ export default function LoginScreen() {
 
     const handleGoogleSignIn = async () => {
         try {
-            // Usa o scheme do app.json ("studocore") para criar a URL de retorno
-            // Ex: studocore:// — é isso que o Supabase vai usar pra devolver pro app
-            const redirectUrl = Linking.createURL('/(auth)/onboarding-profile');
-
-            // Pede pro Supabase a URL oficial de login do Google, com as chaves de config
+            const redirectUrl = Linking.createURL("/(auth)/onboarding-profile");
             const { data, error } = await supabase.auth.signInWithOAuth({
-                provider: 'google',
+                provider: "google",
                 options: {
                     redirectTo: redirectUrl,
-                    skipBrowserRedirect: true, // Essencial para retornar ao app
+                    skipBrowserRedirect: true,
                 },
             });
             if (error) throw error;
 
-            // Abre a janelinha do navegador dentro do app
-            const res = await WebBrowser.openAuthSessionAsync(data?.url ?? '', redirectUrl);
+            const res = await WebBrowser.openAuthSessionAsync(data?.url ?? "", redirectUrl);
 
-            if (res.type === 'success') {
-                // Supabase usa PKCE por padrão: a URL de retorno tem um "code" no query string,
-                // não tokens diretos. exchangeCodeForSession troca o code pela sessão do usuário.
+            if (res.type === "success") {
                 const { params } = QueryParams.getQueryParams(res.url);
                 if (params.code) {
-                    const { error: sessionError } = await supabase.auth.exchangeCodeForSession(params.code);
+                    const { error: sessionError } = await supabase.auth.exchangeCodeForSession(
+                        params.code
+                    );
                     if (sessionError) throw sessionError;
-                    // O _layout.tsx vai detectar a nova sessão e redirecionar automaticamente
                 } else if (params.error) {
                     Alert.alert("Erro no Google", params.error_description ?? params.error);
                 }
@@ -124,23 +63,18 @@ export default function LoginScreen() {
             console.error("Erro no fluxo do Google:", error);
             Alert.alert("Erro", "Não foi possível concluir o login com o Google.");
         }
-    }
+    };
 
     const handleLogin = async () => {
         setIsLoading(true);
         if (!email || !password) {
             Alert.alert("Campos obrigatórios", "Por favor, preencha o email e a senha.");
+            setIsLoading(false);
             return;
         }
-        const { error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password,
-        });
-
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
-            Alert.alert('Erro no Login', error.message);
-        } else {
-            console.log('SUCESSO! O banco respondeu:');
+            Alert.alert("Erro no Login", error.message);
         }
         setIsLoading(false);
     };
@@ -163,32 +97,28 @@ export default function LoginScreen() {
                 }}
             >
                 <DotPattern />
-
-                {/* Back button */}
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    style={{
-                        position: "absolute",
-                        left: 20,
-                        top: 52,
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        backgroundColor: "rgba(16,24,43,0.06)",
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
-                >
-                    <ArrowLeft size={20} color={COLORS.bgPrimary} />
-                </TouchableOpacity>
-
-                <StudoCoreLogoMark />
+                <BackButton top={52} />
+                <LogoMark size={88} borderRadius={24} />
 
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text style={{ fontSize: 30, fontWeight: "800", color: COLORS.bgPrimary, letterSpacing: -0.5 }}>
+                    <Text
+                        style={{
+                            fontSize: 30,
+                            fontWeight: "800",
+                            color: COLORS.bgPrimary,
+                            letterSpacing: -0.5,
+                        }}
+                    >
                         Studo
                     </Text>
-                    <Text style={{ fontSize: 30, fontWeight: "800", color: COLORS.primary, letterSpacing: -0.5 }}>
+                    <Text
+                        style={{
+                            fontSize: 30,
+                            fontWeight: "800",
+                            color: COLORS.primary,
+                            letterSpacing: -0.5,
+                        }}
+                    >
                         Core
                     </Text>
                 </View>
@@ -207,17 +137,7 @@ export default function LoginScreen() {
                     justifyContent: "space-between",
                 }}
             >
-                {/* Drag handle */}
-                <View
-                    style={{
-                        width: 44,
-                        height: 4,
-                        backgroundColor: "rgba(255,255,255,0.15)",
-                        borderRadius: 2,
-                        alignSelf: "center",
-                        marginBottom: 26,
-                    }}
-                />
+                <DragHandle marginBottom={26} />
 
                 {/* Email */}
                 <View style={{ marginBottom: 12 }}>
@@ -263,10 +183,11 @@ export default function LoginScreen() {
                         onPress={() => setShowPassword(!showPassword)}
                         style={{ position: "absolute", right: 16, top: 0, bottom: 0, justifyContent: "center" }}
                     >
-                        {showPassword
-                            ? <EyeOff size={20} color="#64748b" />
-                            : <Eye size={20} color="#64748b" />
-                        }
+                        {showPassword ? (
+                            <EyeOff size={20} color="#64748b" />
+                        ) : (
+                            <Eye size={20} color="#64748b" />
+                        )}
                     </TouchableOpacity>
                 </View>
 
@@ -281,38 +202,28 @@ export default function LoginScreen() {
                 </TouchableOpacity>
 
                 {/* ENTRAR */}
-                <TouchableOpacity
+                <PrimaryButton
+                    label="ENTRAR"
                     onPress={handleLogin}
-                    disabled={isLoading}
-                    style={{
-                        backgroundColor: COLORS.primary,
-                        borderRadius: 14,
-                        paddingVertical: 16,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        shadowColor: COLORS.primary,
-                        shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.4,
-                        shadowRadius: 14,
-                        elevation: 10,
-                        opacity: isLoading ? 0.8 : 1,
-                        marginBottom: 22,
-                    }}
-                >
-                    {isLoading ? (
-                        <ActivityIndicator size="small" color="#ffffff" />
-                    ) : (
-                        <Text style={{ color: "#ffffff", fontWeight: "800", fontSize: 15, letterSpacing: 2.5 }}>
-                            ENTRAR
-                        </Text>
-                    )}
-                </TouchableOpacity>
+                    isLoading={isLoading}
+                    style={{ marginBottom: 22 }}
+                />
 
                 {/* Divider */}
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 18, gap: 10 }}>
+                <View
+                    style={{ flexDirection: "row", alignItems: "center", marginBottom: 18, gap: 10 }}
+                >
                     <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.1)" }} />
-                    <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", fontWeight: "600", letterSpacing: 0.5 }}>
-                        OU <Text style={{ color: COLORS.violetLight }}>CONTINUAR COM</Text>
+                    <Text
+                        style={{
+                            fontSize: 12,
+                            color: "rgba(255,255,255,0.35)",
+                            fontWeight: "600",
+                            letterSpacing: 0.5,
+                        }}
+                    >
+                        OU{" "}
+                        <Text style={{ color: COLORS.violetLight }}>CONTINUAR COM</Text>
                     </Text>
                     <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.1)" }} />
                 </View>

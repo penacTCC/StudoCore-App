@@ -1,21 +1,24 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-    Search,
-    FileText,
-    Image as ImageIcon,
-    ChevronRight,
-    FileUp,
-    X,
-} from "lucide-react-native";
+import { FileText, Image as ImageIcon, ChevronRight, FileUp, X } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 import { mockFiles } from "@/constants/mock-data";
+import SearchBar from "@/components/ui/SearchBar";
+import TabSelector from "@/components/ui/TabSelector";
+
+type FileCategory = "pdf" | "image" | "other";
+
+const FILE_TYPE_TABS = [
+    { key: "pdf", label: "PDF" },
+    { key: "image", label: "Image" },
+    { key: "other", label: "Other" },
+];
 
 export default function VaultScreen() {
     const [searchQuery, setSearchQuery] = useState("");
     const [showUploadModal, setShowUploadModal] = useState(false);
-    const [uploadFileType, setUploadFileType] = useState<"pdf" | "image" | "other">("pdf");
+    const [uploadFileType, setUploadFileType] = useState<FileCategory>("pdf");
     const [uploadFileName, setUploadFileName] = useState("");
 
     const filteredFiles = mockFiles.filter((f) =>
@@ -32,18 +35,12 @@ export default function VaultScreen() {
 
             {/* Search */}
             <View className="px-4 py-3">
-                <View className="relative">
-                    <View className="absolute left-4 top-0 bottom-0 justify-center z-10">
-                        <Search size={18} color={COLORS.textMuted} />
-                    </View>
-                    <TextInput
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        placeholder="Search files..."
-                        placeholderTextColor={COLORS.textMuted}
-                        className="bg-slate-900 border border-slate-800 rounded-xl pl-11 pr-4 py-3 text-slate-200 text-base"
-                    />
-                </View>
+                <SearchBar
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search files..."
+                    variant="light"
+                />
             </View>
 
             {/* Files */}
@@ -57,9 +54,10 @@ export default function VaultScreen() {
                             <View
                                 className="w-12 h-12 rounded-xl items-center justify-center"
                                 style={{
-                                    backgroundColor: file.type === "pdf"
-                                        ? "rgba(244, 63, 94, 0.2)"
-                                        : "rgba(247, 152, 44, 0.15)",
+                                    backgroundColor:
+                                        file.type === "pdf"
+                                            ? "rgba(244, 63, 94, 0.2)"
+                                            : "rgba(247, 152, 44, 0.15)",
                                 }}
                             >
                                 {file.type === "pdf" ? (
@@ -82,7 +80,6 @@ export default function VaultScreen() {
 
                     {filteredFiles.length === 0 && (
                         <View className="items-center py-8">
-                            <Search size={48} color={COLORS.textFaint} />
                             <Text className="text-slate-400 font-medium mt-3">No files found</Text>
                             <Text className="text-sm text-slate-500">Try a different search term</Text>
                         </View>
@@ -136,34 +133,11 @@ export default function VaultScreen() {
                         {/* File Type Selector */}
                         <View className="mb-4">
                             <Text className="text-xs text-slate-400 mb-2">File category</Text>
-                            <View className="flex-row gap-2">
-                                {(["pdf", "image", "other"] as const).map((type) => (
-                                    <TouchableOpacity
-                                        key={type}
-                                        onPress={() => setUploadFileType(type)}
-                                        className={`flex-1 py-2 rounded-lg items-center ${uploadFileType === type ? "bg-brand-500" : "bg-slate-800"
-                                            }`}
-                                    >
-                                        <Text
-                                            className={`text-sm font-medium ${uploadFileType === type ? "text-white" : "text-slate-400"
-                                                }`}
-                                        >
-                                            {type === "pdf" ? "PDF" : type.charAt(0).toUpperCase() + type.slice(1)}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-
-                        {/* File Name */}
-                        <View className="mb-6">
-                            <Text className="text-xs text-slate-400 mb-2">File name (optional)</Text>
-                            <TextInput
-                                value={uploadFileName}
-                                onChangeText={setUploadFileName}
-                                placeholder="My study notes..."
-                                placeholderTextColor={COLORS.textMuted}
-                                className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-base"
+                            <TabSelector
+                                tabs={FILE_TYPE_TABS}
+                                active={uploadFileType}
+                                onSelect={(k) => setUploadFileType(k as FileCategory)}
+                                activeColor="brand"
                             />
                         </View>
 

@@ -1,11 +1,11 @@
-import { View, Text, FlatList, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../supabase";
 import GroupCard from "@/components/GroupCard";
 import { COLORS } from "@/constants/colors";
-import { Users } from "lucide-react-native";
+import { Plus, Users } from "lucide-react-native";
 
 export default function MyGroupsScreen() {
     const [groups, setGroups] = useState<any[]>([]);
@@ -66,14 +66,22 @@ export default function MyGroupsScreen() {
     return (
         <SafeAreaView className="flex-1 bg-slate-950 edges={['top']}">
             {/* Header */}
-            <View className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex-row items-center gap-3">
-                <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: COLORS.primaryFaint }}>
-                    <Users size={20} color={COLORS.primary} />
+            <View className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex-row items-center gap-3 justify-between">
+                <View className="flex-row gap-3">
+                    <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: COLORS.primaryFaint }}>
+                        <Users size={20} color={COLORS.primary} />
+                    </View>
+                    <View>
+                        <Text className="text-2xl font-bold text-slate-200">Meus Grupos</Text>
+                        <Text className="text-sm text-slate-400">Escolha um grupo</Text>
+                    </View>
                 </View>
-                <View>
-                    <Text className="text-2xl font-bold text-slate-200">Meus Grupos</Text>
-                    <Text className="text-sm text-slate-400">Escolha um grupo para começar</Text>
-                </View>
+                <TouchableOpacity
+                    onPress={() => router.push("/(modals)/create-group")}
+                    className="flex-row items-center gap-1 bg-brand-500 px-3 py-1.5 rounded-lg"
+                >
+                    <Plus size={16} color={COLORS.white} />
+                </TouchableOpacity>
             </View>
 
             {isLoading ? (
