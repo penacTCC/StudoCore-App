@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Globe, Compass, Link as LinkIcon } from "lucide-react-native";
 import { router } from "expo-router";
+import { supabase } from "../supabase";
 import { COLORS } from "@/constants/colors";
 import { mockPublicGroups } from "@/constants/mock-data";
 import SearchBar from "@/components/ui/SearchBar";
@@ -11,13 +12,93 @@ import PublicGroupCard from "@/components/groups/PublicGroupCard";
 export default function BrowseGroupsScreen() {
     const [searchQuery, setSearchQuery] = useState("");
 
-    const filteredGroups = mockPublicGroups.filter(
+    const [isLoading, setIsLoading] = useState(true);
+    const [publicGroups, setPublicGroups] = useState<any[]>([]);
+
+    /**
+     * Função para contar quantos membros tem um grupo específico, usando o ID do grupo.
+     */
+    const qtdGroupMembers = async (id: string) => {
+        try {
+
+            const { data: membrosGrupo, error } = await supabase
+                .from('membros') //pega tudo da tabela grupos se estiver publico=true
+                .select('*') // Busca o grupo e os dados do perfil do criador
+                .eq('grupo_id', id);
+
+            if (error) {
+                console.error("Erro ao buscar membros do grupo:", error);
+                return 0;
+            }
+
+            return membrosGrupo?.length || 0;  // ← Retorna o número de membros
+
+        } catch (err) {
+            console.error("Erro inesperado:", err);
+            return 0;
+        }
+    };
+
+    
+    /**
+     * Função para buscar os grupos públicos do banco de dados, contar seus membros e salvar no estado.
+     */
+
+    const fetchPublicGroups = async () => {
+        try {
+            setIsLoading(true);
+
+            const { data: grupoPublico, error } = await supabase
+                .from('grupos') //pega tudo da tabela grupos se estiver publico=true
+                .select('*') // Busca o grupo e os dados do perfil do criador
+                .eq('publico', true);
+
+            if (error) {
+                console.error("Erro ao buscar grupos:", error);
+                return;
+            }
+
+            //console.log("Grupos encontrados:", grupoPublico);
+
+            // Promise.all() aguarda TODAS as promises terminarem antes de continuar
+            // .map() transforma cada grupo da lista em uma promise (porque tem "async")
+            // Para cada grupo, chama qtdGroupMembers para contar os membros
+            // " || [] " é um fallback: se grupoPublico for null/undefined, usa array vazio
+            const formattedPublicGroups = await Promise.all(
+                grupoPublico?.map(async (grupo) => {
+                    // Await aguarda a resposta da função qtdGroupMembers
+                    const memberCount = await qtdGroupMembers(grupo.id); // Conta quantos membros tem o grupo atual
+                    return {
+                        // Spread operator (...) copia TODAS as propriedades do grupo original
+                        ...grupo,
+                        // Adiciona um novo campo "members" com a contagem de membros
+                        members: memberCount
+                    };
+                }) || []
+            );
+
+            // 3. Salva no Estado
+            setPublicGroups(formattedPublicGroups || []);
+
+        } catch (err) {
+            console.error("Erro inesperado:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchPublicGroups();
+    }, []);
+
+
+    const filteredGroups = publicGroups.filter(
         (g) =>
-            g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            g.description.toLowerCase().includes(searchQuery.toLowerCase())
+            g.nome_grupo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            g.descricao.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const totalActive = mockPublicGroups.reduce((acc, g) => acc + g.activeNow, 0);
+    const totalActive = publicGroups.reduce((acc, g) => acc + g.activeNow, 0);
 
     return (
         <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>
@@ -32,8 +113,8 @@ export default function BrowseGroupsScreen() {
                             <ArrowLeft size={18} color={COLORS.textSecondary} />
                         </TouchableOpacity>
                         <View>
-                            <Text className="text-xl font-bold text-slate-200">Browse Groups</Text>
-                            <Text className="text-sm text-slate-400">Join public study groups</Text>
+                            <Text className="text-xl font-bold text-slate-200">Grupos Públicos</Text>
+                            <Text className="text-sm text-slate-400">Junte-se a grupos de estudo</Text>
                         </View>
                     </View>
                     <TouchableOpacity
@@ -50,7 +131,7 @@ export default function BrowseGroupsScreen() {
                 <SearchBar
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    placeholder="Search public groups..."
+                    placeholder="Pesquisar grupos..."
                     variant="dark"
                 />
             </View>
@@ -69,10 +150,10 @@ export default function BrowseGroupsScreen() {
                     </View>
                     <View>
                         <Text className="text-lg font-bold text-slate-200">
-                            {totalActive} studying now
+                            {totalActive} estudando agora
                         </Text>
                         <Text className="text-sm text-slate-400">
-                            {mockPublicGroups.length} public groups available
+                            {publicGroups.length} grupos públicos disponíveis
                         </Text>
                     </View>
                 </View>
@@ -80,7 +161,7 @@ export default function BrowseGroupsScreen() {
 
             <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
                 <View className="gap-3 pb-6">
-                    {filteredGroups.map((group, index) => (
+                    {publicGroups.map((group, index) => (
                         <PublicGroupCard
                             key={group.id}
                             group={group}
@@ -91,8 +172,8 @@ export default function BrowseGroupsScreen() {
                     {filteredGroups.length === 0 && (
                         <View className="items-center py-8">
                             <Compass size={48} color={COLORS.textFaint} />
-                            <Text className="text-slate-400 font-medium mt-3">No groups found</Text>
-                            <Text className="text-sm text-slate-500">Try a different search term</Text>
+                            <Text className="text-slate-400 font-medium mt-3">Nenhum grupo encontrado</Text>
+                            <Text className="text-sm text-slate-500">Tente um termo de busca diferente</Text>
                         </View>
                     )}
                 </View>
