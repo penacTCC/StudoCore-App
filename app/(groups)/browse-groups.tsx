@@ -1,19 +1,12 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-    ArrowLeft,
-    Search,
-    Globe,
-    Users,
-    Target,
-    Compass,
-    Link as LinkIcon,
-} from "lucide-react-native";
+import { ArrowLeft, Globe, Compass, Link as LinkIcon } from "lucide-react-native";
 import { router } from "expo-router";
 import { COLORS } from "@/constants/colors";
 import { mockPublicGroups } from "@/constants/mock-data";
-import { getAvatarColor } from "@/constants/helpers";
+import SearchBar from "@/components/ui/SearchBar";
+import PublicGroupCard from "@/components/groups/PublicGroupCard";
 
 export default function BrowseGroupsScreen() {
     const [searchQuery, setSearchQuery] = useState("");
@@ -54,18 +47,12 @@ export default function BrowseGroupsScreen() {
 
             {/* Search */}
             <View className="px-4 py-3">
-                <View className="relative">
-                    <View className="absolute left-4 top-0 bottom-0 justify-center z-10">
-                        <Search size={18} color={COLORS.textMuted} />
-                    </View>
-                    <TextInput
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        placeholder="Search public groups..."
-                        placeholderTextColor={COLORS.textMuted}
-                        className="bg-navy-900 border border-navy-800 rounded-xl pl-11 pr-4 py-3 text-slate-200 text-base"
-                    />
-                </View>
+                <SearchBar
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search public groups..."
+                    variant="dark"
+                />
             </View>
 
             {/* Stats Banner */}
@@ -94,61 +81,11 @@ export default function BrowseGroupsScreen() {
             <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
                 <View className="gap-3 pb-6">
                     {filteredGroups.map((group, index) => (
-                        <TouchableOpacity
+                        <PublicGroupCard
                             key={group.id}
-                            onPress={() => router.push({ pathname: "/group-details", params: { groupId: group.id.toString() } })}
-                            className="bg-navy-900 border border-navy-800 rounded-2xl p-4"
-                        >
-                            <View className="flex-row items-start gap-3">
-                                {/* Group Avatar */}
-                                <View className="relative">
-                                    <View
-                                        className="w-14 h-14 rounded-xl items-center justify-center"
-                                        style={{ backgroundColor: getAvatarColor(index) }}
-                                    >
-                                        <Text className="text-white text-lg font-bold">{group.initials}</Text>
-                                    </View>
-                                    {group.isOnline && (
-                                        <View className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full" />
-                                    )}
-                                </View>
-
-                                {/* Group Info */}
-                                <View className="flex-1">
-                                    <View className="flex-row items-center gap-2 mb-1">
-                                        <Text className="font-semibold text-slate-200" numberOfLines={1}>
-                                            {group.name}
-                                        </Text>
-                                        {group.activeNow > 0 && (
-                                            <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(16, 185, 129, 0.2)" }}>
-                                                <Text className="text-xs text-emerald-400">{group.activeNow} active</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                    <Text className="text-sm text-slate-400 mb-2" numberOfLines={2}>
-                                        {group.description}
-                                    </Text>
-                                    <View className="flex-row items-center gap-4">
-                                        <View className="flex-row items-center gap-1">
-                                            <Users size={12} color={COLORS.textMuted} />
-                                            <Text className="text-xs text-slate-500">{group.members} members</Text>
-                                        </View>
-                                        <View className="flex-row items-center gap-1">
-                                            <Target size={12} color={COLORS.textMuted} />
-                                            <Text className="text-xs text-slate-500">{group.weeklyTarget}h/week</Text>
-                                        </View>
-                                    </View>
-                                </View>
-
-                                {/* Join Button */}
-                                <TouchableOpacity
-                                    onPress={() => router.push("/(tabs)")}
-                                    className="bg-brand-500 px-4 py-2 rounded-xl"
-                                >
-                                    <Text className="text-white text-sm font-medium">Join</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </TouchableOpacity>
+                            group={group}
+                            colorIndex={index}
+                        />
                     ))}
 
                     {filteredGroups.length === 0 && (

@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, Switch, TouchableOpacity, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { X, Clock, Users, Play } from "lucide-react-native";
+import { X, Clock, Play, Flame } from "lucide-react-native";
 import { router } from "expo-router";
 import { COLORS } from "@/constants/colors";
+import { useLocalSearchParams } from 'expo-router'
+
 
 export default function JoinSessionScreen() {
-    const [showActivity, setShowActivity] = useState(true);
-    const [allowMessages, setAllowMessages] = useState(true);
+    const { subjectColors } = useLocalSearchParams()
+    const colors = JSON.parse(subjectColors as string)
 
     const handleJoin = () => {
         // In a real app, this would register the user in the session
@@ -15,6 +17,19 @@ export default function JoinSessionScreen() {
         router.dismissAll();
         router.replace("/(tabs)/focus");
     };
+
+    //lógica do timer
+    const [elapsed, setElapsed] = useState(0)
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setElapsed(e => e + 1)
+        }, 1000)
+        return () => clearInterval(interval)
+    }, [])
+
+    const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0')
+    const seconds = String(elapsed % 60).padStart(2, '0')
 
     return (
         <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>
@@ -37,50 +52,110 @@ export default function JoinSessionScreen() {
                             <Text className="text-white font-bold text-lg">AC</Text>
                         </View>
                         <View className="flex-1">
-                            <Text className="font-medium text-slate-200">Alex Chen</Text>
-                            <Text className="text-sm text-violet-400">started a Math session</Text>
+                            <View className="flex-row items-center w-full justify-between">
+                                <Text className="font-medium text-slate-200">Alex Chen</Text>
+                                <View style={{ backgroundColor: "rgb(180, 83, 9, 0.4)", borderWidth: 1, borderColor: "rgba(251, 146, 60, 0.2);" }} className="flex-row items-center gap-1 px-2 py-1 rounded-lg">
+                                    <Flame size={14} color={COLORS.amber} />
+                                    <Text className="text-xs font-bold text-amber-400">
+                                        5
+                                    </Text>
+                                </View>
+                            </View>
+                            <Text className="text-sm text-emerald-400">Estudando Agora</Text>
                         </View>
                     </View>
 
                     <View className="flex-row items-center gap-6">
                         <View className="flex-row items-center gap-1.5">
                             <Clock size={14} color={COLORS.textMuted} />
-                            <Text className="text-sm text-slate-400">Started 2m ago</Text>
+                            <Text className="text-sm text-slate-400">Começou há <Text className="text-brand-400">2m</Text></Text>
                         </View>
-                        <View className="flex-row items-center gap-1.5">
-                            <Users size={14} color={COLORS.textMuted} />
-                            <Text className="text-sm text-slate-400">2 studying</Text>
+                    </View>
+                    <View
+                        style={{ backgroundColor: colors.bg, borderColor: colors.border }}
+                        className="border p-4 mt-3 rounded-xl"
+                    >
+                        <View className="flex-row items-center justify-between">
+                            <View className="flex-1 mr-4">
+                                <Text style={{ color: colors.text }} className="text-xs font-bold tracking-widest mb-1">
+                                    MATEMÁTICA
+                                </Text>
+                                <Text className="text-white text-sm font-semibold" numberOfLines={2}>
+                                    Cálculo diferencial e integral
+                                </Text>
+                            </View>
+
+                            <View className="items-end">
+                                <Text className="text-white text-2xl font-bold">{minutes}:{seconds}</Text>
+                                <Text className="text-slate-500 text-xs font-bold tracking-widest">AO VIVO</Text>
+                            </View>
                         </View>
                     </View>
                 </View>
+                {/* /Cards */}
+                <View className="flex-row gap-3">
+                    <View className="flex-1 bg-navy-900 border border-navy-800 p-4 rounded-xl items-center">
+                        <Text className="text-white text-lg font-semibold">3</Text>
+                        <Text numberOfLines={1} className="text-slate-500 text-xs font-medium tracking-widest">participantes</Text>
+                    </View>
 
-                {/* Privacy Options */}
-                <View className="mb-6">
-                    <Text className="text-sm font-medium text-slate-400 mb-4">Your settings</Text>
+                    <View className="flex-1 bg-navy-900 border border-navy-800 p-4 rounded-xl items-center">
+                        <Text className="text-white text-lg font-semibold">12</Text>
+                        <Text numberOfLines={1} className="text-slate-500 text-xs font-medium tracking-widest">reações</Text>
+                    </View>
 
-                    <View className="bg-navy-900 border border-navy-800 rounded-2xl overflow-hidden">
-                        <View className="flex-row items-center justify-between p-4 border-b border-navy-800">
-                            <Text className="text-sm font-medium text-slate-200">Show my activity</Text>
-                            <Switch
-                                value={showActivity}
-                                onValueChange={setShowActivity}
-                                trackColor={{ false: COLORS.bgTertiary, true: COLORS.primary }}
-                                thumbColor={COLORS.white}
-                            />
+                    <View className="flex-1 bg-navy-900 border border-navy-800 p-4 rounded-xl items-center">
+                        <Text className="text-white text-lg font-semibold">pública</Text>
+                        <Text numberOfLines={1} className="text-slate-500 text-xs font-medium tracking-widest">visibilidade</Text>
+                    </View>
+                </View>
+
+                {/* Container dos membros */}
+                <View className="flex-row gap-3 mt-6">
+                    <View className="flex-1 bg-navy-900 border border-navy-800 p-4 rounded-xl">
+                        <Text className="text-[0.8rem] font-bold tracking-widest text-slate-400">PARTICIPANTES</Text>
+
+                        <View className="flex-row items-center gap-3 mb-4 mt-4">
+                            <View style={{ backgroundColor: "#1e3a5f" }} className="w-12 h-12 rounded-full items-center justify-center">
+                                <Text className="text-white font-bold text-sm">AC</Text>
+                            </View>
+                            <View className="flex-1 flex-row justify-between">
+                                <View>
+                                    <Text className="font-medium text-sm text-slate-200">Alex Chen</Text>
+                                    <Text className="text-xs text-slate-500 tracking-wide">anfitrião</Text>
+                                </View>
+                                <View className="flex-row items-center gap-1"><Text className="text-xs text-slate-500">2m</Text></View>
+                            </View>
                         </View>
-                        <View className="flex-row items-center justify-between p-4">
-                            <Text className="text-sm font-medium text-slate-200">Allow messages</Text>
-                            <Switch
-                                value={allowMessages}
-                                onValueChange={setAllowMessages}
-                                trackColor={{ false: COLORS.bgTertiary, true: COLORS.primary }}
-                                thumbColor={COLORS.white}
-                            />
+
+                        <View className="flex-row items-center gap-3 mb-4 mt-4">
+                            <View style={{ backgroundColor: "#2d1b4e" }} className="w-12 h-12 rounded-full items-center justify-center">
+                                <Text className="text-white font-bold text-sm">MR</Text>
+                            </View>
+                            <View className="flex-1 flex-row justify-between">
+                                <View>
+                                    <Text className="font-medium text-sm text-slate-200">Maria Ribeiro</Text>
+                                    <Text className="text-xs text-slate-500 tracking-wide">participante</Text>
+                                </View>
+                                <View className="flex-row items-center gap-1"><Text className="text-xs text-slate-500">2m</Text></View>
+                            </View>
+                        </View>
+
+                        <View className="flex-row items-center gap-3 mb-4 mt-4">
+                            <View style={{ backgroundColor: "#1a3320" }} className="w-12 h-12 rounded-full items-center justify-center">
+                                <Text className="text-white font-bold text-sm">JS</Text>
+                            </View>
+                            <View className="flex-1 flex-row justify-between">
+                                <View>
+                                    <Text className="font-medium text-sm text-slate-200">João Silva</Text>
+                                    <Text className="text-xs text-slate-500 tracking-wide">participante</Text>
+                                </View>
+                                <View className="flex-row items-center gap-1"><Text className="text-xs text-slate-500">2m</Text></View>
+                            </View>
                         </View>
                     </View>
                 </View>
             </ScrollView>
-
             {/* Bottom Button */}
             <View className="px-4 pb-6 pt-2 border-t border-navy-800" style={{ backgroundColor: COLORS.bgPrimary }}>
                 <TouchableOpacity
@@ -89,7 +164,7 @@ export default function JoinSessionScreen() {
                 >
                     <Play size={20} color={COLORS.white} />
                     <Text className="font-semibold text-lg text-white">
-                        Join Session
+                        Entrar na Sessão
                     </Text>
                 </TouchableOpacity>
             </View>

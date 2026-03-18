@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Alert, Image } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { X, Image as ImageIcon, Plus } from "lucide-react-native";
+import { X, Plus, Brain } from "lucide-react-native";
 import { router } from "expo-router";
 import { COLORS } from "@/constants/colors";
 import ShareLink from "@/components/ShareLink";
 import { supabase } from "../supabase";
-import * as ImagePicker from 'expo-image-picker';
-import { decode } from 'base64-arraybuffer';
+import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
 
 export default function CreateGroupScreen() {
     const [name, setName] = useState("");
@@ -15,63 +14,9 @@ export default function CreateGroupScreen() {
     const [isPublic, setIsPublic] = useState(true);
     const [weeklyTarget, setWeeklyTarget] = useState(10);
     const [imageUrl, setImageUrl] = useState("");
-    const [imagePreview, setImagePreview] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
-    const selectImage = async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true, //permite editar a imagem
-                aspect: [1, 1],
-                quality: 0.5, //comprime para 50% do tamanho original, evitar tomar muito espaço no banco de dados
-                base64: true, // obtém diretamente o base64
-            });
 
-            if (result.canceled) {
-                console.log("Usuário cancelou a operação")
-                return
-            }
-
-            const imageUri = result.assets[0].uri;
-            setImagePreview(imageUri);
-
-            const base64 = result.assets[0].base64;
-
-            if (!base64) {
-                console.log("Erro: base64 da imagem não foi gerado.");
-                return;
-            }
-
-            const fileExt = imageUri.split('.').pop();
-            const fileName = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`;
-
-            const { data, error } = await supabase.storage
-                .from('images')
-                .upload(fileName, decode(base64), {
-                    contentType: `image/${fileExt}`,
-                });
-
-            if (error) {
-                Alert.alert("Erro no Supabase", JSON.stringify(error));
-                console.log("Erro detalhado:", error);
-                console.log("Erro ao enviar imagem:", error);
-                return;
-            }
-
-            const { data: urlData } = supabase.storage
-                .from('images')
-                .getPublicUrl(fileName);
-
-            const imagemUrlCompleta = urlData.publicUrl;
-            setImageUrl(imagemUrlCompleta);
-            console.log("Imagem enviada com sucesso:", imagemUrlCompleta);
-
-        } catch (error) {
-            Alert.alert("Erro Crítico no Catch", JSON.stringify(error));
-            console.log(error);
-        }
-    }
 
     const handleCreateGroup = async () => {
         try {
@@ -146,28 +91,10 @@ export default function CreateGroupScreen() {
 
             <ScrollView className="flex-1 px-4 py-4" showsVerticalScrollIndicator={false}>
                 {/* Group Image */}
-                <View className="items-center mb-8 mt-2">
-                    <View className="relative">
-                        <TouchableOpacity
-                            onPress={selectImage}
-                            className="w-32 h-32 rounded-full bg-navy-800 border-[3px] border-navy-700 items-center justify-center overflow-hidden"
-                            style={{ shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 5 }}
-                        >
-                            {imagePreview ? (
-                                <Image className="h-full w-full" source={{ uri: imagePreview || '' }} />
-                            ) : (
-                                <ImageIcon size={36} color={COLORS.textMuted} />
-                            )}
-                            <Text className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">Photo</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={selectImage}
-                            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-brand-500 items-center justify-center border-[3px] border-navy-950"
-                        >
-                            <Plus size={18} color="#ffffff" strokeWidth={3} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                <ImagePickerAvatar
+                    bucket="images"
+                    onImageUploaded={(url) => setImageUrl(url)}
+                />
 
                 {/* Form Fields */}
                 <View className="gap-4 mb-6">
@@ -234,6 +161,37 @@ export default function CreateGroupScreen() {
                                 ))}
                             </View>
                             <Text className="text-xs text-slate-500 w-8 text-right">40h</Text>
+                        </View>
+                        {/* AI Age info banner */}
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "flex-start",
+                                gap: 10,
+                                backgroundColor: COLORS.violet + "18",
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: COLORS.violet + "35",
+                                paddingHorizontal: 14,
+                                paddingVertical: 12,
+                                marginTop: 10,
+                            }}
+                        >
+                            <Brain size={16} color={COLORS.violet} style={{ marginTop: 1 }} />
+                            <Text
+                                style={{
+                                    flex: 1,
+                                    fontSize: 12.5,
+                                    color: "rgba(167, 139, 250, 0.85)",
+                                    lineHeight: 18,
+                                }}
+                            >
+                                <Text style={{ fontWeight: "700", color: COLORS.violetLight }}>
+                                    Como funciona a meta semanal?{"\n"}
+                                </Text>
+                                A meta semanal é a quantidade de horas que cada membro do seu grupo deverá estudar.
+                                A meta total do grupo inteiro é a multiplicação da meta semanal pelo número de membros.
+                            </Text>
                         </View>
                     </View>
                 </View>

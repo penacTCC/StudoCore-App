@@ -1,15 +1,14 @@
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-    ArrowLeft,
-    Globe,
-    Users,
-    Flame,
-} from "lucide-react-native";
+import { ArrowLeft, Globe, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { COLORS } from "@/constants/colors";
-import { mockPublicGroups, mockUsers, mockLiveFeed } from "@/constants/mock-data";
+import { mockPublicGroups, mockUsers, mockDetailingFeed } from "@/constants/mock-data";
 import { getAvatarColor } from "@/constants/helpers";
+import Avatar from "@/components/ui/Avatar";
+import ProgressBar from "@/components/ui/ProgressBar";
+import StatCard from "@/components/ui/StatCard";
+import SessionCard from "@/components/groups/SessionCard";
 
 export default function GroupDetailsScreen() {
     const { groupId } = useLocalSearchParams<{ groupId: string }>();
@@ -22,6 +21,8 @@ export default function GroupDetailsScreen() {
             </SafeAreaView>
         );
     }
+
+    const weeklyProgress = 0.75;
 
     return (
         <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>
@@ -58,7 +59,9 @@ export default function GroupDetailsScreen() {
                                         borderColor: "rgba(247, 152, 44, 0.4)",
                                     }}
                                 >
-                                    <Text className="text-white text-2xl font-bold">{group.initials}</Text>
+                                    <Text className="text-white text-2xl font-bold">
+                                        {group.initials}
+                                    </Text>
                                 </View>
                                 {group.isOnline && (
                                     <View className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-2 border-slate-900 rounded-full items-center justify-center">
@@ -69,9 +72,13 @@ export default function GroupDetailsScreen() {
                             <View className="flex-1">
                                 <View className="flex-row items-center gap-2 mb-1">
                                     <Globe size={14} color={COLORS.emeraldLight} />
-                                    <Text className="text-xs text-emerald-400 font-medium">Public Group</Text>
+                                    <Text className="text-xs text-emerald-400 font-medium">
+                                        Public Group
+                                    </Text>
                                 </View>
-                                <Text className="text-sm text-slate-300 leading-5">{group.description}</Text>
+                                <Text className="text-sm text-slate-300 leading-5">
+                                    {group.description}
+                                </Text>
                             </View>
                         </View>
                     </View>
@@ -80,18 +87,9 @@ export default function GroupDetailsScreen() {
                 {/* Stats Grid */}
                 <View className="px-4 mb-4">
                     <View className="flex-row gap-3">
-                        <View className="flex-1 bg-navy-900 border border-navy-800 rounded-2xl p-4 items-center">
-                            <Text className="text-2xl font-bold text-violet-400">{group.members}</Text>
-                            <Text className="text-xs text-slate-400">Members</Text>
-                        </View>
-                        <View className="flex-1 bg-navy-900 border border-navy-800 rounded-2xl p-4 items-center">
-                            <Text className="text-2xl font-bold text-emerald-400">{group.activeNow}</Text>
-                            <Text className="text-xs text-slate-400">Active Now</Text>
-                        </View>
-                        <View className="flex-1 bg-navy-900 border border-navy-800 rounded-2xl p-4 items-center">
-                            <Text className="text-2xl font-bold text-amber-400">{group.weeklyTarget}h</Text>
-                            <Text className="text-xs text-slate-400">Weekly Goal</Text>
-                        </View>
+                        <StatCard value={group.members} label="Members" valueColor={COLORS.violetLight} />
+                        <StatCard value={group.activeNow} label="Active Now" valueColor={COLORS.emeraldLight} />
+                        <StatCard value={`${group.weeklyTarget}h`} label="Weekly Goal" valueColor={COLORS.amber} />
                     </View>
                 </View>
 
@@ -101,36 +99,49 @@ export default function GroupDetailsScreen() {
                         <View className="flex-row items-center justify-between mb-3">
                             <Text className="text-sm font-medium text-slate-200">Active Members</Text>
                             {group.activeNow > 0 && (
-                                <View className="flex-row items-center gap-1 px-2 py-1 rounded-full" style={{ backgroundColor: "rgba(16, 185, 129, 0.2)" }}>
+                                <View
+                                    className="flex-row items-center gap-1 px-2 py-1 rounded-full"
+                                    style={{ backgroundColor: "rgba(16, 185, 129, 0.2)" }}
+                                >
                                     <View className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
-                                    <Text className="text-xs text-emerald-400">{group.activeNow} studying</Text>
+                                    <Text className="text-xs text-emerald-400">
+                                        {group.activeNow} studying
+                                    </Text>
                                 </View>
                             )}
                         </View>
                         {group.activeNow > 0 ? (
                             <View className="flex-row flex-wrap gap-2">
                                 {mockUsers.slice(0, Math.min(group.activeNow, 5)).map((user, index) => (
-                                    <View key={user.id} className="flex-row items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: COLORS.primaryFaint }}>
-                                        <View className="relative">
-                                            <View
-                                                className="w-8 h-8 rounded-full items-center justify-center"
-                                                style={{ backgroundColor: getAvatarColor(index) }}
-                                            >
-                                                <Text className="text-white text-xs font-bold">{user.initials}</Text>
-                                            </View>
-                                            <View className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-slate-800 rounded-full" />
-                                        </View>
+                                    <View
+                                        key={user.id}
+                                        className="flex-row items-center gap-2 px-3 py-2 rounded-xl"
+                                        style={{ backgroundColor: COLORS.primaryFaint }}
+                                    >
+                                        <Avatar
+                                            initials={user.initials}
+                                            colorIndex={index}
+                                            size={32}
+                                            showOnlineDot
+                                        />
                                         <Text className="text-sm text-slate-200">{user.name}</Text>
                                     </View>
                                 ))}
                                 {group.activeNow > 5 && (
-                                    <View className="items-center justify-center px-3 py-2 rounded-xl" style={{ backgroundColor: COLORS.primaryFaint }}>
-                                        <Text className="text-sm text-slate-400">+{group.activeNow - 5} more</Text>
+                                    <View
+                                        className="items-center justify-center px-3 py-2 rounded-xl"
+                                        style={{ backgroundColor: COLORS.primaryFaint }}
+                                    >
+                                        <Text className="text-sm text-slate-400">
+                                            +{group.activeNow - 5} more
+                                        </Text>
                                     </View>
                                 )}
                             </View>
                         ) : (
-                            <Text className="text-sm text-slate-500 text-center py-4">No members currently studying</Text>
+                            <Text className="text-sm text-slate-500 text-center py-4">
+                                No members currently studying
+                            </Text>
                         )}
                     </View>
                 </View>
@@ -139,25 +150,16 @@ export default function GroupDetailsScreen() {
                 {group.activeNow > 0 && (
                     <View className="px-4 mb-4">
                         <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4">
-                            <Text className="text-sm font-medium text-slate-200 mb-3">Live Sessions</Text>
+                            <Text className="text-sm font-medium text-slate-200 mb-3">
+                                Live Sessions
+                            </Text>
                             <View className="gap-2">
-                                {mockLiveFeed.filter((f) => f.isPublic).slice(0, 2).map((session) => (
-                                    <View key={session.id} className="flex-row items-center justify-between p-3 rounded-xl" style={{ backgroundColor: COLORS.primaryFaint }}>
-                                        <View className="flex-1">
-                                            <Text className="text-sm text-slate-200">
-                                                <Text className="text-violet-400 font-medium">{session.user}</Text>{" "}
-                                                {session.action}
-                                            </Text>
-                                            <Text className="text-xs text-slate-500">{session.time}</Text>
-                                        </View>
-                                        <TouchableOpacity
-                                            onPress={() => router.push("/join-session")}
-                                            className="px-3 py-1.5 rounded-lg"
-                                            style={{ backgroundColor: "rgba(139, 92, 246, 0.2)" }}
-                                        >
-                                            <Text className="text-xs font-medium text-violet-400">Watch</Text>
-                                        </TouchableOpacity>
-                                    </View>
+                                {mockDetailingFeed.slice(0, 2).map((session, index) => (
+                                    <SessionCard
+                                        key={session.id}
+                                        session={session}
+                                        colorIndex={index}
+                                    />
                                 ))}
                             </View>
                         </View>
@@ -169,29 +171,25 @@ export default function GroupDetailsScreen() {
                     <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4">
                         <View className="flex-row items-center justify-between mb-3">
                             <Text className="text-sm font-medium text-slate-200">Weekly Progress</Text>
-                            <Text className="text-xs text-emerald-400">75% achieved</Text>
+                            <Text className="text-xs text-emerald-400">
+                                {Math.round(weeklyProgress * 100)}% achieved
+                            </Text>
                         </View>
-                        <View className="h-3 bg-navy-800 rounded-full overflow-hidden mb-2">
-                            <View
-                                className="h-full rounded-full"
-                                style={{
-                                    width: "75%",
-                                    backgroundColor: COLORS.emerald,
-                                }}
-                            />
-                        </View>
-                        <Text className="text-xs text-slate-500">
-                            {Math.round(group.weeklyTarget * 0.75)}h / {group.weeklyTarget}h this week
+                        <ProgressBar progress={weeklyProgress} color={COLORS.emerald} height={12} />
+                        <Text className="text-xs text-slate-500 mt-2">
+                            {Math.round(group.weeklyTarget * weeklyProgress)}h / {group.weeklyTarget}h this week
                         </Text>
                     </View>
                 </View>
 
-                {/* Spacer for bottom button */}
                 <View className="h-20" />
             </ScrollView>
 
             {/* Join Button */}
-            <View className="absolute bottom-0 left-0 right-0 px-4 pb-6 pt-2" style={{ backgroundColor: COLORS.bgPrimary }}>
+            <View
+                className="absolute bottom-0 left-0 right-0 px-4 pb-6 pt-2"
+                style={{ backgroundColor: COLORS.bgPrimary }}
+            >
                 <TouchableOpacity
                     onPress={() => router.back()}
                     className="bg-brand-500 py-4 rounded-2xl flex-row items-center justify-center gap-2"
