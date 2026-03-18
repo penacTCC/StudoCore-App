@@ -13,13 +13,12 @@ import {
     Image,
 } from "react-native";
 import { router } from "expo-router";
-import { Eye, EyeOff, Github, BookOpen, ArrowLeft } from "lucide-react-native";
+import { Eye, EyeOff, Github, ArrowLeft } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 import { supabase } from "../supabase";
 import * as WebBrowser from 'expo-web-browser';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as Linking from 'expo-linking';
-import { makeRedirectUri } from 'expo-auth-session';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -272,7 +271,10 @@ export default function LoginScreen() {
                 </View>
 
                 {/* Forgot password */}
-                <TouchableOpacity style={{ alignSelf: "flex-end", marginBottom: 22 }}>
+                <TouchableOpacity
+                    onPress={() => router.push("/(auth)/forgot-password")}
+                    style={{ alignSelf: "flex-end", marginBottom: 22 }}
+                >
                     <Text style={{ fontSize: 13, color: COLORS.violetLight, fontWeight: "500" }}>
                         Esqueceu a senha?
                     </Text>
