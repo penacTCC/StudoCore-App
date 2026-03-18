@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
     View,
     Text,
@@ -12,11 +12,13 @@ import {
     Pressable,
     Modal,
     DeviceEventEmitter,
+    Image,
 } from "react-native";
-import { router, useRouter } from "expo-router";
-import { User, AtSign, Calendar, ChevronDown, Brain, Info } from "lucide-react-native";
+import { User, AtSign, Calendar, ChevronDown, Brain, Plus, ImageIcon } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 import { supabase } from "../supabase";
+import * as ImagePicker from 'expo-image-picker';
+import { decode } from 'base64-arraybuffer';
 
 // ── Dots progress indicator ───────────────────────────────────────────────────
 function Dots({ active }: { active: number }) {
@@ -217,6 +219,8 @@ export default function OnboardingProfile() {
     const [username, setUsername] = useState("");
     const [loading, setLoading] = useState(false);
     const [userId, setUserId] = useState("");
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
 
     // Aniversário
     const [birthDay, setBirthDay] = useState("");
@@ -232,6 +236,61 @@ export default function OnboardingProfile() {
             }
         });
     }, []);
+
+    const selectImage = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true, //permite editar a imagem
+                aspect: [1, 1],
+                quality: 0.5, //comprime para 50% do tamanho original, evitar tomar muito espaço no banco de dados
+                base64: true, // obtém diretamente o base64
+            });
+
+            if (result.canceled) {
+                console.log("Usuário cancelou a operação")
+                return
+            }
+
+            const imageUri = result.assets[0].uri;
+            setImagePreview(imageUri);
+
+            const base64 = result.assets[0].base64;
+
+            if (!base64) {
+                console.log("Erro: base64 da imagem não foi gerado.");
+                return;
+            }
+
+            const fileExt = imageUri.split('.').pop();
+            const fileName = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`;
+
+            const { data, error } = await supabase.storage
+                .from('images')
+                .upload(fileName, decode(base64), {
+                    contentType: `image/${fileExt}`,
+                });
+
+            if (error) {
+                Alert.alert("Erro no Supabase", JSON.stringify(error));
+                console.log("Erro detalhado:", error);
+                console.log("Erro ao enviar imagem:", error);
+                return;
+            }
+
+            const { data: urlData } = supabase.storage
+                .from('images')
+                .getPublicUrl(fileName);
+
+            const imagemUrlCompleta = urlData.publicUrl;
+            setImageUrl(imagemUrlCompleta);
+            console.log("Imagem enviada com sucesso:", imagemUrlCompleta);
+
+        } catch (error) {
+            Alert.alert("Erro Crítico no Catch", JSON.stringify(error));
+            console.log(error);
+        }
+    }
 
     // 2. A função HandleFinish cuida de tudo, desde formatação da data, até salvar no banco de dados
     const handleFinish = async () => {
@@ -270,8 +329,26 @@ export default function OnboardingProfile() {
         // O padStart garante que o mês 5 vire "05", por exemplo.
         const dataFormatada = `${year}-${String(birthMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+        //Busca no supabase se o nome de usuario ja existe
+        const { data, error: selectError } = await supabase
+            .from('profiles')
+            .select('nome_usuario')
+            .eq('nome_usuario', username.trim());
+
+        if (selectError) {
+            Alert.alert('Erro ao buscar', selectError.message);
+            setLoading(false);
+            return;
+        }
+
+        if (data && data.length > 0) {
+            Alert.alert('Erro', 'Nome de usuário já existe.');
+            setLoading(false);
+            return;
+        }
+
         // 4. Salvar no Supabase
-        const { error } = await supabase
+        const { error: insertError } = await supabase
             .from('profiles')
             .upsert({ //upsert é uma função que insere ou atualiza um registro
                 id: userId,
@@ -281,8 +358,8 @@ export default function OnboardingProfile() {
                 questoes_feitas: 0
             });
 
-        if (error) {
-            Alert.alert('Erro ao salvar', error.message);
+        if (insertError) {
+            Alert.alert('Erro ao salvar', insertError.message);
             setLoading(false);
         } else {
             // Sucesso! Atualiza a sessão para que o app perceba que o perfil agora exista e libere a ida para as (tabs)
@@ -348,6 +425,29 @@ export default function OnboardingProfile() {
                     <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 20 }}>
                         Essas informações personalizam sua experiência e as questões geradas pela IA.
                     </Text>
+                </View>
+
+                <View className="items-center mb-8 mt-2">
+                    <View className="relative">
+                        <TouchableOpacity
+                            onPress={selectImage}
+                            className="w-32 h-32 rounded-full bg-navy-800 border-[3px] border-navy-700 items-center justify-center overflow-hidden"
+                            style={{ shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 5 }}
+                        >
+                            {imagePreview ? (
+                                <Image className="h-full w-full" source={{ uri: imagePreview || '' }} />
+                            ) : (
+                                <ImageIcon size={36} color={COLORS.textMuted} />
+                            )}
+                            <Text className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">Photo</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={selectImage}
+                            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-brand-500 items-center justify-center border-[3px] border-navy-950"
+                        >
+                            <Plus size={18} color="#ffffff" strokeWidth={3} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* ── Form ── */}
