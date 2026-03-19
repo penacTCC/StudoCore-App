@@ -1,12 +1,21 @@
 import { useState } from "react";
+
+//Componentes do Native
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { X, Plus, Brain } from "lucide-react-native";
+
+//Componentes do expo-router
 import { router } from "expo-router";
+
+//Componentes do Projeto
 import { COLORS } from "@/constants/colors";
 import ShareLink from "@/components/ShareLink";
-import { supabase } from "../supabase";
-import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
+import { ImagePickerAvatar } from "@/components/ui/";
+
+//Serviços
+import { buscarUsuarioLogado } from "@/services/auth";
+import { insereGrupo, insereMembro } from "@/services/groups";
 
 export default function CreateGroupScreen() {
     const [name, setName] = useState("");
@@ -22,34 +31,23 @@ export default function CreateGroupScreen() {
         try {
             if (!name.trim() || !description.trim() || isLoading) return;
 
-            const { data: { user } } = await supabase.auth.getUser();
+            //Busca o usuário logado
+            const { data: { user } } = await buscarUsuarioLogado();
 
-            const { data: NewGroup, error: NewGroupError } = await supabase
-                .from('grupos')
-                .upsert({ //upsert é uma função que insere ou atualiza um registro
-                    nome_grupo: name.trim(),
-                    descricao: description.trim(),
-                    publico: isPublic,
-                    meta_horas: weeklyTarget,
-                    codigo_convite: inviteLink,
-                    foto_grupo: imageUrl,
-                })
-                .select()
-                .single()//retorna apenas um registro, nesse caso, o id do grupo, utilizado na tabela membros
+            if (!user) {
+                Alert.alert('Erro', 'Usuário não autenticado.');
+                return;
+            }
+
+            //Insere o grupo na tabela grupos
+            const { data: NewGroup, error: NewGroupError } = await insereGrupo(name, description, isPublic, weeklyTarget, inviteLink, imageUrl);
 
             if (NewGroupError) {
                 Alert.alert('Erro ao criar grupo', NewGroupError.message);
             }
 
-            const { data: NewMember, error: MemberError } = await supabase
-                .from('membros')
-                .upsert({
-                    user_id: user?.id,
-                    grupo_id: NewGroup.id,
-                    administrador: true
-                })
-                .select()
-                .single()
+            //Insere o usuário na tabela membros
+            const { data: NewMember, error: MemberError } = await insereMembro(user?.id, NewGroup);
 
             if (MemberError) {
                 Alert.alert('Erro ao criar membro', MemberError.message);

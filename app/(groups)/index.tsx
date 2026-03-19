@@ -1,67 +1,18 @@
+//Componentes do Native
 import { View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useState, useCallback } from "react";
-import { router, useFocusEffect } from "expo-router";
-import { supabase } from "../supabase";
+import { router } from "expo-router";
+
+//Serviços do Projeto
 import GroupCard from "@/components/GroupCard";
 import { COLORS } from "@/constants/colors";
+import { useMyGroups } from "@/hooks/useMyGroups";
+
+//Componentes Lucide Native
 import { Plus, Users } from "lucide-react-native";
 
 export default function MyGroupsScreen() {
-    const [groups, setGroups] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-
-    const fetchMyGroups = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            // Fetch groups where the user is a member
-            const { data: memberData, error } = await supabase
-                .from("membros")
-                .select(`
-                    grupo_id,
-                    grupos (
-                        id,
-                        nome_grupo,
-                        descricao,
-                        foto_grupo,
-                        meta_horas,
-                        publico
-                    )
-                `)
-                .eq("user_id", user.id);
-
-            if (error) {
-                console.error("Erro ao buscar grupos:", error);
-                return;
-            }
-
-            // Exclui membros que não tem um grupo correspondente, se houver, e mapeia para a array de grupos
-            const myGroups = memberData
-                ?.filter(m => m.grupos)
-                .map(m => m.grupos);
-
-            setGroups(myGroups || []);
-        } catch (error) {
-            console.error("Error fetching groups:", error);
-        } finally {
-            setIsLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    useFocusEffect(
-        useCallback(() => {
-            fetchMyGroups();
-        }, [])
-    );
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchMyGroups();
-    };
+    const { groups, isLoading, refreshing, onRefresh } = useMyGroups();
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950 edges={['top']}">

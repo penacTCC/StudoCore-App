@@ -1,9 +1,12 @@
 import { useState } from "react";
+
+//Componentes do Native
 import { View, Text, TouchableOpacity, ScrollView, Switch, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+//Componentes Lucide Native
 import {
   ArrowLeft,
-  Camera,
   Pencil,
   Globe,
   Lock,
@@ -12,9 +15,12 @@ import {
   LogOut,
   Trash2,
   ChevronRight,
-  Users
 } from "lucide-react-native";
+
+//Componente do expo-router
 import { router } from "expo-router";
+
+//Componentes do Projeto
 import { COLORS } from "@/constants/colors";
 import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
 

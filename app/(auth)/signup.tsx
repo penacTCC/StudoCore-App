@@ -1,4 +1,6 @@
 import { useState } from "react";
+
+//Componentes do React Native
 import {
     View,
     Text,
@@ -11,15 +13,22 @@ import {
     StatusBar,
     Image,
 } from "react-native";
+
+//Componentes do Expo Router
 import { router } from "expo-router";
-import { Eye, EyeOff, BookOpen, Mail, Lock } from "lucide-react-native";
+
+//Componentes do Lucide React Native
+import { Eye, EyeOff, Mail, Lock } from "lucide-react-native";
+
+//Constantes
 import { COLORS } from "@/constants/colors";
-import { supabase } from "../supabase";
-import BackButton from "@/components/auth/BackButton";
-import DragHandle from "@/components/auth/DragHandle";
-import InputField from "@/components/form/InputField";
-import PasswordStrength from "@/components/form/PasswordStrength";
-import PrimaryButton from "@/components/form/PrimaryButton";
+
+//Componentes do Projeto
+import { BackButton, DragHandle } from "@/components/auth";
+import { InputField, PasswordStrength, PrimaryButton } from "@/components/form";
+
+//Serviços
+import { cadastrarUsuario } from "@/services/auth";
 
 export default function SignUpScreen() {
     const [email, setEmail] = useState("");
@@ -49,7 +58,9 @@ export default function SignUpScreen() {
         }
 
         setIsLoading(true);
-        const { data, error } = await supabase.auth.signUp({ email, password });
+
+        //Cadastra o usuário
+        const { data, error } = await cadastrarUsuario(email, password);
         if (error) {
             Alert.alert("Erro no Cadastro", error.message);
         } else {

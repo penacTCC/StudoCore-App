@@ -1,9 +1,18 @@
 import "../global.css";
 import { Stack, useRouter, useSegments } from "expo-router";
+
+// Suppress non-fatal Expo internal error during splash screen in Expo Go
+if (typeof global !== "undefined") {
+    const originalHandler = (global as any).ErrorUtils?.getGlobalHandler?.();
+    (global as any).ErrorUtils?.setGlobalHandler?.((error: Error, isFatal: boolean) => {
+        if (error?.message?.includes("Unable to activate keep awake")) return;
+        originalHandler?.(error, isFatal);
+    });
+}
 import { StatusBar } from "expo-status-bar";
 import { DeviceEventEmitter, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { supabase } from "./supabase";
+import { supabase } from "../supabase";
 import { useState, useEffect } from "react";
 
 export default function RootLayout() {

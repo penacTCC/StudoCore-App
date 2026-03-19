@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { View, Text, Switch, TouchableOpacity, ScrollView, Image } from "react-native";
+
+//Componentes do React Native
+import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { X, Clock, Play, Flame } from "lucide-react-native";
+
+//Componentes do expo router
 import { router } from "expo-router";
+
+//Constantes
 import { COLORS } from "@/constants/colors";
 import { useLocalSearchParams } from 'expo-router'
 

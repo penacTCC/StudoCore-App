@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+
+//Componentes do native
 import {
     View,
     Text,
@@ -7,12 +9,16 @@ import {
     ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+//Componentes do Lucide Native
 import {
     Play,
     Square,
     ToggleLeft,
     ToggleRight,
 } from "lucide-react-native";
+
+//Constantes
 import { COLORS } from "@/constants/colors";
 import { subjects } from "@/constants/mock-data";
 
@@ -86,8 +92,8 @@ export default function FocusScreen() {
                                         key={subject}
                                         onPress={() => setSelectedSubject(subject === selectedSubject ? "" : subject)}
                                         className={`px-4 py-2.5 rounded-xl border ${selectedSubject === subject
-                                                ? "bg-violet-600 border-violet-500"
-                                                : "bg-slate-800 border-slate-700"
+                                            ? "bg-violet-600 border-violet-500"
+                                            : "bg-slate-800 border-slate-700"
                                             }`}
                                     >
                                         <Text

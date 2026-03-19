@@ -1,4 +1,6 @@
 import { useState } from "react";
+
+//Componentes do React Native
 import {
     View,
     Text,
@@ -9,16 +11,20 @@ import {
     StatusBar,
     Dimensions,
 } from "react-native";
+
+//Componentes do Expo
 import { router } from "expo-router";
+
 import { Mail, CheckCircle } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
-import { supabase } from "../supabase";
-import { makeRedirectUri } from "expo-auth-session";
-import DotPattern from "@/components/auth/DotPattern";
-import LogoMark from "@/components/auth/LogoMark";
-import BackButton from "@/components/auth/BackButton";
-import DragHandle from "@/components/auth/DragHandle";
-import PrimaryButton from "@/components/form/PrimaryButton";
+
+//Componentes da Aplicação
+import { DotPattern, LogoMark, BackButton, DragHandle } from "@/components/auth";
+import { PrimaryButton } from "@/components/form";
+
+//Serviços da Aplicação
+import { recuperarSenha } from "@/services/auth";
+
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -34,9 +40,7 @@ export default function ForgotPasswordScreen() {
         }
 
         setIsLoading(true);
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-            redirectTo: makeRedirectUri({ path: "forgot-password" }),
-        });
+        const { error } = await recuperarSenha(email.trim());
         setIsLoading(false);
 
         if (error) {

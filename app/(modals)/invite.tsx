@@ -1,11 +1,20 @@
 import { useState } from "react";
+
+//Componentes do react native
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { X, Copy, Send, Check } from "lucide-react-native";
+import { X, Send } from "lucide-react-native";
+
+//Componentes do expo router
 import { router } from "expo-router";
+
+//Constantes
 import { COLORS } from "@/constants/colors";
+
+//Componentes do projeto
 import ShareLink from "@/components/ShareLink";
 
+//Mock
 const mockPendingInvites = [
     { id: 1, email: "sarah.j@university.edu" },
     { id: 2, email: "mike.chen@student.io" },
