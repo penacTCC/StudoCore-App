@@ -119,7 +119,7 @@ export default function GroupDetailsScreen() {
                                         style={{ backgroundColor: COLORS.primaryFaint }}
                                     >
                                         <Avatar
-                                            initials={user.initials}
+                                            foto={user.initials}
                                             colorIndex={index}
                                             size={32}
                                             showOnlineDot
