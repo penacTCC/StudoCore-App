@@ -108,12 +108,28 @@ export default function MyGroupsScreen() {
                             onPress={() => {
                                 // Idealmente a gente salvaria esse grupo no context ou Async Storage aqui 
                                 // antes de navegar. Por enquanto só navegamos para as tabs
-                                router.push("/(tabs)");
+                                router.push({
+                                    pathname: "/(tabs)",
+                                    params: {
+                                        groupId: item.id,
+                                        groupName: item.nome_grupo,
+                                        groupPhoto: item.foto_grupo
+                                    }
+                                });
                             }}
                         />
                     )}
                 />
             )}
+            <TouchableOpacity
+                onPress={() => router.push("/create-group")}
+                className="w-full flex-row items-center justify-center gap-2 bg-brand-500 py-4 rounded-xl"
+            >
+                <Plus size={20} color={COLORS.white} />
+                <Text className="text-white font-semibold text-lg">
+                    Criar um grupo
+                </Text>
+            </TouchableOpacity>
         </SafeAreaView>
     );
 }

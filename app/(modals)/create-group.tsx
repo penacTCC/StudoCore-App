@@ -55,9 +55,8 @@ export default function CreateGroupScreen() {
                 Alert.alert('Erro ao criar membro', MemberError.message);
             }
 
-            console.log(NewMember)
             Alert.alert('Sucesso!', 'Grupo criado com sucesso!');
-            router.push("/(tabs)");
+            router.push("/(groups)");
 
         } catch (error) {
             Alert.alert('Erro ao criar grupo', JSON.stringify(error));

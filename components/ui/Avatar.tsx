@@ -2,7 +2,7 @@ import { View, Text } from "react-native";
 import { getAvatarColor } from "@/constants/helpers";
 
 interface AvatarProps {
-    initials: string;
+    foto: string;
     /** Índice para determinar a cor de fundo (via getAvatarColor) */
     colorIndex: number;
     /** Tamanho em px. Padrão: 40 */
@@ -16,7 +16,7 @@ interface AvatarProps {
  * Reutilizado em: index.tsx, browse-groups.tsx, group-details.tsx, detailing.tsx
  */
 export default function Avatar({
-    initials,
+    foto,
     colorIndex,
     size = 40,
     showOnlineDot = false,
@@ -35,7 +35,7 @@ export default function Avatar({
                     className="text-white font-bold"
                     style={{ fontSize: size * 0.35 }}
                 >
-                    {initials}
+                    {foto}
                 </Text>
             </View>
             {showOnlineDot && (
