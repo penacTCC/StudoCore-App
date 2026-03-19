@@ -1,8 +1,16 @@
 import { View, Text, TextInput, TouchableOpacity } from "react-native";
+
+//Componentes do react native
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Link as LinkIcon } from "lucide-react-native";
+
+//Componentes do expo router
 import { router } from "expo-router";
+
+//Constantes
 import { COLORS } from "@/constants/colors";
+
+//Componentes do projeto
 import { useState } from "react";
 
 export default function JoinByCodeScreen() {
@@ -56,15 +64,13 @@ export default function JoinByCodeScreen() {
 
                 <TouchableOpacity
                     onPress={handleJoin}
-                    className={`w-full py-4 rounded-xl items-center justify-center ${
-                        code.trim().length > 0 ? "bg-brand-500" : "bg-navy-800"
-                    }`}
+                    className={`w-full py-4 rounded-xl items-center justify-center ${code.trim().length > 0 ? "bg-brand-500" : "bg-navy-800"
+                        }`}
                     disabled={code.trim().length === 0}
                 >
                     <Text
-                        className={`font-semibold text-lg ${
-                            code.trim().length > 0 ? "text-white" : "text-slate-500"
-                        }`}
+                        className={`font-semibold text-lg ${code.trim().length > 0 ? "text-white" : "text-slate-500"
+                            }`}
                     >
                         Entrar no Grupo
                     </Text>

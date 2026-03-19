@@ -1,4 +1,6 @@
 import { useRef, useEffect } from "react";
+
+//Componentes do React Native
 import {
     View,
     Text,
@@ -8,8 +10,14 @@ import {
     StatusBar,
     Image
 } from "react-native";
+
+//Componentes do Expo Router
 import { router } from "expo-router";
-import { BookOpen, Sparkles, Brain, Users } from "lucide-react-native";
+
+//Componentes do Lucide React Native
+import { Sparkles, Brain, Users } from "lucide-react-native";
+
+//Componentes da Aplicação
 import { COLORS } from "@/constants/colors";
 
 const { width: W, height: H } = Dimensions.get("window");

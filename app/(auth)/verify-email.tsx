@@ -7,11 +7,22 @@ import {
     ActivityIndicator,
     Alert,
 } from "react-native";
+
+//Componentes do Expo Router
 import { router } from "expo-router";
+
+//Componentes do Lucide React Native
 import { ArrowLeft, Mail, RefreshCw, CheckCircle } from "lucide-react-native";
+
+//Constantes
 import { COLORS } from "@/constants/colors";
-import { supabase } from "../supabase";
+import { supabase } from "@/supabase";
+
+//Componentes do Projeto
 import { useState } from "react";
+
+//Serviços
+import { reenviarEmailConfirmacao } from "@/services/auth";
 
 export default function VerifyEmailScreen() {
     const [isChecking, setIsChecking] = useState(false);
@@ -19,6 +30,8 @@ export default function VerifyEmailScreen() {
 
     const handleConfirmed = async () => {
         setIsChecking(true);
+
+        //Verifica se o email está confirmado
         const { data, error } = await supabase.auth.getSession();
 
         const isEmailVerified = !!data.session?.user?.email_confirmed_at;
@@ -39,6 +52,8 @@ export default function VerifyEmailScreen() {
 
     const handleResend = async () => {
         setIsResending(true);
+
+        //Obtém o email do usuário
         const { data: { session } } = await supabase.auth.getSession();
         const email = session?.user?.email ?? "";
 
@@ -48,7 +63,8 @@ export default function VerifyEmailScreen() {
             return;
         }
 
-        const { error } = await supabase.auth.resend({ type: "signup", email });
+        //Reenvia o email de confirmação
+        const { error } = await reenviarEmailConfirmacao(email);
 
         if (error) {
             Alert.alert("Erro ao reenviar", error.message);

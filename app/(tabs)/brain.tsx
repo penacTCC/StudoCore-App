@@ -1,12 +1,16 @@
 import { useState } from "react";
+
+//Componentes do native
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronRight, Sparkles } from "lucide-react-native";
+
+//Constantes
 import { COLORS } from "@/constants/colors";
 import { mockFailedQuestions } from "@/constants/mock-data";
-import TabSelector from "@/components/ui/TabSelector";
-import ProgressBar from "@/components/ui/ProgressBar";
-import StatCard from "@/components/ui/StatCard";
+
+//Componentes do projeto
+import { ProgressBar, StatCard } from "@/components/ui/";
 
 type BrainTab = "database" | "analytics";
 
@@ -40,14 +44,12 @@ export default function BrainScreen() {
                         <TouchableOpacity
                             key={tab.key}
                             onPress={() => setBrainTab(tab.key as BrainTab)}
-                            className={`flex-1 py-2 rounded-lg items-center ${
-                                brainTab === tab.key ? "bg-violet-600" : ""
-                            }`}
+                            className={`flex-1 py-2 rounded-lg items-center ${brainTab === tab.key ? "bg-violet-600" : ""
+                                }`}
                         >
                             <Text
-                                className={`text-sm font-medium ${
-                                    brainTab === tab.key ? "text-white" : "text-slate-400"
-                                }`}
+                                className={`text-sm font-medium ${brainTab === tab.key ? "text-white" : "text-slate-400"
+                                    }`}
                             >
                                 {tab.label}
                             </Text>

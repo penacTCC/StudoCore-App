@@ -1,5 +1,4 @@
 import { Tabs } from "expo-router";
-import { View } from "react-native";
 import { Users, Timer, Brain, FolderArchive, User } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 

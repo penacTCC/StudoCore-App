@@ -11,20 +11,26 @@ import {
     Alert,
     DeviceEventEmitter,
 } from "react-native";
-import { User, AtSign, Calendar, ChevronDown, Brain } from "lucide-react-native";
+
+//Componentes do Expo
+import { supabase } from "@/supabase";
+
+//Componentes da Aplicação
 import { COLORS } from "@/constants/colors";
-import { supabase } from "../supabase";
-import InputField from "@/components/form/InputField";
-import PrimaryButton from "@/components/form/PrimaryButton";
-import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
-import MonthPicker from "@/components/ui/MonthPicker";
-import StepDots from "@/components/ui/StepDots";
+import { InputField, PrimaryButton } from "@/components/form";
+import { ImagePickerAvatar, MonthPicker, StepDots } from "@/components/ui";
+
+//Componentes do Lucide React Native
+import { User, AtSign, Calendar, ChevronDown, Brain } from "lucide-react-native";
+
+//Serviços da aplicação
+import { useAuth } from "@/hooks/useAuth";
+import { salvarDadosPerfil, verificarNomeUsuario } from "@/services/auth";
 
 export default function OnboardingProfile() {
     const [realName, setRealName] = useState("");
     const [username, setUsername] = useState("");
     const [loading, setLoading] = useState(false);
-    const [userId, setUserId] = useState("");
     const [imageUrl, setImageUrl] = useState<string | null>(null);
 
     // Aniversário
@@ -38,11 +44,7 @@ export default function OnboardingProfile() {
         "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
     ];
 
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) setUserId(session.user.id);
-        });
-    }, []);
+    const { userId, isLoading } = useAuth();
 
     const handleFinish = async () => {
         const day = parseInt(birthDay, 10);
@@ -77,10 +79,8 @@ export default function OnboardingProfile() {
 
         const dataFormatada = `${year}-${String(birthMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-        const { data, error: selectError } = await supabase
-            .from("profiles")
-            .select("nome_usuario")
-            .eq("nome_usuario", username.trim());
+        //Verifica se o nome de usuário já existe
+        const { data, error: selectError } = await verificarNomeUsuario(username);
 
         if (selectError) {
             Alert.alert("Erro ao buscar", selectError.message);
@@ -94,13 +94,8 @@ export default function OnboardingProfile() {
             return;
         }
 
-        const { error: insertError } = await supabase.from("profiles").upsert({
-            id: userId,
-            nome_usuario: username.trim(),
-            nome_real: realName.trim(),
-            data_nascimento: dataFormatada,
-            questoes_feitas: 0,
-        });
+        //Salva os dados do perfil
+        const { error: insertError } = await salvarDadosPerfil(userId, realName, username, dataFormatada, imageUrl);
 
         if (insertError) {
             Alert.alert("Erro ao salvar", insertError.message);

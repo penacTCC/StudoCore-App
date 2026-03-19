@@ -1,4 +1,5 @@
 import { useState } from "react";
+//Componentes do React Native
 import {
     View,
     Text,
@@ -10,18 +11,22 @@ import {
     StatusBar,
     Dimensions,
 } from "react-native";
+
+//Componentes do Expo
 import { router } from "expo-router";
-import { Eye, EyeOff, Github } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
-import { supabase } from "../supabase";
 import * as WebBrowser from "expo-web-browser";
 import * as QueryParams from "expo-auth-session/build/QueryParams";
 import * as Linking from "expo-linking";
-import DotPattern from "@/components/auth/DotPattern";
-import LogoMark from "@/components/auth/LogoMark";
-import BackButton from "@/components/auth/BackButton";
-import DragHandle from "@/components/auth/DragHandle";
-import PrimaryButton from "@/components/form/PrimaryButton";
+
+import { Eye, EyeOff, Github } from "lucide-react-native";
+import { COLORS } from "@/constants/colors";
+
+//Componentes da Aplicação
+import { DotPattern, LogoMark, BackButton, DragHandle } from "@/components/auth";
+import { PrimaryButton } from "@/components/form";
+
+//Serviços da Aplicação
+import { gerarUrlLoginGoogle, loginComSenha, validarSessaoGoogle } from "@/services/auth";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -37,13 +42,7 @@ export default function LoginScreen() {
     const handleGoogleSignIn = async () => {
         try {
             const redirectUrl = Linking.createURL("/(auth)/onboarding-profile");
-            const { data, error } = await supabase.auth.signInWithOAuth({
-                provider: "google",
-                options: {
-                    redirectTo: redirectUrl,
-                    skipBrowserRedirect: true,
-                },
-            });
+            const { data, error } = await gerarUrlLoginGoogle(redirectUrl);
             if (error) throw error;
 
             const res = await WebBrowser.openAuthSessionAsync(data?.url ?? "", redirectUrl);
@@ -51,9 +50,7 @@ export default function LoginScreen() {
             if (res.type === "success") {
                 const { params } = QueryParams.getQueryParams(res.url);
                 if (params.code) {
-                    const { error: sessionError } = await supabase.auth.exchangeCodeForSession(
-                        params.code
-                    );
+                    const { error: sessionError } = await validarSessaoGoogle(params.code);
                     if (sessionError) throw sessionError;
                 } else if (params.error) {
                     Alert.alert("Erro no Google", params.error_description ?? params.error);
@@ -72,7 +69,7 @@ export default function LoginScreen() {
             setIsLoading(false);
             return;
         }
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await loginComSenha(email, password);
         if (error) {
             Alert.alert("Erro no Login", error.message);
         }

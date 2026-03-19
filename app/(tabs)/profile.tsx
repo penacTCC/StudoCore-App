@@ -17,7 +17,7 @@ import { COLORS } from "@/constants/colors";
 import { mockBadges } from "@/constants/mock-data";
 import { getAvatarColor } from "@/constants/helpers";
 import type { LucideIcon } from "lucide-react-native";
-import { supabase } from "../supabase";
+import { supabase } from "@/supabase";
 
 const iconMap: Record<string, LucideIcon> = {
     Star,
@@ -43,6 +43,26 @@ export default function ProfileScreen() {
             return COLORS.bgTertiary;
         });
     }, []);
+
+    const handleSignOut = () => {
+        Alert.alert(
+            "Sair da conta",
+            "Tem certeza que deseja sair?",
+            [
+                { text: "Cancelar", style: "cancel" },
+                {
+                    text: "Sair",
+                    style: "destructive",
+                    onPress: async () => {
+                        const { error } = await supabase.auth.signOut();
+                        if (error) {
+                            Alert.alert("Erro", "Não foi possível sair da conta.");
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
@@ -230,20 +250,7 @@ export default function ProfileScreen() {
                 {/* Sign Out */}
                 <View className="px-4 mb-8">
                     <TouchableOpacity
-                        onPress={() =>
-                            Alert.alert(
-                                "Sair da conta",
-                                "Tem certeza que deseja sair?",
-                                [
-                                    { text: "Cancelar", style: "cancel" },
-                                    {
-                                        text: "Sair",
-                                        style: "destructive",
-                                        onPress: () => supabase.auth.signOut(),
-                                    },
-                                ]
-                            )
-                        }
+                        onPress={handleSignOut}
                         style={{
                             flexDirection: "row",
                             alignItems: "center",
