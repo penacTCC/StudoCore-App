@@ -45,7 +45,7 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
             {/* User row */}
             <View className="flex-row items-center gap-3 mb-3">
                 <Avatar
-                    initials={session.initials}
+                    foto={session.initials}
                     colorIndex={colorIndex}
                     size={40}
                     showOnlineDot={session.streak >= 10}

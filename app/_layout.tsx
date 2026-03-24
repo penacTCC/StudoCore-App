@@ -14,13 +14,20 @@ import { DeviceEventEmitter, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { supabase } from "../supabase";
 import { useState, useEffect } from "react";
+import * as SplashScreen from "expo-splash-screen";
+import { loadLastGroupLocally } from "../services/offlineStorage";
+import { fetchGroupById } from "../services/groups";
+
+// Impede que a tela de splash suma imediatamente
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
     const [isInitialized, setIsInitialized] = useState(false);
     const [session, setSession] = useState<any>(null);
     const [isMember, setIsMember] = useState<boolean | null>(null);
+    const [lastGroupParams, setLastGroupParams] = useState<any>(undefined);
 
-    // MUDANÇA 1: Começa como null para indicar que está carregando
+    //Começa como null para indicar que está carregando
     const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
 
     const router = useRouter();
@@ -42,6 +49,8 @@ export default function RootLayout() {
 
     // ── 2. Verifica o Perfil e Liga o DeviceEventEmitter 
     useEffect(() => {
+        if (!isInitialized) return; // Aguarda a checagem da sessão terminar
+
         if (!session) {
             setProfileComplete(false);
             return;
@@ -69,6 +78,8 @@ export default function RootLayout() {
 
     //Verifica se o usuario tem um grupo
     useEffect(() => {
+        if (!isInitialized) return; // Aguarda a checagem da sessão terminar
+
         if (!session) {
             setIsMember(false);
             return;
@@ -84,16 +95,39 @@ export default function RootLayout() {
 
             setIsMember(!!member);
             console.log("Member: ", member);
+
+            // Se for membro, tenta carregar o último grupo visitado
+            if (member) {
+                // Tenta achar o grupo ANTES de avisar o Guarda
+                const lastGroupId = await loadLastGroupLocally();
+                let paramsToSave = null; // Presume null por padrão, para que ele espere
+                if (lastGroupId) {
+                    const groupInfo = await fetchGroupById(lastGroupId);
+                    if (groupInfo) {
+                        paramsToSave = ({
+                            groupId: groupInfo.id,
+                            groupName: groupInfo.nome_grupo,
+                            groupPhoto: groupInfo.foto_grupo
+                        });
+                    }
+                    // Atualiza os states na ordem certa
+                    setLastGroupParams(paramsToSave);
+                    setIsMember(true); // Só agora que o Guarda pode ver que ele tem grupo
+                }
+            } else {
+                setLastGroupParams(undefined);
+            }
         };
 
         checkGroup();
     }, [session]);
 
-    // ── 3. O Guarda de Trânsito
+    //O Guarda 
     useEffect(() => {
-        // O app SÓ TOMA DECISÃO se já inicializou e se já checou o perfil (!== null) e grupo
-        if (!isInitialized || profileComplete === null || isMember === null) return;
+        // O app só faz algo se já inicializou e se já checou o perfil e grupo. Além disso, ele precisa obrigatoriamente verificar os grupos salvos localmente no asyncStorage
+        if (!isInitialized || profileComplete === null || isMember === null || (isMember === true && lastGroupParams === undefined)) return;
 
+        let destinationHandled = false;
         const inAuthGroup = segments[0] === '(auth)';
         const isProfileScreen = segments.includes('onboarding-profile');
         const isVerifyEmailScreen = segments.includes('verify-email');
@@ -105,29 +139,47 @@ export default function RootLayout() {
             if (!inAuthGroup) {
                 router.replace('/(auth)/onboarding-welcome');
             }
+            destinationHandled = true;
         } else if (!isEmailVerified) {
             // Com sessão, mas sem e-mail confirmado → Verify Email (MUDANÇA 4)
             if (!isVerifyEmailScreen) {
                 router.replace('/(auth)/verify-email');
             }
+            destinationHandled = true;
         } else if (!profileComplete) {
             // E-mail OK, mas sem perfil → Onboarding Profile
             if (!isProfileScreen) {
                 router.replace('/(auth)/onboarding-profile');
             }
+            destinationHandled = true;
         } else if (!isMember) {
             // Se não tem grupo → No Group
             if (inAuthGroup) {
                 router.replace('/(groups)/no-group');
             }
+            destinationHandled = true;
         } else {
-            // Tudo perfeito → Vai para o App (My Groups)
-            if (inAuthGroup) {
-                router.replace('/(groups)');
+            // Cuida do caso de o usuário não entrar em alguma tela do grupo (auth)
+            const inIndex = segments[0] === 'index' || !segments.length;
+
+            if (inAuthGroup || inIndex) {
+                if (lastGroupParams) {
+                    router.replace({ pathname: '/(tabs)', params: lastGroupParams });
+                } else {
+                    router.replace('/(groups)');
+                }
             }
+            destinationHandled = true;
         }
 
-    }, [session, isInitialized, profileComplete, segments, isMember]);
+        if (destinationHandled) {
+            // Dá um tempo bem pequeno para o router fazer o replace das telas antes de sumir o splash
+            setTimeout(() => {
+                SplashScreen.hideAsync().catch(() => { });
+            }, 200);
+        }
+
+    }, [session, isInitialized, profileComplete, segments, isMember, lastGroupParams]);
 
     return (
         <SafeAreaProvider>

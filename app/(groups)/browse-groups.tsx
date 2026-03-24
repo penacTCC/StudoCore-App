@@ -13,19 +13,24 @@ import { usePublicGroups } from "@/hooks/usePublicGroups";
 //Componentes gráficos
 import SearchBar from "@/components/ui/SearchBar";
 import PublicGroupCard from "@/components/groups/PublicGroupCard";
+import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 
 export default function BrowseGroupsScreen() {
+
+    //Faz sistema de pesquisa
     const [searchQuery, setSearchQuery] = useState("");
 
-    const { publicGroups, isLoading, refetchGroups } = usePublicGroups();
+    //Busca os grupos públicos
+    const { publicGroups, isLoading } = usePublicGroups();
 
+    //Filtra os grupos por pesquisa
     const filteredGroups = publicGroups.filter(
         (g) =>
             g.nome_grupo.toLowerCase().includes(searchQuery.toLowerCase()) ||
             g.descricao.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const totalActive = publicGroups.reduce((acc, g) => acc + g.activeNow, 0);
+    const { onlineUsers } = useOnlineUsers();
 
     if (isLoading) {
         return <Text>Carregando os melhores grupos para você...</Text>;
@@ -81,7 +86,7 @@ export default function BrowseGroupsScreen() {
                     </View>
                     <View>
                         <Text className="text-lg font-bold text-slate-200">
-                            {totalActive} estudando agora
+                            {onlineUsers.length} estudando agora
                         </Text>
                         <Text className="text-sm text-slate-400">
                             {publicGroups.length} grupos públicos disponíveis

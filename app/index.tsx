@@ -1,5 +1,7 @@
-import { Redirect } from "expo-router";
+import { View } from "react-native";
 
 export default function Index() {
-    return <Redirect href="/onboarding-welcome" />;
+    // Retornamos apenas uma View vazia, pois o layout já cuida da navegaão
+    // e vai redirecionar nativamente pra tela certa 
+    return <View style={{ flex: 1, backgroundColor: '#020617' }} />;
 }

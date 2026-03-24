@@ -2,8 +2,9 @@ import { View, Text, TouchableOpacity, Image } from "react-native";
 import { Users, Target } from "lucide-react-native";
 import { router } from "expo-router";
 import { COLORS } from "@/constants/colors";
-import { getAvatarColor } from "@/constants/helpers";
-import Avatar from "@/components/ui/Avatar";
+import { joinPublicGroup } from "@/services/groups";
+import { usePublicGroups } from "@/hooks/usePublicGroups";
+import { saveLastGroupLocally } from "@/services/offlineStorage";
 
 interface PublicGroup {
     id: string;
@@ -29,10 +30,26 @@ interface PublicGroupCardProps {
  * e botão Join. Extraído de browse-groups.tsx.
  */
 export default function PublicGroupCard({
-    group,
-    colorIndex,
-    onJoin,
+    group
 }: PublicGroupCardProps) {
+
+    const { refetchGroups } = usePublicGroups();
+
+
+    const onJoin = async (groupId: string) => {
+        await joinPublicGroup(groupId);
+        await saveLastGroupLocally(groupId);
+        refetchGroups();
+        router.push({
+            pathname: "/(tabs)",
+            params: {
+                groupId: groupId,
+                groupName: group.nome_grupo,
+                groupPhoto: group.foto_grupo,
+            }
+        })
+    }
+
     return (
         <TouchableOpacity
             onPress={() =>
@@ -45,7 +62,7 @@ export default function PublicGroupCard({
         >
             <View className="flex-row items-start gap-3">
                 {/* Avatar */}
-               <View className="w-16 h-16 rounded-xl bg-slate-800 overflow-hidden items-center justify-center border border-slate-700 mr-4">
+                <View className="w-16 h-16 rounded-xl bg-slate-800 overflow-hidden items-center justify-center border border-slate-700 mr-4">
                     {group.foto_grupo ? (
                         <Image source={{ uri: group.foto_grupo }} className="w-full h-full" resizeMode="cover" />
                     ) : (
@@ -88,7 +105,7 @@ export default function PublicGroupCard({
                         <View className="flex-row items-center gap-1">
                             <Target size={12} color={COLORS.textMuted} />
                             <Text className="text-xs text-slate-500">
-                                {group.weeklyTarget}h/week
+                                {group.meta_horas}h/week
                             </Text>
                         </View>
                     </View>
@@ -96,7 +113,7 @@ export default function PublicGroupCard({
 
                 {/* Join Button */}
                 <TouchableOpacity
-                    onPress={onJoin ?? (() => router.push("/(tabs)"))}
+                    onPress={() => onJoin(group.id)}
                     className="bg-brand-500 px-4 py-2 rounded-xl"
                 >
                     <Text className="text-white text-sm font-medium">Join</Text>

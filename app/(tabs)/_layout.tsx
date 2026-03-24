@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Users, Timer, Brain, FolderArchive, User } from "lucide-react-native";
+import { Users, Timer, Brain, FolderArchive, User, CalendarDays } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 
 export default function TabLayout() {

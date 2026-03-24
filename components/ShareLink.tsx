@@ -2,12 +2,13 @@ import { COLORS } from "@/constants/colors";
 import { Check, Copy } from "lucide-react-native";
 import { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native"
+import * as Clipboard from 'expo-clipboard';
 
 const ShareLink = ({ inviteLink }: { inviteLink: string }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    // In a real app, use Clipboard.setStringAsync(inviteLink)
+    Clipboard.setStringAsync(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

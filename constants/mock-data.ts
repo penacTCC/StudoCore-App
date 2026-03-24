@@ -30,17 +30,39 @@ export const mockBadges = [
     { id: 6, name: "Team Player", icon: "Users" as const, unlocked: false },
 ];
 
-export const mockFailedQuestions: { id: number; subject: string; question: string; date: string }[] = [];
-
-export const mockStudySchedule = [
-    { id: 1, day: 0, time: "09:00", subject: "Mathematics", duration: 90 },
-    { id: 2, day: 0, time: "14:00", subject: "Physics", duration: 60 },
-    { id: 3, day: 1, time: "10:00", subject: "Chemistry", duration: 75 },
-    { id: 4, day: 2, time: "09:00", subject: "Biology", duration: 60 },
-    { id: 5, day: 3, time: "11:00", subject: "History", duration: 45 },
+export const mockFailedQuestions: { id: number; subject: string; question: string; date: string }[] = [
+    {
+        id: 1,
+        subject: "Matemática",
+        question: "Qual é a derivada de f(x) = x³ − 2x + 5?",
+        date: "22/03/2026",
+    },
 ];
 
-export const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+export const mockStudySchedule = [
+    { id: 1, day: 0, time: "09:00", subject: "Matemática", duration: 90 },
+    { id: 2, day: 0, time: "14:00", subject: "Física", duration: 60 },
+    { id: 3, day: 1, time: "10:00", subject: "Química", duration: 75 },
+    { id: 4, day: 2, time: "09:00", subject: "Biologia", duration: 60 },
+    { id: 5, day: 3, time: "11:00", subject: "História", duration: 45 },
+];
+
+export const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+export const diasDaSemana = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+export const disciplinasComCores: { name: string; color: string }[] = [
+    { name: "Matemática",  color: "#7c3aed" },
+    { name: "Física",      color: "#e11d48" },
+    { name: "Química",     color: "#059669" },
+    { name: "Biologia",    color: "#0891b2" },
+    { name: "História",    color: "#d97706" },
+    { name: "Geografia",   color: "#65a30d" },
+    { name: "Português",   color: "#db2777" },
+    { name: "Inglês",      color: "#2563eb" },
+    { name: "Literatura",  color: "#9333ea" },
+    { name: "Filosofia",   color: "#64748b" },
+];
 
 export const mockPendingInvites = [
     { id: 1, email: "john@email.com", status: "pending" },

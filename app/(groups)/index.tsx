@@ -7,6 +7,7 @@ import { router } from "expo-router";
 import GroupCard from "@/components/GroupCard";
 import { COLORS } from "@/constants/colors";
 import { useMyGroups } from "@/hooks/useMyGroups";
+import { saveLastGroupLocally } from "@/services/offlineStorage";
 
 //Componentes Lucide Native
 import { Plus, Users } from "lucide-react-native";
@@ -56,9 +57,9 @@ export default function MyGroupsScreen() {
                     renderItem={({ item }) => (
                         <GroupCard
                             group={item}
-                            onPress={() => {
-                                // Idealmente a gente salvaria esse grupo no context ou Async Storage aqui 
-                                // antes de navegar. Por enquanto só navegamos para as tabs
+                            onPress={async () => {
+                                // Salva esse grupo na memória antes de navegar
+                                await saveLastGroupLocally(item.id);
                                 router.push({
                                     pathname: "/(tabs)",
                                     params: {
