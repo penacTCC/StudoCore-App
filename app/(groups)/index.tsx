@@ -65,7 +65,8 @@ export default function MyGroupsScreen() {
                                     params: {
                                         groupId: item.id,
                                         groupName: item.nome_grupo,
-                                        groupPhoto: item.foto_grupo
+                                        groupPhoto: item.foto_grupo,
+                                        groupCode: item.codigo_grupo
                                     }
                                 });
                             }}

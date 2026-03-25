@@ -37,10 +37,14 @@ export default function GroupDetailsScreen() {
         loadGroup();
     }, [groupId]);
 
-    //Pega usuários online
+    //Pega usuários online no App (A Lista Global)
     const { onlineUsers } = useOnlineUsers(groupId);
-    //Filtra o próprio usuário da lista de onlineUsers
-    const onlineOthers = onlineUsers.filter(id => id !== userId);
+    
+    // Pega as IDs de todos os membros DESTE grupo específico
+    const memberIds = members.map((m: any) => m.user_id || m.userData?.id);
+
+    // Filtra a lista global para mostrar APENAS quem tá logado, é membro daqui E não é você
+    const activeGroupMembers = onlineUsers.filter(id => id !== userId && memberIds.includes(id));
 
     if (isLoading || !group) {
         return (
@@ -99,7 +103,7 @@ export default function GroupDetailsScreen() {
                                         </Text>
                                     )}
                                 </View>
-                                {group.isOnline && (
+                                {activeGroupMembers.length > 0 && (
                                     <View className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-2 border-slate-900 rounded-full items-center justify-center">
                                         <View className="w-2 h-2 bg-white rounded-full" />
                                     </View>
@@ -124,7 +128,7 @@ export default function GroupDetailsScreen() {
                 <View className="px-4 mb-4">
                     <View className="flex-row gap-3">
                         <StatCard value={group.members} label="Members" valueColor={COLORS.violetLight} />
-                        <StatCard value={onlineOthers.length} label="Active Now" valueColor={COLORS.emeraldLight} />
+                        <StatCard value={activeGroupMembers.length} label="Active Now" valueColor={COLORS.emeraldLight} />
                         <StatCard value={`${group.meta_horas || 0}h`} label="Weekly Goal" valueColor={COLORS.amber} />
                     </View>
                 </View>
@@ -136,11 +140,11 @@ export default function GroupDetailsScreen() {
                             <Text className="text-sm font-medium text-slate-200">Active Members</Text>
                             <View
                                 className="flex-row items-center gap-1 px-2 py-1 rounded-full"
-                                style={onlineOthers.length > 0 ? { backgroundColor: "rgba(16, 185, 129, 0.2)" } : { backgroundColor: "rgba(255, 0, 0, 0.2)" }}
+                                style={activeGroupMembers.length > 0 ? { backgroundColor: "rgba(16, 185, 129, 0.2)" } : { backgroundColor: "rgba(255, 0, 0, 0.2)" }}
                             >
-                                <View className={`w-1.5 h-1.5 ${onlineOthers.length > 0 ? "bg-emerald-400" : "bg-rose-400"} rounded-full`} />
-                                <Text className={`text-xs ${onlineOthers.length > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                                    {onlineOthers.length > 0 ? onlineOthers.length + " estudando" : "Ninguém estudando"}
+                                <View className={`w-1.5 h-1.5 ${activeGroupMembers.length > 0 ? "bg-emerald-400" : "bg-rose-400"} rounded-full`} />
+                                <Text className={`text-xs ${activeGroupMembers.length > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                    {activeGroupMembers.length > 0 ? activeGroupMembers.length + " estudando" : "Ninguém estudando"}
                                 </Text>
                             </View>
                         </View>
@@ -153,7 +157,7 @@ export default function GroupDetailsScreen() {
                                     <Avatar
                                         foto={member.userData?.foto_usuario}
                                         size={32}
-                                        showOnlineDot={onlineOthers.includes(member.user_id || member.userData?.id)}
+                                        showOnlineDot={activeGroupMembers.includes(member.user_id || member.userData?.id)}
                                     />
                                     <Text className="text-sm text-slate-200">{member.userData?.nome_usuario || "Membro"}</Text>
                                 </View>

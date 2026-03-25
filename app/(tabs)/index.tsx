@@ -34,7 +34,7 @@ export default function GroupScreen() {
     const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
 
     // Captura os parâmetros recebidos da tela anterior
-    const { groupName, groupId, groupPhoto } = useLocalSearchParams(); //<- os parametros
+    const { groupName, groupId, groupPhoto, groupCode } = useLocalSearchParams(); //<- os parametros
 
     //Pega os membros do grupo
     const { members } = useGroupMembers({ groupId: groupId as string });

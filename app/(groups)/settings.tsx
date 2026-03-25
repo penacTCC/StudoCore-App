@@ -18,20 +18,21 @@ import {
 } from "lucide-react-native";
 
 //Componente do expo-router
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 
 //Componentes do Projeto
 import { COLORS } from "@/constants/colors";
 import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
 
 export default function GroupSettingsScreen() {
+  const { groupName, groupId, groupPhoto, groupCode } = useLocalSearchParams();
   const [isPublic, setIsPublic] = useState(true);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const handleLeaveGroup = () => {
     Alert.alert(
       "Sair do Grupo",
-      "Tem certeza que deseja sair do Study Squad Alpha?",
+      `Tem certeza que deseja sair do ${groupName}?`,
       [
         { text: "Cancelar", style: "cancel" },
         { text: "Sair", style: "destructive", onPress: () => router.push("/(tabs)") }
@@ -59,7 +60,7 @@ export default function GroupSettingsScreen() {
         >
           <ArrowLeft size={20} color={COLORS.textSecondary || "#94a3b8"} />
         </TouchableOpacity>
-        <Text className="text-lg font-bold text-slate-200">Group Settings</Text>
+        <Text className="text-lg font-bold text-slate-200">Configurações do Grupo</Text>
         <View className="w-10" />
       </View>
 
@@ -69,7 +70,7 @@ export default function GroupSettingsScreen() {
             bucket="images"
             onImageUploaded={(url) => setImageUrl(url)}
           />
-          <Text className="text-xl font-bold text-slate-200">Study Squad Alpha</Text>
+          <Text className="text-xl font-bold text-slate-200">{groupName}</Text>
           <Text className="text-sm text-slate-400 mt-1">Criado por você em Fev 2026</Text>
         </View>
 

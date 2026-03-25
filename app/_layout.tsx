@@ -74,7 +74,7 @@ export default function RootLayout() {
         });
 
         return () => subscription.remove();
-    }, [session]);
+    }, [session, isInitialized]);
 
     //Verifica se o usuario tem um grupo
     useEffect(() => {
@@ -120,7 +120,7 @@ export default function RootLayout() {
         };
 
         checkGroup();
-    }, [session]);
+    }, [session, isInitialized]);
 
     //O Guarda 
     useEffect(() => {
