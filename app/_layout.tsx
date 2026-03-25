@@ -35,12 +35,18 @@ export default function RootLayout() {
 
     // ── 1. Inicializa a Sessão 
     useEffect(() => {
+        console.log("RootLayout: Iniciando busca de sessão...");
         supabase.auth.getSession().then(({ data: { session } }) => {
+            console.log("RootLayout: Sessão obtida:", session ? "Sim" : "Não");
             setSession(session);
             setIsInitialized(true); //só inicia o app se pegar a sessão
+        }).catch(err => {
+            console.error("RootLayout: Erro ao obter sessão:", err);
+            setIsInitialized(true); // tenta prosseguir mesmo com erro para não travar infinitamente
         });
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            console.log("RootLayout: AuthState changed:", _event);
             setSession(session);
         });
 
@@ -57,12 +63,15 @@ export default function RootLayout() {
         }
 
         const checkProfileComplete = async () => {
-            const { data: profile } = await supabase
+            console.log("RootLayout: Verificando perfil para usuário:", session.user.id);
+            const { data: profile, error } = await supabase
                 .from('profiles')
                 .select('nome_usuario')
                 .eq('id', session.user.id) // Certifique-se de que é 'id' e não 'user_id' aqui
                 .single();
 
+            if (error) console.error("RootLayout: Erro ao checar perfil:", error);
+            console.log("RootLayout: Perfil encontrado:", profile ? profile.nome_usuario : "Nenhum");
             setProfileComplete(!!profile?.nome_usuario);
         };
 
@@ -100,7 +109,7 @@ export default function RootLayout() {
             if (member) {
                 // Tenta achar o grupo ANTES de avisar o Guarda
                 const lastGroupId = await loadLastGroupLocally();
-                let paramsToSave = null; // Presume null por padrão, para que ele espere
+                let paramsToSave = null; // Presume null por padrão
                 if (lastGroupId) {
                     const groupInfo = await fetchGroupById(lastGroupId);
                     if (groupInfo) {
@@ -110,10 +119,10 @@ export default function RootLayout() {
                             groupPhoto: groupInfo.foto_grupo
                         });
                     }
-                    // Atualiza os states na ordem certa
-                    setLastGroupParams(paramsToSave);
-                    setIsMember(true); // Só agora que o Guarda pode ver que ele tem grupo
                 }
+                // Atualiza os states SEMPRE, mesmo sem lastGroupId salvo
+                setLastGroupParams(paramsToSave);
+                setIsMember(true); // Só agora que o Guarda pode ver que ele tem grupo
             } else {
                 setLastGroupParams(undefined);
             }
@@ -124,8 +133,20 @@ export default function RootLayout() {
 
     //O Guarda 
     useEffect(() => {
+        // Log para depuração de onde o app está travando
+        console.log("RootLayout Guard Check:", {
+            isInitialized,
+            profileComplete,
+            isMember,
+            hasLastGroupParams: lastGroupParams !== undefined,
+            isMemberTrue: isMember === true
+        });
+
         // O app só faz algo se já inicializou e se já checou o perfil e grupo. Além disso, ele precisa obrigatoriamente verificar os grupos salvos localmente no asyncStorage
-        if (!isInitialized || profileComplete === null || isMember === null || (isMember === true && lastGroupParams === undefined)) return;
+        if (!isInitialized || profileComplete === null || isMember === null || (isMember === true && lastGroupParams === undefined)) {
+            console.log("RootLayout: Aguardando inicialização completa...");
+            return;
+        }
 
         let destinationHandled = false;
         const inAuthGroup = segments[0] === '(auth)';
