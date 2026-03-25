@@ -230,7 +230,7 @@ export default function ProfileScreen() {
                 {/* Cronogram CTA */}
                 <View className="px-4 mb-4">
                     <TouchableOpacity
-                        onPress={() => router.push("/cronogram")}
+                        onPress={() => router.push("/schedule")}
                         className="bg-slate-900 border border-slate-800 rounded-3xl p-4 flex-row items-center gap-4"
                     >
                         <View

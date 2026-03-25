@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "expo-router"; // ou @react-navigation/native, dependendo da sua importação
 import { supabase } from "@/supabase"; // Ajuste o caminho
-
+import { loadMyGroupsLocally, saveMyGroupsLocally } from "@/services/offlineStorage";
 export function useMyGroups() {
   const [groups, setGroups] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -9,6 +9,15 @@ export function useMyGroups() {
 
   const fetchMyGroups = async () => {
     try {
+      //Busca primeiro os grupos localmente
+      const cachedGroups = await loadMyGroupsLocally();
+      if (cachedGroups) {
+        setGroups(cachedGroups);
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -16,15 +25,15 @@ export function useMyGroups() {
       const { data: memberData, error } = await supabase
         .from("membros")
         .select(`
-                    grupo_id,
-                    grupos (
-                        id,
-                        nome_grupo,
-                        descricao,
-                        foto_grupo,
-                        meta_horas,
-                        publico
-                    )
+                  grupo_id,
+                  grupos (
+                      id,
+                      nome_grupo,
+                      descricao,
+                      foto_grupo,
+                      meta_horas,
+                      publico
+                  )
                 `)
         .eq("user_id", user.id);
 
@@ -38,7 +47,9 @@ export function useMyGroups() {
         ?.filter(m => m.grupos)
         .map(m => m.grupos);
 
-      setGroups(myGroups || []);
+      const finalGroups = myGroups || [];
+      setGroups(finalGroups);
+      await saveMyGroupsLocally(finalGroups);
     } catch (error) {
       console.error("Error fetching groups:", error);
     } finally {

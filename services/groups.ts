@@ -92,5 +92,67 @@ export const insereMembro = async (userId: string, NewGroup: { id: string }) => 
     .single()
 }
 
+//Entrar em um grupo público
+export const joinPublicGroup = async (groupId: string) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
+    const { data: NewMember, error: MemberError } = await supabase
+      .from("membros")
+      .insert({
+        user_id: user.id,
+        grupo_id: groupId,
+        administrador: false
+      })
+      .select()
+      .single();
 
+    if (MemberError) {
+      console.error("Erro ao entrar no grupo:", MemberError);
+      return;
+    }
+
+    return NewMember;
+
+  } catch (error) {
+    console.error("Error joining group:", error);
+    return;
+  }
+}
+
+//Insere código de convite na tabela grupos
+export const insereCodigoConvite = async (groupId: string, inviteCode: string) => {
+  return await supabase
+    .from('grupos')
+    .update({
+      code_convite: inviteCode
+    })
+    .eq('id', groupId)
+    .select()
+    .single();
+}
+
+//Busca um grupo específico pelo ID
+export const fetchGroupById = async (groupId: string) => {
+  try {
+    const { data: group, error } = await supabase
+      .from('grupos')
+      .select('*, membros(count)')
+      .eq('id', groupId)
+      .single();
+
+    if (error) {
+      console.error("Erro ao buscar grupo:", error);
+      return null;
+    }
+
+    return {
+      ...group,
+      members: group.membros[0]?.count || 0
+    };
+  } catch (error) {
+    console.error("Error fetching group:", error);
+    return null;
+  }
+}

@@ -1,28 +1,61 @@
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Globe, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { COLORS } from "@/constants/colors";
-import { mockPublicGroups, mockUsers, mockDetailingFeed } from "@/constants/mock-data";
+import { mockUsers, mockDetailingFeed } from "@/constants/mock-data";
 import { getAvatarColor } from "@/constants/helpers";
 import Avatar from "@/components/ui/Avatar";
 import ProgressBar from "@/components/ui/ProgressBar";
 import StatCard from "@/components/ui/StatCard";
-import SessionCard from "@/components/groups/SessionCard";
+import { fetchGroupById, joinPublicGroup } from "@/services/groups";
+import { saveLastGroupLocally } from "@/services/offlineStorage";
+import { useEffect, useState } from "react";
+import { useGroupMembers } from "@/hooks/useGroupMembers";
+import { useOnlineUsers } from "@/hooks/useOnlineUsers";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function GroupDetailsScreen() {
     const { groupId } = useLocalSearchParams<{ groupId: string }>();
-    const group = mockPublicGroups.find((g) => g.id === parseInt(groupId || "1"));
+    const [group, setGroup] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
-    if (!group) {
+    //Pega membros do grupo
+    const { members } = useGroupMembers({ groupId });
+
+    //Pega o id do usuário logado
+    const { userId } = useAuth();
+
+    //Pega as informações do grupo pelo ID
+    useEffect(() => {
+        const loadGroup = async () => {
+            setIsLoading(true);
+            const fetchedGroup = await fetchGroupById(groupId!);
+            setGroup(fetchedGroup);
+            setIsLoading(false);
+        };
+        loadGroup();
+    }, [groupId]);
+
+    //Pega usuários online no App (A Lista Global)
+    const { onlineUsers } = useOnlineUsers(groupId);
+    
+    // Pega as IDs de todos os membros DESTE grupo específico
+    const memberIds = members.map((m: any) => m.user_id || m.userData?.id);
+
+    // Filtra a lista global para mostrar APENAS quem tá logado, é membro daqui E não é você
+    const activeGroupMembers = onlineUsers.filter(id => id !== userId && memberIds.includes(id));
+
+    if (isLoading || !group) {
         return (
             <SafeAreaView className="flex-1 bg-navy-950 items-center justify-center">
-                <Text className="text-slate-400">Group not found</Text>
+                <Text className="text-slate-400">{isLoading ? "Carregando detalhes..." : "Group not found"}</Text>
             </SafeAreaView>
         );
     }
 
     const weeklyProgress = 0.75;
+    const initials = group.nome_grupo ? group.nome_grupo.substring(0, 2).toUpperCase() : "GR";
 
     return (
         <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>
@@ -36,7 +69,7 @@ export default function GroupDetailsScreen() {
                         <ArrowLeft size={18} color={COLORS.textSecondary} />
                     </TouchableOpacity>
                     <View className="flex-1">
-                        <Text className="text-xl font-bold text-slate-200">{group.name}</Text>
+                        <Text className="text-xl font-bold text-slate-200">{group.nome_grupo}</Text>
                         <Text className="text-sm text-slate-400">{group.members} members</Text>
                     </View>
                 </View>
@@ -54,16 +87,23 @@ export default function GroupDetailsScreen() {
                                 <View
                                     className="w-20 h-20 rounded-2xl items-center justify-center"
                                     style={{
-                                        backgroundColor: getAvatarColor(group.id - 1),
+                                        backgroundColor: getAvatarColor((group.id || 1) - 1),
                                         borderWidth: 2,
                                         borderColor: "rgba(247, 152, 44, 0.4)",
                                     }}
                                 >
-                                    <Text className="text-white text-2xl font-bold">
-                                        {group.initials}
-                                    </Text>
+                                    {group.foto_grupo ? (
+                                        <Image
+                                            source={{ uri: group.foto_grupo }}
+                                            className="w-full h-full rounded-2xl"
+                                        />
+                                    ) : (
+                                        <Text className="text-white text-2xl font-bold">
+                                            {initials}
+                                        </Text>
+                                    )}
                                 </View>
-                                {group.isOnline && (
+                                {activeGroupMembers.length > 0 && (
                                     <View className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-2 border-slate-900 rounded-full items-center justify-center">
                                         <View className="w-2 h-2 bg-white rounded-full" />
                                     </View>
@@ -73,11 +113,11 @@ export default function GroupDetailsScreen() {
                                 <View className="flex-row items-center gap-2 mb-1">
                                     <Globe size={14} color={COLORS.emeraldLight} />
                                     <Text className="text-xs text-emerald-400 font-medium">
-                                        Public Group
+                                        {group.publico ? "Public Group" : "Private Group"}
                                     </Text>
                                 </View>
                                 <Text className="text-sm text-slate-300 leading-5">
-                                    {group.description}
+                                    {group.descricao || "Sem decrição."}
                                 </Text>
                             </View>
                         </View>
@@ -88,8 +128,8 @@ export default function GroupDetailsScreen() {
                 <View className="px-4 mb-4">
                     <View className="flex-row gap-3">
                         <StatCard value={group.members} label="Members" valueColor={COLORS.violetLight} />
-                        <StatCard value={group.activeNow} label="Active Now" valueColor={COLORS.emeraldLight} />
-                        <StatCard value={`${group.weeklyTarget}h`} label="Weekly Goal" valueColor={COLORS.amber} />
+                        <StatCard value={activeGroupMembers.length} label="Active Now" valueColor={COLORS.emeraldLight} />
+                        <StatCard value={`${group.meta_horas || 0}h`} label="Weekly Goal" valueColor={COLORS.amber} />
                     </View>
                 </View>
 
@@ -98,73 +138,33 @@ export default function GroupDetailsScreen() {
                     <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4">
                         <View className="flex-row items-center justify-between mb-3">
                             <Text className="text-sm font-medium text-slate-200">Active Members</Text>
-                            {group.activeNow > 0 && (
-                                <View
-                                    className="flex-row items-center gap-1 px-2 py-1 rounded-full"
-                                    style={{ backgroundColor: "rgba(16, 185, 129, 0.2)" }}
-                                >
-                                    <View className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
-                                    <Text className="text-xs text-emerald-400">
-                                        {group.activeNow} studying
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
-                        {group.activeNow > 0 ? (
-                            <View className="flex-row flex-wrap gap-2">
-                                {mockUsers.slice(0, Math.min(group.activeNow, 5)).map((user, index) => (
-                                    <View
-                                        key={user.id}
-                                        className="flex-row items-center gap-2 px-3 py-2 rounded-xl"
-                                        style={{ backgroundColor: COLORS.primaryFaint }}
-                                    >
-                                        <Avatar
-                                            foto={user.initials}
-                                            colorIndex={index}
-                                            size={32}
-                                            showOnlineDot
-                                        />
-                                        <Text className="text-sm text-slate-200">{user.name}</Text>
-                                    </View>
-                                ))}
-                                {group.activeNow > 5 && (
-                                    <View
-                                        className="items-center justify-center px-3 py-2 rounded-xl"
-                                        style={{ backgroundColor: COLORS.primaryFaint }}
-                                    >
-                                        <Text className="text-sm text-slate-400">
-                                            +{group.activeNow - 5} more
-                                        </Text>
-                                    </View>
-                                )}
+                            <View
+                                className="flex-row items-center gap-1 px-2 py-1 rounded-full"
+                                style={activeGroupMembers.length > 0 ? { backgroundColor: "rgba(16, 185, 129, 0.2)" } : { backgroundColor: "rgba(255, 0, 0, 0.2)" }}
+                            >
+                                <View className={`w-1.5 h-1.5 ${activeGroupMembers.length > 0 ? "bg-emerald-400" : "bg-rose-400"} rounded-full`} />
+                                <Text className={`text-xs ${activeGroupMembers.length > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                    {activeGroupMembers.length > 0 ? activeGroupMembers.length + " estudando" : "Ninguém estudando"}
+                                </Text>
                             </View>
-                        ) : (
-                            <Text className="text-sm text-slate-500 text-center py-4">
-                                No members currently studying
-                            </Text>
-                        )}
+                        </View>
+                        <View className="flex-row flex-wrap gap-2">
+                            {members.map((member) => (
+                                <View
+                                    key={member.id}
+                                    className="flex-row items-center gap-2 px-3 py-2 rounded-xl bg-slate-800"
+                                >
+                                    <Avatar
+                                        foto={member.userData?.foto_usuario}
+                                        size={32}
+                                        showOnlineDot={activeGroupMembers.includes(member.user_id || member.userData?.id)}
+                                    />
+                                    <Text className="text-sm text-slate-200">{member.userData?.nome_usuario || "Membro"}</Text>
+                                </View>
+                            ))}
+                        </View>
                     </View>
                 </View>
-
-                {/* Live Sessions */}
-                {group.activeNow > 0 && (
-                    <View className="px-4 mb-4">
-                        <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4">
-                            <Text className="text-sm font-medium text-slate-200 mb-3">
-                                Live Sessions
-                            </Text>
-                            <View className="gap-2">
-                                {mockDetailingFeed.slice(0, 2).map((session, index) => (
-                                    <SessionCard
-                                        key={session.id}
-                                        session={session}
-                                        colorIndex={index}
-                                    />
-                                ))}
-                            </View>
-                        </View>
-                    </View>
-                )}
 
                 {/* Weekly Progress */}
                 <View className="px-4 mb-4">
@@ -177,7 +177,7 @@ export default function GroupDetailsScreen() {
                         </View>
                         <ProgressBar progress={weeklyProgress} color={COLORS.emerald} height={12} />
                         <Text className="text-xs text-slate-500 mt-2">
-                            {Math.round(group.weeklyTarget * weeklyProgress)}h / {group.weeklyTarget}h this week
+                            {Math.round((group.meta_horas || 0) * weeklyProgress)}h / {group.meta_horas || 0}h this week
                         </Text>
                     </View>
                 </View>
@@ -191,7 +191,18 @@ export default function GroupDetailsScreen() {
                 style={{ backgroundColor: COLORS.bgPrimary }}
             >
                 <TouchableOpacity
-                    onPress={() => router.back()}
+                    onPress={async () => {
+                        await joinPublicGroup(group.id);
+                        await saveLastGroupLocally(group.id);
+                        router.push({
+                            pathname: "/(tabs)",
+                            params: {
+                                groupId: group.id,
+                                groupName: group.nome_grupo,
+                                groupPhoto: group.foto_grupo
+                            }
+                        })
+                    }}
                     className="bg-brand-500 py-4 rounded-2xl flex-row items-center justify-center gap-2"
                     style={{
                         shadowColor: COLORS.primary,

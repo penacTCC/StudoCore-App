@@ -64,5 +64,14 @@ export const buscarUsuarioLogado = async () => {
   return await supabase.auth.getUser();
 };
 
+//Buscar informações do perfil
+export const buscarPerfil = async (userId: string) => {
+  return await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+};
+
 
 

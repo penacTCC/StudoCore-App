@@ -13,4 +13,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: false,
   },
+  global: {
+    headers: {
+      'ngrok-skip-browser-warning': 'true', // Ignora a tela de aviso do ngrok grátis
+    },
+  },
 });

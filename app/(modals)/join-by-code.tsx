@@ -20,7 +20,7 @@ export default function JoinByCodeScreen() {
         // Implement join logic here
         // For now, we will just go back
         if (code.trim()) {
-            router.back();
+            router.push(`/(groups)/group-details?groupId=${code.split("=")[1]}`);
         }
     };
 

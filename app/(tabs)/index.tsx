@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 //Componentes de Native
 import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
@@ -19,6 +19,8 @@ import SessionCard from "@/components/groups/SessionCard";
 
 //Hooks
 import { useGroupMembers } from "@/hooks/useGroupMembers";
+import { useAuth } from "@/hooks/useAuth";
+import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 
 type LeaderboardFilter = "semanal" | "mensal" | "anual";
 
@@ -32,9 +34,19 @@ export default function GroupScreen() {
     const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
 
     // Captura os parâmetros recebidos da tela anterior
-    const { groupName, groupId, groupPhoto } = useLocalSearchParams(); //<- os parametros
+    const { groupName, groupId, groupPhoto, groupCode } = useLocalSearchParams(); //<- os parametros
 
-    const { members, isLoading } = useGroupMembers({ groupId: groupId as string });
+    //Pega os membros do grupo
+    const { members } = useGroupMembers({ groupId: groupId as string });
+
+    //Pega o usuário atual
+    const { userId } = useAuth();
+
+    //Verifica se o usuário atual é o administrador
+    const isAdmin = members.some(member => member.user_id === userId && member.administrador);
+
+    //Pega a quantidade de usuários online
+    const { onlineUsers } = useOnlineUsers(groupId as string);
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
@@ -54,9 +66,11 @@ export default function GroupScreen() {
                                 <Text className="text-2xl font-bold text-slate-200">{groupName || "Nome não encontrado"}</Text>
                             </View>
                         </View>
-                        <TouchableOpacity onPress={() => router.push("/(groups)/settings")}>
-                            <Settings size={20} color={COLORS.textMuted} />
-                        </TouchableOpacity>
+                        {isAdmin && (
+                            <TouchableOpacity onPress={() => router.push("/(groups)/settings")}>
+                                <Settings size={20} color={COLORS.textMuted} />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
@@ -126,9 +140,8 @@ export default function GroupScreen() {
                                 {/* Avatar */}
                                 <Avatar
                                     foto={member.foto_usuario}
-                                    colorIndex={index}
                                     size={40}
-                                    showOnlineDot={member.streak >= 10}
+                                    showOnlineDot={onlineUsers.includes(member.user_id || member.userData?.id)}
                                 />
 
                                 {/* Info */}
@@ -140,7 +153,7 @@ export default function GroupScreen() {
                                         {member.userData?.nome_usuario || "Sem nome"}
                                     </Text>
                                     <Text className="text-xs text-slate-400">
-                                        {member.hours}h esta semana
+                                        15h esta semana
                                     </Text>
                                 </View>
 
@@ -150,6 +163,9 @@ export default function GroupScreen() {
                                     <Text className="text-sm font-bold text-emerald-400">
                                         {member.streak}
                                     </Text>
+                                    {member.administrador ? (
+                                        <Text className="text-xs font-bold text-amber-400">ADM</Text>
+                                    ) : null}
                                 </View>
                             </TouchableOpacity>
                         ))}
@@ -186,7 +202,7 @@ export default function GroupScreen() {
                         <View className="flex-row items-center justify-between mb-3">
                             <Text className="text-lg font-semibold text-slate-200">Membros</Text>
                             <TouchableOpacity
-                                onPress={() => router.push("/invite")}
+                                onPress={() => router.push({ pathname: "/invite", params: { groupId: groupId as string, groupName: groupName as string } })}
                                 className="flex-row items-center gap-1 bg-brand-500 px-3 py-1.5 rounded-lg"
                             >
                                 <Plus size={16} color={COLORS.white} />
@@ -199,7 +215,7 @@ export default function GroupScreen() {
                                     key={member.id}
                                     className="flex-row items-center gap-2 bg-slate-800/30 px-3 py-2 rounded-xl"
                                 >
-                                    <Avatar foto={member.initials} colorIndex={index} size={32} />
+                                    <Avatar foto={member.foto_usuario} size={32} showOnlineDot={onlineUsers.includes(member.user_id || member.userData?.id)} />
                                     <Text className="text-sm text-slate-200">{member.userData?.nome_usuario}</Text>
                                     {member.streak >= 10 && (
                                         <Flame size={14} color={COLORS.emeraldLight} />

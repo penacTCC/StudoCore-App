@@ -20,13 +20,13 @@ export function useGroupMembers({ groupId }: { groupId: string }) {
         //(SELECT) * (tudo da tabela membros)
         //Pega a coluna 'id' e busca os dados do usuário na tabela profiles (id, nome foto_perfil)
         .select(`
-                        *,
-                        profiles:user_id (
-                            id,
-                            nome_usuario,
-                            foto_usuario
-                        )
-                    `)
+                  *,
+                  profiles:user_id (
+                      id,
+                      nome_usuario,
+                      foto_usuario
+                  )
+                `)
         .eq("grupo_id", groupId); //(WHERE grupo_id = groupId) .eq()(equal = igual) -> traga APENAS membros onde a coluna 'grupo_id' seja IGUAL ao 'groupId' desta tela.
 
       if (error) {
