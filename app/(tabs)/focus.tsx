@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-
-//Componentes do native
+import { useRouter } from "expo-router";//Componentes do native
 import {
     View,
     Text,
     TextInput,
     TouchableOpacity,
     ScrollView,
+    Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -51,14 +51,41 @@ export default function FocusScreen() {
     };
 
     const startSession = () => {
+        if (!selectedSubject || !specificContent.trim()) {
+            Alert.alert("Incompleto", "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar.");
+            return;
+        }
         setFocusState("active");
         setTimerSeconds(0);
     };
 
+    const router = useRouter();
+
     const stopSession = () => {
         setFocusState("config");
+        
+        // Salva uma cópia dos valores antes de resetar
+        const finalSubject = selectedSubject;
+        const finalContent = specificContent;
+        const finalDuration = timerSeconds;
+        const finalIsPublic = isPublicSession;
+
         setTimerSeconds(0);
+        setSelectedSubject("");
+        setSpecificContent("");
+        
         if (intervalRef.current) clearInterval(intervalRef.current);
+        
+        // Abre o modal de feedback após a sessão passando os parâmetros
+        router.push({
+            pathname: "/(modals)/focus-feedback",
+            params: {
+                subject: finalSubject,
+                content: finalContent,
+                duration: finalDuration.toString(),
+                isPublic: finalIsPublic.toString()
+            }
+        });
     };
 
     return (
