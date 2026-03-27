@@ -17,6 +17,7 @@ import { useState, useEffect } from "react";
 import * as SplashScreen from "expo-splash-screen";
 import { loadLastGroupLocally } from "../services/offlineStorage";
 import { fetchGroupById } from "../services/groups";
+import MedalAlert from "../components/MedalAlert";
 
 // Impede que a tela de splash suma imediatamente
 SplashScreen.preventAutoHideAsync();
@@ -133,6 +134,19 @@ export default function RootLayout() {
 
     //O Guarda 
     useEffect(() => {
+        // --- 🚨 MODO DE TESTE (TESTAR SEM BACKEND) 🚨 ---
+        // Desativado para o Commit no Github - App volta ao normal!
+        /* 
+        if (isInitialized) {
+            if (segments[0] !== '(tabs)' && segments[0] !== '(modals)') {
+                router.replace('/(tabs)/profile'); 
+            }
+            setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 200);
+            return;
+        }
+        */
+        // -----------------------------------------------
+
         // Log para depuração de onde o app está travando
         console.log("RootLayout Guard Check:", {
             isInitialized,
@@ -206,6 +220,7 @@ export default function RootLayout() {
         <SafeAreaProvider>
             <View className="flex-1 bg-slate-950">
                 <StatusBar style="light" />
+                <MedalAlert />
                 <Stack
                     screenOptions={{
                         headerShown: false,
