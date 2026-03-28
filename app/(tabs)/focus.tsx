@@ -7,6 +7,9 @@ import {
     TextInput,
     TouchableOpacity,
     ScrollView,
+    Modal,
+    Alert,
+    ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -20,7 +23,10 @@ import {
 
 //Constantes
 import { COLORS } from "@/constants/colors";
-import { subjects } from "@/constants/mock-data";
+import { disciplinasComCores } from "@/constants/mock-data";
+import { ComboBox } from "@/components/ui/ComboBox";
+import { buscarUsuarioLogado } from "@/services/auth";
+import { saveStudySession } from "@/services/sessions";
 
 type FocusState = "config" | "active";
 
@@ -30,6 +36,9 @@ export default function FocusScreen() {
     const [selectedSubject, setSelectedSubject] = useState("");
     const [specificContent, setSpecificContent] = useState("");
     const [timerSeconds, setTimerSeconds] = useState(0);
+    const [showQuestionsModal, setShowQuestionsModal] = useState(false);
+    const [questionsSolved, setQuestionsSolved] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
@@ -56,9 +65,48 @@ export default function FocusScreen() {
     };
 
     const stopSession = () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setShowQuestionsModal(true);
+    };
+
+    const saveSession = async () => {
+        setIsSaving(true);
+        const { data } = await buscarUsuarioLogado();
+        
+        if (!data?.user) {
+            Alert.alert("Erro", "Você precisa estar logado para salvar a sessão.");
+            setIsSaving(false);
+            return;
+        }
+
+        const questionsNum = parseInt(questionsSolved) || 0;
+        const success = await saveStudySession(
+            data.user.id,
+            selectedSubject || "Geral",
+            timerSeconds,
+            questionsNum
+        );
+
+        if (success) {
+            Alert.alert("Sucesso!", "Sessão salva com sucesso no banco de dados.");
+        } else {
+            Alert.alert("Aviso", "Houve um erro ao salvar na nuvem, mas a sessão foi fechada.");
+        }
+        
         setFocusState("config");
         setTimerSeconds(0);
-        if (intervalRef.current) clearInterval(intervalRef.current);
+        setQuestionsSolved("");
+        setSelectedSubject("");
+        setSpecificContent("");
+        setShowQuestionsModal(false);
+        setIsSaving(false);
+    };
+
+    const discardSession = () => {
+        setFocusState("config");
+        setTimerSeconds(0);
+        setQuestionsSolved("");
+        setShowQuestionsModal(false);
     };
 
     return (
@@ -82,29 +130,12 @@ export default function FocusScreen() {
                         {/* Subject Picker */}
                         <View className="mb-4">
                             <Text className="text-sm text-slate-400 mb-2">Subject</Text>
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ gap: 8 }}
-                            >
-                                {subjects.map((subject) => (
-                                    <TouchableOpacity
-                                        key={subject}
-                                        onPress={() => setSelectedSubject(subject === selectedSubject ? "" : subject)}
-                                        className={`px-4 py-2.5 rounded-xl border ${selectedSubject === subject
-                                            ? "bg-violet-600 border-violet-500"
-                                            : "bg-slate-800 border-slate-700"
-                                            }`}
-                                    >
-                                        <Text
-                                            className={`text-sm font-medium ${selectedSubject === subject ? "text-white" : "text-slate-300"
-                                                }`}
-                                        >
-                                            {subject}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
+                            <ComboBox 
+                                value={selectedSubject}
+                                onChange={setSelectedSubject}
+                                options={disciplinasComCores}
+                                placeholder="Selecione a matéria..."
+                            />
                         </View>
 
                         {/* Specific Content */}
@@ -212,6 +243,55 @@ export default function FocusScreen() {
                             <Square size={20} color={COLORS.rose} />
                             <Text className="text-rose-500 font-semibold text-lg">End Session</Text>
                         </TouchableOpacity>
+
+                        {/* Questions Modal */}
+                        <Modal
+                            visible={showQuestionsModal}
+                            transparent={true}
+                            animationType="fade"
+                            onRequestClose={() => setShowQuestionsModal(false)}
+                        >
+                            <View className="flex-1 bg-black/70 justify-center items-center p-4">
+                                <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-sm">
+                                    <Text className="text-xl font-bold text-slate-200 mb-2 text-center">
+                                        Session Completed! 🎉
+                                    </Text>
+                                    <Text className="text-sm text-slate-400 mb-6 text-center">
+                                        Quantas questões você resolveu? (opcional)
+                                    </Text>
+                                    
+                                    <TextInput
+                                        value={questionsSolved}
+                                        onChangeText={setQuestionsSolved}
+                                        keyboardType="numeric"
+                                        placeholder="Ex: 10"
+                                        placeholderTextColor={COLORS.textMuted}
+                                        className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-base text-center mb-6 font-semibold"
+                                    />
+
+                                    <View className="flex-row gap-3">
+                                        <TouchableOpacity
+                                            onPress={discardSession}
+                                            className="flex-1 py-3 px-4 rounded-xl border border-rose-500/50 bg-rose-500/10 items-center justify-center"
+                                        >
+                                            <Text className="text-rose-400 font-semibold">Descartar</Text>
+                                        </TouchableOpacity>
+                                        
+                                        <TouchableOpacity
+                                            onPress={saveSession}
+                                            disabled={isSaving}
+                                            className="flex-1 py-3 px-4 rounded-xl bg-violet-600 items-center justify-center shadow-lg shadow-violet-600/30"
+                                        >
+                                            {isSaving ? (
+                                                <ActivityIndicator color={COLORS.white} />
+                                            ) : (
+                                                <Text className="text-white font-semibold">Salvar</Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </View>
+                        </Modal>
                     </View>
                 )}
             </ScrollView>
