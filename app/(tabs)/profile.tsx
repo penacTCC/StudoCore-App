@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { useState, useMemo, useCallback } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
     CalendarDays,
@@ -12,12 +12,14 @@ import {
     Users,
     LogOut,
 } from "lucide-react-native";
-import { router } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import { COLORS } from "@/constants/colors";
 import { mockBadges } from "@/constants/mock-data";
 import { getAvatarColor } from "@/constants/helpers";
 import type { LucideIcon } from "lucide-react-native";
 import { supabase } from "@/supabase";
+import { buscarPerfil, buscarUsuarioLogado } from "@/services/auth";
+import { buscarEstatisticasSemanais } from "@/services/sessions";
 
 const iconMap: Record<string, LucideIcon> = {
     Star,
@@ -29,6 +31,36 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 export default function ProfileScreen() {
+    const [profileData, setProfileData] = useState<any>(null);
+    const [weeklyStats, setWeeklyStats] = useState({ totalSemanaSegundos: 0, materiaFavorita: "Nenhuma" });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useFocusEffect(
+        useCallback(() => {
+            const loadProfile = async () => {
+                try {
+                    setIsLoading(true);
+                    const { data: { user } } = await buscarUsuarioLogado();
+                    if (user) {
+                        const { data, error } = await buscarPerfil(user.id);
+                        if (!error && data) {
+                            setProfileData(data);
+                        }
+                        
+                        // Buscar estatísticas semanais e matéria favorita
+                        const statsSemana = await buscarEstatisticasSemanais(user.id);
+                        setWeeklyStats(statsSemana);
+                    }
+                } catch (err) {
+                    console.error("Erro ao carregar perfil", err);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            loadProfile();
+        }, [])
+    );
+
     // Generate stable heatmap data
     const heatmapData = useMemo(() => {
         const seed = [0.3, 0.9, 0.1, 0.7, 0.5, 0.2, 0.8, 0.4, 0.6, 0.95,
@@ -74,37 +106,47 @@ export default function ProfileScreen() {
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
                 {/* Avatar & Level */}
                 <View className="px-4 py-6">
-                    <View className="flex-row items-center gap-4">
-                        <View className="relative">
-                            <View
-                                className="w-20 h-20 rounded-full items-center justify-center"
-                                style={{
-                                    backgroundColor: getAvatarColor(4),
-                                    borderWidth: 2,
-                                    borderColor: COLORS.primary,
-                                }}
-                            >
-                                <Text className="text-white text-2xl font-bold">YO</Text>
+                    {isLoading ? (
+                        <ActivityIndicator color={COLORS.violetLight} />
+                    ) : (
+                        <View className="flex-row items-center gap-4">
+                            <View className="relative">
+                                <View
+                                    className="w-20 h-20 rounded-full items-center justify-center"
+                                    style={{
+                                        backgroundColor: getAvatarColor(4),
+                                        borderWidth: 2,
+                                        borderColor: COLORS.primary,
+                                    }}
+                                >
+                                    <Text className="text-white text-2xl font-bold">
+                                        {profileData?.nome_usuario ? profileData.nome_usuario.substring(0, 2).toUpperCase() : "YO"}
+                                    </Text>
+                                </View>
+                                <View
+                                    className="absolute -bottom-1 -right-1 bg-brand-500 px-2 py-0.5 rounded-full"
+                                >
+                                    <Text className="text-white text-xs font-bold">LV 12</Text>
+                                </View>
                             </View>
-                            <View
-                                className="absolute -bottom-1 -right-1 bg-brand-500 px-2 py-0.5 rounded-full"
-                            >
-                                <Text className="text-white text-xs font-bold">LV 12</Text>
+                            <View>
+                                <Text className="text-xl font-bold text-slate-200">
+                                    {profileData?.nome_usuario || "Sua Conta"}
+                                </Text>
+                                <Text className="text-sm text-slate-400">Studante Mestre</Text>
                             </View>
                         </View>
-                        <View>
-                            <Text className="text-xl font-bold text-slate-200">Your Name</Text>
-                            <Text className="text-sm text-slate-400">Joined December 2024</Text>
-                        </View>
-                    </View>
+                    )}
                 </View>
 
                 {/* Weekly Goal */}
                 <View className="px-4 mb-4">
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
                         <View className="flex-row items-center justify-between mb-2">
-                            <Text className="text-sm font-medium text-slate-400">Weekly Goal</Text>
-                            <Text className="text-sm text-slate-200">10h / 12h</Text>
+                            <Text className="text-sm font-medium text-slate-400">Objetivo Semanal</Text>
+                            <Text className="text-sm text-slate-200">
+                                {Math.floor(weeklyStats.totalSemanaSegundos / 3600)}h / 12h
+                            </Text>
                         </View>
                         <View className="h-3 bg-slate-800 rounded-full overflow-hidden">
                             <View
@@ -192,17 +234,33 @@ export default function ProfileScreen() {
                         <Text className="text-sm font-medium text-slate-400 mb-3">Statistics</Text>
                         <View className="flex-row flex-wrap gap-3">
                             <View className="flex-1 p-3 rounded-xl" style={{ backgroundColor: COLORS.primaryFaint, minWidth: "45%" }}>
-                                <Text className="text-2xl font-bold text-slate-200">128h</Text>
+                                <Text className="text-2xl font-bold text-slate-200">
+                                    {profileData?.total_hours ? Math.floor(profileData.total_hours / 3600) : 0}h
+                                </Text>
                                 <Text className="text-xs text-slate-400">Total Hours</Text>
                             </View>
                             <View className="flex-1 p-3 rounded-xl" style={{ backgroundColor: COLORS.primaryFaint, minWidth: "45%" }}>
-                                <Text className="text-2xl font-bold text-slate-200">342</Text>
+                                <Text className="text-2xl font-bold text-slate-200">
+                                    {profileData?.questoes_feitas || 0}
+                                </Text>
                                 <Text className="text-xs text-slate-400">Questions</Text>
                             </View>
                         </View>
-                        <View className="p-3 rounded-xl mt-3" style={{ backgroundColor: COLORS.primaryFaint }}>
-                            <Text className="text-lg font-bold text-violet-400">Mathematics</Text>
-                            <Text className="text-xs text-slate-400">Favorite Subject</Text>
+                        <View className="p-3 rounded-xl mt-3 flex-row justify-between items-center" style={{ backgroundColor: COLORS.primaryFaint }}>
+                            <View>
+                                <Text className="text-lg font-bold text-amber-400">
+                                    {profileData?.streak || 0} {profileData?.streak === 1 ? "dia" : "dias"}
+                                </Text>
+                                <Text className="text-xs text-slate-400">
+                                    {profileData?.streak === 1 ? "de estudo 🔥" : "seguidos de estudo 🔥"}
+                                </Text>
+                            </View>
+                            <View className="items-end">
+                                <Text className="text-lg font-bold text-violet-400">
+                                    {weeklyStats.materiaFavorita === "Nenhuma" ? "N/A" : weeklyStats.materiaFavorita}
+                                </Text>
+                                <Text className="text-xs text-slate-400">Matéria Favorita</Text>
+                            </View>
                         </View>
                     </View>
                 </View>
