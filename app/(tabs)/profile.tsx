@@ -329,7 +329,7 @@ export default function ProfileScreen() {
                 {/* Stats & Favorite Subject */}
                 <View className="px-4 mb-4">
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <Text className="text-sm font-medium text-slate-400 mb-3">Estatísticas (Cache Local)</Text>
+                        <Text className="text-sm font-medium text-slate-400 mb-3">Estatísticas Gerais</Text>
                         <View className="flex-row flex-wrap gap-3">
                             <View className="flex-1 p-3 rounded-xl" style={{ backgroundColor: COLORS.primaryFaint, minWidth: "45%" }}>
                                 <Text className="text-2xl font-bold text-slate-200">{stats.totalHours}h</Text>

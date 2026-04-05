@@ -69,9 +69,9 @@ export default function RootLayout() {
                 .from('profiles')
                 .select('nome_usuario')
                 .eq('id', session.user.id) // Certifique-se de que é 'id' e não 'user_id' aqui
-                .single();
+                .maybeSingle();
 
-            if (error) console.error("RootLayout: Erro ao checar perfil:", error);
+            if (error && error.code !== 'PGRST116') console.error("RootLayout: Erro ao checar perfil:", error);
             console.log("RootLayout: Perfil encontrado:", profile ? profile.nome_usuario : "Nenhum");
             setProfileComplete(!!profile?.nome_usuario);
         };

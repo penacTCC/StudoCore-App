@@ -1,8 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DeviceEventEmitter } from 'react-native';
 import { APP_BADGES } from '../constants/badges';
-
-const STATS_KEY = '@user_profile_stats';
+import { supabase } from '@/supabase';
+import { buscarUsuarioLogado } from '@/services/auth';
 
 export interface UserStats {
   totalHours: number;
@@ -24,93 +23,147 @@ const DEFAULT_STATS: UserStats = {
   badgesUnlocked: [],
 };
 
+// Carrega as estatísticas fundindo profiles e query de agrupamento de study_sessions
 export const loadProfileStats = async (): Promise<UserStats> => {
-  try {
-    const data = await AsyncStorage.getItem(STATS_KEY);
-    if (data) {
-        // Preenche novas chaves caso o modelo antigo não as tenha
-      return { ...DEFAULT_STATS, ...JSON.parse(data) };
-    }
-    await saveProfileStats(DEFAULT_STATS);
-    return DEFAULT_STATS;
-  } catch (e) {
-    console.error('Erro ao ler estatísticas do perfil:', e);
-    return DEFAULT_STATS;
-  }
-};
+    try {
+        const { data: authData } = await buscarUsuarioLogado();
+        const userId = authData?.user?.id;
+        
+        if (!userId) return DEFAULT_STATS;
 
-export const saveProfileStats = async (stats: UserStats): Promise<void> => {
-  try {
-    await AsyncStorage.setItem(STATS_KEY, JSON.stringify(stats));
-  } catch (e) {
-    console.error('Erro ao salvar estatísticas do perfil:', e);
-  }
-};
+        // Fetch user profile stats
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('horas_totais, questoes_feitas, badges_unlocked, favorite_subject')
+            .eq('id', userId)
+            .maybeSingle();
 
-export const updateFavoriteSubject = async (subject: string): Promise<UserStats> => {
-  const current = await loadProfileStats();
-  const updated = { ...current, favoriteSubject: subject };
-  await saveProfileStats(updated);
-  return updated;
-};
+        // Fetch study sessions for heatmap (last 100 days to cover 14 weeks)
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 100);
 
-const getTodayDateString = () => {
-    const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-};
+        const { data: sessions } = await supabase
+            .from('sessoes_foco')
+            .select('tempo_minutos, created_at, disciplina')
+            .eq('user_id', userId)
+            .gte('created_at', ninetyDaysAgo.toISOString());
 
-// Adiciona horas reais (usando matemática de testes: 5 sec = 1 hora se flagAtivada)
-export const addStudyHours = async (timerSeconds: number): Promise<UserStats> => {
-    const current = await loadProfileStats();
-    
-    // Matemática Real: Segundos transformados em Horas 
-    // (Para testes rápidos de UI, use: const calculatedHours = timerSeconds / 5)
-    const calculatedHours = timerSeconds / 3600;
-    
-    if (calculatedHours <= 0) return current; // Se foi muito rápido, ignora para não floodar
-    
-    const newTotalHours = current.totalHours + calculatedHours;
-    const newWeeklyCurrent = current.weeklyCurrent + calculatedHours;
+        // Aggregate sessions into YYYY-MM-DD
+        const studyHistory: Record<string, number> = {};
+        let weeklyCurrent = 0;
+        
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    // Atualiza HeatMap
-    const today = getTodayDateString();
-    const history = { ...current.studyHistory };
-    history[today] = (history[today] || 0) + calculatedHours;
+        if (sessions) {
+            sessions.forEach(session => {
+                const d = new Date(session.created_at);
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                
+                // Transforma Minutos da Duração em Horas formatadas
+                const hoursInSession = session.tempo_minutos / 60;
+                studyHistory[dateStr] = (studyHistory[dateStr] || 0) + hoursInSession;
 
-    // Verifica Medalhas
-    const newBadges = [...current.badgesUnlocked];
-    const newlyUnlocked: any[] = [];
-
-    APP_BADGES.forEach(badge => {
-        if (!newBadges.includes(badge.id)) {
-            let unlocked = false;
-            if (badge.id.startsWith("hours_") && newTotalHours >= badge.requirementValue) {
-                unlocked = true;
-            } else if (badge.id === "weekly_goal" && newWeeklyCurrent >= badge.requirementValue) {
-                unlocked = true;
-            }
-
-            if (unlocked) {
-                newBadges.push(badge.id);
-                newlyUnlocked.push(badge); 
-            }
+                if (d >= oneWeekAgo) {
+                    weeklyCurrent += hoursInSession;
+                }
+            });
         }
-    });
 
-    const updated: UserStats = { 
-        ...current, 
-        totalHours: newTotalHours,
-        weeklyCurrent: newWeeklyCurrent,
-        studyHistory: history,
-        badgesUnlocked: newBadges
-    };
-    
-    await saveProfileStats(updated);
+        // Removemos o cálculo dinâmico da matéria para que a escolha manual do Perfil seja soberana
+        let calculatedFavorite = profile?.favorite_subject || "Matemática";
 
-    // Dispara alerta global se ganhou medalhas, jogando na fila
-    if (newlyUnlocked.length > 0) {
-        DeviceEventEmitter.emit('badgesUnlocked', newlyUnlocked);
+        return {
+            totalHours: profile?.horas_totais || 0,
+            totalQuestions: profile?.questoes_feitas || 0,
+            favoriteSubject: calculatedFavorite,
+            badgesUnlocked: profile?.badges_unlocked || [],
+            weeklyCurrent: Math.round(weeklyCurrent * 10) / 10,
+            weeklyGoal: 12, 
+            studyHistory
+        };
+    } catch (e) {
+        console.error('Erro ao ler estatísticas do Supabase:', e);
+        return DEFAULT_STATS;
     }
+};
 
-    return updated;
+// Salva a matéria selecionada no DB
+export const updateFavoriteSubject = async (subject: string): Promise<UserStats> => {
+    const { data: authData } = await buscarUsuarioLogado();
+    const userId = authData?.user?.id;
+    if (userId) {
+        // Usa upsert para caso a linha não exista ainda (banco zerado)
+        await supabase.from('profiles').upsert({ id: userId, favorite_subject: subject });
+    }
+    return await loadProfileStats();
+};
+
+// Atualiza o banco com horas reais e insere a sessao
+export const addStudyHours = async (timerSeconds: number, currentSubject: string): Promise<UserStats | null> => {
+    try {
+        const { data: authData } = await buscarUsuarioLogado();
+        const userId = authData?.user?.id;
+        if (!userId) return null;
+
+        // Matemática de Teste (10s = 1 hora) pedida por você:
+        // Mude para 3600 quando for lançar o app real
+        const calculatedHours = timerSeconds / 10; 
+        
+        if (calculatedHours <= 0) return null;
+
+        // Recuperar perfil pra ler dados atuais
+        const current = await loadProfileStats();
+        
+        const newTotalHours = current.totalHours + calculatedHours;
+        const newWeeklyCurrent = current.weeklyCurrent + calculatedHours;
+
+        // Inserir a sessao histórica no Supabase
+        await supabase.from('sessoes_foco').insert({
+            user_id: userId,
+            disciplina: currentSubject,
+            tempo_minutos: Math.floor(calculatedHours * 60), // Infla o banco de acordo com a sua regra de teste (1h na ui = 60min no BD)
+            questoes_respondidas: 0
+        });
+
+        // Verifica Medalhas
+        const newBadges = [...current.badgesUnlocked];
+        const newlyUnlocked: any[] = [];
+
+        APP_BADGES.forEach(badge => {
+            if (!newBadges.includes(badge.id)) {
+                let unlocked = false;
+                if (badge.id.startsWith("hours_") && newTotalHours >= badge.requirementValue) {
+                    unlocked = true;
+                } else if (badge.id === "weekly_goal" && newWeeklyCurrent >= badge.requirementValue) {
+                    unlocked = true;
+                }
+
+                if (unlocked) {
+                    newBadges.push(badge.id);
+                    newlyUnlocked.push(badge); 
+                }
+            }
+        });
+
+        const todayDateStr = new Date().toISOString();
+
+        // Atualizar perfil do usuario
+        await supabase.from('profiles').update({
+             horas_totais: newTotalHours,
+             badges_unlocked: newBadges,
+             last_study_date: todayDateStr
+        }).eq('id', userId);
+
+        // Dispara alerta global se ganhou medalhas, jogando na fila
+        if (newlyUnlocked.length > 0) {
+            DeviceEventEmitter.emit('badgesUnlocked', newlyUnlocked);
+        }
+
+        // Recarrega atualizado
+        return await loadProfileStats();
+    } catch (e) {
+        console.error('Erro salvar horas:', e);
+        return null;
+    }
 };

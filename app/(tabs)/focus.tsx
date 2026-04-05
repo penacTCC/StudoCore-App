@@ -59,7 +59,7 @@ export default function FocusScreen() {
     const stopSession = async () => {
         setFocusState("config");
         // Registrar as horas e despachar evento
-        await addStudyHours(timerSeconds);
+        await addStudyHours(timerSeconds, selectedSubject || "Matemática");
         
         setTimerSeconds(0);
         if (intervalRef.current) clearInterval(intervalRef.current);
