@@ -18,9 +18,8 @@ export default function StatCard({ value, label, valueColor }: StatCardProps) {
             className="flex-1 bg-navy-900 border border-navy-800 rounded-2xl p-4 items-center"
         >
             <Text
-                className="text-2xl font-bold text-center"
+                className={`text-2xl font-bold text-center ${!valueColor ? "text-slate-200" : ""}`}
                 style={valueColor ? { color: valueColor } : undefined}
-                {...(!valueColor ? { className: "text-2xl font-bold text-slate-200 text-center" } : {})}
             >
                 {value}
             </Text>
