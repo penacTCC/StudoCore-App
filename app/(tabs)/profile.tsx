@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, Pressable } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
     CalendarDays,
@@ -13,6 +13,7 @@ import {
     LogOut,
     Settings,
     X,
+    Edit2,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { COLORS } from "@/constants/colors";
@@ -21,7 +22,7 @@ import { APP_BADGES } from "@/constants/badges";
 import { getAvatarColor } from "@/constants/helpers";
 import type { LucideIcon } from "lucide-react-native";
 import { supabase } from "@/supabase";
-import { loadProfileStats, updateFavoriteSubject, UserStats } from "@/services/profileStats";
+import { loadProfileStats, updateFavoriteSubject, updateWeeklyGoal, UserStats } from "@/services/profileStats";
 import { buscarPerfil, buscarUsuarioLogado } from "@/services/auth";
 
 const iconMap: Record<string, LucideIcon> = {
@@ -33,6 +34,8 @@ export default function ProfileScreen() {
     const [sessionUser, setSessionUser] = useState<any>(null);
     const [stats, setStats] = useState<UserStats | null>(null);
     const [showSubjectModal, setShowSubjectModal] = useState(false);
+    const [showGoalModal, setShowGoalModal] = useState(false);
+    const [tempGoalValue, setTempGoalValue] = useState("");
 
     useFocusEffect(
         useCallback(() => {
@@ -52,14 +55,14 @@ export default function ProfileScreen() {
 
     const heatmapMatrix = useMemo(() => {
         if (!stats) return { columns: [], monthPositions: [] };
-        
-        const NUM_WEEKS = 14; 
+
+        const NUM_WEEKS = 14;
         const now = new Date();
-        const todayJsDay = now.getDay(); 
-        
+        const todayJsDay = now.getDay();
+
         const columns = [];
         const months = new Set();
-        const monthPositions = []; 
+        const monthPositions = [];
 
         const totalCells = NUM_WEEKS * 7;
         const emptyCellsAtEnd = 6 - todayJsDay;
@@ -76,7 +79,7 @@ export default function ProfileScreen() {
                     const d = new Date(now);
                     d.setDate(now.getDate() - daysAgo);
                     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                    
+
                     const hoursOnDay = stats.studyHistory[dateStr] || 0;
                     let intensity = 0;
                     if (hoursOnDay > 0 && hoursOnDay <= 2) intensity = 0.3;
@@ -127,6 +130,15 @@ export default function ProfileScreen() {
         setShowSubjectModal(false);
     };
 
+    const handleGoalSave = async () => {
+        const h = parseInt(tempGoalValue, 10);
+        if (!isNaN(h) && h > 0) {
+            const updated = await updateWeeklyGoal(h);
+            setStats(updated);
+        }
+        setShowGoalModal(false);
+    };
+
     const joinDate = sessionUser?.created_at
         ? new Intl.DateTimeFormat('pt-BR').format(new Date(sessionUser.created_at))
         : 'Carregando...';
@@ -164,7 +176,7 @@ export default function ProfileScreen() {
                                 }}
                             >
                                 {profileData?.foto_usuario ? (
-                                    <View style={{ width: '100%', height: '100%', backgroundColor: COLORS.primary }} /> // Placeholder Image component for react-native
+                                    <Image source={{ uri: profileData.foto_usuario }} style={{ width: '100%', height: '100%' }} />
                                 ) : (
                                     <Text className="text-white text-2xl font-bold">
                                         {renderInitials(profileData?.nome_usuario)}
@@ -186,9 +198,21 @@ export default function ProfileScreen() {
 
                 {/* Weekly Goal */}
                 <View className="px-4 mb-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                    <TouchableOpacity 
+                        onPress={() => {
+                            setTempGoalValue(String(stats.weeklyGoal));
+                            setShowGoalModal(true);
+                        }}
+                        className="bg-slate-900 border border-slate-800 rounded-3xl p-4"
+                    >
                         <View className="flex-row items-center justify-between mb-2">
-                            <Text className="text-sm font-medium text-slate-400">Meta Semanal</Text>
+                            <View className="flex-row items-center gap-2">
+                                <Text className="text-sm font-medium text-slate-400">Meta Semanal</Text>
+                                <View className="bg-slate-800/80 px-2 py-0.5 rounded-md flex-row items-center gap-1">
+                                    <Edit2 size={10} color={COLORS.textMuted} />
+                                    <Text className="text-[10px] text-slate-400">Editar</Text>
+                                </View>
+                            </View>
                             <Text className="text-sm text-slate-200">{stats.weeklyCurrent}h / {stats.weeklyGoal}h</Text>
                         </View>
                         <View className="h-3 bg-slate-800 rounded-full overflow-hidden">
@@ -198,18 +222,18 @@ export default function ProfileScreen() {
                             />
                         </View>
                         <Text className="text-xs text-emerald-400 mt-2">
-                            {stats.weeklyGoal - stats.weeklyCurrent > 0 
-                                ? `Faltam ${stats.weeklyGoal - stats.weeklyCurrent} horas para atingir sua meta!` 
+                            {stats.weeklyGoal - stats.weeklyCurrent > 0
+                                ? `Faltam ${stats.weeklyGoal - stats.weeklyCurrent} horas para atingir sua meta!`
                                 : "Meta semanal atingida! Parabéns!"}
                         </Text>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Heatmap Github Style */}
                 <View className="px-4 mb-4">
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
                         <Text className="text-sm font-medium text-slate-400 mb-3">Histórico de Contribuições</Text>
-                        
+
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                             <View className="pr-4">
                                 {/* Header dos Meses */}
@@ -252,7 +276,7 @@ export default function ProfileScreen() {
                                                     else if (day.intensity > 0.6) bg = "#10b981";
                                                     else if (day.intensity > 0.4) bg = "#059669";
                                                     else if (day.intensity > 0.2) bg = "#047857";
-                                                    
+
                                                     return (
                                                         <View
                                                             key={rowIndex}
@@ -289,13 +313,19 @@ export default function ProfileScreen() {
                 <View className="px-4 mb-4">
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
                         <Text className="text-sm font-medium text-slate-400 mb-3">Medalhas</Text>
-                        <View className="flex-row flex-wrap gap-3">
+                        <View className="flex-row flex-wrap gap-2">
                             {APP_BADGES.map((badge, index) => {
                                 const BadgeIcon = iconMap[badge.icon] || Star;
                                 const isUnlocked = stats.badgesUnlocked.includes(badge.id); 
                                 return (
-                                    <View
+                                    <TouchableOpacity
                                         key={badge.id}
+                                        onPress={() => {
+                                            Alert.alert(
+                                                badge.name, 
+                                                badge.description + (isUnlocked ? "\n\n✨ Você já conquistou esta medalha!" : "\n\n🔒 Continue estudando para desbloquear.")
+                                            );
+                                        }}
                                         className="items-center gap-2 p-3 rounded-xl"
                                         style={{
                                             width: "30%",
@@ -319,7 +349,7 @@ export default function ProfileScreen() {
                                             />
                                         </View>
                                         <Text className="text-xs text-center text-slate-300">{badge.name}</Text>
-                                    </View>
+                                    </TouchableOpacity>
                                 );
                             })}
                         </View>
@@ -342,14 +372,14 @@ export default function ProfileScreen() {
                         </View>
 
                         {/* Favorite Subject Editable */}
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={() => setShowSubjectModal(true)}
-                            className="p-3 rounded-xl mt-3 flex-row justify-between items-center" 
+                            className="p-3 rounded-xl mt-3 flex-row justify-between items-center"
                             style={{ backgroundColor: COLORS.primaryFaint }}
                         >
                             <View>
-                                <Text className="text-lg font-bold" style={{ 
-                                    color: disciplinasComCores.find(d => d.name === stats.favoriteSubject)?.color || COLORS.violetLight 
+                                <Text className="text-lg font-bold" style={{
+                                    color: disciplinasComCores.find(d => d.name === stats.favoriteSubject)?.color || COLORS.violetLight
                                 }}>
                                     {stats.favoriteSubject}
                                 </Text>
@@ -439,7 +469,7 @@ export default function ProfileScreen() {
                                 <X size={24} color="#94a3b8" />
                             </TouchableOpacity>
                         </View>
-                        
+
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {disciplinasComCores.map((disciplina, idx) => (
                                 <TouchableOpacity
@@ -459,6 +489,50 @@ export default function ProfileScreen() {
                         </ScrollView>
                     </View>
                 </View>
+            </Modal>
+
+            {/* Modal de Meta Semanal */}
+            <Modal
+                visible={showGoalModal}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setShowGoalModal(false)}
+            >
+                <KeyboardAvoidingView 
+                    behavior={Platform.OS === "ios" ? "padding" : "height"}
+                    className="flex-1 justify-center px-4 bg-black/70"
+                >
+                    <View className="bg-slate-900 border border-slate-700 rounded-3xl p-6">
+                        <View className="flex-row justify-between items-center mb-6">
+                            <Text className="text-lg font-bold text-slate-200">Editar Meta Semanal (Horas)</Text>
+                        </View>
+                        
+                        <TextInput
+                            value={tempGoalValue}
+                            onChangeText={setTempGoalValue}
+                            keyboardType="number-pad"
+                            placeholder="Ex: 15"
+                            placeholderTextColor="#64748b"
+                            className="bg-slate-950/50 border border-slate-800 rounded-2xl px-4 py-4 text-center text-2xl font-bold text-slate-200 mb-6"
+                            autoFocus={true}
+                        />
+
+                        <View className="flex-row gap-3">
+                            <TouchableOpacity 
+                                onPress={() => setShowGoalModal(false)}
+                                className="flex-1 py-3 items-center rounded-xl border border-slate-700"
+                            >
+                                <Text className="text-slate-300 font-bold">Cancelar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                onPress={handleGoalSave}
+                                className="flex-1 py-3 items-center rounded-xl bg-emerald-600"
+                            >
+                                <Text className="text-white font-bold">Salvar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
             </Modal>
         </SafeAreaView>
     );

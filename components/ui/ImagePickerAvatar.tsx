@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, Image, TouchableOpacity, Alert } from "react-native";
 import { Image as ImageIcon, Plus, Users } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -13,6 +13,8 @@ interface ImagePickerAvatarProps {
     onImageUploaded: (url: string) => void;
     /** Define se o avatar deve ser circular ou retangular. Padrão: true */
     circle?: boolean;
+    /** Imagem para carregar previamente */
+    defaultImage?: string;
 }
 
 /**
@@ -25,8 +27,16 @@ export default function ImagePickerAvatar({
     bucket = "images",
     onImageUploaded,
     circle,
+    defaultImage,
 }: ImagePickerAvatarProps) {
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(defaultImage || null);
+
+    // Sincroniza se o defaultImage mudar (ex: ao carregar profile assincronamente)
+    useEffect(() => {
+        if (defaultImage && !imagePreview) {
+            setImagePreview(defaultImage);
+        }
+    }, [defaultImage]);
 
     const selectImage = async () => {
         try {

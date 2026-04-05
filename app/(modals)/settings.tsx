@@ -4,8 +4,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, User, Save, Trash2, Smartphone, LogOut, Bell } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
-import { buscarPerfil, buscarUsuarioLogado, salvarDadosPerfil } from "@/services/auth";
+import { buscarPerfil, buscarUsuarioLogado, salvarDadosPerfil, verificarNomeUsuario } from "@/services/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ImagePickerAvatar } from "@/components/ui";
 
 export default function SettingsScreen() {
     const router = useRouter();
@@ -15,7 +16,9 @@ export default function SettingsScreen() {
     const [userId, setUserId] = useState<string>("");
     const [username, setUsername] = useState("");
     const [vibrationEnabled, setVibrationEnabled] = useState(true);
+    const [testModeEnabled, setTestModeEnabled] = useState(false);
     const [realName, setRealName] = useState("");
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
     const [profileData, setProfileData] = useState<any>(null);
 
     useEffect(() => {
@@ -28,6 +31,7 @@ export default function SettingsScreen() {
                     setProfileData(prof);
                     setUsername(prof.nome_usuario || "");
                     setRealName(prof.nome_real || "");
+                    if (prof.foto_usuario) setImageUrl(prof.foto_usuario);
                 }
             }
             setLoading(false);
@@ -36,6 +40,10 @@ export default function SettingsScreen() {
             const pref = await AsyncStorage.getItem('@app_preferences_vibration');
             if (pref !== null) {
                 setVibrationEnabled(pref === 'true');
+            }
+            const testPref = await AsyncStorage.getItem('@app_test_mode');
+            if (testPref !== null) {
+                setTestModeEnabled(testPref === 'true');
             }
         };
         fetchUser();
@@ -50,16 +58,31 @@ export default function SettingsScreen() {
 
         setSaving(true);
         try {
+            // Verifica se o username mudou e se já não é de outra pessoa
+            if (username !== profileData?.nome_usuario) {
+                const { data, error: selectError } = await verificarNomeUsuario(username);
+                if (selectError) {
+                    Alert.alert("Erro", "Não foi possível verificar seu nome de usuário.");
+                    setSaving(false);
+                    return;
+                }
+                if (data && data.length > 0) {
+                    Alert.alert("Aviso", "Este nome de usuário já está sendo usado por outra pessoa. Escolha outro!");
+                    setSaving(false);
+                    return;
+                }
+            }
+
             const result = await salvarDadosPerfil(
                 userId,
                 realName,
                 username,
-                profileData?.data_nascimento || new Date().toISOString(), // Keep existing date if updating
-                profileData?.foto_usuario || null
+                profileData?.data_nascimento || new Date().toISOString(), 
+                imageUrl
             );
 
             if (result.error) {
-                Alert.alert("Erro", "Não foi possível salvar os dados. O nome de usuário pode já estar em uso.");
+                Alert.alert("Erro", "Não foi possível salvar os dados. " + result.error.message);
             } else {
                 Alert.alert("Sucesso", "Perfil atualizado com sucesso!");
                 router.back();
@@ -77,6 +100,11 @@ export default function SettingsScreen() {
         await AsyncStorage.setItem('@app_preferences_vibration', String(val));
     };
 
+    const toggleTestMode = async (val: boolean) => {
+        setTestModeEnabled(val);
+        await AsyncStorage.setItem('@app_test_mode', String(val));
+    };
+
     const handleClearCache = () => {
         Alert.alert(
             "Limpar Dados Locais",
@@ -87,8 +115,13 @@ export default function SettingsScreen() {
                     text: "Limpar",
                     style: "destructive",
                     onPress: async () => {
-                        await AsyncStorage.clear();
-                        Alert.alert("Sucesso", "Cache limpo. Reinicie o aplicativo para ver o efeito completamento.");
+                        await AsyncStorage.multiRemove([
+                            '@app_preferences_vibration',
+                            '@app_test_mode'
+                        ]);
+                        setVibrationEnabled(true);
+                        setTestModeEnabled(false);
+                        Alert.alert("Sucesso", "Cache limpo. Reinicie o aplicativo para ver o efeito completamente.");
                     }
                 }
             ]
@@ -133,7 +166,14 @@ export default function SettingsScreen() {
                         Perfil Público
                     </Text>
                     
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-6">
+                    <ImagePickerAvatar
+                        bucket="images"
+                        onImageUploaded={(url) => setImageUrl(url)}
+                        circle={true}
+                        defaultImage={imageUrl || undefined}
+                    />
+                    
+                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-6 mt-4">
                         <View className="mb-4">
                             <Text className="text-xs text-slate-400 mb-2 ml-1">Nome Completo / Apelido</Text>
                             <View className="flex-row items-center bg-slate-950/50 border border-slate-800 rounded-2xl px-4 py-3">
@@ -194,6 +234,26 @@ export default function SettingsScreen() {
                     <Text className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider mt-4">
                         Sistema e Testes
                     </Text>
+
+                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-2">
+                        <View className="flex-row items-center justify-between py-2">
+                            <View className="flex-row items-center gap-3">
+                                <View className="w-10 h-10 rounded-full bg-slate-800 items-center justify-center">
+                                    <Smartphone size={20} color="#cbd5e1" />
+                                </View>
+                                <View>
+                                    <Text className="text-sm font-medium text-slate-200">Modo de Testes Rápido</Text>
+                                    <Text className="text-xs text-slate-400">Transformar 10s reais em 1h no DB</Text>
+                                </View>
+                            </View>
+                            <Switch
+                                value={testModeEnabled}
+                                onValueChange={toggleTestMode}
+                                trackColor={{ false: "#334155", true: COLORS.violetLight }}
+                                thumbColor="#ffffff"
+                            />
+                        </View>
+                    </View>
 
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
                         <TouchableOpacity 

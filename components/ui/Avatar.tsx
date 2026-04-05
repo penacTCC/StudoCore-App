@@ -29,7 +29,7 @@ export default function Avatar({
                 }}
             >
                 <Image
-                    source={{ uri: foto || "https://towardly-insensately-mose.ngrok-free.dev/storage/v1/object/public/images/user2.png" }}
+                    source={{ uri: foto || "https://ui-avatars.com/api/?name=User&background=6366f1&color=ffffff" }}
                     style={{ width: "100%", height: "100%" }}
                     resizeMode="cover"
                 />

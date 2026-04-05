@@ -2,6 +2,7 @@ import { DeviceEventEmitter } from 'react-native';
 import { APP_BADGES } from '../constants/badges';
 import { supabase } from '@/supabase';
 import { buscarUsuarioLogado } from '@/services/auth';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface UserStats {
   totalHours: number;
@@ -34,7 +35,7 @@ export const loadProfileStats = async (): Promise<UserStats> => {
         // Fetch user profile stats
         const { data: profile } = await supabase
             .from('profiles')
-            .select('horas_totais, questoes_feitas, badges_unlocked, favorite_subject')
+            .select('horas_totais, questoes_feitas, badges_unlocked, favorite_subject, minutos_semana')
             .eq('id', userId)
             .maybeSingle();
 
@@ -51,6 +52,7 @@ export const loadProfileStats = async (): Promise<UserStats> => {
         // Aggregate sessions into YYYY-MM-DD
         const studyHistory: Record<string, number> = {};
         let weeklyCurrent = 0;
+        let exactLifetimeMinutes = 0;
         
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -63,23 +65,26 @@ export const loadProfileStats = async (): Promise<UserStats> => {
                 // Transforma Minutos da Duração em Horas formatadas
                 const hoursInSession = session.tempo_minutos / 60;
                 studyHistory[dateStr] = (studyHistory[dateStr] || 0) + hoursInSession;
+                exactLifetimeMinutes += session.tempo_minutos;
 
                 if (d >= oneWeekAgo) {
                     weeklyCurrent += hoursInSession;
                 }
             });
         }
+        
+        const exactLifetimeHours = Math.round((exactLifetimeMinutes / 60) * 10) / 10;
 
         // Removemos o cálculo dinâmico da matéria para que a escolha manual do Perfil seja soberana
         let calculatedFavorite = profile?.favorite_subject || "Matemática";
 
         return {
-            totalHours: profile?.horas_totais || 0,
+            totalHours: exactLifetimeHours,
             totalQuestions: profile?.questoes_feitas || 0,
             favoriteSubject: calculatedFavorite,
             badgesUnlocked: profile?.badges_unlocked || [],
             weeklyCurrent: Math.round(weeklyCurrent * 10) / 10,
-            weeklyGoal: 12, 
+            weeklyGoal: profile?.minutos_semana ? (profile.minutos_semana / 60) : 12, 
             studyHistory
         };
     } catch (e) {
@@ -99,6 +104,17 @@ export const updateFavoriteSubject = async (subject: string): Promise<UserStats>
     return await loadProfileStats();
 };
 
+// Salva a nova meta semanal
+export const updateWeeklyGoal = async (hours: number): Promise<UserStats> => {
+    const { data: authData } = await buscarUsuarioLogado();
+    const userId = authData?.user?.id;
+    if (userId) {
+        const minSemana = Math.round(hours * 60);
+        await supabase.from('profiles').upsert({ id: userId, minutos_semana: minSemana });
+    }
+    return await loadProfileStats();
+};
+
 // Atualiza o banco com horas reais e insere a sessao
 export const addStudyHours = async (timerSeconds: number, currentSubject: string): Promise<UserStats | null> => {
     try {
@@ -106,9 +122,14 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
         const userId = authData?.user?.id;
         if (!userId) return null;
 
-        // Matemática de Teste (10s = 1 hora) pedida por você:
-        // Mude para 3600 quando for lançar o app real
-        const calculatedHours = timerSeconds / 10; 
+        const testPref = await AsyncStorage.getItem('@app_test_mode');
+        const isTestMode = testPref === 'true';
+
+        // O divisor define quanto tempo vale 1 hora. 
+        // Em TestMode (ligado nas config), 10s cravados = 1 hora no DB
+        // Em Prod, 3600 = 1 hora
+        const divisor = isTestMode ? 10 : 3600;
+        const calculatedHours = timerSeconds / divisor; 
         
         if (calculatedHours <= 0) return null;
 
@@ -135,7 +156,7 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
                 let unlocked = false;
                 if (badge.id.startsWith("hours_") && newTotalHours >= badge.requirementValue) {
                     unlocked = true;
-                } else if (badge.id === "weekly_goal" && newWeeklyCurrent >= badge.requirementValue) {
+                } else if (badge.id === "weekly_goal" && newWeeklyCurrent >= current.weeklyGoal) {
                     unlocked = true;
                 }
 
@@ -148,12 +169,17 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
 
         const todayDateStr = new Date().toISOString();
 
-        // Atualizar perfil do usuario
-        await supabase.from('profiles').update({
-             horas_totais: newTotalHours,
+        // Atualizar perfil do usuario (usando UPSERT para garantir gravação mesmo sem linha base)
+        const { error: profileError } = await supabase.from('profiles').upsert({
+             id: userId,
+             horas_totais: Math.round(newTotalHours),
              badges_unlocked: newBadges,
              last_study_date: todayDateStr
-        }).eq('id', userId);
+        });
+
+        if (profileError) {
+            console.error("Erro Critico ao Salvar Badges e Horas:", profileError);
+        }
 
         // Dispara alerta global se ganhou medalhas, jogando na fila
         if (newlyUnlocked.length > 0) {
