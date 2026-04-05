@@ -40,15 +40,27 @@ export default function FocusScreen() {
     const [questionsSolved, setQuestionsSolved] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const secondsRef = useRef(0);
 
     useEffect(() => {
         if (focusState === "active") {
+            secondsRef.current = 0;
+            setTimerSeconds(0);
             intervalRef.current = setInterval(() => {
-                setTimerSeconds((prev) => prev + 1);
+                secondsRef.current += 1;
+                setTimerSeconds(secondsRef.current);
             }, 1000);
+        } else {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
         }
         return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
         };
     }, [focusState]);
 
@@ -60,8 +72,9 @@ export default function FocusScreen() {
     };
 
     const startSession = () => {
-        setFocusState("active");
+        secondsRef.current = 0;
         setTimerSeconds(0);
+        setFocusState("active");
     };
 
     const stopSession = () => {
@@ -93,28 +106,30 @@ export default function FocusScreen() {
             Alert.alert("Aviso", "Houve um erro ao salvar na nuvem, mas a sessão foi fechada.");
         }
         
-        setFocusState("config");
-        setTimerSeconds(0);
+        setShowQuestionsModal(false);
+        setIsSaving(false);
         setQuestionsSolved("");
         setSelectedSubject("");
         setSpecificContent("");
-        setShowQuestionsModal(false);
-        setIsSaving(false);
+        secondsRef.current = 0;
+        setTimerSeconds(0);
+        setFocusState("config");
     };
 
     const discardSession = () => {
-        setFocusState("config");
-        setTimerSeconds(0);
-        setQuestionsSolved("");
         setShowQuestionsModal(false);
+        setQuestionsSolved("");
+        secondsRef.current = 0;
+        setTimerSeconds(0);
+        setFocusState("config");
     };
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
             {/* Header */}
             <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">Focus Mode</Text>
-                <Text className="text-sm text-slate-400">Maximize your productivity</Text>
+                <Text className="text-xl font-bold text-slate-200">Modo Foco</Text>
+                <Text className="text-sm text-slate-400">Maximize sua produtividade</Text>
             </View>
 
             <ScrollView
@@ -124,12 +139,12 @@ export default function FocusScreen() {
                 {focusState === "config" && (
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
                         <Text className="text-lg font-semibold text-slate-200 mb-6 text-center">
-                            Configure Session
+                            Configurar Sessão
                         </Text>
 
                         {/* Subject Picker */}
                         <View className="mb-4">
-                            <Text className="text-sm text-slate-400 mb-2">Subject</Text>
+                            <Text className="text-sm text-slate-400 mb-2">Matéria</Text>
                             <ComboBox 
                                 value={selectedSubject}
                                 onChange={setSelectedSubject}
@@ -140,11 +155,11 @@ export default function FocusScreen() {
 
                         {/* Specific Content */}
                         <View className="mb-4">
-                            <Text className="text-sm text-slate-400 mb-2">Specific Content</Text>
+                            <Text className="text-sm text-slate-400 mb-2">Conteúdo Específico</Text>
                             <TextInput
                                 value={specificContent}
                                 onChangeText={setSpecificContent}
-                                placeholder="e.g., Chapter 5: Derivatives"
+                                placeholder="Ex: Capítulo 5 - Derivadas"
                                 placeholderTextColor={COLORS.textMuted}
                                 className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-base"
                             />
@@ -153,9 +168,9 @@ export default function FocusScreen() {
                         {/* Session Visibility Toggle */}
                         <View className="flex-row items-center justify-between bg-slate-800/50 p-4 rounded-xl mb-6">
                             <View>
-                                <Text className="text-sm font-medium text-slate-200">Session Visibility</Text>
+                                <Text className="text-sm font-medium text-slate-200">Visibilidade da Sessão</Text>
                                 <Text className="text-xs text-slate-400">
-                                    {isPublicSession ? "Others can join" : "Private session"}
+                                    {isPublicSession ? "Outros podem participar" : "Sessão privada"}
                                 </Text>
                             </View>
                             <TouchableOpacity onPress={() => setIsPublicSession(!isPublicSession)}>
@@ -180,7 +195,7 @@ export default function FocusScreen() {
                             }}
                         >
                             <Play size={20} color={COLORS.white} />
-                            <Text className="text-white font-semibold text-lg">Start Session</Text>
+                            <Text className="text-white font-semibold text-lg">Iniciar Sessão</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -190,10 +205,10 @@ export default function FocusScreen() {
                         {/* Subject info */}
                         <View className="mb-8 items-center">
                             <Text className="text-sm text-violet-400 font-medium mb-1">
-                                {selectedSubject || "General Study"}
+                                {selectedSubject || "Estudo Geral"}
                             </Text>
                             <Text className="text-xs text-slate-500">
-                                {specificContent || "Free session"}
+                                {specificContent || "Sessão livre"}
                             </Text>
                         </View>
 
@@ -214,12 +229,14 @@ export default function FocusScreen() {
                             >
                                 <Text
                                     className="font-bold text-violet-400"
-                                    style={{ fontSize: 42, letterSpacing: 2 }}
+                                    style={{ fontSize: 40, letterSpacing: 2 }}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
                                 >
                                     {formatTime(timerSeconds)}
                                 </Text>
                                 <Text className="text-xs text-slate-500 mt-2 uppercase tracking-widest">
-                                    Elapsed
+                                    Tempo Decorrido
                                 </Text>
                             </View>
                         </View>
@@ -231,7 +248,7 @@ export default function FocusScreen() {
                                     }`}
                             />
                             <Text className="text-sm text-slate-400">
-                                {isPublicSession ? "Public Session" : "Private Session"}
+                                {isPublicSession ? "Sessão Pública" : "Sessão Privada"}
                             </Text>
                         </View>
 
@@ -241,7 +258,7 @@ export default function FocusScreen() {
                             className="bg-rose-500/20 border border-rose-500 py-4 px-12 rounded-2xl flex-row items-center justify-center gap-2"
                         >
                             <Square size={20} color={COLORS.rose} />
-                            <Text className="text-rose-500 font-semibold text-lg">End Session</Text>
+                            <Text className="text-rose-500 font-semibold text-lg">Encerrar Sessão</Text>
                         </TouchableOpacity>
 
                         {/* Questions Modal */}
@@ -254,7 +271,7 @@ export default function FocusScreen() {
                             <View className="flex-1 bg-black/70 justify-center items-center p-4">
                                 <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-sm">
                                     <Text className="text-xl font-bold text-slate-200 mb-2 text-center">
-                                        Session Completed! 🎉
+                                        Sessão Concluída! 🎉
                                     </Text>
                                     <Text className="text-sm text-slate-400 mb-6 text-center">
                                         Quantas questões você resolveu? (opcional)
