@@ -4,9 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { CheckCircle2, ChevronLeft, BookOpen, XCircle, AlertCircle } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
-import { mockDetailingFeed } from "@/constants/mock-data";
 import { useAuth } from "@/hooks/useAuth";
-import { useProfile } from "@/hooks/useProfile";
+import { salvarSessaoFoco, atualizarSessaoFoco } from "@/services/sessions";
 
 // Helper para misturar qualquer array (Fisher-Yates) sem mutar o original
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -21,10 +20,9 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 export default function FocusFeedbackModal() {
     const router = useRouter();
     const params = useLocalSearchParams();
-    
-    // Pega o nome do usuário para salvar no Live Feed
+
+    // Pega o ID do usuário para salvar no Supabase
     const { userId } = useAuth();
-    const { profile } = useProfile(userId || "");
 
     // Estado das 10 respostas
     const [answers, setAnswers] = useState<Record<number, string | null>>({
@@ -62,7 +60,9 @@ export default function FocusFeedbackModal() {
         }))
     );
 
-    const handleSubmit = () => {
+    const [saving, setSaving] = useState(false);
+
+    const handleSubmit = async (status: string = "salvo") => {
         if (!showResults) {
             // Passo 1: Avaliar/Validar
             if (!isComplete) {
@@ -71,30 +71,52 @@ export default function FocusFeedbackModal() {
             }
             setShowResults(true); // Muda pra tela de review do gabarito
         } else {
-            // Passo 2: Guarda as questões e injeta no live feed
-            console.log("Guardando questões no banco de dados...", answers);
-            
-            const durationSecs = Number(params.duration) || 0;
-            const finalUsername = profile?.full_name || profile?.username || "You";
-            const finalInitials = finalUsername !== "You" ? finalUsername.substring(0, 2).toUpperCase() : "YO";
+            // Passo 2: Salvar ou atualizar sessão no Supabase
+            if (!userId) {
+                Alert.alert("Erro", "Usuário não autenticado.");
+                return;
+            }
 
-            const newSession = {
-                id: Date.now(),
-                user: finalUsername,
-                initials: finalInitials,
-                subject: params.subject as string || "General Study",
-                content: params.content as string || "Free session",
-                durationHours: Math.floor(durationSecs / 3600),
-                durationMinutes: Math.floor((durationSecs % 3600) / 60),
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                timeAgo: "Just now",
-                isPublic: params.isPublic === "true",
-                verified: true,
-                streak: 10,
-                reactions: 0,
-            };
+            setSaving(true);
+
+            const durationSecs = Number(params.duration) || 0;
+            const tempoMinutos = Math.round(durationSecs / 60);
             
-            mockDetailingFeed.unshift(newSession);
+            let dbError = null;
+
+            if (params.sessionId) {
+                // É um refazer ou término de sessão de revisão
+                const oldDuration = Number(params.oldDuration) || 0;
+                const totalMinutes = oldDuration + tempoMinutos;
+                
+                const { error } = await atualizarSessaoFoco(params.sessionId as string, {
+                    questoes_acertadas: score,
+                    status: status,
+                    tempo_minutos: totalMinutes,
+                });
+                dbError = error;
+            } else {
+                // É uma sessão nova
+                const { error } = await salvarSessaoFoco({
+                    user_id: userId,
+                    disciplina: params.subject as string || "Estudo Geral",
+                    conteudo_especifico: params.content as string || "Sessão livre",
+                    tempo_minutos: tempoMinutos,
+                    questoes_respondidas: shuffledQuestions.length,
+                    questoes_acertadas: score,
+                    is_public: params.isPublic === "true",
+                    status: status,
+                });
+                dbError = error;
+            }
+
+            setSaving(false);
+
+            if (dbError) {
+                console.error("Erro ao salvar sessão:", dbError);
+                Alert.alert("Erro", "Não foi possível salvar a sessão. Tente novamente.");
+                return;
+            }
 
             router.back();
         }
@@ -114,9 +136,7 @@ export default function FocusFeedbackModal() {
         <SafeAreaView className="flex-1 bg-slate-950" edges={['top', 'bottom']}>
             {/* Header */}
             <View className="flex-row items-center justify-between px-4 py-4 border-b border-slate-800 bg-slate-950 z-10">
-                <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2 rounded-full bg-slate-900 border border-slate-800">
-                    <ChevronLeft color={COLORS.textMuted} size={24} />
-                </TouchableOpacity>
+                <View className="w-10" />
                 <Text className="text-slate-200 text-lg font-bold">
                     {showResults ? "Gabarito" : "Quiz do Conteúdo"}
                 </Text>
@@ -219,7 +239,8 @@ export default function FocusFeedbackModal() {
             <View className="absolute bottom-0 left-0 right-0 p-4 bg-slate-950 border-t border-slate-900">
                 {!showResults ? (
                     <TouchableOpacity
-                        onPress={handleSubmit}
+                        onPress={() => handleSubmit('salvo')}
+                        disabled={saving}
                         activeOpacity={0.8}
                         className={`flex-row items-center justify-center py-4 rounded-2xl ${isComplete ? 'bg-violet-600' : 'bg-slate-800'}`}
                         style={isComplete ? {
@@ -238,8 +259,9 @@ export default function FocusFeedbackModal() {
                 ) : (
                     score > 7 ? (
                         <TouchableOpacity
-                            onPress={handleSubmit}
+                            onPress={() => handleSubmit('salvo')}
                             activeOpacity={0.8}
+                            disabled={saving}
                             className="flex-row items-center justify-center py-4 rounded-2xl bg-violet-600"
                             style={{
                                 shadowColor: COLORS.violet,
@@ -273,8 +295,9 @@ export default function FocusFeedbackModal() {
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                                onPress={handleSubmit}
+                                onPress={() => handleSubmit('pendente')}
                                 activeOpacity={0.8}
+                                disabled={saving}
                                 className="flex-row items-center justify-center py-4 rounded-2xl bg-slate-900 border border-slate-700"
                             >
                                 <Text className="text-lg font-bold text-slate-300">Salvar e refazer mais tarde</Text>

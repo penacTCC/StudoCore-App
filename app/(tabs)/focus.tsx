@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";//Componentes do native
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
     View,
     Text,
@@ -21,6 +21,8 @@ import {
 //Constantes
 import { COLORS } from "@/constants/colors";
 import { subjects } from "@/constants/mock-data";
+import { useAuth } from "@/hooks/useAuth";
+import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 
 type FocusState = "config" | "active";
 
@@ -31,6 +33,21 @@ export default function FocusScreen() {
     const [specificContent, setSpecificContent] = useState("");
     const [timerSeconds, setTimerSeconds] = useState(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const { userId } = useAuth();
+    const { pendingSessions } = useSessoesUsuario(userId);
+    const params = useLocalSearchParams();
+    const router = useRouter();
+
+    // Auto-start for review sessions
+    useEffect(() => {
+        if (params.autoStart === 'true' && params.reviewSessionId) {
+            setSelectedSubject(params.subject as string);
+            setSpecificContent(params.content as string);
+            setFocusState("active");
+            setTimerSeconds(0);
+        }
+    }, [params.autoStart, params.reviewSessionId, params.subject, params.content]);
 
     useEffect(() => {
         if (focusState === "active") {
@@ -55,11 +72,15 @@ export default function FocusScreen() {
             Alert.alert("Incompleto", "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar.");
             return;
         }
+
+        if (pendingSessions.length > 0 && !params.reviewSessionId) {
+            Alert.alert("Aviso", "Responda os formulários pendentes!");
+            return;
+        }
+
         setFocusState("active");
         setTimerSeconds(0);
     };
-
-    const router = useRouter();
 
     const stopSession = () => {
         setFocusState("config");
@@ -83,7 +104,9 @@ export default function FocusScreen() {
                 subject: finalSubject,
                 content: finalContent,
                 duration: finalDuration.toString(),
-                isPublic: finalIsPublic.toString()
+                isPublic: finalIsPublic.toString(),
+                sessionId: params.reviewSessionId || undefined,
+                oldDuration: params.oldDuration || undefined,
             }
         });
     };

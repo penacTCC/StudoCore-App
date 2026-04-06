@@ -1,24 +1,14 @@
-import { useState } from "react";
-
-//Componentes do native
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    ScrollView,
-    Modal,
-    TextInput,
-    Alert,
-} from "react-native";
+import { useState, useMemo } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Modal, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight, Sparkles, Plus, X } from "lucide-react-native";
+import { ChevronRight, Sparkles, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
-//Constantes
 import { COLORS } from "@/constants/colors";
-import { mockFailedQuestions } from "@/constants/mock-data";
-
-//Componentes do projeto
 import { ProgressBar, StatCard } from "@/components/ui/";
+import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
+import { useAuth } from "@/hooks/useAuth";
+import { SessaoFocoRow } from "@/services/sessions";
 
 type BrainTab = "database" | "analytics";
 
@@ -27,44 +17,103 @@ const BRAIN_TABS = [
     { key: "analytics", label: "Analytics" },
 ];
 
-const studyDistribution = [
-    { subject: "Matemática", hours: 12, color: "#8b5cf6" },
-    { subject: "Física", hours: 8, color: "#10b981" },
-    { subject: "Química", hours: 5, color: "#fbbf24" },
-    { subject: "Biologia", hours: 3, color: "#f43f5e" },
-];
-
-type FailedQuestion = {
-    id: number;
-    subject: string;
-    question: string;
-    date: string;
-};
+const COLORS_PALETTE = ["#8b5cf6", "#10b981", "#fbbf24", "#f43f5e", "#3b82f6", "#ec4899", "#14b8a6", "#f97316"];
 
 export default function BrainScreen() {
     const [brainTab, setBrainTab] = useState<BrainTab>("database");
-    const [questions, setQuestions] = useState<FailedQuestion[]>(mockFailedQuestions);
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [newSubject, setNewSubject] = useState("");
-    const [newQuestion, setNewQuestion] = useState("");
+    
+    const { userId } = useAuth();
+    const { savedSessions, pendingSessions, loading } = useSessoesUsuario(userId);
+    const [selectedForm, setSelectedForm] = useState<SessaoFocoRow | null>(null);
+    const router = useRouter();
 
-    const handleAddQuestion = () => {
-        if (!newSubject.trim() || !newQuestion.trim()) {
-            Alert.alert("Atenção", "Preencha a matéria e a questão.");
-            return;
+    const analyticsData = useMemo(() => {
+        const allSessions = [...savedSessions, ...pendingSessions];
+        
+        if (allSessions.length === 0) {
+            return {
+                horasEstaSemana: 0,
+                questoesEstaSemana: 0,
+                sequencia: 0,
+                distribuicao: [],
+                maxHours: 1
+            };
         }
+
+        // Helpers
+        const getStartOfWeek = (d: Date) => {
+            const date = new Date(d);
+            const day = date.getDay(); // 0 is Sunday
+            const diff = date.getDate() - day;
+            return new Date(date.setDate(diff)).setHours(0, 0, 0, 0);
+        };
+
         const today = new Date();
-        const dateStr = `${String(today.getDate()).padStart(2, "0")}/${String(
-            today.getMonth() + 1
-        ).padStart(2, "0")}/${today.getFullYear()}`;
-        setQuestions((prev) => [
-            ...prev,
-            { id: Date.now(), subject: newSubject.trim(), question: newQuestion.trim(), date: dateStr },
-        ]);
-        setNewSubject("");
-        setNewQuestion("");
-        setShowAddModal(false);
-    };
+        const startOfThisWeek = getStartOfWeek(today);
+        
+        let horasTotaisMinutos = 0;
+        let questoesTotais = 0;
+        const distMap: Record<string, number> = {};
+
+        const uniqueDates = new Set<string>();
+
+        allSessions.forEach(session => {
+            // Data da sessão
+            const sessionDate = new Date(session.created_at || session.data_sessao);
+            
+            // Para "Sequência" (General Streak)
+            uniqueDates.add(sessionDate.toISOString().split('T')[0]);
+
+            // Para "Esta Semana"
+            if (getStartOfWeek(sessionDate) === startOfThisWeek) {
+                horasTotaisMinutos += session.tempo_minutos || 0;
+                questoesTotais += session.questoes_respondidas || 0;
+
+                const subject = session.disciplina || "Outros";
+                if (!distMap[subject]) distMap[subject] = 0;
+                distMap[subject] += session.tempo_minutos || 0;
+            }
+        });
+
+        // Compute sequência (streak)
+        const sortedDates = Array.from(uniqueDates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+        let streak = 0;
+        const todayStr = today.toISOString().split('T')[0];
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        if (sortedDates.length > 0) {
+            let expectedDateStr = sortedDates[0];
+            if (expectedDateStr === todayStr || expectedDateStr === yesterdayStr) {
+                let currentDate = new Date(expectedDateStr + "T12:00:00"); 
+                for (let i = 0; i < sortedDates.length; i++) {
+                    if (sortedDates[i] === expectedDateStr) {
+                        streak++;
+                        currentDate.setDate(currentDate.getDate() - 1);
+                        expectedDateStr = currentDate.toISOString().split('T')[0];
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Distribuição de matérias (ordenado, da semana em horas)
+        const distribuicao = Object.keys(distMap).map((subject, index) => ({
+            subject,
+            hours: Math.round((distMap[subject] / 60) * 10) / 10,
+            color: COLORS_PALETTE[index % COLORS_PALETTE.length]
+        })).sort((a, b) => b.hours - a.hours);
+
+        return {
+            horasEstaSemana: Math.round(horasTotaisMinutos / 60),
+            questoesEstaSemana: questoesTotais,
+            sequencia: streak,
+            distribuicao,
+            maxHours: distribuicao.length > 0 ? Math.max(...distribuicao.map(d => d.hours)) : 1
+        };
+    }, [savedSessions, pendingSessions]);
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
@@ -98,62 +147,92 @@ export default function BrainScreen() {
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
                 {/* ── DATABASE ─────────────────────────────────── */}
                 {brainTab === "database" && (
-                    <View className="px-4 pb-4">
+                    <View className="px-4 pb-4 gap-4">
+                        {/* Formulários Pendentes */}
                         <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                            {/* Cabeçalho do painel */}
                             <View className="flex-row items-center justify-between mb-4">
                                 <Text className="text-lg font-semibold text-slate-200">
-                                    Questões Erradas
+                                    Formulários Pendentes
                                 </Text>
                                 <View
                                     className="px-2 py-1 rounded-lg"
                                     style={{ backgroundColor: "rgba(244, 63, 94, 0.2)" }}
                                 >
                                     <Text className="text-xs font-medium text-rose-400">
-                                        {questions.length} para revisar
+                                        {pendingSessions.length} para refazer
                                     </Text>
                                 </View>
                             </View>
 
-                            {/* Lista de questões */}
-                            {questions.length > 0 ? (
-                                questions.map((q) => (
-                                    <View
-                                        key={q.id}
-                                        className="p-4 rounded-xl mb-3"
-                                        style={{
-                                            backgroundColor: "rgba(30, 41, 59, 0.5)",
-                                            borderWidth: 1,
-                                            borderColor: "rgba(244, 63, 94, 0.3)",
-                                        }}
+                            {pendingSessions.length > 0 ? (
+                                pendingSessions.map((form) => (
+                                    <TouchableOpacity
+                                        key={form.id}
+                                        onPress={() => setSelectedForm(form)}
+                                        activeOpacity={0.7}
+                                        className="p-4 rounded-xl mb-3 flex-row items-center border"
+                                        style={{ backgroundColor: "rgba(30, 41, 59, 0.5)", borderColor: "rgba(244, 63, 94, 0.3)" }}
                                     >
-                                        <View className="flex-row items-center justify-between mb-2">
-                                            <View
-                                                className="px-2 py-0.5 rounded"
-                                                style={{ backgroundColor: "rgba(244, 63, 94, 0.2)" }}
-                                            >
-                                                <Text className="text-xs font-medium text-rose-400">
-                                                    {q.subject}
-                                                </Text>
-                                            </View>
-                                            <Text className="text-xs text-slate-500">{q.date}</Text>
+                                        <View className="w-10 h-10 rounded-full bg-rose-500/20 items-center justify-center mr-3">
+                                            <AlertCircle size={20} color={COLORS.rose} />
                                         </View>
-                                        <Text className="text-sm text-slate-200">{q.question}</Text>
-                                        <TouchableOpacity className="flex-row items-center gap-1 mt-3">
-                                            <Text className="text-sm font-medium text-violet-400">
-                                                Tentar novamente
-                                            </Text>
-                                            <ChevronRight size={14} color={COLORS.violetLight} />
-                                        </TouchableOpacity>
-                                    </View>
+                                        <View className="flex-1">
+                                            <Text className="text-sm font-semibold text-slate-200">{form.disciplina}</Text>
+                                            <Text className="text-xs text-slate-400 mt-1" numberOfLines={1}>{form.conteudo_especifico}</Text>
+                                        </View>
+                                        <ChevronRight size={16} color={COLORS.textMuted} />
+                                    </TouchableOpacity>
                                 ))
                             ) : (
-                                <View className="items-center py-8">
-                                    <Text className="text-lg font-semibold text-emerald-400 mb-1">
-                                        Tudo certo! 🎉
+                                <View className="items-center py-6">
+                                    <Text className="text-sm font-medium text-emerald-400 mb-1">
+                                        Nenhuma pendência 🎉
                                     </Text>
-                                    <Text className="text-sm text-slate-400 text-center">
-                                        Nenhuma questão errada. Continue assim!
+                                    <Text className="text-xs text-slate-500 text-center">
+                                        Você está em dia com seus estudos!
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Formulários Salvos */}
+                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                            <View className="flex-row items-center justify-between mb-4">
+                                <Text className="text-lg font-semibold text-slate-200">
+                                    Formulários Salvos
+                                </Text>
+                                <View
+                                    className="px-2 py-1 rounded-lg"
+                                    style={{ backgroundColor: "rgba(16, 185, 129, 0.2)" }}
+                                >
+                                    <Text className="text-xs font-medium text-emerald-400">
+                                        {savedSessions.length} salvos
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {savedSessions.length > 0 ? (
+                                savedSessions.map((form) => (
+                                    <TouchableOpacity
+                                        key={form.id}
+                                        onPress={() => setSelectedForm(form)}
+                                        activeOpacity={0.7}
+                                        className="p-4 rounded-xl mb-3 flex-row items-center border border-slate-800 bg-slate-800/50"
+                                    >
+                                        <View className="w-10 h-10 rounded-full bg-emerald-500/20 items-center justify-center mr-3">
+                                            <BookOpen size={20} color={COLORS.emerald} />
+                                        </View>
+                                        <View className="flex-1">
+                                            <Text className="text-sm font-semibold text-slate-200">{form.disciplina}</Text>
+                                            <Text className="text-xs text-slate-400 mt-1" numberOfLines={1}>{form.conteudo_especifico}</Text>
+                                        </View>
+                                        <ChevronRight size={16} color={COLORS.textMuted} />
+                                    </TouchableOpacity>
+                                ))
+                            ) : (
+                                <View className="items-center py-6">
+                                    <Text className="text-xs text-slate-500 text-center">
+                                        Nenhum formulário salvo ainda.
                                     </Text>
                                 </View>
                             )}
@@ -191,20 +270,22 @@ export default function BrainScreen() {
                                 Distribuição de Estudo
                             </Text>
                             <View className="gap-3">
-                                {studyDistribution.map((item) => (
+                                {analyticsData.distribuicao.length > 0 ? analyticsData.distribuicao.map((item) => (
                                     <View key={item.subject}>
                                         <View className="flex-row items-center justify-between mb-1">
                                             <Text className="text-sm text-slate-300">{item.subject}</Text>
                                             <Text className="text-sm text-slate-400">{item.hours}h</Text>
                                         </View>
                                         <ProgressBar
-                                            progress={item.hours / 12}
+                                            progress={item.hours / analyticsData.maxHours}
                                             color={item.color}
                                             height={8}
                                             trackClassName="bg-slate-800"
                                         />
                                     </View>
-                                ))}
+                                )) : (
+                                    <Text className="text-sm text-slate-500 text-center py-2">Sem registros nesta semana</Text>
+                                )}
                             </View>
                         </View>
 
@@ -214,73 +295,96 @@ export default function BrainScreen() {
                                 Esta Semana
                             </Text>
                             <View className="flex-row gap-3">
-                                <StatCard value={28} label="Horas" />
-                                <StatCard value={10} label="Sequência" valueColor={COLORS.emeraldLight} />
-                                <StatCard value={45} label="Questões" valueColor={COLORS.violetLight} />
+                                <StatCard value={analyticsData.horasEstaSemana} label="Horas" />
+                                <StatCard value={analyticsData.sequencia} label="Sequência" valueColor={COLORS.emeraldLight} />
+                                <StatCard value={analyticsData.questoesEstaSemana} label="Questões" valueColor={COLORS.violetLight} />
                             </View>
                         </View>
                     </View>
                 )}
             </ScrollView>
 
-            {/* ── MODAL: Adicionar Questão ──────────────────── */}
-            <Modal visible={showAddModal} transparent animationType="fade">
+            {/* ── MODAL: Ação no Formulário ──────────────────── */}
+            <Modal visible={!!selectedForm} transparent animationType="fade" onRequestClose={() => setSelectedForm(null)}>
                 <View
-                    className="flex-1 justify-center items-center px-4"
-                    style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
+                    className="flex-1 justify-end"
+                    style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
                 >
-                    <View className="w-full bg-slate-900 border border-slate-700 rounded-3xl p-6">
+                    <View className="w-full bg-slate-900 border-t border-slate-800 rounded-t-3xl p-6 pb-8">
                         {/* Header */}
-                        <View className="flex-row items-center justify-between mb-5">
-                            <Text className="text-lg font-bold text-slate-100">
-                                Adicionar questão errada
-                            </Text>
-                            <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                        <View className="flex-row items-center justify-between mb-6">
+                            <View className="flex-row items-center flex-1">
+                                <View className={`w-12 h-12 rounded-full items-center justify-center mr-4 ${selectedForm?.status === 'pendente' ? 'bg-rose-500/20' : 'bg-emerald-500/20'}`}>
+                                    {selectedForm?.status === 'pendente' ? (
+                                        <AlertCircle size={24} color={COLORS.rose} />
+                                    ) : (
+                                        <BookOpen size={24} color={COLORS.emerald} />
+                                    )}
+                                </View>
+                                <View className="flex-1">
+                                    <Text className="text-xl font-bold text-slate-100 mb-1">{selectedForm?.disciplina}</Text>
+                                    <Text className="text-sm text-slate-400" numberOfLines={2}>{selectedForm?.conteudo_especifico}</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity onPress={() => setSelectedForm(null)} className="p-2 bg-slate-800 rounded-full">
                                 <X size={20} color={COLORS.textMuted} />
                             </TouchableOpacity>
                         </View>
 
-                        {/* Matéria */}
-                        <Text className="text-xs text-slate-400 mb-1 font-medium uppercase tracking-wide">
-                            Matéria
-                        </Text>
-                        <TextInput
-                            value={newSubject}
-                            onChangeText={setNewSubject}
-                            placeholder="Ex: Matemática"
-                            placeholderTextColor={COLORS.textMuted}
-                            className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-sm mb-4"
-                        />
-
-                        {/* Questão */}
-                        <Text className="text-xs text-slate-400 mb-1 font-medium uppercase tracking-wide">
-                            Questão
-                        </Text>
-                        <TextInput
-                            value={newQuestion}
-                            onChangeText={setNewQuestion}
-                            placeholder="Descreva a questão que errou..."
-                            placeholderTextColor={COLORS.textMuted}
-                            multiline
-                            numberOfLines={3}
-                            className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-sm mb-6"
-                            style={{ textAlignVertical: "top" }}
-                        />
-
                         {/* Botões */}
-                        <View className="flex-row gap-3">
+                        <View className="gap-3">
                             <TouchableOpacity
-                                onPress={() => setShowAddModal(false)}
-                                className="flex-1 py-3 rounded-xl border border-slate-600 items-center"
+                                onPress={() => {
+                                    if (!selectedForm) return;
+                                    const form = selectedForm;
+                                    setSelectedForm(null);
+                                    router.push({
+                                        pathname: "/(tabs)/focus",
+                                        params: {
+                                            reviewSessionId: form.id,
+                                            subject: form.disciplina,
+                                            content: form.conteudo_especifico || "",
+                                            oldDuration: form.tempo_minutos.toString(),
+                                            isPublic: form.is_public.toString(),
+                                            autoStart: 'true'
+                                        }
+                                    });
+                                }}
+                                className="flex-row items-center justify-center gap-2 py-4 rounded-xl bg-violet-600"
                             >
-                                <Text className="text-slate-400 font-medium">Cancelar</Text>
+                                <Clock size={20} color={COLORS.white} />
+                                <Text className="text-white font-semibold text-lg">Sessão de revisão</Text>
                             </TouchableOpacity>
+
                             <TouchableOpacity
-                                onPress={handleAddQuestion}
-                                className="flex-1 py-3 rounded-xl items-center"
-                                style={{ backgroundColor: COLORS.violetDark }}
+                                onPress={() => {
+                                    if (!selectedForm) return;
+                                    const form = selectedForm;
+                                    setSelectedForm(null);
+                                    router.push({
+                                        pathname: "/(modals)/focus-feedback",
+                                        params: {
+                                            sessionId: form.id,
+                                            subject: form.disciplina,
+                                            content: form.conteudo_especifico || "",
+                                            oldDuration: form.tempo_minutos.toString(),
+                                            duration: "0",
+                                            isPublic: form.is_public.toString(),
+                                        }
+                                    });
+                                }}
+                                className="flex-row items-center justify-center gap-2 py-4 rounded-xl bg-slate-800 border border-slate-700"
                             >
-                                <Text className="text-white font-semibold">Adicionar</Text>
+                                <RefreshCw size={20} color="#cbd5e1" />
+                                <Text className="font-semibold text-lg" style={{ color: "#cbd5e1" }}>Refazer agora</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={() => setSelectedForm(null)}
+                                className="flex-row items-center justify-center gap-2 py-4 mt-2"
+                            >
+                                <ArrowLeft size={20} color={COLORS.textMuted} />
+                                <Text className="text-slate-400 font-medium text-base">Voltar</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
