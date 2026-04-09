@@ -32,7 +32,14 @@
     "plugins": [
       "expo-router",
       "expo-web-browser",
-      "expo-sharing"
-    ]
+      "expo-sharing",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "62969bad-a493-43dd-b2bc-5689ed99fa5c"
+      }
+    }
   }
 }
