@@ -23,6 +23,7 @@ import { COLORS } from "@/constants/colors";
 import { subjects } from "@/constants/mock-data";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
+import { addStudyHours } from "@/services/profileStats";
 
 type FocusState = "config" | "active";
 
@@ -82,7 +83,7 @@ export default function FocusScreen() {
         setTimerSeconds(0);
     };
 
-    const stopSession = () => {
+    const stopSession = async () => {
         setFocusState("config");
         
         // Salva uma cópia dos valores antes de resetar
@@ -91,6 +92,9 @@ export default function FocusScreen() {
         const finalDuration = timerSeconds;
         const finalIsPublic = isPublicSession;
 
+        // Registrar as horas e despachar evento
+        await addStudyHours(timerSeconds, selectedSubject || "Matemática");
+        
         setTimerSeconds(0);
         setSelectedSubject("");
         setSpecificContent("");

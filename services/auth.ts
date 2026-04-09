@@ -70,7 +70,7 @@ export const buscarPerfil = async (userId: string) => {
     .from("profiles")
     .select("*")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 };
 
 
