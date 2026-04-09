@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-
-//Componentes do native
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
     View,
     Text,
     TextInput,
     TouchableOpacity,
     ScrollView,
+    Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -21,6 +21,8 @@ import {
 //Constantes
 import { COLORS } from "@/constants/colors";
 import { subjects } from "@/constants/mock-data";
+import { useAuth } from "@/hooks/useAuth";
+import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { addStudyHours } from "@/services/profileStats";
 
 type FocusState = "config" | "active";
@@ -32,6 +34,21 @@ export default function FocusScreen() {
     const [specificContent, setSpecificContent] = useState("");
     const [timerSeconds, setTimerSeconds] = useState(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const { userId } = useAuth();
+    const { pendingSessions } = useSessoesUsuario(userId);
+    const params = useLocalSearchParams();
+    const router = useRouter();
+
+    // Auto-start for review sessions
+    useEffect(() => {
+        if (params.autoStart === 'true' && params.reviewSessionId) {
+            setSelectedSubject(params.subject as string);
+            setSpecificContent(params.content as string);
+            setFocusState("active");
+            setTimerSeconds(0);
+        }
+    }, [params.autoStart, params.reviewSessionId, params.subject, params.content]);
 
     useEffect(() => {
         if (focusState === "active") {
@@ -52,17 +69,50 @@ export default function FocusScreen() {
     };
 
     const startSession = () => {
+        if (!selectedSubject || !specificContent.trim()) {
+            Alert.alert("Incompleto", "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar.");
+            return;
+        }
+
+        if (pendingSessions.length > 0 && !params.reviewSessionId) {
+            Alert.alert("Aviso", "Responda os formulários pendentes!");
+            return;
+        }
+
         setFocusState("active");
         setTimerSeconds(0);
     };
 
     const stopSession = async () => {
         setFocusState("config");
+        
+        // Salva uma cópia dos valores antes de resetar
+        const finalSubject = selectedSubject;
+        const finalContent = specificContent;
+        const finalDuration = timerSeconds;
+        const finalIsPublic = isPublicSession;
+
         // Registrar as horas e despachar evento
         await addStudyHours(timerSeconds, selectedSubject || "Matemática");
         
         setTimerSeconds(0);
+        setSelectedSubject("");
+        setSpecificContent("");
+        
         if (intervalRef.current) clearInterval(intervalRef.current);
+        
+        // Abre o modal de feedback após a sessão passando os parâmetros
+        router.push({
+            pathname: "/(modals)/focus-feedback",
+            params: {
+                subject: finalSubject,
+                content: finalContent,
+                duration: finalDuration.toString(),
+                isPublic: finalIsPublic.toString(),
+                sessionId: params.reviewSessionId || undefined,
+                oldDuration: params.oldDuration || undefined,
+            }
+        });
     };
 
     return (

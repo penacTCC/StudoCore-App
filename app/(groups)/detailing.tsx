@@ -2,10 +2,12 @@ import { View, Text, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TrendingUp } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
-import { mockDetailingFeed } from "@/constants/mock-data";
 import SessionCard from "@/components/groups/SessionCard";
+import { useSessoesFoco } from "@/hooks/useSessoesFoco";
 
 export default function DetailingScreen() {
+    const { sessions, loading } = useSessoesFoco(50);
+
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
             {/* Header */}
@@ -60,16 +62,21 @@ export default function DetailingScreen() {
                     </View>
                 </View>
 
-                {/* Feed */}
                 <View className="px-4 pb-6">
                     <View className="gap-3">
-                        {mockDetailingFeed.map((session, index) => (
-                            <SessionCard
-                                key={session.id}
-                                session={session}
-                                colorIndex={index}
-                            />
-                        ))}
+                        {loading ? (
+                            <Text className="text-sm text-slate-500 text-center py-4">Carregando sessões...</Text>
+                        ) : sessions.length === 0 ? (
+                            <Text className="text-sm text-slate-500 text-center py-4">Nenhuma sessão registrada ainda.</Text>
+                        ) : (
+                            sessions.map((session, index) => (
+                                <SessionCard
+                                    key={session.id}
+                                    session={session}
+                                    colorIndex={index}
+                                />
+                            ))
+                        )}
                     </View>
                 </View>
             </ScrollView>

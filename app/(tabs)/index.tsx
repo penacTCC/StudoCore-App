@@ -11,7 +11,6 @@ import { router, useLocalSearchParams } from "expo-router";
 
 //Constantes
 import { COLORS } from "@/constants/colors";
-import { mockDetailingFeed } from "@/constants/mock-data";
 
 //Componentes
 import { Avatar, TabSelector } from "@/components/ui";
@@ -21,6 +20,7 @@ import SessionCard from "@/components/groups/SessionCard";
 import { useGroupMembers } from "@/hooks/useGroupMembers";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
+import { useSessoesFoco } from "@/hooks/useSessoesFoco";
 
 type LeaderboardFilter = "semanal" | "mensal" | "anual";
 
@@ -47,6 +47,9 @@ export default function GroupScreen() {
 
     //Pega a quantidade de usuários online
     const { onlineUsers } = useOnlineUsers(groupId as string);
+
+    // Busca sessões de foco do Supabase
+    const { sessions, loading: loadingSessions } = useSessoesFoco(5);
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
@@ -186,13 +189,19 @@ export default function GroupScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        {mockDetailingFeed.slice(0, 2).map((session, index) => (
-                            <SessionCard
-                                key={session.id}
-                                session={session}
-                                colorIndex={index}
-                            />
-                        ))}
+                        {loadingSessions ? (
+                            <Text className="text-sm text-slate-500 text-center py-4">Carregando...</Text>
+                        ) : sessions.length === 0 ? (
+                            <Text className="text-sm text-slate-500 text-center py-4">Nenhuma sessão registrada ainda.</Text>
+                        ) : (
+                            sessions.slice(0, 2).map((session, index) => (
+                                <SessionCard
+                                    key={session.id}
+                                    session={session}
+                                    colorIndex={index}
+                                />
+                            ))
+                        )}
                     </View>
                 </View>
 
