@@ -1,24 +1,21 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform, Image } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform, Image, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-    CalendarDays,
-    ChevronRight,
-    Star,
-    Clock,
-    BookOpen,
-    Flame,
-    Trophy,
-    Users,
-    LogOut,
-    Settings,
-    X,
-    Edit2,
+    CalendarDays, ChevronRight, Star, Clock, BookOpen, Flame, Trophy,
+    Users, LogOut, Settings, X, Edit2,
+    Zap, Play, BookMarked, Pencil, HelpCircle, CheckCircle, List, Search,
+    CalendarCheck, TrendingUp, Award, BarChart2, Target, BookCheck,
+    Activity, Eye, Repeat, Calendar, Medal, FileSearch, Hash,
+    Shield, Layers, Lock, Cpu, GraduationCap, Milestone,
+    Crosshair, Sword, Swords, Anchor, Dumbbell, Mountain,
+    Compass, Sparkles, Globe, Crown, Gem, Infinity, Diamond,
+    Timer, LayoutGrid, BrainCircuit,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { COLORS } from "@/constants/colors";
 import { disciplinasComCores } from "@/constants/mock-data";
-import { APP_BADGES } from "@/constants/badges";
+import { APP_BADGES, BADGE_LEVEL_COLORS, BadgeType } from "@/constants/badges";
 import { getAvatarColor } from "@/constants/helpers";
 import type { LucideIcon } from "lucide-react-native";
 import { supabase } from "@/supabase";
@@ -26,8 +23,23 @@ import { loadProfileStats, updateFavoriteSubject, updateWeeklyGoal, UserStats } 
 import { buscarPerfil, buscarUsuarioLogado } from "@/services/auth";
 
 const iconMap: Record<string, LucideIcon> = {
-    Star, Clock, BookOpen, Flame, Trophy, Users,
+    Star, Clock, BookOpen, Flame, Trophy, Users, Zap, Play, BookMarked, Pencil,
+    HelpCircle, CheckCircle, List, Search, CalendarCheck, TrendingUp, Award,
+    BarChart2, Target, BookCheck, Activity, Eye, Repeat, Calendar, Medal,
+    FileSearch, Hash, Shield, Layers, Lock, Cpu, GraduationCap, Milestone,
+    Crosshair, Sword, Swords, Anchor, Dumbbell, Mountain, Compass, Sparkles,
+    Globe, Crown, Gem, Infinity, Diamond, Timer, LayoutGrid, BrainCircuit,
 };
+
+function getBadgeProgress(badge: BadgeType, stats: UserStats): number {
+    switch (badge.requirementType) {
+        case 'hours':       return Math.min(stats.totalHours / badge.requirementValue, 1);
+        case 'questions':   return Math.min(stats.totalQuestions / badge.requirementValue, 1);
+        case 'weekly_goal': return Math.min(stats.weeklyCurrent / stats.weeklyGoal, 1);
+        case 'sessions':    return Math.min(stats.totalSessions / badge.requirementValue, 1);
+        default: return 0;
+    }
+}
 
 export default function ProfileScreen() {
     const [profileData, setProfileData] = useState<any>(null);
@@ -50,6 +62,13 @@ export default function ProfileScreen() {
                 setStats(s);
             };
             fetchInitialData();
+            
+            const sub = DeviceEventEmitter.addListener('badgesUnlocked', async () => {
+                const s = await loadProfileStats();
+                setStats(s);
+            });
+            
+            return () => sub.remove();
         }, [])
     );
 
@@ -309,50 +328,113 @@ export default function ProfileScreen() {
                     </View>
                 </View>
 
-                {/* Badges */}
+                {/* ── MEDALHAS – PREVIEW ─────────────────────────── */}
                 <View className="px-4 mb-4">
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <Text className="text-sm font-medium text-slate-400 mb-3">Medalhas</Text>
-                        <View className="flex-row flex-wrap gap-2">
-                            {APP_BADGES.map((badge, index) => {
-                                const BadgeIcon = iconMap[badge.icon] || Star;
-                                const isUnlocked = stats.badgesUnlocked.includes(badge.id); 
+
+                        {/* Header com botão Ver todas */}
+                        <TouchableOpacity
+                            onPress={() => router.push('/(modals)/badges')}
+                            className="flex-row items-center justify-between mb-4"
+                        >
+                            <View>
+                                <Text className="text-sm font-semibold text-slate-200">Minhas Medalhas</Text>
+                                <Text className="text-xs text-slate-500">{stats.badgesUnlocked.length}/{APP_BADGES.length} conquistadas</Text>
+                            </View>
+                            <View className="flex-row items-center gap-1">
+                                <Text className="text-xs text-slate-400">Ver todas</Text>
+                                <ChevronRight size={16} color="#94a3b8" />
+                            </View>
+                        </TouchableOpacity>
+
+                        {/* 6 medalhas desbloqueadas mais recentes */}
+                        {(() => {
+                            const unlocked = APP_BADGES.filter(b => stats.badgesUnlocked.includes(b.id)).slice(-6);
+                            if (unlocked.length === 0) {
                                 return (
-                                    <TouchableOpacity
-                                        key={badge.id}
-                                        onPress={() => {
-                                            Alert.alert(
-                                                badge.name, 
-                                                badge.description + (isUnlocked ? "\n\n✨ Você já conquistou esta medalha!" : "\n\n🔒 Continue estudando para desbloquear.")
-                                            );
-                                        }}
-                                        className="items-center gap-2 p-3 rounded-xl"
-                                        style={{
-                                            width: "30%",
-                                            backgroundColor: isUnlocked
-                                                ? COLORS.primaryFaint
-                                                : "rgba(30, 41, 59, 0.2)",
-                                            opacity: isUnlocked ? 1 : 0.5,
-                                        }}
-                                    >
-                                        <View
-                                            className="w-10 h-10 rounded-full items-center justify-center"
-                                            style={{
-                                                backgroundColor: isUnlocked
-                                                    ? "rgba(247, 152, 44, 0.2)"
-                                                    : "rgba(51, 65, 85, 0.5)",
-                                            }}
-                                        >
-                                            <BadgeIcon
-                                                size={20}
-                                                color={isUnlocked ? COLORS.violetLight : COLORS.textMuted}
-                                            />
-                                        </View>
-                                        <Text className="text-xs text-center text-slate-300">{badge.name}</Text>
-                                    </TouchableOpacity>
+                                    <View className="items-center py-4">
+                                        <Text className="text-xs text-slate-500">Nenhuma medalha conquistada ainda.</Text>
+                                        <Text className="text-xs text-slate-600">Comece a estudar para ganhar!</Text>
+                                    </View>
                                 );
-                            })}
-                        </View>
+                            }
+                            return (
+                                <View className="flex-row flex-wrap gap-2 mb-4">
+                                    {unlocked.map(badge => {
+                                        const BadgeIcon = iconMap[badge.icon] || Star;
+                                        const levelColor = BADGE_LEVEL_COLORS[badge.level];
+                                        return (
+                                            <View
+                                                key={badge.id}
+                                                className="items-center gap-1 p-2 rounded-xl"
+                                                style={{ width: '30%', backgroundColor: `${levelColor}18` }}
+                                            >
+                                                <View
+                                                    className="w-9 h-9 rounded-full items-center justify-center"
+                                                    style={{ backgroundColor: `${levelColor}30` }}
+                                                >
+                                                    <BadgeIcon size={18} color={levelColor} />
+                                                </View>
+                                                <Text className="text-[10px] text-center text-slate-300" numberOfLines={2}>
+                                                    {badge.name}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            );
+                        })()}
+
+                        {/* Separador */}
+                        <View className="h-px bg-slate-800 mb-4" />
+
+                        {/* 3 próximas mais próximas de desbloquear */}
+                        {(() => {
+                            const locked = APP_BADGES
+                                .filter(b => !stats.badgesUnlocked.includes(b.id))
+                                .map(b => ({ badge: b, progress: getBadgeProgress(b, stats) }))
+                                .filter(x => x.progress > 0)
+                                .sort((a, b) => b.progress - a.progress)
+                                .slice(0, 3);
+
+                            if (locked.length === 0) return null;
+
+                            return (
+                                <View>
+                                    <Text className="text-xs font-semibold text-slate-400 mb-3">🎯 Próximas a conquistar</Text>
+                                    <View className="gap-3">
+                                        {locked.map(({ badge, progress }) => {
+                                            const BadgeIcon = iconMap[badge.icon] || Star;
+                                            const levelColor = BADGE_LEVEL_COLORS[badge.level];
+                                            const pct = Math.round(progress * 100);
+                                            return (
+                                                <View key={badge.id} className="flex-row items-center gap-3">
+                                                    <View
+                                                        className="w-9 h-9 rounded-full items-center justify-center flex-shrink-0"
+                                                        style={{ backgroundColor: 'rgba(51,65,85,0.5)' }}
+                                                    >
+                                                        <BadgeIcon size={17} color={levelColor} />
+                                                    </View>
+                                                    <View className="flex-1">
+                                                        <View className="flex-row justify-between">
+                                                            <Text className="text-xs font-semibold text-slate-300">{badge.name}</Text>
+                                                            <Text className="text-xs text-slate-500">{pct}%</Text>
+                                                        </View>
+                                                        <View className="h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1.5">
+                                                            <View
+                                                                className="h-full rounded-full"
+                                                                style={{ width: `${pct}%`, backgroundColor: levelColor }}
+                                                            />
+                                                        </View>
+                                                    </View>
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            );
+                        })()}
+
                     </View>
                 </View>
 

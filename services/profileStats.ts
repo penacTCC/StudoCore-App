@@ -12,6 +12,7 @@ export interface UserStats {
   weeklyGoal: number;
   studyHistory: Record<string, number>; // Record<"YYYY-MM-DD", hours>
   badgesUnlocked: string[];
+  totalSessions: number;
 }
 
 const DEFAULT_STATS: UserStats = {
@@ -22,6 +23,7 @@ const DEFAULT_STATS: UserStats = {
   weeklyGoal: 12,
   studyHistory: {},
   badgesUnlocked: [],
+  totalSessions: 0,
 };
 
 // Carrega as estatísticas fundindo profiles e query de agrupamento de study_sessions
@@ -78,6 +80,12 @@ export const loadProfileStats = async (): Promise<UserStats> => {
         // Removemos o cálculo dinâmico da matéria para que a escolha manual do Perfil seja soberana
         let calculatedFavorite = profile?.favorite_subject || "Matemática";
 
+        // Fetch total session count for badges
+        const { count: totalSessions } = await supabase
+            .from('sessoes_foco')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId);
+
         return {
             totalHours: exactLifetimeHours,
             totalQuestions: profile?.questoes_feitas || 0,
@@ -85,7 +93,8 @@ export const loadProfileStats = async (): Promise<UserStats> => {
             badgesUnlocked: profile?.badges_unlocked || [],
             weeklyCurrent: Math.round(weeklyCurrent * 10) / 10,
             weeklyGoal: profile?.minutos_semana ? (profile.minutos_semana / 60) : 12, 
-            studyHistory
+            studyHistory,
+            totalSessions: totalSessions || 0,
         };
     } catch (e) {
         console.error('Erro ao ler estatísticas do Supabase:', e);
@@ -98,8 +107,7 @@ export const updateFavoriteSubject = async (subject: string): Promise<UserStats>
     const { data: authData } = await buscarUsuarioLogado();
     const userId = authData?.user?.id;
     if (userId) {
-        // Usa upsert para caso a linha não exista ainda (banco zerado)
-        await supabase.from('profiles').upsert({ id: userId, favorite_subject: subject });
+        await supabase.from('profiles').update({ favorite_subject: subject }).eq('id', userId);
     }
     return await loadProfileStats();
 };
@@ -110,7 +118,7 @@ export const updateWeeklyGoal = async (hours: number): Promise<UserStats> => {
     const userId = authData?.user?.id;
     if (userId) {
         const minSemana = Math.round(hours * 60);
-        await supabase.from('profiles').upsert({ id: userId, minutos_semana: minSemana });
+        await supabase.from('profiles').update({ minutos_semana: minSemana }).eq('id', userId);
     }
     return await loadProfileStats();
 };
@@ -147,6 +155,12 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
             questoes_respondidas: 0
         });
 
+        // Total de sessões do usuário (para badges de sessão)
+        const { count: totalSessions } = await supabase
+            .from('sessoes_foco')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId);
+
         // Verifica Medalhas
         const newBadges = [...current.badgesUnlocked];
         const newlyUnlocked: any[] = [];
@@ -154,10 +168,19 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
         APP_BADGES.forEach(badge => {
             if (!newBadges.includes(badge.id)) {
                 let unlocked = false;
-                if (badge.id.startsWith("hours_") && newTotalHours >= badge.requirementValue) {
-                    unlocked = true;
-                } else if (badge.id === "weekly_goal" && newWeeklyCurrent >= current.weeklyGoal) {
-                    unlocked = true;
+                switch (badge.requirementType) {
+                    case 'hours':
+                        unlocked = newTotalHours >= badge.requirementValue;
+                        break;
+                    case 'questions':
+                        unlocked = (current.totalQuestions) >= badge.requirementValue;
+                        break;
+                    case 'weekly_goal':
+                        unlocked = newWeeklyCurrent >= current.weeklyGoal;
+                        break;
+                    case 'sessions':
+                        unlocked = (totalSessions || 0) >= badge.requirementValue;
+                        break;
                 }
 
                 if (unlocked) {
@@ -169,13 +192,12 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
 
         const todayDateStr = new Date().toISOString();
 
-        // Atualizar perfil do usuario (usando UPSERT para garantir gravação mesmo sem linha base)
-        const { error: profileError } = await supabase.from('profiles').upsert({
-             id: userId,
+        // UPDATE (não upsert!) para nunca tentar criar linha nova sem os campos NOT NULL (nome_real, etc.)
+        const { error: profileError } = await supabase.from('profiles').update({
              horas_totais: Math.round(newTotalHours),
              badges_unlocked: newBadges,
              last_study_date: todayDateStr
-        });
+        }).eq('id', userId);
 
         if (profileError) {
             console.error("Erro Critico ao Salvar Badges e Horas:", profileError);
