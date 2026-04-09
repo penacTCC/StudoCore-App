@@ -2,7 +2,7 @@ CREATE POLICY "Permitir_Uploads_Imagens"
 ON storage.objects FOR INSERT
 TO public
 WITH CHECK (bucket_id = 'images');
--- Criar buckets (pastas)
+
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('images', 'images', true), ('vault', 'vault', true)
 ON CONFLICT (id) DO NOTHING;
