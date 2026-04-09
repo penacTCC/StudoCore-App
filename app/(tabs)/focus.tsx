@@ -21,6 +21,7 @@ import {
 //Constantes
 import { COLORS } from "@/constants/colors";
 import { subjects } from "@/constants/mock-data";
+import { addStudyHours } from "@/services/profileStats";
 
 type FocusState = "config" | "active";
 
@@ -55,8 +56,11 @@ export default function FocusScreen() {
         setTimerSeconds(0);
     };
 
-    const stopSession = () => {
+    const stopSession = async () => {
         setFocusState("config");
+        // Registrar as horas e despachar evento
+        await addStudyHours(timerSeconds, selectedSubject || "Matemática");
+        
         setTimerSeconds(0);
         if (intervalRef.current) clearInterval(intervalRef.current);
     };
