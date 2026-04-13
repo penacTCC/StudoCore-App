@@ -27,7 +27,6 @@ export default function RootLayout() {
     });
 
     if (!isInitialized) return <LoadingScreen />
-
     return (
         <SafeAreaProvider>
             <View className="flex-1 bg-slate-950">
