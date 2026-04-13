@@ -1,5 +1,6 @@
 import { supabase } from "@/supabase";
 import { makeRedirectUri } from "expo-auth-session";
+import * as Linking from 'expo-linking';
 
 //Login com Email e Senha
 export const loginComSenha = async (email: string, password: string) => {
@@ -51,7 +52,10 @@ export const salvarDadosPerfil = async (userId: string, realName: string, userna
 
 //Cadastrar novo usuário
 export const cadastrarUsuario = async (email: string, password: string) => {
-  return await supabase.auth.signUp({ email, password });
+  return await supabase.auth.signUp({
+    email,
+    password,
+  });
 };
 
 //Reenviar email de confirmação
