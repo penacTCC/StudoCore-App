@@ -65,7 +65,7 @@ export default function SignUpScreen() {
             Alert.alert("Erro no Cadastro", error.message);
         } else {
             console.log("DADOS DO CADASTRO:", data);
-            router.replace("/(auth)/verify-email");
+            router.replace("/(auth)/onboarding-profile");
         }
         setIsLoading(false);
     };
