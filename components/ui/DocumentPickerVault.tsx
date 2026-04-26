@@ -1,4 +1,4 @@
-import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, ActivityIndicator, TouchableOpacity, Image } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { FileUp, FileText, Image as ImageIcon } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
@@ -77,16 +77,26 @@ export default function DocumentPickerVault({
             ) : selectedFile ? (
                 // Exibe informações do arquivo após ele ser selecionado
                 <View className="items-center">
-                    <View
-                        className="w-16 h-16 rounded-full items-center justify-center mb-4"
-                        style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
-                    >
-                        {selectedFile.mimeType.includes("pdf") ? (
-                            <FileText size={28} color={COLORS.primary} />
-                        ) : (
-                            <ImageIcon size={28} color={COLORS.primary} />
-                        )}
-                    </View>
+                    {/* Verifica se o arquivo selecionado é uma imagem para exibir o preview */}
+                    {selectedFile.mimeType.startsWith("image/") ? (
+                        <Image 
+                            source={{ uri: selectedFile.uri }} 
+                            className="w-32 h-32 rounded-xl mb-4" 
+                            resizeMode="cover" 
+                        />
+                    ) : (
+                        // Caso não seja imagem (ex: PDF ou outros), renderiza apenas o ícone
+                        <View
+                            className="w-16 h-16 rounded-full items-center justify-center mb-4"
+                            style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
+                        >
+                            {selectedFile.mimeType.includes("pdf") ? (
+                                <FileText size={28} color={COLORS.primary} />
+                            ) : (
+                                <ImageIcon size={28} color={COLORS.primary} />
+                            )}
+                        </View>
+                    )}
                     <Text className="text-slate-200 font-medium text-center" numberOfLines={1}>
                         {selectedFile.name}
                     </Text>

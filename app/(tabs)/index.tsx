@@ -142,7 +142,8 @@ export default function GroupScreen() {
 
                                 {/* Avatar */}
                                 <Avatar
-                                    foto={member.foto_usuario}
+                                    foto={member.userData?.foto_usuario}
+                                    nome={member.userData?.nome_usuario}
                                     size={40}
                                     showOnlineDot={onlineUsers.includes(member.user_id || member.userData?.id)}
                                 />
@@ -224,7 +225,7 @@ export default function GroupScreen() {
                                     key={member.id}
                                     className="flex-row items-center gap-2 bg-slate-800/30 px-3 py-2 rounded-xl"
                                 >
-                                    <Avatar foto={member.foto_usuario} size={32} showOnlineDot={onlineUsers.includes(member.user_id || member.userData?.id)} />
+                                    <Avatar foto={member.userData?.foto_usuario} nome={member.userData?.nome_usuario} size={32} showOnlineDot={onlineUsers.includes(member.user_id || member.userData?.id)} />
                                     <Text className="text-sm text-slate-200">{member.userData?.nome_usuario}</Text>
                                     {member.streak >= 10 && (
                                         <Flame size={14} color={COLORS.emeraldLight} />

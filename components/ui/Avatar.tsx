@@ -3,6 +3,7 @@ import { getAvatarColor } from "@/constants/helpers";
 
 interface AvatarProps {
     foto?: string;
+    nome?: string;
     /** Tamanho em px. Padrão: 40 */
     size?: number;
     /** Exibe ponto verde de "online" no canto inferior direito. Padrão: false */
@@ -15,9 +16,16 @@ interface AvatarProps {
  */
 export default function Avatar({
     foto,
+    nome,
     size = 40,
     showOnlineDot
 }: AvatarProps) {
+    const initials = nome 
+        ? nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+        : '?';
+
+    const colorIndex = nome ? nome.charCodeAt(0) % 5 : 0;
+    const bgColor = foto ? "#191919" : getAvatarColor(colorIndex);
     return (
         <View className="relative">
             <View
@@ -25,14 +33,20 @@ export default function Avatar({
                 style={{
                     width: size,
                     height: size,
-                    backgroundColor: "#191919",
+                    backgroundColor: bgColor,
                 }}
             >
-                <Image
-                    source={{ uri: foto || "https://ui-avatars.com/api/?name=User&background=6366f1&color=ffffff" }}
-                    style={{ width: "100%", height: "100%" }}
-                    resizeMode="cover"
-                />
+                {foto ? (
+                    <Image
+                        source={{ uri: foto }}
+                        style={{ width: "100%", height: "100%" }}
+                        resizeMode="cover"
+                    />
+                ) : (
+                    <Text className="text-white font-bold" style={{ fontSize: size * 0.4 }}>
+                        {initials}
+                    </Text>
+                )}
             </View>
             {showOnlineDot && (
                 <View className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
