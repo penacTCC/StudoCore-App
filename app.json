@@ -1,0 +1,39 @@
+{
+    "expo": {
+        "name": "StudoCore",
+        "slug": "StudoCore-Mobile",
+        "version": "1.0.0",
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "userInterfaceStyle": "dark",
+        "scheme": "studocore",
+        "splash": {
+            "image": "./assets/splash-icon.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#020617"
+        },
+        "ios": {
+            "supportsTablet": true
+        },
+        "android": {
+            "predictiveBackGestureEnabled": false,
+            "package": "com.anonymous.StudoCoreMobile"
+        },
+        "web": {
+            "favicon": "./assets/favicon.png",
+            "bundler": "metro"
+        },
+        "plugins": [
+            "expo-router",
+            "expo-web-browser",
+            "expo-sharing",
+            "expo-font"
+        ],
+        "extra": {
+            "router": {},
+            "eas": {
+                "projectId": "62969bad-a493-43dd-b2bc-5689ed99fa5c"
+            }
+        }
+    }
+}
