@@ -189,7 +189,7 @@ export default function ProfileScreen() {
                             <View
                                 className="w-20 h-20 rounded-full items-center justify-center overflow-hidden"
                                 style={{
-                                    backgroundColor: getAvatarColor(4),
+                                    backgroundColor: profileData?.nome_usuario ? getAvatarColor(profileData.nome_usuario.charCodeAt(0) % 5) : getAvatarColor(0),
                                     borderWidth: 2,
                                     borderColor: COLORS.primary,
                                 }}

@@ -64,7 +64,7 @@ export default function VaultScreen() {
     // Get files for a specific group
     const getGroupFiles = (groupId: string) => {
         return filteredFiles.filter(file =>
-            file.arquivos_grupos?.some((ag: any) => ag.grupo_id === groupId)
+            file.arquivos_grupos?.some((ag: any) => ag.grupo_id === groupId) && file.user_id !== user?.id //todos os arquivos do grupo - os arquivos do próprio usuário
         );
     };
 

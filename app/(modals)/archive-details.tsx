@@ -11,6 +11,7 @@ import * as Sharing from "expo-sharing";
 //Componentes do Projeto
 import { COLORS } from "@/constants/colors";
 import { deleteFileFromB2, getAuthenticatedDownloadUrl } from "@/services/backblaze";
+import { useMyGroups } from "@/hooks/useMyGroups";
 
 
 /**
@@ -38,6 +39,10 @@ export default function FileDetailModal({
     console.log(selectedFileForDetail);
 
     //grupos
+    const { groups } = useMyGroups();
+    const sentGroupsIds = selectedFileForDetail?.arquivos_grupos?.map((ag: any) => ag.grupo_id) || [];
+    const sentGroupsNames = groups.filter((g: any) => sentGroupsIds.includes(g.id)).map((g: any) => g.nome_grupo);
+
     const fileType = selectedFileForDetail?.storage_path?.split('.').pop()?.toLowerCase();
 
     /**
@@ -225,6 +230,16 @@ export default function FileDetailModal({
                             {selectedFileForDetail?.id?.substring(0, 18)}...
                         </Text>
                     </View>
+
+                    {/* Exibe os grupos se o arquivo foi enviado pelo usuário atual e estiver em algum grupo */}
+                    {currentUser?.id === selectedFileForDetail?.user_id && sentGroupsNames.length > 0 && (
+                        <View className="flex-row justify-between items-center border-t border-slate-700 pt-4">
+                            <Text className="text-slate-400">Enviado para</Text>
+                            <Text className="flex-1 text-right ml-4 text-slate-200 font-medium" numberOfLines={2}>
+                                {sentGroupsNames.join(", ")}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Actions */}
