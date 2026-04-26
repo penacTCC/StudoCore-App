@@ -45,6 +45,9 @@ export default function OnboardingProfile() {
     ];
 
     const { userId, isLoading } = useAuth();
+    useEffect(() => {
+        console.log("Id usuario: ", userId);
+    }, [userId]);
 
     const handleFinish = async () => {
         const day = parseInt(birthDay, 10);
@@ -93,6 +96,7 @@ export default function OnboardingProfile() {
             setLoading(false);
             return;
         }
+
 
         //Salva os dados do perfil
         const { error: insertError } = await salvarDadosPerfil(userId, realName, username, dataFormatada, imageUrl);

@@ -1,3 +1,0 @@
-ALTER TABLE sessoes_foco
-  ADD COLUMN IF NOT EXISTS conteudo_especifico TEXT,
-  ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT true;

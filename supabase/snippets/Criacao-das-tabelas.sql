@@ -5,13 +5,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   nome_usuario TEXT UNIQUE NOT NULL,
   foto_usuario TEXT, -- Link da foto
   data_nascimento DATE,
-  horas_totais INTEGER DEFAULT 0,
   total_hours INTEGER DEFAULT 0,
   questoes_feitas INTEGER DEFAULT 0,
   streak INTEGER DEFAULT 0,
   last_study_date text,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL, -- Quando foi criado o registro
-  questoes_feitas INTEGER DEFAULT 0
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL -- Quando foi criado o registro
 );
 
 -- 1.1 Cria a tabela study_sessions para guardar o histórico do cronômetro
