@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 //Componentes de Native
 import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Crown, Flame, Plus, ChevronRight, Compass, Users, Settings } from "lucide-react-native";
+import { Crown, Flame, Plus, ChevronRight, ChevronDown, Compass, Users, Settings } from "lucide-react-native";
 
 //Componentes de Expo
 import { LinearGradient } from "expo-linear-gradient";
@@ -65,15 +65,31 @@ export default function GroupScreen() {
                                     <Users size={28} color={COLORS.textMuted} />
                                 )}
                             </View>
-                            <View className="flex-row items-center">
-                                <Text className="text-2xl font-bold text-slate-200">{groupName || "Nome não encontrado"}</Text>
+                            <View >
+                                <TouchableOpacity
+                                    onPress={() => router.push("/(groups)")}
+                                    className="flex-row items-center gap-2"
+                                    activeOpacity={0.7}
+                                >
+                                    <Text
+                                        className="text-2xl font-bold text-slate-200"
+                                        numberOfLines={1}
+                                        style={{ maxWidth: 200 }}
+                                    >
+                                        {groupName || "Nome não encontrado"}
+                                    </Text>
+                                    <View className="p-1.5 rounded-full ml-1">
+                                        <ChevronDown size={22} color={COLORS.textMuted} />
+                                    </View>
+                                </TouchableOpacity>
                             </View>
+                            {isAdmin && (
+                                <TouchableOpacity onPress={() => router.push("/(groups)/settings")}>
+                                    <Settings size={20} color={COLORS.textMuted} />
+                                </TouchableOpacity>
+                            )}
+
                         </View>
-                        {isAdmin && (
-                            <TouchableOpacity onPress={() => router.push("/(groups)/settings")}>
-                                <Settings size={20} color={COLORS.textMuted} />
-                            </TouchableOpacity>
-                        )}
                     </View>
                 </View>
 
