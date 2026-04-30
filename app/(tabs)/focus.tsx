@@ -119,8 +119,8 @@ export default function FocusScreen() {
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
             {/* Header */}
             <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">Focus Mode</Text>
-                <Text className="text-sm text-slate-400">Maximize your productivity</Text>
+                <Text className="text-xl font-bold text-slate-200">Modo de Foco</Text>
+                <Text className="text-xs text-slate-500">{specificContent || "Sessão Livre"}</Text>
             </View>
 
             <ScrollView
@@ -135,7 +135,7 @@ export default function FocusScreen() {
 
                         {/* Subject Picker */}
                         <View className="mb-4">
-                            <Text className="text-sm text-slate-400 mb-2">Subject</Text>
+                            <Text className="text-sm text-slate-400 mb-2">Matéria</Text>
                             <ScrollView
                                 horizontal
                                 showsHorizontalScrollIndicator={false}
@@ -163,11 +163,11 @@ export default function FocusScreen() {
 
                         {/* Specific Content */}
                         <View className="mb-4">
-                            <Text className="text-sm text-slate-400 mb-2">Specific Content</Text>
+                            <Text className="text-sm text-slate-400 mb-2">Conteúdo Específico</Text>
                             <TextInput
                                 value={specificContent}
                                 onChangeText={setSpecificContent}
-                                placeholder="e.g., Chapter 5: Derivatives"
+                                placeholder="ex.: Capítulo 5: Derivadas"
                                 placeholderTextColor={COLORS.textMuted}
                                 className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-base"
                             />
@@ -176,9 +176,9 @@ export default function FocusScreen() {
                         {/* Session Visibility Toggle */}
                         <View className="flex-row items-center justify-between bg-slate-800/50 p-4 rounded-xl mb-6">
                             <View>
-                                <Text className="text-sm font-medium text-slate-200">Session Visibility</Text>
+                                <Text className="text-sm font-medium text-slate-200">Visibilidade da Sessão</Text>
                                 <Text className="text-xs text-slate-400">
-                                    {isPublicSession ? "Others can join" : "Private session"}
+                                    {isPublicSession ? "Outros podem entrar" : "Sessão privada"}
                                 </Text>
                             </View>
                             <TouchableOpacity onPress={() => setIsPublicSession(!isPublicSession)}>
@@ -203,7 +203,7 @@ export default function FocusScreen() {
                             }}
                         >
                             <Play size={20} color={COLORS.white} />
-                            <Text className="text-white font-semibold text-lg">Start Session</Text>
+                            <Text className="text-white font-semibold text-lg">Iniciar Sessão</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -213,10 +213,10 @@ export default function FocusScreen() {
                         {/* Subject info */}
                         <View className="mb-8 items-center">
                             <Text className="text-sm text-violet-400 font-medium mb-1">
-                                {selectedSubject || "General Study"}
+                                {selectedSubject || "Estudo Geral"}
                             </Text>
                             <Text className="text-xs text-slate-500">
-                                {specificContent || "Free session"}
+                                {specificContent || "Sessão Livre"}
                             </Text>
                         </View>
 
@@ -254,7 +254,7 @@ export default function FocusScreen() {
                                     }`}
                             />
                             <Text className="text-sm text-slate-400">
-                                {isPublicSession ? "Public Session" : "Private Session"}
+                                {isPublicSession ? "Sessão Pública" : "Sessão Privada"}
                             </Text>
                         </View>
 
@@ -264,7 +264,7 @@ export default function FocusScreen() {
                             className="bg-rose-500/20 border border-rose-500 py-4 px-12 rounded-2xl flex-row items-center justify-center gap-2"
                         >
                             <Square size={20} color={COLORS.rose} />
-                            <Text className="text-rose-500 font-semibold text-lg">End Session</Text>
+                            <Text className="text-rose-500 font-semibold text-lg">Encerrar Sessão</Text>
                         </TouchableOpacity>
                     </View>
                 )}

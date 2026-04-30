@@ -26,7 +26,7 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="index"
                 options={{
-                    title: "Group",
+                    title: "Grupos",
                     tabBarIcon: ({ color, size }) => (
                         <Users size={size} color={color} />
                     ),
@@ -35,7 +35,7 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="focus"
                 options={{
-                    title: "Focus",
+                    title: "Foco",
                     tabBarIcon: ({ color, size }) => (
                         <Timer size={size} color={color} />
                     ),
@@ -44,7 +44,7 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="brain"
                 options={{
-                    title: "Brain",
+                    title: "Análise",
                     tabBarIcon: ({ color, size }) => (
                         <Brain size={size} color={color} />
                     ),
@@ -53,7 +53,7 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="vault"
                 options={{
-                    title: "Vault",
+                    title: "Arquivos",
                     tabBarIcon: ({ color, size }) => (
                         <FolderArchive size={size} color={color} />
                     ),
@@ -62,7 +62,7 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="profile"
                 options={{
-                    title: "Profile",
+                    title: "Perfil",
                     tabBarIcon: ({ color, size }) => (
                         <User size={size} color={color} />
                     ),

@@ -12,7 +12,7 @@ export const mockLiveFeed = [
     { id: 3, user: "James Wilson", action: "started a Chemistry session", isPublic: true, time: "8m ago" },
 ];
 
-export const subjects = ["Mathematics", "Physics", "Chemistry", "Biology", "History", "Literature"];
+export const subjects = ["Matemática", "Física", "Química", "Biologia", "História", "Literatura"];
 
 export const mockFiles = [
     { id: 1, name: "Calculus Notes.pdf", type: "pdf", author: "Alex Chen", date: "Jan 10", size: "2.4 MB" },
@@ -52,16 +52,16 @@ export const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 export const diasDaSemana = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 export const disciplinasComCores: { name: string; color: string }[] = [
-    { name: "Matemática",  color: "#7c3aed" },
-    { name: "Física",      color: "#e11d48" },
-    { name: "Química",     color: "#059669" },
-    { name: "Biologia",    color: "#0891b2" },
-    { name: "História",    color: "#d97706" },
-    { name: "Geografia",   color: "#65a30d" },
-    { name: "Português",   color: "#db2777" },
-    { name: "Inglês",      color: "#2563eb" },
-    { name: "Literatura",  color: "#9333ea" },
-    { name: "Filosofia",   color: "#64748b" },
+    { name: "Matemática", color: "#7c3aed" },
+    { name: "Física", color: "#e11d48" },
+    { name: "Química", color: "#059669" },
+    { name: "Biologia", color: "#0891b2" },
+    { name: "História", color: "#d97706" },
+    { name: "Geografia", color: "#65a30d" },
+    { name: "Português", color: "#db2777" },
+    { name: "Inglês", color: "#2563eb" },
+    { name: "Literatura", color: "#9333ea" },
+    { name: "Filosofia", color: "#64748b" },
 ];
 
 export const mockPendingInvites = [
