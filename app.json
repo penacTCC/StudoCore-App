@@ -17,13 +17,17 @@
         },
         "android": {
             "predictiveBackGestureEnabled": false,
-            "package": "com.anonymous.StudoCoreMobile"
+            "package": "com.anonymous.StudoCoreMobile",
+            "permissions": [
+                "POST_NOTIFICATIONS"
+            ]
         },
         "web": {
             "favicon": "./assets/favicon.png",
             "bundler": "metro"
         },
         "plugins": [
+            "expo-notifications",
             "expo-router",
             "expo-web-browser",
             "expo-sharing",
