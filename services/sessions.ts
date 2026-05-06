@@ -34,7 +34,7 @@ export interface SessaoFocoRow {
 
 // ───── INSERT ─────
 export const salvarSessaoFoco = async (sessao: SessaoFocoInsert) => {
-    return await supabase.from("sessoes_foco").insert(sessao);
+    return await supabase.from("sessoes_foco").insert(sessao).select();
 };
 
 // ───── UPDATE (refazer ou revisar formulário pendente) ─────
