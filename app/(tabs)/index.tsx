@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 //Componentes de Native
-import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Image, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Crown, Flame, Plus, ChevronRight, ChevronDown, Compass, Users, Settings } from "lucide-react-native";
 
@@ -32,6 +32,7 @@ const LEADERBOARD_TABS = [
 
 export default function GroupScreen() {
     const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
+    const [selectedMember, setSelectedMember] = useState<any>(null);
 
     // Captura os parâmetros recebidos da tela anterior
     const { groupName, groupId, groupPhoto, groupCode } = useLocalSearchParams(); //<- os parametros
@@ -125,6 +126,7 @@ export default function GroupScreen() {
                         {members.map((member, index) => (
                             <TouchableOpacity
                                 key={member.id}
+                                onPress={() => setSelectedMember(member)}
                                 className={`flex-row items-center gap-3 p-3 rounded-2xl mb-2 ${member.rank === 1 ? "bg-slate-800/50" : "bg-slate-800/30"
                                     }`}
                                 style={
@@ -237,8 +239,9 @@ export default function GroupScreen() {
                         </View>
                         <View className="flex-row flex-wrap gap-3">
                             {members.map((member, index) => (
-                                <View
+                                <TouchableOpacity
                                     key={member.id}
+                                    onPress={() => setSelectedMember(member)}
                                     className="flex-row items-center gap-2 bg-slate-800/30 px-3 py-2 rounded-xl"
                                 >
                                     <Avatar foto={member.userData?.foto_usuario} nome={member.userData?.nome_usuario} size={32} showOnlineDot={onlineUsers.includes(member.user_id || member.userData?.id)} />
@@ -246,7 +249,7 @@ export default function GroupScreen() {
                                     {member.ofensiva >= 10 && (
                                         <Flame size={14} color={COLORS.emeraldLight} />
                                     )}
-                                </View>
+                                </TouchableOpacity>
                             ))}
                         </View>
                     </View>
@@ -273,6 +276,56 @@ export default function GroupScreen() {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            {/* User Detail Modal */}
+            <Modal
+                visible={!!selectedMember}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setSelectedMember(null)}
+            >
+                <View className="flex-1 bg-black/60 justify-center items-center px-6">
+                    <View className="bg-slate-900 w-full rounded-3xl p-6 border border-slate-800">
+                        <View className="items-center mb-6">
+                            <Avatar
+                                foto={selectedMember?.userData?.foto_usuario}
+                                nome={selectedMember?.userData?.nome_usuario}
+                                size={100}
+                                showOnlineDot={onlineUsers.includes(selectedMember?.user_id || selectedMember?.userData?.id)}
+                            />
+                            <Text className="text-2xl font-bold text-slate-200 mt-4 text-center">
+                                {selectedMember?.userData?.nome_usuario || "Sem nome"}
+                            </Text>
+                            {selectedMember?.administrador && (
+                                <View className="bg-amber-500/10 px-3 py-1 rounded-full mt-2 border border-amber-500/20">
+                                    <Text className="text-amber-400 text-xs font-bold">ADMINISTRADOR</Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <View className="flex-row gap-4 mb-6">
+                            <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50 items-center">
+                                <Text className="text-slate-400 text-xs mb-1">Ranking</Text>
+                                <Text className="text-xl font-bold text-slate-200">#{selectedMember?.rank || "-"}</Text>
+                            </View>
+                            <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50 items-center">
+                                <Text className="text-slate-400 text-xs mb-1">Streak</Text>
+                                <View className="flex-row items-center gap-1">
+                                    <Flame size={18} color={COLORS.emeraldLight} />
+                                    <Text className="text-xl font-bold text-emerald-400">{selectedMember?.streak || 0}</Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        <TouchableOpacity
+                            onPress={() => setSelectedMember(null)}
+                            className="bg-slate-800 py-4 rounded-2xl items-center"
+                        >
+                            <Text className="text-slate-200 font-semibold text-lg">Fechar</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
