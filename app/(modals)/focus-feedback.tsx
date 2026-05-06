@@ -6,6 +6,7 @@ import { CheckCircle2, ChevronLeft, BookOpen, XCircle, AlertCircle } from "lucid
 import { COLORS } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { salvarSessaoFoco, atualizarSessaoFoco } from "@/services/sessions";
+import { addStudyQuestions } from "@/services/profileStats";
 
 // Helper para misturar qualquer array (Fisher-Yates) sem mutar o original
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -85,15 +86,21 @@ export default function FocusFeedbackModal() {
             let dbError = null;
 
             if (params.sessionId) {
-                // É um refazer ou término de sessão de revisão
-                const oldDuration = Number(params.oldDuration) || 0;
-                const totalMinutes = oldDuration + tempoMinutos;
-                
-                const { error } = await atualizarSessaoFoco(params.sessionId as string, {
+                // Sessão já existe (pode ser o final de um focus timer recém-criado OU uma revisão de form pendente)
+                const updateData: any = {
                     questoes_acertadas: score,
+                    questoes_respondidas: shuffledQuestions.length,
                     status: status,
-                    tempo_minutos: totalMinutes,
-                });
+                };
+                
+                // Só somamos o tempo se for efetivamente uma SESSÃO DE REVISÃO
+                // Sessões recém-finalizadas já têm o tempo inserido pela função addStudyHours.
+                if (params.reviewSessionId) {
+                    const oldDuration = Number(params.oldDuration) || 0;
+                    updateData.tempo_minutos = oldDuration + tempoMinutos;
+                }
+                
+                const { error } = await atualizarSessaoFoco(params.sessionId as string, updateData);
                 dbError = error;
             } else {
                 // É uma sessão nova
@@ -117,6 +124,9 @@ export default function FocusFeedbackModal() {
                 Alert.alert("Erro", "Não foi possível salvar a sessão. Tente novamente.");
                 return;
             }
+
+            // --- NOVO: Adiciona as questões resolvidas às suas Estatísticas e verifica Medalhas ---
+            await addStudyQuestions(shuffledQuestions.length);
 
             router.back();
         }
