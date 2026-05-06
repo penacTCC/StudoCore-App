@@ -48,6 +48,8 @@ export default function ProfileScreen() {
     const [showSubjectModal, setShowSubjectModal] = useState(false);
     const [showGoalModal, setShowGoalModal] = useState(false);
     const [tempGoalValue, setTempGoalValue] = useState("");
+    const [showHeatmapModal, setShowHeatmapModal] = useState(false);
+    const [selectedDayInfo, setSelectedDayInfo] = useState<{ date: Date; hours: number } | null>(null);
 
     useFocusEffect(
         useCallback(() => {
@@ -72,6 +74,13 @@ export default function ProfileScreen() {
         }, [])
     );
 
+    /**
+     * @constant heatmapMatrix
+     * @description Hook computacional (Memoizado) que cria a matriz do Heatmap Estilo-Github.
+     * Quebra os últimos 100 dias (14 semanas) em um array 2D de [semanas] x [dias], 
+     * onde o indíce 0 de cada semana representa o Domingo.
+     * Retorna também as posições cravadas dos Tópicos de Meses para as labels no Header.
+     */
     const heatmapMatrix = useMemo(() => {
         if (!stats) return { columns: [], monthPositions: [] };
 
@@ -156,6 +165,18 @@ export default function ProfileScreen() {
             setStats(updated);
         }
         setShowGoalModal(false);
+    };
+
+    /**
+     * Formata horas decimais em layout legível de tooltip.
+     * Exemplo: 4.2 horas -> "4h12m"
+     */
+    const formatHoursDecimal = (decimalHours: number) => {
+        if (decimalHours === 0) return "0h0m";
+        const h = Math.floor(decimalHours);
+        const m = Math.round((decimalHours - h) * 60);
+        if (h === 0) return `${m}m`;
+        return `${h}h${m}m`;
     };
 
     const joinDate = sessionUser?.created_at
@@ -251,7 +272,13 @@ export default function ProfileScreen() {
                 {/* Heatmap Github Style */}
                 <View className="px-4 mb-4">
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <Text className="text-sm font-medium text-slate-400 mb-3">Histórico de Contribuições</Text>
+                        <View className="flex-row items-center justify-between mb-3">
+                             <Text className="text-sm font-medium text-slate-400">Histórico de Contribuições</Text>
+                             <TouchableOpacity onPress={() => setShowHeatmapModal(true)} className="bg-slate-800 p-2 rounded-xl flex-row items-center gap-2">
+                                 <Search size={14} color="#94a3b8" />
+                                 <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Expandir</Text>
+                             </TouchableOpacity>
+                        </View>
 
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                             <View className="pr-4">
@@ -297,8 +324,12 @@ export default function ProfileScreen() {
                                                     else if (day.intensity > 0.2) bg = "#047857";
 
                                                     return (
-                                                        <View
+                                                        <TouchableOpacity
                                                             key={rowIndex}
+                                                            onPress={() => {
+                                                                setSelectedDayInfo({ date: day.date, hours: stats.studyHistory[day.dateStr] || 0 });
+                                                                setShowHeatmapModal(true);
+                                                            }}
                                                             style={{
                                                                 width: 14,
                                                                 height: 14,
@@ -615,6 +646,101 @@ export default function ProfileScreen() {
                         </View>
                     </View>
                 </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Modal do Heatmap Expandido e Tooltip */}
+            <Modal
+                visible={showHeatmapModal}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => {
+                    setShowHeatmapModal(false);
+                    setSelectedDayInfo(null);
+                }}
+            >
+                <View className="flex-1 justify-center bg-black/90 p-4">
+                    <View className="bg-slate-900 border border-slate-700 rounded-3xl p-4 w-full">
+                        <View className="flex-row justify-between items-center mb-6">
+                            <Text className="text-lg font-bold text-slate-200">Detalhamento de Estudo</Text>
+                            <TouchableOpacity onPress={() => { setShowHeatmapModal(false); setSelectedDayInfo(null); }}>
+                                <X size={24} color="#94a3b8" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Tooltip Dinâmico */}
+                        <View className="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-6 items-center">
+                            {selectedDayInfo ? (
+                                <>
+                                    <Text className="text-3xl font-black text-emerald-400 mb-1">
+                                        {formatHoursDecimal(selectedDayInfo.hours)}
+                                    </Text>
+                                    <Text className="text-sm text-slate-400">
+                                        estudados em {selectedDayInfo.date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}
+                                    </Text>
+                                </>
+                            ) : (
+                                <View className="items-center py-2">
+                                    <Search size={24} color="#64748b" className="mb-2" />
+                                    <Text className="text-sm text-slate-400 text-center">
+                                        Toque em qualquer dia da grade abaixo para visualizar os detalhes
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Renderização Escalonada do Heatmap Matrix */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                            <View className="pr-4" style={{ minWidth: 500 }}>
+                                <View className="flex-row relative" style={{ marginLeft: 30, height: 20, mb: 8 }}>
+                                    {heatmapMatrix.monthPositions.map((m: any, i: number) => (
+                                        <Text key={i} className="text-xs text-slate-500 uppercase font-bold absolute" style={{ left: m.colIndex * 24 }}>
+                                            {m.name}
+                                        </Text>
+                                    ))}
+                                </View>
+                                <View className="flex-row mt-2">
+                                    <View className="justify-between mr-2" style={{ height: 7 * 20 + 6 * 4, paddingVertical: 2 }}>
+                                        <Text className="text-[10px] text-slate-500 font-medium">Dom</Text>
+                                        <Text className="text-[10px] text-slate-500 font-medium opacity-0">Seg</Text>
+                                        <Text className="text-[10px] text-slate-500 font-medium">Ter</Text>
+                                        <Text className="text-[10px] text-slate-500 font-medium opacity-0">Qua</Text>
+                                        <Text className="text-[10px] text-slate-500 font-medium">Qui</Text>
+                                        <Text className="text-[10px] text-slate-500 font-medium opacity-0">Sex</Text>
+                                        <Text className="text-[10px] text-slate-500 font-medium">Sab</Text>
+                                    </View>
+                                    <View className="flex-row gap-1">
+                                        {heatmapMatrix.columns.map((week: any, colIndex: number) => (
+                                            <View key={colIndex} className="gap-1">
+                                                {week.map((day: any, rowIndex: number) => {
+                                                    if (day.intensity === -1) return <View key={rowIndex} style={{ width: 20, height: 20, backgroundColor: 'transparent' }} />;
+                                                    let bg = COLORS.bgTertiary;
+                                                    if (day.intensity > 0.8) bg = "#34d399";
+                                                    else if (day.intensity > 0.6) bg = "#10b981";
+                                                    else if (day.intensity > 0.4) bg = "#059669";
+                                                    else if (day.intensity > 0.2) bg = "#047857";
+                                                    
+                                                    const isSelected = selectedDayInfo?.date.getTime() === day.date.getTime();
+
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={rowIndex}
+                                                            onPress={() => setSelectedDayInfo({ date: day.date, hours: stats.studyHistory[day.dateStr] || 0 })}
+                                                            style={{
+                                                                width: 20, height: 20, backgroundColor: bg, borderRadius: 4,
+                                                                borderWidth: isSelected ? 2 : 0, borderColor: "#ffffff"
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            </View>
+                        </ScrollView>
+
+                    </View>
+                </View>
             </Modal>
         </SafeAreaView>
     );

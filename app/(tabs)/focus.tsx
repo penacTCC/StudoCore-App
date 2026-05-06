@@ -93,7 +93,7 @@ export default function FocusScreen() {
         const finalIsPublic = isPublicSession;
 
         // Registrar as horas e despachar evento
-        await addStudyHours(timerSeconds, selectedSubject || "Matemática");
+        const result = await addStudyHours(timerSeconds, selectedSubject || "Matemática");
         
         setTimerSeconds(0);
         setSelectedSubject("");
@@ -109,7 +109,7 @@ export default function FocusScreen() {
                 content: finalContent,
                 duration: finalDuration.toString(),
                 isPublic: finalIsPublic.toString(),
-                sessionId: params.reviewSessionId || undefined,
+                sessionId: params.reviewSessionId || result?.sessionId || undefined,
                 oldDuration: params.oldDuration || undefined,
             }
         });
