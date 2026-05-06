@@ -112,9 +112,9 @@ export default function BrainScreen() {
             }
         });
 
-        // Compute sequência (streak)
+        // Compute sequência (ofensiva)
         const sortedDates = Array.from(uniqueDates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-        let streak = 0;
+        let ofensiva = 0;
         const todayStr = today.toISOString().split('T')[0];
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
@@ -126,7 +126,7 @@ export default function BrainScreen() {
                 let currentDate = new Date(expectedDateStr + "T12:00:00"); 
                 for (let i = 0; i < sortedDates.length; i++) {
                     if (sortedDates[i] === expectedDateStr) {
-                        streak++;
+                        ofensiva++;
                         currentDate.setDate(currentDate.getDate() - 1);
                         expectedDateStr = currentDate.toISOString().split('T')[0];
                     } else {

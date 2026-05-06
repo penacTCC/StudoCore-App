@@ -177,11 +177,11 @@ export default function GroupScreen() {
                                     </Text>
                                 </View>
 
-                                {/* Streak */}
+                                {/* Ofensiva */}
                                 <View className="flex-row items-center gap-1">
                                     <Flame size={14} color={COLORS.emeraldLight} />
                                     <Text className="text-sm font-bold text-emerald-400">
-                                        {member.streak}
+                                        {member.ofensiva}
                                     </Text>
                                     {member.administrador ? (
                                         <Text className="text-xs font-bold text-amber-400">ADM</Text>
@@ -243,7 +243,7 @@ export default function GroupScreen() {
                                 >
                                     <Avatar foto={member.userData?.foto_usuario} nome={member.userData?.nome_usuario} size={32} showOnlineDot={onlineUsers.includes(member.user_id || member.userData?.id)} />
                                     <Text className="text-sm text-slate-200">{member.userData?.nome_usuario}</Text>
-                                    {member.streak >= 10 && (
+                                    {member.ofensiva >= 10 && (
                                         <Flame size={14} color={COLORS.emeraldLight} />
                                     )}
                                 </View>

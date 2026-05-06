@@ -26,7 +26,12 @@ const DEFAULT_STATS: UserStats = {
     totalSessions: 0,
 };
 
-// Carrega as estatísticas fundindo profiles e query de agrupamento de study_sessions
+/**
+ * @function loadProfileStats
+ * @description Carrega e processa estatísticas baseando-se na tabela perfil mestre e agrega as `sessoes_foco` 
+ * num dicionário (Record) que mapeia "YYYY-MM-DD" -> horas, providenciando os pilares de UI do Heatmap.
+ * @returns {Promise<UserStats>} Objeto unificado com as estatísticas em tempo real formatado para o React.
+ */
 export const loadProfileStats = async (): Promise<UserStats> => {
     try {
         const { data: authData } = await buscarUsuarioLogado();
@@ -86,6 +91,18 @@ export const loadProfileStats = async (): Promise<UserStats> => {
             .select('*', { count: 'exact', head: true })
             .eq('user_id', userId);
 
+        // Fix Definitivo de Badges: Força Parse Seguro vindo do banco. Evita colapsos de String JSON vs Array Nativos PostgreSQL
+        let parsedBadges: string[] = [];
+        try {
+            if (Array.isArray(profile?.medalhas_desbloqueadas)) {
+                parsedBadges = profile.medalhas_desbloqueadas;
+            } else if (typeof profile?.medalhas_desbloqueadas === "string") {
+                parsedBadges = JSON.parse(profile.medalhas_desbloqueadas);
+            }
+        } catch(e) {
+            console.warn("Aviso: Parse do medalhas_desbloqueadas falhou. Resetando vetor.", e);
+        }
+
         return {
             totalHours: exactLifetimeHours,
             totalQuestions: profile?.questoes_feitas || 0,
@@ -102,17 +119,22 @@ export const loadProfileStats = async (): Promise<UserStats> => {
     }
 };
 
-// Salva a matéria selecionada no DB
+/**
+ * Atualiza instantâneamente a matéria favorita no banco de dados.
+ * (Usando lógica agressiva Upsert para evitar fallbacks).
+ */
 export const updateFavoriteSubject = async (subject: string): Promise<UserStats> => {
     const { data: authData } = await buscarUsuarioLogado();
     const userId = authData?.user?.id;
     if (userId) {
-        await supabase.from('profiles').update({ favorite_subject: subject }).eq('id', userId);
+        await supabase.from('profiles').update({ materia_favorita: subject }).eq('id', userId);
     }
     return await loadProfileStats();
 };
 
-// Salva a nova meta semanal
+/**
+ * Modifica e persiste a meta semanal individual baseada em horas.
+ */
 export const updateWeeklyGoal = async (hours: number): Promise<UserStats> => {
     const { data: authData } = await buscarUsuarioLogado();
     const userId = authData?.user?.id;
@@ -123,8 +145,15 @@ export const updateWeeklyGoal = async (hours: number): Promise<UserStats> => {
     return await loadProfileStats();
 };
 
-// Atualiza o banco com horas reais e insere a sessao
-export const addStudyHours = async (timerSeconds: number, currentSubject: string): Promise<UserStats | null> => {
+/**
+ * Motor central de Registro de Estudo.
+ * Disparado pelo temporizador de Focus. Transcreve o tempo gasto em minutos reais para a tabela `sessoes_foco`,
+ * agrupa o ganho somado na tabela `profiles` de horas totais, processa checagem de destrancamento de medalha virtual
+ * e coordena emissores globais pro UI Alert e repintura de Tela.
+ * @param timerSeconds Total absoluto cronometrado.
+ * @param currentSubject Label da matéria estudada
+ */
+export const addStudyHours = async (timerSeconds: number, currentSubject: string): Promise<{ stats: UserStats, sessionId?: string } | null> => {
     try {
         const { data: authData } = await buscarUsuarioLogado();
         const userId = authData?.user?.id;
@@ -156,12 +185,12 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
             .select('*', { count: 'exact', head: true })
             .eq('user_id', userId);
 
-        // Verifica Medalhas
-        const newBadges = [...current.badgesUnlocked];
+        // Verifica Medalhas e usa Sets (conjuntos únicos) para estourar o Bug de repetidos de uma vez por todas
+        const newBadgesSet = new Set(current.badgesUnlocked);
         const newlyUnlocked: any[] = [];
 
         APP_BADGES.forEach(badge => {
-            if (!newBadges.includes(badge.id)) {
+            if (!newBadgesSet.has(badge.id)) {
                 let unlocked = false;
                 switch (badge.requirementType) {
                     case 'hours':
@@ -179,19 +208,20 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
                 }
 
                 if (unlocked) {
-                    newBadges.push(badge.id);
-                    newlyUnlocked.push(badge);
+                    newBadgesSet.add(badge.id); // Tranca instantaneamente a ref em memória do Set (Garante bloqueio proximo loop ou chamada reativa)
+                    newlyUnlocked.push(badge); 
                 }
             }
         });
-
+        
+        const newBadgesArray = Array.from(newBadgesSet);
         const todayDateStr = new Date().toISOString();
 
         // UPDATE (não upsert!) para nunca tentar criar linha nova sem os campos NOT NULL (nome_real, etc.)
         const { error: profileError } = await supabase.from('profiles').update({
-            horas_totais: Math.round(newTotalHours),
-            medalhas_desbloqueadas: newBadges,
-            last_study_date: todayDateStr
+             horas_totais: Math.round(newTotalHours),
+             medalhas_desbloqueadas: newBadgesArray, // Transição Array puro pro Postgres serializar JSONB
+             ultima_data_estudo: todayDateStr
         }).eq('id', userId);
 
         if (profileError) {
@@ -204,9 +234,83 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
         }
 
         // Recarrega atualizado
-        return await loadProfileStats();
+        return { 
+            stats: await loadProfileStats(), 
+            sessionId: newSession?.id 
+        };
     } catch (e) {
         console.error('Erro salvar horas:', e);
+        return null;
+    }
+};
+
+/**
+ * Adiciona as questões respondidas ao perfil, verifica as medalhas de questões
+ * e emite os alertas necessários.
+ * @param questionsCount Quantidade de questões respondidas no quiz
+ */
+export const addStudyQuestions = async (questionsCount: number): Promise<UserStats | null> => {
+    try {
+        const { data: authData } = await buscarUsuarioLogado();
+        const userId = authData?.user?.id;
+        if (!userId || questionsCount <= 0) return null;
+
+        const current = await loadProfileStats();
+        
+        const newTotalQuestions = current.totalQuestions + questionsCount;
+
+        const { count: totalSessions } = await supabase
+            .from('sessoes_foco')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId);
+
+        const newBadgesSet = new Set(current.badgesUnlocked);
+        const newlyUnlocked: any[] = [];
+
+        APP_BADGES.forEach(badge => {
+            if (!newBadgesSet.has(badge.id)) {
+                let unlocked = false;
+                switch (badge.requirementType) {
+                    case 'hours':
+                        unlocked = current.totalHours >= badge.requirementValue;
+                        break;
+                    case 'questions':
+                        unlocked = newTotalQuestions >= badge.requirementValue; // Avalia a nova quantidade
+                        break;
+                    case 'weekly_goal':
+                        unlocked = current.weeklyCurrent >= current.weeklyGoal;
+                        break;
+                    case 'sessions':
+                        unlocked = (totalSessions || 0) >= badge.requirementValue;
+                        break;
+                }
+
+                if (unlocked) {
+                    newBadgesSet.add(badge.id);
+                    newlyUnlocked.push(badge); 
+                }
+            }
+        });
+        
+        const newBadgesArray = Array.from(newBadgesSet);
+
+        // Atualiza a quantidade total de questões no perfil
+        const { error: profileError } = await supabase.from('profiles').update({
+             questoes_feitas: newTotalQuestions,
+             medalhas_desbloqueadas: newBadgesArray
+        }).eq('id', userId);
+
+        if (profileError) {
+            console.error("Erro ao salvar questões no perfil:", profileError);
+        }
+
+        if (newlyUnlocked.length > 0) {
+            DeviceEventEmitter.emit('badgesUnlocked', newlyUnlocked);
+        }
+
+        return await loadProfileStats();
+    } catch (e) {
+        console.error('Erro ao salvar questoes:', e);
         return null;
     }
 };
