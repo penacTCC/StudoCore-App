@@ -5,25 +5,25 @@ import { buscarUsuarioLogado } from '@/services/auth';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface UserStats {
-  totalHours: number;
-  totalQuestions: number;
-  favoriteSubject: string;
-  weeklyCurrent: number;
-  weeklyGoal: number;
-  studyHistory: Record<string, number>; // Record<"YYYY-MM-DD", hours>
-  badgesUnlocked: string[];
-  totalSessions: number;
+    totalHours: number;
+    totalQuestions: number;
+    favoriteSubject: string;
+    weeklyCurrent: number;
+    weeklyGoal: number;
+    studyHistory: Record<string, number>; // Record<"YYYY-MM-DD", hours>
+    badgesUnlocked: string[];
+    totalSessions: number;
 }
 
 const DEFAULT_STATS: UserStats = {
-  totalHours: 0,
-  totalQuestions: 0,
-  favoriteSubject: "Matemática",
-  weeklyCurrent: 0,
-  weeklyGoal: 12,
-  studyHistory: {},
-  badgesUnlocked: [],
-  totalSessions: 0,
+    totalHours: 0,
+    totalQuestions: 0,
+    favoriteSubject: "Matemática",
+    weeklyCurrent: 0,
+    weeklyGoal: 12,
+    studyHistory: {},
+    badgesUnlocked: [],
+    totalSessions: 0,
 };
 
 /**
@@ -36,7 +36,7 @@ export const loadProfileStats = async (): Promise<UserStats> => {
     try {
         const { data: authData } = await buscarUsuarioLogado();
         const userId = authData?.user?.id;
-        
+
         if (!userId) return DEFAULT_STATS;
 
         // Fetch user profile stats
@@ -60,7 +60,7 @@ export const loadProfileStats = async (): Promise<UserStats> => {
         const studyHistory: Record<string, number> = {};
         let weeklyCurrent = 0;
         let exactLifetimeMinutes = 0;
-        
+
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
@@ -68,7 +68,7 @@ export const loadProfileStats = async (): Promise<UserStats> => {
             sessions.forEach(session => {
                 const d = new Date(session.created_at);
                 const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                
+
                 // Transforma Minutos da Duração em Horas formatadas
                 const hoursInSession = session.tempo_minutos / 60;
                 studyHistory[dateStr] = (studyHistory[dateStr] || 0) + hoursInSession;
@@ -79,7 +79,7 @@ export const loadProfileStats = async (): Promise<UserStats> => {
                 }
             });
         }
-        
+
         const exactLifetimeHours = Math.round((exactLifetimeMinutes / 60) * 10) / 10;
 
         // Removemos o cálculo dinâmico da matéria para que a escolha manual do Perfil seja soberana
@@ -107,9 +107,9 @@ export const loadProfileStats = async (): Promise<UserStats> => {
             totalHours: exactLifetimeHours,
             totalQuestions: profile?.questoes_feitas || 0,
             favoriteSubject: calculatedFavorite,
-            badgesUnlocked: parsedBadges,
+            badgesUnlocked: profile?.medalhas_desbloqueadas || [],
             weeklyCurrent: Math.round(weeklyCurrent * 10) / 10,
-            weeklyGoal: profile?.minutos_semana ? (profile.minutos_semana / 60) : 12, 
+            weeklyGoal: profile?.minutos_semana ? (profile.minutos_semana / 60) : 12,
             studyHistory,
             totalSessions: totalSessions || 0,
         };
@@ -166,23 +166,18 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
         // Em TestMode (ligado nas config), 10s cravados = 1 hora no DB
         // Em Prod, 3600 = 1 hora
         const divisor = isTestMode ? 10 : 3600;
-        const calculatedHours = timerSeconds / divisor; 
-        
+        const calculatedHours = timerSeconds / divisor;
+
         if (calculatedHours <= 0) return null;
 
         // Recuperar perfil pra ler dados atuais
         const current = await loadProfileStats();
-        
+
         const newTotalHours = current.totalHours + calculatedHours;
         const newWeeklyCurrent = current.weeklyCurrent + calculatedHours;
 
-        // Inserir a sessao histórica no Supabase e retornar os dados inseridos (id)
-        const { data: newSession } = await supabase.from('sessoes_foco').insert({
-            user_id: userId,
-            disciplina: currentSubject,
-            tempo_minutos: Math.floor(calculatedHours * 60), // Infla o banco de acordo com a sua regra de teste (1h na ui = 60min no BD)
-            questoes_respondidas: 0
-        }).select('id').single();
+        // OBS: O insert na sessoes_foco é feito exclusivamente pelo focus-feedback.tsx
+        // para evitar duplicatas. Aqui só atualizamos o profile (horas e badges).
 
         // Total de sessões do usuário (para badges de sessão)
         const { count: totalSessions } = await supabase

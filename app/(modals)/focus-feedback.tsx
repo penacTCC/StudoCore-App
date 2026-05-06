@@ -62,6 +62,8 @@ export default function FocusFeedbackModal() {
     );
 
     const [saving, setSaving] = useState(false);
+    // Guarda o ID da sessão assim que ela é inserida no banco (evita duplicatas ao refazer)
+    const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
 
     const handleSubmit = async (status: string = "salvo") => {
         if (!showResults) {
@@ -82,12 +84,19 @@ export default function FocusFeedbackModal() {
 
             const durationSecs = Number(params.duration) || 0;
             const tempoMinutos = Math.round(durationSecs / 60);
-            
+
             let dbError = null;
 
-            if (params.sessionId) {
-                // Sessão já existe (pode ser o final de um focus timer recém-criado OU uma revisão de form pendente)
-                const updateData: any = {
+            // Usa o ID de um param (sessão de revisão/refazer vindo do Brain Hub)
+            // OU o ID que foi guardado ao salvar pela primeira vez nesta sessão
+            const existingId = (params.sessionId as string) || savedSessionId;
+
+            if (existingId) {
+                // Atualiza o registro existente (refazer, revisão ou segunda tentativa)
+                const oldDuration = Number(params.oldDuration) || 0;
+                const totalMinutes = savedSessionId ? tempoMinutos : (oldDuration + tempoMinutos);
+
+                const { error } = await atualizarSessaoFoco(existingId, {
                     questoes_acertadas: score,
                     questoes_respondidas: shuffledQuestions.length,
                     status: status,
@@ -103,8 +112,8 @@ export default function FocusFeedbackModal() {
                 const { error } = await atualizarSessaoFoco(params.sessionId as string, updateData);
                 dbError = error;
             } else {
-                // É uma sessão nova
-                const { error } = await salvarSessaoFoco({
+                // Primeira vez salvando essa sessão — insere e guarda o ID
+                const { data, error } = await salvarSessaoFoco({
                     user_id: userId,
                     disciplina: params.subject as string || "Estudo Geral",
                     conteudo_especifico: params.content as string || "Sessão livre",
@@ -115,6 +124,11 @@ export default function FocusFeedbackModal() {
                     status: status,
                 });
                 dbError = error;
+                if (!error && data) {
+                    // Guarda o ID para que um eventual "refazer" não insira duplicata
+                    const inserted = (data as any)[0];
+                    if (inserted?.id) setSavedSessionId(inserted.id);
+                }
             }
 
             setSaving(false);
