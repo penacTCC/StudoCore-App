@@ -27,6 +27,7 @@ import { subjects } from "@/constants/mock-data";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { addStudyHours } from "@/services/profileStats";
+import { useArchives } from "@/hooks/useArchives";
 
 
 import * as Notifications from 'expo-notifications';
@@ -54,6 +55,7 @@ export default function FocusScreen() {
 
     const { userId } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
+    const { archives } = useArchives(userId || undefined);
     const params = useLocalSearchParams();
     const router = useRouter();
 
@@ -108,9 +110,6 @@ export default function FocusScreen() {
             return;
         }
 
-        setFocusState("active");
-        setTimerSeconds(0);
-
         try {
 
 
@@ -123,23 +122,24 @@ export default function FocusScreen() {
                 .toLowerCase()
                 .normalize("NFD")
                 .replace(/[\u0300-\u036f]/g, ""); // Remove acentos
+            console.log("Disciplina: ", disciplinaBusca);
 
-            // Conta quantos arquivos existem para essa matéria no Vault do usuário
-            const { count, error } = await supabase
-                .from("arquivos")
-                .select("*", { count: "exact", head: true })
-                .eq("user_id", user.id)
-                .eq("disciplina", disciplinaBusca);
-
-            if (error) throw error;
+            // Conta quantos arquivos existem para essa matéria no Vault do usuário e nos grupos
+            const count = archives.filter(f => {
+                if (!f.disciplina) return false;
+                const fileSubject = f.disciplina.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                return fileSubject === disciplinaBusca;
+            }).length;
+            console.log("Count: ", count);
 
             if (count && count > 0) {
                 /*
                 
                 a biblioteca Expo Go removeu o suporte a notificações push remotas a partir do SDK 53
                 A biblioteca expo-notifications continua funcionando, porém não dentro do Expo Go.
+                */
 
-                
+
                 // Dispara a notificação de sistema imediatamente
                 await Notifications.scheduleNotificationAsync({
                     content: {
@@ -148,10 +148,6 @@ export default function FocusScreen() {
                     },
                     trigger: null, // null envia imediatamente
                 });
-                // Inicia a sessão mesmo enviando a notificação
-                setFocusState("active");
-                setTimerSeconds(0);
-                */
 
                 Alert.alert(
                     "Materiais Disponíveis",
@@ -165,10 +161,8 @@ export default function FocusScreen() {
                         },
                         {
                             text: "Ver Materiais", onPress: () => {
-                                // Aqui poderíamos navegar para o Vault filtrado, 
-                                // mas vamos apenas iniciar a sessão por o momento para manter o fluxo.
-                                setFocusState("active");
-                                setTimerSeconds(0);
+                                //Navegar para o Vault filtrado, 
+                                router.push("/(tabs)/vault");
                             }
                         }
                     ]

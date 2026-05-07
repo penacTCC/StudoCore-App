@@ -39,7 +39,7 @@ export default function BrainScreen() {
         setWeekStartsOn(day);
         await AsyncStorage.setItem('@app_week_starts_on', day);
     };
-    
+
     const { userId } = useAuth();
     const { savedSessions, pendingSessions, loading } = useSessoesUsuario(userId);
     const [selectedForm, setSelectedForm] = useState<SessaoFocoRow | null>(null);
@@ -47,12 +47,16 @@ export default function BrainScreen() {
 
     const analyticsData = useMemo(() => {
         const allSessions = [...savedSessions, ...pendingSessions];
-        
+
         if (allSessions.length === 0) {
             return {
                 horasEstaSemana: 0,
                 questoesEstaSemana: 0,
                 sequencia: 0,
+                horasSemanaPasada: 0,
+                questoesSemanaPasada: 0,
+                diasSemanaPasada: 0,
+                diasEstaSemana: 0,
                 distribuicao: [],
                 maxHours: 1
             };
@@ -123,7 +127,7 @@ export default function BrainScreen() {
         if (sortedDates.length > 0) {
             let expectedDateStr = sortedDates[0];
             if (expectedDateStr === todayStr || expectedDateStr === yesterdayStr) {
-                let currentDate = new Date(expectedDateStr + "T12:00:00"); 
+                let currentDate = new Date(expectedDateStr + "T12:00:00");
                 for (let i = 0; i < sortedDates.length; i++) {
                     if (sortedDates[i] === expectedDateStr) {
                         ofensiva++;
@@ -146,7 +150,7 @@ export default function BrainScreen() {
         return {
             horasEstaSemana: Math.round(horasTotaisMinutos / 60),
             questoesEstaSemana: questoesTotais,
-            sequencia: streak,
+            sequencia: ofensiva,
             diasEstaSemana: diasEstaSemana.size,
             // Semana passada
             horasSemanaPasada: Math.round(horasSemanaPasadaMinutos / 60),

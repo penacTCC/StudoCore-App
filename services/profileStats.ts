@@ -236,7 +236,7 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
         // Recarrega atualizado
         return { 
             stats: await loadProfileStats(), 
-            sessionId: newSession?.id 
+            sessionId: undefined 
         };
     } catch (e) {
         console.error('Erro salvar horas:', e);
