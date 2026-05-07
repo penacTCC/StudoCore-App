@@ -18,12 +18,30 @@ import {
     ToggleRight,
 } from "lucide-react-native";
 
+//Componentes do Projeto
+import { supabase } from "@/supabase";
+
 //Constantes
 import { COLORS } from "@/constants/colors";
 import { subjects } from "@/constants/mock-data";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { addStudyHours } from "@/services/profileStats";
+import { useArchives } from "@/hooks/useArchives";
+
+
+import * as Notifications from 'expo-notifications';
+// Configurar o comportamento das notificações (necessário para mostrar enquanto o app está aberto)
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+    }),
+});
+
 
 type FocusState = "config" | "active";
 
@@ -37,8 +55,21 @@ export default function FocusScreen() {
 
     const { userId } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
+    const { archives } = useArchives(userId || undefined);
     const params = useLocalSearchParams();
     const router = useRouter();
+
+    // Solicitar permissão para notificações ao montar o componente
+    useEffect(() => {
+        const requestPermissions = async () => {
+            const { status } = await Notifications.getPermissionsAsync() as any;
+            if (status !== 'granted') {
+                await Notifications.requestPermissionsAsync();
+            }
+        };
+        requestPermissions();
+    }, []);
+
 
     // Auto-start for review sessions
     useEffect(() => {
@@ -68,7 +99,7 @@ export default function FocusScreen() {
         return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
     };
 
-    const startSession = () => {
+    const startSession = async () => {
         if (!selectedSubject || !specificContent.trim()) {
             Alert.alert("Incompleto", "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar.");
             return;
@@ -79,13 +110,78 @@ export default function FocusScreen() {
             return;
         }
 
-        setFocusState("active");
-        setTimerSeconds(0);
+        try {
+
+
+            // Busca o usuário atual
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)
+            const disciplinaBusca = selectedSubject
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, ""); // Remove acentos
+            console.log("Disciplina: ", disciplinaBusca);
+
+            // Conta quantos arquivos existem para essa matéria no Vault do usuário e nos grupos
+            const count = archives.filter(f => {
+                if (!f.disciplina) return false;
+                const fileSubject = f.disciplina.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                return fileSubject === disciplinaBusca;
+            }).length;
+            console.log("Count: ", count);
+
+            if (count && count > 0) {
+                /*
+                
+                a biblioteca Expo Go removeu o suporte a notificações push remotas a partir do SDK 53
+                A biblioteca expo-notifications continua funcionando, porém não dentro do Expo Go.
+                */
+
+
+                // Dispara a notificação de sistema imediatamente
+                await Notifications.scheduleNotificationAsync({
+                    content: {
+                        title: "📚 Materiais Disponíveis",
+                        body: `Você tem ${count} ${count === 1 ? "arquivo" : "arquivos"} de ${selectedSubject} no seu Vault!`,
+                    },
+                    trigger: null, // null envia imediatamente
+                });
+
+                Alert.alert(
+                    "Materiais Disponíveis",
+                    `Você tem ${count} ${count === 1 ? "arquivo" : "arquivos"} de ${selectedSubject} no seu Vault. Deseja revisar antes de focar?`,
+                    [
+                        {
+                            text: "Agora não", onPress: () => {
+                                setFocusState("active");
+                                setTimerSeconds(0);
+                            }
+                        },
+                        {
+                            text: "Ver Materiais", onPress: () => {
+                                //Navegar para o Vault filtrado, 
+                                router.push("/(tabs)/vault");
+                            }
+                        }
+                    ]
+                );
+            } else {
+                setFocusState("active");
+                setTimerSeconds(0);
+            }
+        } catch (error) {
+            console.error("Erro ao verificar vault:", error);
+            // Inicia mesmo se houver erro na busca
+            setFocusState("active");
+            setTimerSeconds(0);
+        }
     };
 
     const stopSession = async () => {
         setFocusState("config");
-        
+
         // Salva uma cópia dos valores antes de resetar
         const finalSubject = selectedSubject;
         const finalContent = specificContent;
@@ -94,13 +190,13 @@ export default function FocusScreen() {
 
         // Registrar as horas e despachar evento
         const result = await addStudyHours(timerSeconds, selectedSubject || "Matemática");
-        
+
         setTimerSeconds(0);
         setSelectedSubject("");
         setSpecificContent("");
-        
+
         if (intervalRef.current) clearInterval(intervalRef.current);
-        
+
         // Abre o modal de feedback após a sessão passando os parâmetros
         router.push({
             pathname: "/(modals)/focus-feedback",
@@ -115,7 +211,10 @@ export default function FocusScreen() {
         });
     };
 
+
     return (
+
+
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
             {/* Header */}
             <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">

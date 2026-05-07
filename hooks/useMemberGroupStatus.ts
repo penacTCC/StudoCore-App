@@ -12,9 +12,9 @@ type LastGroupParams = {
 };
 
 export function useMemberGroupStatus(session: Session | null, isInitialized: boolean) {
-  const [isMember, setIsMember] = useState(false);
+  const [isMember, setIsMember] = useState<boolean | null>(null);
 
-  const [lastGroupParams, setLastGroupParams] = useState<LastGroupParams | undefined>(undefined);
+  const [lastGroupParams, setLastGroupParams] = useState<LastGroupParams | null | undefined>(undefined);
 
   //Verifica se o usuario tem um grupo
   useEffect(() => {
@@ -40,7 +40,7 @@ export function useMemberGroupStatus(session: Session | null, isInitialized: boo
       if (member) {
         // Tenta achar o grupo ANTES de avisar o Guarda
         const lastGroupId = await loadLastGroupLocally();
-        let paramsToSave = lastGroupParams || undefined; // Presume null por padrão
+        let paramsToSave: LastGroupParams | null = null;
         if (lastGroupId) {
           const groupInfo = await fetchGroupById(lastGroupId);
           if (groupInfo) {
@@ -55,7 +55,7 @@ export function useMemberGroupStatus(session: Session | null, isInitialized: boo
         setLastGroupParams(paramsToSave);
         setIsMember(true); // Só agora que o Guarda pode ver que ele tem grupo
       } else {
-        setLastGroupParams(undefined);
+        setLastGroupParams(null);
       }
     };
 
