@@ -37,16 +37,16 @@ export default function FocusFeedbackModal() {
 
     // Substitua este array com as suas perguntas reais do banco de dados (adicione o 'correctAnswer')
     const contentQuestions = [
-        { id: 1, text: "Qual a principal vantagem deste conceito estudado?", options: ["Aumenta o foco", "Reduz o tempo", "Nenhuma das anteriores", "Todas as anteriores"], correctAnswer: "Aumenta o foco" },
-        { id: 2, text: "Substitua a pergunta 2 aqui", options: ["Opção 1", "Opção errada", "Certa", "Falsa"], correctAnswer: "Certa" },
-        { id: 3, text: "Substitua a pergunta 3 aqui", options: ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"], correctAnswer: "Alternativa A" },
-        { id: 4, text: "Substitua a pergunta 4 aqui", options: ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"], correctAnswer: "Alternativa B" },
-        { id: 5, text: "Substitua a pergunta 5 aqui", options: ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"], correctAnswer: "Alternativa C" },
-        { id: 6, text: "Substitua a pergunta 6 aqui", options: ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"], correctAnswer: "Alternativa D" },
-        { id: 7, text: "Substitua a pergunta 7 aqui", options: ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"], correctAnswer: "Alternativa A" },
-        { id: 8, text: "Substitua a pergunta 8 aqui", options: ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"], correctAnswer: "Alternativa A" },
-        { id: 9, text: "Substitua a pergunta 9 aqui", options: ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"], correctAnswer: "Alternativa A" },
-        { id: 10, text: "Substitua a pergunta 10 aqui", options: ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D"], correctAnswer: "Alternativa A" },
+        { id: 1, text: "Qual é o resultado da soma de 1/2 e 1/4?", options: ["3/4", "1/6", "2/6", "1/8"], correctAnswer: "3/4" },
+        { id: 2, text: "Qual a forma irredutível da fração 8/12?", options: ["2/3", "4/6", "3/4", "1/2"], correctAnswer: "2/3" },
+        { id: 3, text: "Qual destas frações é a maior?", options: ["2/5", "1/3", "3/4", "4/7"], correctAnswer: "3/4" },
+        { id: 4, text: "Como se escreve a fração 3/5 em número decimal?", options: ["0,6", "0,3", "0,5", "3,5"], correctAnswer: "0,6" },
+        { id: 5, text: "Quanto é 1/3 de 60?", options: ["20", "15", "30", "10"], correctAnswer: "20" },
+        { id: 6, text: "Qual é o resultado da multiplicação de 2/3 por 3/4?", options: ["1/2", "5/12", "5/7", "8/9"], correctAnswer: "1/2" },
+        { id: 7, text: "O que é uma fração imprópria?", options: ["O numerador é maior que o denominador", "O denominador é maior que o numerador", "Ambos são iguais", "Possui um número inteiro"], correctAnswer: "O numerador é maior que o denominador" },
+        { id: 8, text: "Qual é o resultado de 3/4 menos 1/2?", options: ["1/4", "2/6", "1/8", "1/2"], correctAnswer: "1/4" },
+        { id: 9, text: "Como se escreve o número misto 2 e 1/2 em fração imprópria?", options: ["5/2", "3/2", "2/2", "4/2"], correctAnswer: "5/2" },
+        { id: 10, text: "Se eu comi 3/8 de uma pizza, que fração da pizza sobrou?", options: ["5/8", "3/8", "1/8", "8/8"], correctAnswer: "5/8" },
     ];
 
     // Aqui geramos e guardamos no STATE a versão embaralhada das opções.
@@ -61,6 +61,8 @@ export default function FocusFeedbackModal() {
     );
 
     const [saving, setSaving] = useState(false);
+    // Guarda o ID da sessão assim que ela é inserida no banco (evita duplicatas ao refazer)
+    const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
 
     const handleSubmit = async (status: string = "salvo") => {
         if (!showResults) {
@@ -81,23 +83,27 @@ export default function FocusFeedbackModal() {
 
             const durationSecs = Number(params.duration) || 0;
             const tempoMinutos = Math.round(durationSecs / 60);
-            
+
             let dbError = null;
 
-            if (params.sessionId) {
-                // É um refazer ou término de sessão de revisão
+            // Usa o ID de um param (sessão de revisão/refazer vindo do Brain Hub)
+            // OU o ID que foi guardado ao salvar pela primeira vez nesta sessão
+            const existingId = (params.sessionId as string) || savedSessionId;
+
+            if (existingId) {
+                // Atualiza o registro existente (refazer, revisão ou segunda tentativa)
                 const oldDuration = Number(params.oldDuration) || 0;
-                const totalMinutes = oldDuration + tempoMinutos;
-                
-                const { error } = await atualizarSessaoFoco(params.sessionId as string, {
+                const totalMinutes = savedSessionId ? tempoMinutos : (oldDuration + tempoMinutos);
+
+                const { error } = await atualizarSessaoFoco(existingId, {
                     questoes_acertadas: score,
                     status: status,
                     tempo_minutos: totalMinutes,
                 });
                 dbError = error;
             } else {
-                // É uma sessão nova
-                const { error } = await salvarSessaoFoco({
+                // Primeira vez salvando essa sessão — insere e guarda o ID
+                const { data, error } = await salvarSessaoFoco({
                     user_id: userId,
                     disciplina: params.subject as string || "Estudo Geral",
                     conteudo_especifico: params.content as string || "Sessão livre",
@@ -108,6 +114,11 @@ export default function FocusFeedbackModal() {
                     status: status,
                 });
                 dbError = error;
+                if (!error && data) {
+                    // Guarda o ID para que um eventual "refazer" não insira duplicata
+                    const inserted = (data as any)[0];
+                    if (inserted?.id) setSavedSessionId(inserted.id);
+                }
             }
 
             setSaving(false);

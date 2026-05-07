@@ -77,7 +77,7 @@ export default function CreateGroupScreen() {
         <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>
             {/* Header */}
             <View className="px-4 py-3 flex-row items-center justify-between border-b border-navy-800">
-                <Text className="text-xl font-bold text-slate-200">Create Group</Text>
+                <Text className="text-xl font-bold text-slate-200">Criar Grupo</Text>
                 <TouchableOpacity
                     onPress={() => router.back()}
                     className="w-8 h-8 rounded-full bg-slate-800 items-center justify-center"
@@ -96,22 +96,22 @@ export default function CreateGroupScreen() {
                 {/* Form Fields */}
                 <View className="gap-4 mb-6">
                     <View>
-                        <Text className="text-sm font-medium text-slate-400 mb-2">Group Name</Text>
+                        <Text className="text-sm font-medium text-slate-400 mb-2">Nome do Grupo</Text>
                         <TextInput
                             value={name}
                             onChangeText={setName}
-                            placeholder="e.g., Late Night Coders"
+                            placeholder="ex.: Coders da Madrugada"
                             placeholderTextColor={COLORS.textMuted}
                             className="bg-navy-900 border border-navy-800 rounded-xl px-4 py-3 text-slate-200 text-base"
                         />
                     </View>
 
                     <View>
-                        <Text className="text-sm font-medium text-slate-400 mb-2">Description</Text>
+                        <Text className="text-sm font-medium text-slate-400 mb-2">Descrição</Text>
                         <TextInput
                             value={description}
                             onChangeText={setDescription}
-                            placeholder="What's this group about?"
+                            placeholder="Sobre o que é esse grupo?"
                             placeholderTextColor={COLORS.textMuted}
                             multiline
                             numberOfLines={3}
@@ -123,13 +123,13 @@ export default function CreateGroupScreen() {
 
                 {/* Settings */}
                 <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4 mb-6">
-                    <Text className="text-sm font-medium text-slate-400 mb-4">Settings</Text>
+                    <Text className="text-sm font-medium text-slate-400 mb-4">Configurações</Text>
 
                     <View className="flex-row items-center justify-between mb-4">
                         <View className="flex-1 pr-4">
-                            <Text className="text-base font-medium text-slate-200">Public Group</Text>
+                            <Text className="text-base font-medium text-slate-200">Grupo Público</Text>
                             <Text className="text-xs text-slate-500 mt-1">
-                                {isPublic ? "Anyone can find and join" : "Only invited members can join"}
+                                {isPublic ? "Qualquer pessoa pode encontrar e entrar" : "Apenas membros convidados podem entrar"}
                             </Text>
                         </View>
                         <Switch
@@ -142,7 +142,7 @@ export default function CreateGroupScreen() {
 
                     <View className="border-t border-navy-800 pt-4">
                         <View className="flex-row items-center justify-between mb-2">
-                            <Text className="text-base font-medium text-slate-200">Weekly Target</Text>
+                             <Text className="text-base font-medium text-slate-200">Meta Semanal</Text>
                             <Text className="text-sm font-bold text-brand-500">{weeklyTarget}h</Text>
                         </View>
                         <View className="flex-row items-center gap-2 mt-2">
@@ -206,10 +206,7 @@ export default function CreateGroupScreen() {
                     className={`py-4 rounded-2xl flex-row items-center justify-center gap-2 ${name.trim() && description.trim() && !isLoading ? "bg-brand-500" : "bg-navy-800"
                         }`}
                 >
-                    <Plus size={20} color={name.trim() && description.trim() && !isLoading ? COLORS.white : COLORS.textMuted} />
-                    <Text className={`font-semibold text-lg ${name.trim() && description.trim() && !isLoading ? "text-white" : "text-slate-500"}`}>
-                        {isLoading ? "Creating..." : "Create Group"}
-                    </Text>
+                        {isLoading ? "Criando..." : "Criar Grupo"}
                 </TouchableOpacity>
             </View>
         </SafeAreaView>

@@ -7,6 +7,7 @@ import { useAuthState } from "@/hooks/useAuthState";
 import { useMemberGroupStatus } from "@/hooks/useMemberGroupStatus";
 import { useRouteGuard } from "@/hooks/useRoutGuard";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import MedalAlert from "@/components/MedalAlert";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -31,6 +32,7 @@ export default function RootLayout() {
         <SafeAreaProvider>
             <View className="flex-1 bg-slate-950">
                 <StatusBar style="light" />
+                <MedalAlert />
                 <Stack
                     screenOptions={{
                         headerShown: false,

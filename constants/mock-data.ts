@@ -1,9 +1,9 @@
 export const mockUsers = [
-    { id: 1, name: "Alex Chen", initials: "AC", hours: 42, streak: 15, rank: 1 },
-    { id: 2, name: "Maria Santos", initials: "MS", hours: 38, streak: 12, rank: 2 },
-    { id: 3, name: "James Wilson", initials: "JW", hours: 35, streak: 8, rank: 3 },
-    { id: 4, name: "Sophie Lee", initials: "SL", hours: 32, streak: 6, rank: 4 },
-    { id: 5, name: "You", initials: "YO", hours: 28, streak: 10, rank: 5 },
+    { id: 1, name: "Alex Chen", initials: "AC", hours: 42, ofensiva: 15, rank: 1 },
+    { id: 2, name: "Maria Santos", initials: "MS", hours: 38, ofensiva: 12, rank: 2 },
+    { id: 3, name: "James Wilson", initials: "JW", hours: 35, ofensiva: 8, rank: 3 },
+    { id: 4, name: "Sophie Lee", initials: "SL", hours: 32, ofensiva: 6, rank: 4 },
+    { id: 5, name: "You", initials: "YO", hours: 28, ofensiva: 10, rank: 5 },
 ];
 
 export const mockLiveFeed = [
@@ -12,7 +12,7 @@ export const mockLiveFeed = [
     { id: 3, user: "James Wilson", action: "started a Chemistry session", isPublic: true, time: "8m ago" },
 ];
 
-export const subjects = ["Mathematics", "Physics", "Chemistry", "Biology", "History", "Literature"];
+export const subjects = ["Matemática", "Física", "Química", "Biologia", "História", "Literatura"];
 
 export const mockFiles = [
     { id: 1, name: "Calculus Notes.pdf", type: "pdf", author: "Alex Chen", date: "Jan 10", size: "2.4 MB" },
@@ -25,7 +25,7 @@ export const mockBadges = [
     { id: 1, name: "Early Bird", icon: "Star" as const, unlocked: true },
     { id: 2, name: "Night Owl", icon: "Clock" as const, unlocked: true },
     { id: 3, name: "Bookworm", icon: "BookOpen" as const, unlocked: true },
-    { id: 4, name: "Streak Master", icon: "Flame" as const, unlocked: false },
+    { id: 4, name: "ofensiva Master", icon: "Flame" as const, unlocked: false },
     { id: 5, name: "Champion", icon: "Trophy" as const, unlocked: false },
     { id: 6, name: "Team Player", icon: "Users" as const, unlocked: false },
 ];
@@ -52,16 +52,16 @@ export const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 export const diasDaSemana = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 export const disciplinasComCores: { name: string; color: string }[] = [
-    { name: "Matemática",  color: "#7c3aed" },
-    { name: "Física",      color: "#e11d48" },
-    { name: "Química",     color: "#059669" },
-    { name: "Biologia",    color: "#0891b2" },
-    { name: "História",    color: "#d97706" },
-    { name: "Geografia",   color: "#65a30d" },
-    { name: "Português",   color: "#db2777" },
-    { name: "Inglês",      color: "#2563eb" },
-    { name: "Literatura",  color: "#9333ea" },
-    { name: "Filosofia",   color: "#64748b" },
+    { name: "Matemática", color: "#7c3aed" },
+    { name: "Física", color: "#e11d48" },
+    { name: "Química", color: "#059669" },
+    { name: "Biologia", color: "#0891b2" },
+    { name: "História", color: "#d97706" },
+    { name: "Geografia", color: "#65a30d" },
+    { name: "Português", color: "#db2777" },
+    { name: "Inglês", color: "#2563eb" },
+    { name: "Literatura", color: "#9333ea" },
+    { name: "Filosofia", color: "#64748b" },
 ];
 
 export const mockPendingInvites = [
@@ -135,7 +135,7 @@ export const mockDetailingFeed = [
         timeAgo: "1h ago",
         isPublic: true,
         verified: true,
-        streak: 15,
+        ofensiva: 15,
         reactions: 5,
     },
     {
@@ -150,7 +150,7 @@ export const mockDetailingFeed = [
         timeAgo: "2h ago",
         isPublic: true,
         verified: true,
-        streak: 12,
+        ofensiva: 12,
         reactions: 8,
     },
     {
@@ -165,7 +165,7 @@ export const mockDetailingFeed = [
         timeAgo: "4h ago",
         isPublic: false,
         verified: false,
-        streak: 8,
+        ofensiva: 8,
         reactions: 2,
     },
     {
@@ -180,7 +180,7 @@ export const mockDetailingFeed = [
         timeAgo: "6h ago",
         isPublic: true,
         verified: false,
-        streak: 6,
+        ofensiva: 6,
         reactions: 3,
     },
     {
@@ -195,7 +195,7 @@ export const mockDetailingFeed = [
         timeAgo: "11h ago",
         isPublic: true,
         verified: true,
-        streak: 10,
+        ofensiva: 10,
         reactions: 6,
     },
 ];
