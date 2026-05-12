@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronRight, Sparkles, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 import { COLORS } from "@/constants/colors";
@@ -21,7 +22,24 @@ const COLORS_PALETTE = ["#8b5cf6", "#10b981", "#fbbf24", "#f43f5e", "#3b82f6", "
 
 export default function BrainScreen() {
     const [brainTab, setBrainTab] = useState<BrainTab>("database");
-    
+    const [weekStartsOn, setWeekStartsOn] = useState<'sunday' | 'monday'>('sunday');
+    const [showComparison, setShowComparison] = useState(false);
+
+    useEffect(() => {
+        const loadPref = async () => {
+            const pref = await AsyncStorage.getItem('@app_week_starts_on');
+            if (pref === 'monday') {
+                setWeekStartsOn('monday');
+            }
+        };
+        loadPref();
+    }, []);
+
+    const changeWeekStart = async (day: 'sunday' | 'monday') => {
+        setWeekStartsOn(day);
+        await AsyncStorage.setItem('@app_week_starts_on', day);
+    };
+
     const { userId } = useAuth();
     const { savedSessions, pendingSessions, loading } = useSessoesUsuario(userId);
     const [selectedForm, setSelectedForm] = useState<SessaoFocoRow | null>(null);
@@ -29,55 +47,78 @@ export default function BrainScreen() {
 
     const analyticsData = useMemo(() => {
         const allSessions = [...savedSessions, ...pendingSessions];
-        
+
         if (allSessions.length === 0) {
             return {
                 horasEstaSemana: 0,
                 questoesEstaSemana: 0,
                 sequencia: 0,
+                horasSemanaPasada: 0,
+                questoesSemanaPasada: 0,
+                diasSemanaPasada: 0,
+                diasEstaSemana: 0,
                 distribuicao: [],
                 maxHours: 1
             };
         }
 
         // Helpers
-        const getStartOfWeek = (d: Date) => {
+        const getStartOfWeek = (d: Date, start: 'sunday' | 'monday') => {
             const date = new Date(d);
-            const day = date.getDay(); // 0 is Sunday
-            const diff = date.getDate() - day;
+            const day = date.getDay();
+            let diff = date.getDate() - day;
+            if (start === 'monday') {
+                const offset = day === 0 ? -6 : 1;
+                diff = date.getDate() - day + offset;
+            }
             return new Date(date.setDate(diff)).setHours(0, 0, 0, 0);
         };
 
         const today = new Date();
-        const startOfThisWeek = getStartOfWeek(today);
-        
+        const startOfThisWeek = getStartOfWeek(today, weekStartsOn);
+        // Semana passada: 7 dias antes do início desta semana
+        const startOfLastWeek = startOfThisWeek - 7 * 24 * 60 * 60 * 1000;
+        const endOfLastWeek = startOfThisWeek - 1;
+
         let horasTotaisMinutos = 0;
         let questoesTotais = 0;
+        let horasSemanaPasadaMinutos = 0;
+        let questoesSemanaPasada = 0;
+        const diasEstaSemana = new Set<string>();
+        const diasSemanaPasada = new Set<string>();
         const distMap: Record<string, number> = {};
 
         const uniqueDates = new Set<string>();
 
         allSessions.forEach(session => {
-            // Data da sessão
             const sessionDate = new Date(session.created_at || session.data_sessao);
-            
+            const sessionTime = sessionDate.getTime();
+
             // Para "Sequência" (General Streak)
             uniqueDates.add(sessionDate.toISOString().split('T')[0]);
 
             // Para "Esta Semana"
-            if (getStartOfWeek(sessionDate) === startOfThisWeek) {
+            if (getStartOfWeek(sessionDate, weekStartsOn) === startOfThisWeek) {
                 horasTotaisMinutos += session.tempo_minutos || 0;
                 questoesTotais += session.questoes_respondidas || 0;
+                diasEstaSemana.add(sessionDate.toISOString().split('T')[0]);
 
                 const subject = session.disciplina || "Outros";
                 if (!distMap[subject]) distMap[subject] = 0;
                 distMap[subject] += session.tempo_minutos || 0;
             }
+
+            // Para "Semana Passada"
+            if (sessionTime >= startOfLastWeek && sessionTime <= endOfLastWeek) {
+                horasSemanaPasadaMinutos += session.tempo_minutos || 0;
+                questoesSemanaPasada += session.questoes_respondidas || 0;
+                diasSemanaPasada.add(sessionDate.toISOString().split('T')[0]);
+            }
         });
 
-        // Compute sequência (streak)
+        // Compute sequência (ofensiva)
         const sortedDates = Array.from(uniqueDates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-        let streak = 0;
+        let ofensiva = 0;
         const todayStr = today.toISOString().split('T')[0];
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
@@ -86,10 +127,10 @@ export default function BrainScreen() {
         if (sortedDates.length > 0) {
             let expectedDateStr = sortedDates[0];
             if (expectedDateStr === todayStr || expectedDateStr === yesterdayStr) {
-                let currentDate = new Date(expectedDateStr + "T12:00:00"); 
+                let currentDate = new Date(expectedDateStr + "T12:00:00");
                 for (let i = 0; i < sortedDates.length; i++) {
                     if (sortedDates[i] === expectedDateStr) {
-                        streak++;
+                        ofensiva++;
                         currentDate.setDate(currentDate.getDate() - 1);
                         expectedDateStr = currentDate.toISOString().split('T')[0];
                     } else {
@@ -109,11 +150,16 @@ export default function BrainScreen() {
         return {
             horasEstaSemana: Math.round(horasTotaisMinutos / 60),
             questoesEstaSemana: questoesTotais,
-            sequencia: streak,
+            sequencia: ofensiva,
+            diasEstaSemana: diasEstaSemana.size,
+            // Semana passada
+            horasSemanaPasada: Math.round(horasSemanaPasadaMinutos / 60),
+            questoesSemanaPasada,
+            diasSemanaPasada: diasSemanaPasada.size,
             distribuicao,
             maxHours: distribuicao.length > 0 ? Math.max(...distribuicao.map(d => d.hours)) : 1
         };
-    }, [savedSessions, pendingSessions]);
+    }, [savedSessions, pendingSessions, weekStartsOn]);
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
@@ -291,13 +337,73 @@ export default function BrainScreen() {
 
                         {/* Resumo Semanal */}
                         <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                            <View className="flex-row items-center justify-between mb-4">
+                                <Text className="text-lg font-semibold text-slate-200">
+                                    Esta Semana
+                                </Text>
+                                <TouchableOpacity onPress={() => setShowComparison(prev => !prev)} activeOpacity={0.7}>
+                                    <Text className={`text-xs ${showComparison ? 'text-violet-400' : 'text-slate-500'}`}>
+                                        {showComparison ? 'ver atual' : 'comparar com semana passada'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View className="flex-row gap-3">
+                                {(() => {
+                                    if (!showComparison) {
+                                        return (
+                                            <>
+                                                <StatCard value={analyticsData.horasEstaSemana} label="Horas" />
+                                                <StatCard value={analyticsData.sequencia} label="Sequência" valueColor={COLORS.emeraldLight} />
+                                                <StatCard value={analyticsData.questoesEstaSemana} label="Questões" valueColor={COLORS.violetLight} />
+                                            </>
+                                        );
+                                    }
+                                    const diffHoras = analyticsData.horasEstaSemana - analyticsData.horasSemanaPasada;
+                                    const diffDias = analyticsData.diasEstaSemana - analyticsData.diasSemanaPasada;
+                                    const diffQuestoes = analyticsData.questoesEstaSemana - analyticsData.questoesSemanaPasada;
+                                    const fmt = (n: number) => n > 0 ? `+${n}` : `${n}`;
+                                    const diffColor = (n: number) => n > 0 ? COLORS.emeraldLight : n < 0 ? '#fb7185' : '#e2e8f0';
+                                    const colorH = diffColor(diffHoras);
+                                    const colorD = diffColor(diffDias);
+                                    const colorQ = diffColor(diffQuestoes);
+                                    return (
+                                        <>
+                                            <StatCard value={fmt(diffHoras)} label="Horas" valueColor={colorH} />
+                                            <StatCard value={fmt(diffDias)} label="Dias" valueColor={colorD} />
+                                            <StatCard value={fmt(diffQuestoes)} label="Questões" valueColor={colorQ} />
+                                        </>
+                                    );
+                                })()}
+                            </View>
+                        </View>
+
+                        {/* Configuração: Início da Semana */}
+                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-4">
                             <Text className="text-lg font-semibold text-slate-200 mb-4">
-                                Esta Semana
+                                A semana começa em:
                             </Text>
                             <View className="flex-row gap-3">
-                                <StatCard value={analyticsData.horasEstaSemana} label="Horas" />
-                                <StatCard value={analyticsData.sequencia} label="Sequência" valueColor={COLORS.emeraldLight} />
-                                <StatCard value={analyticsData.questoesEstaSemana} label="Questões" valueColor={COLORS.violetLight} />
+                                <TouchableOpacity
+                                    onPress={() => changeWeekStart('sunday')}
+                                    activeOpacity={0.8}
+                                    className={`flex-1 flex-row items-center justify-center py-3 rounded-xl border ${weekStartsOn === 'sunday' ? 'bg-violet-600/20 border-violet-500' : 'bg-slate-800 border-slate-700'}`}
+                                >
+                                    <View className={`w-4 h-4 rounded-full border mr-2 items-center justify-center ${weekStartsOn === 'sunday' ? 'border-violet-400' : 'border-slate-500'}`}>
+                                        {weekStartsOn === 'sunday' && <View className="w-2 h-2 rounded-full bg-violet-400" />}
+                                    </View>
+                                    <Text className={`font-medium ${weekStartsOn === 'sunday' ? 'text-violet-300' : 'text-slate-400'}`}>Domingo</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    onPress={() => changeWeekStart('monday')}
+                                    activeOpacity={0.8}
+                                    className={`flex-1 flex-row items-center justify-center py-3 rounded-xl border ${weekStartsOn === 'monday' ? 'bg-violet-600/20 border-violet-500' : 'bg-slate-800 border-slate-700'}`}
+                                >
+                                    <View className={`w-4 h-4 rounded-full border mr-2 items-center justify-center ${weekStartsOn === 'monday' ? 'border-violet-400' : 'border-slate-500'}`}>
+                                        {weekStartsOn === 'monday' && <View className="w-2 h-2 rounded-full bg-violet-400" />}
+                                    </View>
+                                    <Text className={`font-medium ${weekStartsOn === 'monday' ? 'text-violet-300' : 'text-slate-400'}`}>Segunda-feira</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
                     </View>

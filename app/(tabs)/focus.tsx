@@ -20,12 +20,30 @@ import {
     ToggleRight,
 } from "lucide-react-native";
 
+//Componentes do Projeto
+import { supabase } from "@/supabase";
+
 //Constantes
 import { COLORS } from "@/constants/colors";
 import { subjects } from "@/constants/mock-data";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { addStudyHours } from "@/services/profileStats";
+import { useArchives } from "@/hooks/useArchives";
+
+
+import * as Notifications from 'expo-notifications';
+// Configurar o comportamento das notificações (necessário para mostrar enquanto o app está aberto)
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+    }),
+});
+
 
 const STORAGE_KEY_START_TIME = "@focus_session_start_time";
 const STORAGE_KEY_SESSION_DATA = "@focus_session_data";
@@ -43,6 +61,7 @@ export default function FocusScreen() {
 
     const { userId } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
+    const { archives } = useArchives(userId || undefined);
     const params = useLocalSearchParams();
     const router = useRouter();
 
@@ -68,6 +87,17 @@ export default function FocusScreen() {
             }
         };
         restoreSession();
+    }, []);
+
+    // Solicitar permissão para notificações ao montar o componente
+    useEffect(() => {
+        const requestPermissions = async () => {
+            const { status } = await Notifications.getPermissionsAsync() as any;
+            if (status !== 'granted') {
+                await Notifications.requestPermissionsAsync();
+            }
+        };
+        requestPermissions();
     }, []);
 
     // Auto-start for review sessions
@@ -124,27 +154,114 @@ export default function FocusScreen() {
             return;
         }
 
-        // Salva o timestamp de início e dados da sessão no AsyncStorage
-        const now = Date.now();
-        startTimeRef.current = now;
         try {
-            await AsyncStorage.setItem(STORAGE_KEY_START_TIME, now.toString());
-            await AsyncStorage.setItem(STORAGE_KEY_SESSION_DATA, JSON.stringify({
-                subject: selectedSubject,
-                content: specificContent,
-                isPublic: isPublicSession,
-            }));
-        } catch (e) {
-            console.warn("Erro ao salvar sessão:", e);
-        }
+            // Busca o usuário atual
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
 
-        setFocusState("active");
-        setTimerSeconds(0);
+            // Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)
+            const disciplinaBusca = selectedSubject
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, ""); // Remove acentos
+            console.log("Disciplina: ", disciplinaBusca);
+
+            // Conta quantos arquivos existem para essa matéria no Vault do usuário e nos grupos
+            const count = archives.filter(f => {
+                if (!f.disciplina) return false;
+                const fileSubject = f.disciplina.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                return fileSubject === disciplinaBusca;
+            }).length;
+            console.log("Count: ", count);
+
+            if (count && count > 0) {
+                /*
+                
+                a biblioteca Expo Go removeu o suporte a notificações push remotas a partir do SDK 53
+                A biblioteca expo-notifications continua funcionando, porém não dentro do Expo Go.
+                */
+
+
+                // Dispara a notificação de sistema imediatamente
+                await Notifications.scheduleNotificationAsync({
+                    content: {
+                        title: "📚 Materiais Disponíveis",
+                        body: `Você tem ${count} ${count === 1 ? "arquivo" : "arquivos"} de ${selectedSubject} no seu Vault!`,
+                    },
+                    trigger: null, // null envia imediatamente
+                });
+
+                Alert.alert(
+                    "Materiais Disponíveis",
+                    `Você tem ${count} ${count === 1 ? "arquivo" : "arquivos"} de ${selectedSubject} no seu Vault. Deseja revisar antes de focar?`,
+                    [
+                        {
+                            text: "Agora não", onPress: async () => {
+                                // Salva o timestamp de início e dados da sessão no AsyncStorage
+                                const now = Date.now();
+                                startTimeRef.current = now;
+                                try {
+                                    await AsyncStorage.setItem(STORAGE_KEY_START_TIME, now.toString());
+                                    await AsyncStorage.setItem(STORAGE_KEY_SESSION_DATA, JSON.stringify({
+                                        subject: selectedSubject,
+                                        content: specificContent,
+                                        isPublic: isPublicSession,
+                                    }));
+                                } catch (e) {
+                                    console.warn("Erro ao salvar sessão:", e);
+                                }
+                                setFocusState("active");
+                                setTimerSeconds(0);
+                            }
+                        },
+                        {
+                            text: "Ver Materiais", onPress: () => {
+                                //Navegar para o Vault filtrado, 
+                                router.push("/(tabs)/vault");
+                            }
+                        }
+                    ]
+                );
+            } else {
+                // Salva o timestamp de início e dados da sessão no AsyncStorage
+                const now = Date.now();
+                startTimeRef.current = now;
+                try {
+                    await AsyncStorage.setItem(STORAGE_KEY_START_TIME, now.toString());
+                    await AsyncStorage.setItem(STORAGE_KEY_SESSION_DATA, JSON.stringify({
+                        subject: selectedSubject,
+                        content: specificContent,
+                        isPublic: isPublicSession,
+                    }));
+                } catch (e) {
+                    console.warn("Erro ao salvar sessão:", e);
+                }
+                setFocusState("active");
+                setTimerSeconds(0);
+            }
+        } catch (error) {
+            console.error("Erro ao verificar vault:", error);
+            // Inicia mesmo se houver erro na busca
+            const now = Date.now();
+            startTimeRef.current = now;
+            try {
+                await AsyncStorage.setItem(STORAGE_KEY_START_TIME, now.toString());
+                await AsyncStorage.setItem(STORAGE_KEY_SESSION_DATA, JSON.stringify({
+                    subject: selectedSubject,
+                    content: specificContent,
+                    isPublic: isPublicSession,
+                }));
+            } catch (e) {
+                console.warn("Erro ao salvar sessão:", e);
+            }
+            setFocusState("active");
+            setTimerSeconds(0);
+        }
     };
 
     const stopSession = async () => {
         setFocusState("config");
-        
+
         // Salva uma cópia dos valores antes de resetar
         const finalSubject = selectedSubject;
         const finalContent = specificContent;
@@ -152,8 +269,8 @@ export default function FocusScreen() {
         const finalIsPublic = isPublicSession;
 
         // Registrar as horas e despachar evento
-        await addStudyHours(timerSeconds, selectedSubject || "Matemática");
-        
+        const result = await addStudyHours(timerSeconds, selectedSubject || "Matemática");
+
         setTimerSeconds(0);
         setSelectedSubject("");
         setSpecificContent("");
@@ -176,13 +293,16 @@ export default function FocusScreen() {
                 content: finalContent,
                 duration: finalDuration.toString(),
                 isPublic: finalIsPublic.toString(),
-                sessionId: params.reviewSessionId || undefined,
+                sessionId: params.reviewSessionId || result?.sessionId || undefined,
                 oldDuration: params.oldDuration || undefined,
             }
         });
     };
 
+
     return (
+
+
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
             {/* Header */}
             <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
