@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 //Componentes do Lucide Native
 import {
     Play,
+    Pause,
     Square,
     ToggleLeft,
     ToggleRight,
@@ -56,8 +57,10 @@ export default function FocusScreen() {
     const [selectedSubject, setSelectedSubject] = useState("");
     const [specificContent, setSpecificContent] = useState("");
     const [timerSeconds, setTimerSeconds] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const startTimeRef = useRef<number | null>(null);
+    const pausedSecondsRef = useRef<number>(0);
 
     const { userId } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
@@ -113,17 +116,17 @@ export default function FocusScreen() {
     // Recalcula o tempo quando o app volta do background
     useEffect(() => {
         const subscription = AppState.addEventListener("change", (nextAppState) => {
-            if (nextAppState === "active" && startTimeRef.current) {
+            if (nextAppState === "active" && startTimeRef.current && !isPaused) {
                 const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
                 setTimerSeconds(elapsed);
             }
         });
         return () => subscription.remove();
-    }, []);
+    }, [isPaused]);
 
     // Timer com setInterval (atualiza a cada segundo enquanto em foreground)
     useEffect(() => {
-        if (focusState === "active") {
+        if (focusState === "active" && !isPaused) {
             intervalRef.current = setInterval(() => {
                 if (startTimeRef.current) {
                     const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
@@ -134,7 +137,7 @@ export default function FocusScreen() {
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [focusState]);
+    }, [focusState, isPaused]);
 
     const formatTime = (seconds: number) => {
         const hrs = Math.floor(seconds / 3600);
@@ -259,6 +262,26 @@ export default function FocusScreen() {
         }
     };
 
+    const togglePause = async () => {
+        if (isPaused) {
+            // Retomar: cria um novo startTime baseado nos segundos acumulados
+            const now = Date.now();
+            const newStartTime = now - (pausedSecondsRef.current * 1000);
+            startTimeRef.current = newStartTime;
+            try {
+                await AsyncStorage.setItem(STORAGE_KEY_START_TIME, newStartTime.toString());
+            } catch (e) {
+                console.warn("Erro ao salvar sessão:", e);
+            }
+            setIsPaused(false);
+        } else {
+            // Pausar: salva os segundos acumulados e para o interval
+            pausedSecondsRef.current = timerSeconds;
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            setIsPaused(true);
+        }
+    };
+
     const stopSession = async () => {
         setFocusState("config");
 
@@ -275,6 +298,8 @@ export default function FocusScreen() {
         setSelectedSubject("");
         setSpecificContent("");
         startTimeRef.current = null;
+        pausedSecondsRef.current = 0;
+        setIsPaused(false);
         
         if (intervalRef.current) clearInterval(intervalRef.current);
 
@@ -429,7 +454,7 @@ export default function FocusScreen() {
                                     {formatTime(timerSeconds)}
                                 </Text>
                                 <Text className="text-xs text-slate-500 mt-2 uppercase tracking-widest">
-                                    Elapsed
+                                    {isPaused ? "Pausado" : "Elapsed"}
                                 </Text>
                             </View>
                         </View>
@@ -445,14 +470,32 @@ export default function FocusScreen() {
                             </Text>
                         </View>
 
-                        {/* Stop Button */}
-                        <TouchableOpacity
-                            onPress={stopSession}
-                            className="bg-rose-500/20 border border-rose-500 py-4 px-12 rounded-2xl flex-row items-center justify-center gap-2"
-                        >
-                            <Square size={20} color={COLORS.rose} />
-                            <Text className="text-rose-500 font-semibold text-lg">Encerrar Sessão</Text>
-                        </TouchableOpacity>
+                        {/* Pause & Stop Buttons */}
+                        <View className="flex-row items-center gap-4">
+                            <TouchableOpacity
+                                onPress={togglePause}
+                                className={`py-4 px-8 rounded-2xl flex-row items-center justify-center gap-2 ${isPaused ? "bg-violet-600" : "bg-amber-500/20 border border-amber-500"}`}
+                            >
+                                {isPaused ? (
+                                    <>
+                                        <Play size={20} color={COLORS.white} />
+                                        <Text className="text-white font-semibold text-lg">Retomar</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Pause size={20} color="#f59e0b" />
+                                        <Text className="text-amber-500 font-semibold text-lg">Pausar</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={stopSession}
+                                className="bg-rose-500/20 border border-rose-500 py-4 px-8 rounded-2xl flex-row items-center justify-center gap-2"
+                            >
+                                <Square size={20} color={COLORS.rose} />
+                                <Text className="text-rose-500 font-semibold text-lg">Parar</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
             </ScrollView>
