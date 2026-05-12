@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
     View,
@@ -7,8 +7,10 @@ import {
     TouchableOpacity,
     ScrollView,
     Alert,
+    AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 //Componentes do Lucide Native
 import {
@@ -25,6 +27,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { addStudyHours } from "@/services/profileStats";
 
+const STORAGE_KEY_START_TIME = "@focus_session_start_time";
+const STORAGE_KEY_SESSION_DATA = "@focus_session_data";
+
 type FocusState = "config" | "active";
 
 export default function FocusScreen() {
@@ -34,11 +39,36 @@ export default function FocusScreen() {
     const [specificContent, setSpecificContent] = useState("");
     const [timerSeconds, setTimerSeconds] = useState(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const startTimeRef = useRef<number | null>(null);
 
     const { userId } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
     const params = useLocalSearchParams();
     const router = useRouter();
+
+    // Recupera sessão ativa ao abrir o app (caso tenha saído com timer rodando)
+    useEffect(() => {
+        const restoreSession = async () => {
+            try {
+                const savedStartTime = await AsyncStorage.getItem(STORAGE_KEY_START_TIME);
+                const savedSessionData = await AsyncStorage.getItem(STORAGE_KEY_SESSION_DATA);
+                if (savedStartTime && savedSessionData) {
+                    const startTime = parseInt(savedStartTime, 10);
+                    const sessionData = JSON.parse(savedSessionData);
+                    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                    startTimeRef.current = startTime;
+                    setSelectedSubject(sessionData.subject || "");
+                    setSpecificContent(sessionData.content || "");
+                    setIsPublicSession(sessionData.isPublic ?? true);
+                    setTimerSeconds(elapsed);
+                    setFocusState("active");
+                }
+            } catch (e) {
+                console.warn("Erro ao restaurar sessão:", e);
+            }
+        };
+        restoreSession();
+    }, []);
 
     // Auto-start for review sessions
     useEffect(() => {
@@ -50,10 +80,25 @@ export default function FocusScreen() {
         }
     }, [params.autoStart, params.reviewSessionId, params.subject, params.content]);
 
+    // Recalcula o tempo quando o app volta do background
+    useEffect(() => {
+        const subscription = AppState.addEventListener("change", (nextAppState) => {
+            if (nextAppState === "active" && startTimeRef.current) {
+                const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                setTimerSeconds(elapsed);
+            }
+        });
+        return () => subscription.remove();
+    }, []);
+
+    // Timer com setInterval (atualiza a cada segundo enquanto em foreground)
     useEffect(() => {
         if (focusState === "active") {
             intervalRef.current = setInterval(() => {
-                setTimerSeconds((prev) => prev + 1);
+                if (startTimeRef.current) {
+                    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                    setTimerSeconds(elapsed);
+                }
             }, 1000);
         }
         return () => {
@@ -68,7 +113,7 @@ export default function FocusScreen() {
         return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
     };
 
-    const startSession = () => {
+    const startSession = async () => {
         if (!selectedSubject || !specificContent.trim()) {
             Alert.alert("Incompleto", "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar.");
             return;
@@ -77,6 +122,20 @@ export default function FocusScreen() {
         if (pendingSessions.length > 0 && !params.reviewSessionId) {
             Alert.alert("Aviso", "Responda os formulários pendentes!");
             return;
+        }
+
+        // Salva o timestamp de início e dados da sessão no AsyncStorage
+        const now = Date.now();
+        startTimeRef.current = now;
+        try {
+            await AsyncStorage.setItem(STORAGE_KEY_START_TIME, now.toString());
+            await AsyncStorage.setItem(STORAGE_KEY_SESSION_DATA, JSON.stringify({
+                subject: selectedSubject,
+                content: specificContent,
+                isPublic: isPublicSession,
+            }));
+        } catch (e) {
+            console.warn("Erro ao salvar sessão:", e);
         }
 
         setFocusState("active");
@@ -98,8 +157,16 @@ export default function FocusScreen() {
         setTimerSeconds(0);
         setSelectedSubject("");
         setSpecificContent("");
+        startTimeRef.current = null;
         
         if (intervalRef.current) clearInterval(intervalRef.current);
+
+        // Limpa os dados salvos no AsyncStorage
+        try {
+            await AsyncStorage.multiRemove([STORAGE_KEY_START_TIME, STORAGE_KEY_SESSION_DATA]);
+        } catch (e) {
+            console.warn("Erro ao limpar sessão:", e);
+        }
         
         // Abre o modal de feedback após a sessão passando os parâmetros
         router.push({
