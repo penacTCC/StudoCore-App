@@ -1,9 +1,9 @@
 import * as Crypto from 'expo-crypto';
 
 
-const KEY_ID = "005893297dce6c50000000002";
-const APPLICATION_KEY = "K005fW6VRQX0lqwQqxatQot2a+GbMBI";
-const BUCKET_ID = "8859e372c9274dfc9ed60c15";
+const KEY_ID = process.env.KEY_ID;
+const APPLICATION_KEY = process.env.APPLICATION_KEY;
+const BUCKET_ID = process.env.BUCKET_ID;
 
 /**
  * Autoriza a conta Backblaze
