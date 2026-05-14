@@ -142,7 +142,7 @@ export default function CreateGroupScreen() {
 
                     <View className="border-t border-navy-800 pt-4">
                         <View className="flex-row items-center justify-between mb-2">
-                             <Text className="text-base font-medium text-slate-200">Meta Semanal</Text>
+                            <Text className="text-base font-medium text-slate-200">Meta Semanal</Text>
                             <Text className="text-sm font-bold text-brand-500">{weeklyTarget}h</Text>
                         </View>
                         <View className="flex-row items-center gap-2 mt-2">
@@ -199,16 +199,16 @@ export default function CreateGroupScreen() {
             </ScrollView>
 
             {/* Bottom Button */}
-            <View className="px-4 pb-6 pt-2 border-t border-navy-800" style={{ backgroundColor: COLORS.bgPrimary }}>
+            <Text className="px-4 pb-6 pt-2 border-t border-navy-800" style={{ backgroundColor: COLORS.bgPrimary }}>
                 <TouchableOpacity
                     disabled={!name.trim() || !description.trim() || isLoading}
                     onPress={handleCreateGroup}
                     className={`py-4 rounded-2xl flex-row items-center justify-center gap-2 ${name.trim() && description.trim() && !isLoading ? "bg-brand-500" : "bg-navy-800"
                         }`}
                 >
-                        {isLoading ? "Criando..." : "Criar Grupo"}
+                    {isLoading ? "Criando..." : "Criar Grupo"}
                 </TouchableOpacity>
-            </View>
+            </Text>
         </SafeAreaView>
     );
 }
