@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight, Sparkles, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft } from "lucide-react-native";
+import { ChevronRight, Sparkles, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Share2 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
@@ -289,6 +289,22 @@ export default function BrainScreen() {
                 {/* ── ANALYTICS ────────────────────────────────── */}
                 {brainTab === "analytics" && (
                     <View className="px-4 pb-4 gap-4">
+                        {/* Share Progress Button */}
+                        <TouchableOpacity
+                            onPress={() => router.push({
+                                pathname: "/(modals)/ShareWeeklyProgress",
+                                params: {
+                                    hours: `${analyticsData.horasEstaSemana}h`,
+                                    streak: `${analyticsData.sequencia} dias`
+                                }
+                            })}
+                            activeOpacity={0.8}
+                            className="bg-violet-600 py-4 rounded-3xl flex-row items-center justify-center gap-2 shadow-lg shadow-violet-500/20"
+                        >
+                            <Share2 size={20} color="white" />
+                            <Text className="text-white font-bold text-lg">Compartilhar Progresso</Text>
+                        </TouchableOpacity>
+
                         {/* AI Insight Card */}
                         <View
                             className="border border-slate-800 rounded-3xl p-4"
