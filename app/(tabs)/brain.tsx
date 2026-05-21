@@ -295,7 +295,11 @@ export default function BrainScreen() {
                                 pathname: "/(modals)/ShareWeeklyProgress",
                                 params: {
                                     hours: `${analyticsData.horasEstaSemana}h`,
-                                    streak: `${analyticsData.sequencia} dias`
+                                    streak: `${analyticsData.sequencia} dias`,
+                                    totalMinutes: String(analyticsData.horasEstaSemana * 60),
+                                    sequencia: String(analyticsData.sequencia),
+                                    diasEstaSemana: String(analyticsData.diasEstaSemana),
+                                    distribuicao: JSON.stringify(analyticsData.distribuicao),
                                 }
                             })}
                             activeOpacity={0.8}

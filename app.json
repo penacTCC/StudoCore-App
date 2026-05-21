@@ -31,7 +31,18 @@
             "expo-router",
             "expo-web-browser",
             "expo-sharing",
-            "expo-font"
+            "expo-font",
+            [
+                "react-native-share",
+                {
+                    "ios": [
+                        "instagram"
+                    ],
+                    "android": [
+                        "com.instagram.android"
+                    ]
+                }
+            ]
         ],
         "extra": {
             "router": {},
