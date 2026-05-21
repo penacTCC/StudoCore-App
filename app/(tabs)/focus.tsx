@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
     View,
@@ -20,9 +20,6 @@ import {
     ToggleLeft,
     ToggleRight,
 } from "lucide-react-native";
-
-//Componentes do Projeto
-import { supabase } from "@/supabase";
 
 //Constantes
 import { COLORS } from "@/constants/colors";
@@ -159,7 +156,7 @@ export default function FocusScreen() {
 
         try {
             // Busca o usuário atual
-            const { data: { user } } = await supabase.auth.getUser();
+            const {user} = useAuth();
             if (!user) return;
 
             // Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)
@@ -326,8 +323,6 @@ export default function FocusScreen() {
 
 
     return (
-
-
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
             {/* Header */}
             <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">

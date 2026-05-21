@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { DeviceEventEmitter } from 'react-native';
-import { supabase } from '../supabase';
+import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 
 export function useAuthState() {

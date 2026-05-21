@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, Alert } from "react-native";
 import { Image as ImageIcon, Plus, Users } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { decode } from "base64-arraybuffer";
-import { supabase } from "@/supabase";
+import { supabase } from "@/lib/supabase";
 import { COLORS } from "@/constants/colors";
 
 interface ImagePickerAvatarProps {

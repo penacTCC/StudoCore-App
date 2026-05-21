@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/supabase";
+import { useState } from "react";
+import { uploadArquivo } from "@/services/archives";
 
 //Componentes do Native
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from "react-native";
-import { FileText, Image as ImageIcon, ChevronRight, FileUp, X } from "lucide-react-native";
+import { Image as FileUp, X } from "lucide-react-native";
 
 //Componentes do Projeto
 import DocumentPickerVault from "@/components/ui/DocumentPickerVault";
@@ -11,12 +11,10 @@ import TabSelector from "@/components/ui/TabSelector";
 
 //Componentes do Projeto
 import { COLORS } from "@/constants/colors";
-import { File as FileClass } from "expo-file-system";
-import { decode } from "base64-arraybuffer";
 
 //Funções do Projeto
 import { useMyGroups } from "@/hooks/useMyGroups";
-import { uploadFileToB2 } from "@/services/backblaze";
+import { useAuth } from "@/hooks/useAuth";
 
 //categorias de arquivo
 type FileCategory = "pdf" | "imagem" | "outro";
@@ -27,9 +25,7 @@ const FILE_TYPE_TABS = [
 ];
 
 //disciplinas
-const DISCIPLINES = ["matematica", "portugues", "historia", "geografia", "biologia", "fisica", "quimica", "ingles"];
-
-
+const disciplinas = ["matematica", "portugues", "historia", "geografia", "biologia", "fisica", "quimica", "ingles"];
 
 /**
  * Modal responsável por fazer o upload de arquivos para o Backblaze.
@@ -38,8 +34,6 @@ const DISCIPLINES = ["matematica", "portugues", "historia", "geografia", "biolog
  * @returns Modal de upload de arquivos.
  */
 export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () => void, onRefresh?: () => void }) {
-
-    const [showUploadModal, setShowUploadModal] = useState(false); //Controla se o modal está aberto ou fechado.
 
     //upload de arquivo
     const [uploadFileType, setUploadFileType] = useState<FileCategory>("pdf"); //Controla o tipo de arquivo que você vai escolher
@@ -51,17 +45,11 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
     //seleção da disciplina
     const [selectedDiscipline, setSelectedDiscipline] = useState<string>("outro");
 
-    //usuário
-    const [user, setUser] = useState<any>(null);
-    // Pega o usuário logado para poder buscar os arquivos dele
-    useEffect(() => {
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            setUser(user);
-        });
-    }, []);
+    //Pega o usuário logado para poder buscar os arquivos dele
+    const { user } = useAuth();
 
     //grupos
-    const { groups, refreshing } = useMyGroups();
+    const { groups } = useMyGroups();
     const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
 
 
@@ -77,75 +65,33 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
         );
     };
 
-
     /**
      * Função que faz o upload do arquivo para o Backblaze
      */
-    const handleUpload = async () => {
-        if (!selectedFile || !user) return; // Se não houver arquivo ou usuário, não faz nada
-        setIsUploading(true); // Inicia o carregamento
+   const handleUpload = async () => {
+        if (!selectedFile || !user) return;
+
+        setIsUploading(true);
+
         try {
-            const fileObject = new FileClass(selectedFile.uri); // Cria o objeto do arquivo
-            const base64 = await fileObject.base64Sync(); // Lê o arquivo em base64
+            await uploadArquivo({
+            userId: user.id,
+            arquivo: selectedFile,
+            disciplina: selectedDiscipline,
+            gruposIds: selectedGroups,
+            });
 
-            const safeName = selectedFile.name.replace(/[^a-zA-Z0-9.]/g, '_'); // Limpa o nome
-            const grupo =
-                selectedGroups.length > 0
-                    ? selectedGroups.join(",")
-                    : "private";
+            Alert.alert("Sucesso", "Arquivo enviado com sucesso!");
 
-            // coloca a disciplina como uma PASTA no bucket.
-            const filePath = `${selectedDiscipline}/${grupo}/${safeName}`;
-
-            //Faz o upload para o bucket com o novo caminho (Pasta/Arquivo)
-            const uploadResponse = await uploadFileToB2(
-                filePath,
-                selectedFile.mimeType,
-                decode(base64),
-            );
-
-            // O fetch do Backblaze retorna uma Response. Precisamos extrair o JSON dela:
-            const uploadData = await uploadResponse.json();
-
-            Alert.alert("Sucesso", "Arquivo enviado com sucesso!"); // Sucesso
-
-            const { data: newFile, error: dbError } = await supabase.from("arquivos").insert({
-                user_id: user.id,
-                titulo: safeName,
-                disciplina: selectedDiscipline,
-                storage_path: filePath,
-                backblaze_file_id: uploadData.fileId, // Agora pegamos direto do JSON retornado pelo Backblaze
-            }).select().single();
-
-            if (dbError) throw dbError;
-
-            // Relaciona o arquivo aos grupos selecionados
-            if (selectedGroups.length > 0) {
-                const groupRelations = selectedGroups.map(groupId => ({
-                    arquivo_id: newFile.id,
-                    grupo_id: groupId,
-                }));
-
-                const { error: groupRelError } = await supabase
-                    .from("arquivos_grupos")
-                    .insert(groupRelations);
-
-                if (groupRelError) throw groupRelError;
-            }
-
-            if (onRefresh) {
-                onRefresh();
-            }
-
+            onRefresh?.();
             onClose();
 
-            setSelectedFile(null); // Limpa seleção
-            setShowUploadModal(false); // Fecha modal
+            setSelectedFile(null);
         } catch (error: any) {
             console.error(error);
             Alert.alert("Erro", error.message || "Não foi possível enviar o arquivo.");
         } finally {
-            setIsUploading(false); // Fim do carregamento
+            setIsUploading(false);
         }
     };
 
@@ -184,7 +130,7 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                 <View className="mb-6">
                     <Text className="text-xs text-slate-400 mb-2">Escolha a disciplina</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-                        {DISCIPLINES.map((discipline) => (
+                        {disciplinas.map((discipline) => (
                             <TouchableOpacity
                                 key={discipline}
                                 onPress={() => setSelectedDiscipline(discipline)}

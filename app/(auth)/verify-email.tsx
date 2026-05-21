@@ -16,13 +16,13 @@ import { ArrowLeft, Mail, RefreshCw, CheckCircle } from "lucide-react-native";
 
 //Constantes
 import { COLORS } from "@/constants/colors";
-import { supabase } from "@/supabase";
+import { supabase } from "@/lib/supabase";
 
 //Componentes do Projeto
 import { useState } from "react";
 
 //Serviços
-import { reenviarEmailConfirmacao } from "@/services/auth";
+import { obtemEmailUsuario, reenviarEmailConfirmacao, verificaEmailConfirmado } from "@/services/auth";
 
 export default function VerifyEmailScreen() {
     const [isChecking, setIsChecking] = useState(false);
@@ -31,12 +31,11 @@ export default function VerifyEmailScreen() {
     const handleConfirmed = async () => {
         setIsChecking(true);
 
-        //Verifica se o email está confirmado
-        const { data, error } = await supabase.auth.getSession();
+        //Chama a função de email verificado
+        const {data, error, emailVerificado} = await verificaEmailConfirmado()
 
-        const isEmailVerified = !!data.session?.user?.email_confirmed_at;
-
-        if (error || !data.session || !isEmailVerified) {
+        //Se der erro, dá um alerta
+        if (error || !data.session || !emailVerificado) {
             Alert.alert(
                 "Email não confirmado",
                 "Ainda não detectamos a confirmação. Verifique sua caixa de entrada e clique no link."
@@ -54,8 +53,7 @@ export default function VerifyEmailScreen() {
         setIsResending(true);
 
         //Obtém o email do usuário
-        const { data: { session } } = await supabase.auth.getSession();
-        const email = session?.user?.email ?? "";
+        const {email} = await obtemEmailUsuario()
 
         if (!email) {
             Alert.alert("Erro", "Não foi possível obter o email. Volte e tente novamente.");

@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform, Image, DeviceEventEmitter } from "react-native";
+import { useState, useMemo, useCallback } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, Image, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
     CalendarDays, ChevronRight, Star, Clock, BookOpen, Flame, Trophy,
@@ -18,9 +18,9 @@ import { disciplinasComCores } from "@/constants/mock-data";
 import { APP_BADGES, BADGE_LEVEL_COLORS, BadgeType } from "@/constants/badges";
 import { getAvatarColor } from "@/constants/helpers";
 import type { LucideIcon } from "lucide-react-native";
-import { supabase } from "@/supabase";
+import { supabase } from "@/lib/supabase";
 import { loadProfileStats, updateFavoriteSubject, updateWeeklyGoal, UserStats } from "@/services/profileStats";
-import { buscarPerfil, buscarUsuarioLogado } from "@/services/auth";
+import { buscarPerfil, buscarUsuarioLogado, deslogarUsuario } from "@/services/auth";
 
 const iconMap: Record<string, LucideIcon> = {
     Star, Clock, BookOpen, Flame, Trophy, Users, Zap, Play, BookMarked, Pencil,
@@ -142,7 +142,7 @@ export default function ProfileScreen() {
                     text: "Sair",
                     style: "destructive",
                     onPress: async () => {
-                        const { error } = await supabase.auth.signOut();
+                        const { error } = await deslogarUsuario();
                         if (error) {
                             Alert.alert("Erro", "Não foi possível sair da conta.");
                         }
@@ -691,7 +691,7 @@ export default function ProfileScreen() {
                         {/* Renderização Escalonada do Heatmap Matrix */}
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                             <View className="pr-4" style={{ minWidth: 500 }}>
-                                <View className="flex-row relative" style={{ marginLeft: 30, height: 20, mb: 8 }}>
+                                <View className="flex-row relative" style={{ marginLeft: 30, height: 20, marginBottom: 8 }}>
                                     {heatmapMatrix.monthPositions.map((m: any, i: number) => (
                                         <Text key={i} className="text-xs text-slate-500 uppercase font-bold absolute" style={{ left: m.colIndex * 24 }}>
                                             {m.name}

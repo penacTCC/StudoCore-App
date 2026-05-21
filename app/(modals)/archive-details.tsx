@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/supabase";
+import { supabase } from "@/lib/supabase";
 
 //Componentes do Native
 import { View, Text, TouchableOpacity, Alert, Linking, ActivityIndicator, Platform } from "react-native";

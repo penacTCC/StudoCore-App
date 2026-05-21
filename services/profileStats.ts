@@ -1,6 +1,6 @@
 import { DeviceEventEmitter } from 'react-native';
 import { APP_BADGES } from '../constants/badges';
-import { supabase } from '@/supabase';
+import { supabase } from '@/lib/supabase';
 import { buscarUsuarioLogado } from '@/services/auth';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 

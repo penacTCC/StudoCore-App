@@ -1,4 +1,4 @@
-import { supabase } from "@/supabase";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Função para contar quantos membros tem um grupo específico, usando o ID do grupo.

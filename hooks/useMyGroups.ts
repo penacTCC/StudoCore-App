@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "expo-router"; // ou @react-navigation/native, dependendo da sua importação
-import { supabase } from "@/supabase"; // Ajuste o caminho
+import { supabase } from "@/lib/supabase"; // Ajuste o caminho
 import { loadMyGroupsLocally, saveMyGroupsLocally } from "@/services/offlineStorage";
 export function useMyGroups() {
   const [groups, setGroups] = useState<any[]>([]);

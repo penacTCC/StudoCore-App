@@ -1,6 +1,5 @@
-import { supabase } from "@/supabase";
+import { supabase } from "@/lib/supabase";
 import { makeRedirectUri } from "expo-auth-session";
-import * as Linking from 'expo-linking';
 
 //Login com Email e Senha
 export const loginComSenha = async (email: string, password: string) => {
@@ -77,5 +76,26 @@ export const buscarPerfil = async (userId: string) => {
     .maybeSingle();
 };
 
+//Deslogar Usuario
+export const deslogarUsuario = async () => {
+  return await supabase.auth.signOut();
+}
 
+//Verifica se o email está confirmado
+export const verificaEmailConfirmado = async () => {
+  const { data, error } = await supabase.auth.getSession();
+  const emailVerificado = !!data.session?.user?.email_confirmed_at;
+  return {data, error, emailVerificado}
+}
 
+//Obtém o email do usuário
+export const obtemEmailUsuario = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  const email = session?.user?.email ?? "";
+  return {email}
+}
+
+//Refresh na Sessão
+export const refreshSessao = async () => {
+  await supabase.auth.refreshSession();
+}

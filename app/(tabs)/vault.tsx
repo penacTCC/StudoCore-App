@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/supabase";
+import { useState } from "react";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, ScrollView, Modal, Alert, LayoutAnimation, Platform, UIManager } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, LayoutAnimation, Platform, UIManager } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FileText, Image as ImageIcon, ChevronRight, ChevronDown, FileUp, X, Folder } from "lucide-react-native";
+import { FileText, Image as ImageIcon, ChevronRight, ChevronDown, FileUp, Folder } from "lucide-react-native";
 
 //Componentes do Projeto
 import { COLORS } from "@/constants/colors";
@@ -17,6 +16,7 @@ import FileDetailModal from "@/app/(modals)/archive-details";
 
 //Funções do Projeto
 import { useArchives } from "@/hooks/useArchives";
+import { useAuth } from "@/hooks/useAuth";
 
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -32,16 +32,12 @@ export default function VaultScreen() {
     //modal de detalhes
     const [selectedFileForDetail, setSelectedFileForDetail] = useState<any | null>(null);
 
-    // Pega o usuário logado para poder buscar os arquivos dele
-    const [user, setUser] = useState<any>(null);
-    useEffect(() => {
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            setUser(user);
-        });
-    }, []);
+    //Busca o usuário
+    const { user, userId } = useAuth();
 
     // Chama o hook para buscar os arquivos reais do banco de dados
-    const { archives, isLoading, refresh } = useArchives(user?.id);
+    if(!userId) return;
+    const { archives, refresh } = useArchives(userId);
     const { groups } = useMyGroups();
 
     // Accordion state - stores IDs of open sections
@@ -64,12 +60,12 @@ export default function VaultScreen() {
     // Get files for a specific group
     const getGroupFiles = (groupId: string) => {
         return filteredFiles.filter(file =>
-            file.arquivos_grupos?.some((ag: any) => ag.grupo_id === groupId) && file.user_id !== user?.id //todos os arquivos do grupo - os arquivos do próprio usuário
+            file.arquivos_grupos?.some((ag: any) => ag.grupo_id === groupId) && file.user_id !== userId //todos os arquivos do grupo - os arquivos do próprio usuário
         );
     };
 
     // My files: especificamente aqueles enviados pelo usuário atual
-    const myFiles = filteredFiles.filter(file => file.user_id === user?.id);
+    const myFiles = filteredFiles.filter(file => file.user_id === userId);
 
 
     /**
