@@ -1,10 +1,11 @@
 //Pega informações do usuário
 import { buscarPerfil } from "@/services/auth";
+import { Profile } from "@/types/profile";
 import { useEffect, useState } from "react";
 
 
 export const useProfile = (userId: string) => {
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   useEffect(() => {
     const fetchProfile = async () => {
       if (!userId) return;

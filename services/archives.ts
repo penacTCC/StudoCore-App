@@ -68,3 +68,12 @@ export async function uploadArquivo({
 
   return novoArquivo;
 }
+type DeletaRegistroProps = {
+  arquivoId: string;
+};
+export const deletaRegistro = async ({arquivoId}: DeletaRegistroProps) => {
+  return await supabase
+  .from("arquivos") // Nome da sua tabela
+  .delete() // Operação de deleção
+  .eq("id", arquivoId); // Condição: onde o ID for igual ao ID do arquivo atual
+}

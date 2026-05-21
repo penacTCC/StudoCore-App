@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import type { User } from '@supabase/supabase-js';
+import type { AuthUser } from '../types/auth';
 import { supabase } from '../lib/supabase'; // Ajuste o caminho conforme sua estrutura
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 

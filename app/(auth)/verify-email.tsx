@@ -16,7 +16,6 @@ import { ArrowLeft, Mail, RefreshCw, CheckCircle } from "lucide-react-native";
 
 //Constantes
 import { COLORS } from "@/constants/colors";
-import { supabase } from "@/lib/supabase";
 
 //Componentes do Projeto
 import { useState } from "react";

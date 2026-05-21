@@ -12,9 +12,6 @@ import {
     DeviceEventEmitter,
 } from "react-native";
 
-//Componentes do Expo
-import { supabase } from "@/lib/supabase";
-
 //Componentes da Aplicação
 import { COLORS } from "@/constants/colors";
 import { InputField, PrimaryButton } from "@/components/form";

@@ -18,9 +18,10 @@ import { disciplinasComCores } from "@/constants/mock-data";
 import { APP_BADGES, BADGE_LEVEL_COLORS, BadgeType } from "@/constants/badges";
 import { getAvatarColor } from "@/constants/helpers";
 import type { LucideIcon } from "lucide-react-native";
-import { supabase } from "@/lib/supabase";
 import { loadProfileStats, updateFavoriteSubject, updateWeeklyGoal, UserStats } from "@/services/profileStats";
 import { buscarPerfil, buscarUsuarioLogado, deslogarUsuario } from "@/services/auth";
+import type { AuthUser } from "@/types/auth";
+import type { Profile } from "@/types/profile";
 
 const iconMap: Record<string, LucideIcon> = {
     Star, Clock, BookOpen, Flame, Trophy, Users, Zap, Play, BookMarked, Pencil,
@@ -42,8 +43,8 @@ function getBadgeProgress(badge: BadgeType, stats: UserStats): number {
 }
 
 export default function ProfileScreen() {
-    const [profileData, setProfileData] = useState<any>(null);
-    const [sessionUser, setSessionUser] = useState<any>(null);
+    const [profileData, setProfileData] = useState<Profile | null>(null);
+    const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
     const [stats, setStats] = useState<UserStats | null>(null);
     const [showSubjectModal, setShowSubjectModal] = useState(false);
     const [showGoalModal, setShowGoalModal] = useState(false);
@@ -219,7 +220,7 @@ export default function ProfileScreen() {
                                     <Image source={{ uri: profileData.foto_usuario }} style={{ width: '100%', height: '100%' }} />
                                 ) : (
                                     <Text className="text-white text-2xl font-bold">
-                                        {renderInitials(profileData?.nome_usuario)}
+                                        {renderInitials(profileData?.nome_usuario ?? "")}
                                     </Text>
                                 )}
                             </View>

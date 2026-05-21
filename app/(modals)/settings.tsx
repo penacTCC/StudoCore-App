@@ -7,6 +7,7 @@ import { COLORS } from "@/constants/colors";
 import { buscarPerfil, buscarUsuarioLogado, salvarDadosPerfil, verificarNomeUsuario } from "@/services/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ImagePickerAvatar } from "@/components/ui";
+import { Profile } from "@/types/profile";
 
 export default function SettingsScreen() {
     const router = useRouter();
@@ -19,7 +20,7 @@ export default function SettingsScreen() {
     const [testModeEnabled, setTestModeEnabled] = useState(false);
     const [realName, setRealName] = useState("");
     const [imageUrl, setImageUrl] = useState<string | null>(null);
-    const [profileData, setProfileData] = useState<any>(null);
+    const [profileData, setProfileData] = useState<Profile | null>(null);
 
     useEffect(() => {
         const fetchUser = async () => {

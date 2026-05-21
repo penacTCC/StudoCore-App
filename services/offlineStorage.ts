@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Group, PublicGroup } from '@/types/groups';
 
 //Cria dois caches para armazenar os grupos do usuário e os grupos públicos
 const MY_GROUPS_KEY = '@my_groups_cache';
 const PUBLIC_GROUPS_KEY = '@public_groups_cache';
 
 // Salva os grupos do usuário
-export const saveMyGroupsLocally = async (groupsData: any[]) => {
+export const saveMyGroupsLocally = async (groupsData: Group[]) => {
   try {
     //Transforma os dados em string para salvar no AsyncStorage
     const jsonValue = JSON.stringify(groupsData);
@@ -16,7 +17,7 @@ export const saveMyGroupsLocally = async (groupsData: any[]) => {
 };
 
 // Lê os grupos do usuário
-export const loadMyGroupsLocally = async () => {
+export const loadMyGroupsLocally = async (): Promise<Group[] | null> => {
   try {
     //Transforma a string em objeto
     const jsonValue = await AsyncStorage.getItem(MY_GROUPS_KEY);
@@ -28,7 +29,7 @@ export const loadMyGroupsLocally = async () => {
 };
 
 // Salva os grupos públicos
-export const savePublicGroupsLocally = async (groupsData: any[]) => {
+export const savePublicGroupsLocally = async (groupsData: PublicGroup[]) => {
   try {
     //Transforma os dados em string para salvar no AsyncStorage
     const jsonValue = JSON.stringify(groupsData);
@@ -39,7 +40,7 @@ export const savePublicGroupsLocally = async (groupsData: any[]) => {
 };
 
 // Lê os grupos públicos
-export const loadPublicGroupsLocally = async () => {
+export const loadPublicGroupsLocally = async (): Promise<PublicGroup[] | null> => {
   try {
     //Transforma a string em objeto
     const jsonValue = await AsyncStorage.getItem(PUBLIC_GROUPS_KEY);
