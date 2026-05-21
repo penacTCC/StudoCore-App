@@ -35,13 +35,15 @@ export default function VaultScreen() {
     //Busca o usuário
     const { user, userId } = useAuth();
 
-    // Chama o hook para buscar os arquivos reais do banco de dados
-    if(!userId) return;
-    const { archives, refresh } = useArchives(userId);
+    // Chama o hook para buscar os arquivos reais do banco de dados de forma incondicional
+    const { archives, refresh } = useArchives(userId || undefined);
     const { groups } = useMyGroups();
 
     // Accordion state - stores IDs of open sections
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+
+    // Retorna nulo se o ID do usuário ainda não estiver carregado
+    if (!userId) return null;
 
     /**
      * Função responsável por expandir ou recolher uma seção do accordion.
