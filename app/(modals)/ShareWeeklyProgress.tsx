@@ -28,6 +28,7 @@ type SubjectItem = {
     color: string;
 };
 
+
 export default function ShareWeeklyProgress() {
     const router = useRouter();
     const {

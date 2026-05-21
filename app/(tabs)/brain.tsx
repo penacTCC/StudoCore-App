@@ -303,7 +303,7 @@ export default function BrainScreen() {
                                 params: {
                                     hours: `${analyticsData.horasEstaSemana}h`,
                                     streak: `${analyticsData.sequencia} dias`,
-                                    totalMinutes: String(analyticsData.horasEstaSemana * 60),
+                                    totalMinutes: String(analyticsData.horasEstaSemanaMinutos),
                                     sequencia: String(analyticsData.sequencia),
                                     diasEstaSemana: String(analyticsData.diasEstaSemana),
                                     distribuicao: JSON.stringify(analyticsData.distribuicao),
