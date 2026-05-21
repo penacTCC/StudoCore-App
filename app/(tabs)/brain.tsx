@@ -50,15 +50,17 @@ export default function BrainScreen() {
 
         if (allSessions.length === 0) {
             return {
-                horasEstaSemana: 0,
+                horasEstaSemana: "0h",
                 questoesEstaSemana: 0,
                 sequencia: 0,
-                horasSemanaPasada: 0,
+                horasSemanaPasada: "0h",
                 questoesSemanaPasada: 0,
                 diasSemanaPasada: 0,
                 diasEstaSemana: 0,
                 distribuicao: [],
-                maxHours: 1
+                maxHours: 1,
+                horasEstaSemanaMinutos: 0,
+                horasSemanaPasadaMinutos: 0
             };
         }
 
@@ -147,17 +149,22 @@ export default function BrainScreen() {
             color: COLORS_PALETTE[index % COLORS_PALETTE.length]
         })).sort((a, b) => b.hours - a.hours);
 
+        horasTotaisMinutos = 30;
+        horasSemanaPasadaMinutos = 70;
+
         return {
-            horasEstaSemana: Math.round(horasTotaisMinutos / 60),
+            horasEstaSemana: `${Math.floor(horasTotaisMinutos / 60)}h${String(horasTotaisMinutos % 60).padStart(2, '0')}`,
             questoesEstaSemana: questoesTotais,
             sequencia: ofensiva,
             diasEstaSemana: diasEstaSemana.size,
             // Semana passada
-            horasSemanaPasada: Math.round(horasSemanaPasadaMinutos / 60),
+            horasSemanaPasada: `${Math.floor(horasSemanaPasadaMinutos / 60)}h${String(horasSemanaPasadaMinutos % 60).padStart(2, '0')}`,
             questoesSemanaPasada,
             diasSemanaPasada: diasSemanaPasada.size,
             distribuicao,
-            maxHours: distribuicao.length > 0 ? Math.max(...distribuicao.map(d => d.hours)) : 1
+            maxHours: distribuicao.length > 0 ? Math.max(...distribuicao.map(d => d.hours)) : 1,
+            horasEstaSemanaMinutos: horasTotaisMinutos,
+            horasSemanaPasadaMinutos: horasSemanaPasadaMinutos
         };
     }, [savedSessions, pendingSessions, weekStartsOn]);
 
@@ -374,17 +381,21 @@ export default function BrainScreen() {
                                             </>
                                         );
                                     }
-                                    const diffHoras = analyticsData.horasEstaSemana - analyticsData.horasSemanaPasada;
+                                    const diffMinutos = analyticsData.horasEstaSemanaMinutos - analyticsData.horasSemanaPasadaMinutos;
+                                    const absMinutos = Math.abs(diffMinutos);
+                                    const sign = diffMinutos > 0 ? "+" : diffMinutos < 0 ? "-" : "";
+                                    const diffHorasStr = `${sign}${Math.floor(absMinutos / 60)}h${String(absMinutos % 60).padStart(2, '0')}`;
+
                                     const diffDias = analyticsData.diasEstaSemana - analyticsData.diasSemanaPasada;
                                     const diffQuestoes = analyticsData.questoesEstaSemana - analyticsData.questoesSemanaPasada;
                                     const fmt = (n: number) => n > 0 ? `+${n}` : `${n}`;
                                     const diffColor = (n: number) => n > 0 ? COLORS.emeraldLight : n < 0 ? '#fb7185' : '#e2e8f0';
-                                    const colorH = diffColor(diffHoras);
+                                    const colorH = diffColor(diffMinutos);
                                     const colorD = diffColor(diffDias);
                                     const colorQ = diffColor(diffQuestoes);
                                     return (
                                         <>
-                                            <StatCard value={fmt(diffHoras)} label="Horas" valueColor={colorH} />
+                                            <StatCard value={diffHorasStr} label="Horas" valueColor={colorH} />
                                             <StatCard value={fmt(diffDias)} label="Dias" valueColor={colorD} />
                                             <StatCard value={fmt(diffQuestoes)} label="Questões" valueColor={colorQ} />
                                         </>
