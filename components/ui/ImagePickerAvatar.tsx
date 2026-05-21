@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { View, Text, Image, TouchableOpacity, Alert } from "react-native";
-import { Image as ImageIcon, Plus, Users } from "lucide-react-native";
+import { Plus, Users } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
-import { decode } from "base64-arraybuffer";
-import { supabase } from "@/supabase";
+import { supabase } from "@/lib/supabase";
 import { COLORS } from "@/constants/colors";
+import { uploadArquivoBucket } from "@/services/supabaseStorage";
 
-interface ImagePickerAvatarProps {
+type ImagePickerAvatarProps = {
     /** Bucket do Supabase Storage onde a imagem será enviada. Padrão: 'images' */
     bucket?: string;
     /** Chamado com a URL pública da imagem após upload bem-sucedido */
@@ -59,22 +59,18 @@ export default function ImagePickerAvatar({
                 return;
             }
 
-            const fileExt = imageUri.split(".").pop();
+            const fileExt = imageUri.split(".").pop() || "jpg";
             const fileName = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`;
+            
+            //Faz upload da imagem no bucket do Supabase
+            const {publicUrl, error} = await uploadArquivoBucket({fileName, base64, fileExt, bucket})
 
-            const { error } = await supabase.storage
-                .from(bucket)
-                .upload(fileName, decode(base64), {
-                    contentType: `image/${fileExt}`,
-                });
-
-            if (error) {
+            if (error || !publicUrl) {
                 Alert.alert("Erro ao enviar imagem", JSON.stringify(error));
                 return;
             }
 
-            const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(fileName);
-            onImageUploaded(urlData.publicUrl);
+            onImageUploaded(publicUrl);
         } catch (error) {
             Alert.alert("Erro ao selecionar imagem", JSON.stringify(error));
         }

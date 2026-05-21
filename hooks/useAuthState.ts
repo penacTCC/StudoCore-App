@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { DeviceEventEmitter } from 'react-native';
-import { supabase } from '../supabase';
-import { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+import type { AuthSession } from '../types/auth';
 
 export function useAuthState() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 

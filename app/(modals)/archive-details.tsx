@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { supabase } from "@/supabase";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, Alert, Linking, ActivityIndicator, Platform } from "react-native";
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Platform } from "react-native";
 import { FileText, Image as ImageIcon, FileUp, Trash2 } from "lucide-react-native";
 import { File, Paths } from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
@@ -12,38 +11,42 @@ import * as Sharing from "expo-sharing";
 import { COLORS } from "@/constants/colors";
 import { deleteFileFromB2, getAuthenticatedDownloadUrl } from "@/services/backblaze";
 import { useMyGroups } from "@/hooks/useMyGroups";
+import { deletaRegistro } from "@/services/archives";
+import { AuthUser } from "@/types/auth";
 
 
 /**
  * Modal responsável por exibir os detalhes de um arquivo.
- * @param selectedFileForDetail - Arquivo selecionado para visualização.
+ * @param detalheArquivo - Arquivo selecionado para visualização.
  * @param onClose - Função para fechar o modal.
  * @param onRefresh - Função para atualizar os dados.
  * @param currentUser - Usuário logado.
  * @returns Modal de detalhes do arquivo.
  */
+
+type detalheArquivoProps = {
+    detalheArquivo: any | null,
+    onClose: () => void,
+    onRefresh: () => void,
+    currentUser: AuthUser | null
+}
 export default function FileDetailModal({
-    selectedFileForDetail,
+    detalheArquivo,
     onClose,
     onRefresh,
     currentUser
-}: {
-    selectedFileForDetail: any | null,
-    onClose: () => void,
-    onRefresh: () => void,
-    currentUser: any | null
-}) {
+}: detalheArquivoProps) {
 
     //seleção da disciplina
     const [isOpening, setIsOpening] = useState(false);
-    console.log(selectedFileForDetail);
+    console.log(detalheArquivo);
 
     //grupos
     const { groups } = useMyGroups();
-    const sentGroupsIds = selectedFileForDetail?.arquivos_grupos?.map((ag: any) => ag.grupo_id) || [];
+    const sentGroupsIds = detalheArquivo?.arquivos_grupos?.map((ag: any) => ag.grupo_id) || [];
     const sentGroupsNames = groups.filter((g: any) => sentGroupsIds.includes(g.id)).map((g: any) => g.nome_grupo);
 
-    const fileType = selectedFileForDetail?.storage_path?.split('.').pop()?.toLowerCase();
+    const fileType = detalheArquivo?.storage_path?.split('.').pop()?.toLowerCase();
 
     /**
      * Função responsável por deletar o arquivo do banco de dados.
@@ -63,19 +66,15 @@ export default function FileDetailModal({
                         try {
                             // Deleta o arquivo fisicamente do Backblaze primeiro.
                             // Se falhar no Backblaze, a execução para aqui e não deleta do Supabase.
-                            if (selectedFileForDetail.backblaze_file_id && selectedFileForDetail.storage_path) {
+                            if (detalheArquivo.backblaze_file_id && detalheArquivo.storage_path) {
                                 await deleteFileFromB2(
-                                    selectedFileForDetail.storage_path,
-                                    selectedFileForDetail.backblaze_file_id
+                                    detalheArquivo.storage_path,
+                                    detalheArquivo.backblaze_file_id
                                 );
                             }
 
                             // Deleta o registro referente a este arquivo na tabela 'arquivos' do Supabase
-                            const { error } = await supabase
-                                .from("arquivos") // Nome da sua tabela
-                                .delete() // Operação de deleção
-                                .eq("id", selectedFileForDetail.id); // Condição: onde o ID for igual ao ID do arquivo atual
-
+                            const {error} = await deletaRegistro({arquivoId: detalheArquivo.id});
                             if (error) throw error; // Se a API retornar erro, cai no catch abaixo
 
                             // Mostra alerta de sucesso
@@ -105,7 +104,7 @@ export default function FileDetailModal({
     const handleOpen = async () => {
         if (isOpening) return;
 
-        const filePath = selectedFileForDetail?.storage_path;
+        const filePath = detalheArquivo?.storage_path;
         if (!filePath) {
             Alert.alert("Erro", "Caminho do arquivo não encontrado.");
             return;
@@ -190,17 +189,17 @@ export default function FileDetailModal({
                         className="w-20 h-20 rounded-3xl items-center justify-center mb-4"
                         style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
                     >
-                        {selectedFileForDetail?.storage_path?.endsWith(".pdf") ? (
+                        {detalheArquivo?.storage_path?.endsWith(".pdf") ? (
                             <FileText size={40} color={COLORS.primary} />
                         ) : (
                             <ImageIcon size={40} color={COLORS.primary} />
                         )}
                     </View>
                     <Text className="text-xl font-bold text-slate-200 text-center">
-                        {selectedFileForDetail?.titulo}
+                        {detalheArquivo?.titulo}
                     </Text>
                     <Text className="text-brand-500 font-medium mt-1 text-center">
-                        {selectedFileForDetail?.disciplina}
+                        {detalheArquivo?.disciplina}
                     </Text>
                 </View>
 
@@ -209,13 +208,13 @@ export default function FileDetailModal({
                     <View className="flex-row justify-between items-center">
                         <Text className="text-slate-400">Enviado por</Text>
                         <Text className="text-slate-200 font-medium">
-                            {selectedFileForDetail?.profiles?.nome_usuario || "Você"}
+                            {detalheArquivo?.profiles?.nome_usuario || "Você"}
                         </Text>
                     </View>
                     <View className="flex-row justify-between items-center border-t border-slate-700 pt-4">
                         <Text className="text-slate-400">Data de Upload</Text>
                         <Text className="text-slate-200 font-medium">
-                            {selectedFileForDetail && new Date(selectedFileForDetail.created_at).toLocaleDateString()}
+                            {detalheArquivo && new Date(detalheArquivo.created_at).toLocaleDateString()}
                         </Text>
                     </View>
                     <View className="flex-row justify-between items-center">
@@ -227,12 +226,12 @@ export default function FileDetailModal({
                     <View className="flex-row justify-between items-center border-t border-slate-700 pt-4">
                         <Text className="text-slate-400">ID do Documento</Text>
                         <Text className="text-slate-200 text-xs font-mono" numberOfLines={1}>
-                            {selectedFileForDetail?.id?.substring(0, 18)}...
+                            {detalheArquivo?.id?.substring(0, 18)}...
                         </Text>
                     </View>
 
                     {/* Exibe os grupos se o arquivo foi enviado pelo usuário atual e estiver em algum grupo */}
-                    {currentUser?.id === selectedFileForDetail?.user_id && sentGroupsNames.length > 0 && (
+                    {currentUser?.id === detalheArquivo?.user_id && sentGroupsNames.length > 0 && (
                         <View className="flex-row justify-between items-center border-t border-slate-700 pt-4">
                             <Text className="text-slate-400">Enviado para</Text>
                             <Text className="flex-1 text-right ml-4 text-slate-200 font-medium" numberOfLines={2}>
@@ -269,7 +268,7 @@ export default function FileDetailModal({
                     </TouchableOpacity>
 
                     {/* Botão de Deletar condicionalmente exibido */}
-                    {currentUser?.id === selectedFileForDetail?.user_id && (
+                    {currentUser?.id === detalheArquivo?.user_id && (
                         <TouchableOpacity
                             onPress={handleDelete} // Chama a função que criamos para deletar
                             className="flex-[1] py-4 bg-red-500/10 rounded-2xl items-center justify-center border border-red-500/20"

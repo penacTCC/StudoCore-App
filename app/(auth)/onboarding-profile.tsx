@@ -12,9 +12,6 @@ import {
     DeviceEventEmitter,
 } from "react-native";
 
-//Componentes do Expo
-import { supabase } from "@/supabase";
-
 //Componentes da Aplicação
 import { COLORS } from "@/constants/colors";
 import { InputField, PrimaryButton } from "@/components/form";
@@ -25,7 +22,7 @@ import { User, AtSign, Calendar, ChevronDown, Brain } from "lucide-react-native"
 
 //Serviços da aplicação
 import { useAuth } from "@/hooks/useAuth";
-import { salvarDadosPerfil, verificarNomeUsuario } from "@/services/auth";
+import { refreshSessao, salvarDadosPerfil, verificarNomeUsuario } from "@/services/auth";
 
 export default function OnboardingProfile() {
     const [realName, setRealName] = useState("");
@@ -105,7 +102,7 @@ export default function OnboardingProfile() {
             Alert.alert("Erro ao salvar", insertError.message);
             setLoading(false);
         } else {
-            await supabase.auth.refreshSession();
+            await refreshSessao();
             DeviceEventEmitter.emit("profileUpdated");
         }
     };

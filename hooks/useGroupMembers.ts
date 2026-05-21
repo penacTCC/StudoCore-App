@@ -1,4 +1,4 @@
-import { supabase } from "@/supabase";
+import { supabase } from "@/lib/supabase";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 

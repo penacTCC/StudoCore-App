@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/supabase';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
 
 // Singleton variables que mantêm o estado global fora do componente React

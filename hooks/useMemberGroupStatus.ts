@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../supabase';
+import { supabase } from '../lib/supabase';
 import { loadLastGroupLocally } from '../services/offlineStorage';
 import { fetchGroupById } from '../services/groups';
 import { Session } from '@supabase/supabase-js';

@@ -1,7 +1,6 @@
-import { supabase } from "@/supabase";
+import { supabase } from "@/lib/supabase";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
-
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * Hook para buscar e gerenciar os arquivos do usuário.
@@ -11,10 +10,18 @@ import { useCallback, useState } from "react";
  */
 export const useArchives = (userId: string | undefined) => {
 
+    const [user, setUser] = useState<any>(null);
+
     const [archives, setArchives] = useState<any[]>([]); // Estado para armazenar a lista de arquivos vinda do banco de dados
 
     const [isLoading, setIsLoading] = useState(false); // Estado para controlar se os dados estão sendo buscados
 
+    //Pega o usuário para buscar os arquivos
+    useEffect(() => {
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            setUser(user);
+        });
+    }, []);
 
     /** Função que busca os arquivos na tabela 'arquivos' do Supabase */
     const fetchArchives = useCallback(async () => {

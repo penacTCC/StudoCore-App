@@ -66,7 +66,7 @@ export default function MyGroupsScreen() {
                                         groupId: item.id,
                                         groupName: item.nome_grupo,
                                         groupPhoto: item.foto_grupo,
-                                        groupCode: item.codigo_grupo
+                                        groupCode: item.codigo_convite
                                     }
                                 });
                             }}

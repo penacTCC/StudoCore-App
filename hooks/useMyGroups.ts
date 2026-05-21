@@ -1,9 +1,11 @@
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "expo-router"; // ou @react-navigation/native, dependendo da sua importação
-import { supabase } from "@/supabase"; // Ajuste o caminho
+import { supabase } from "@/lib/supabase"; // Ajuste o caminho
 import { loadMyGroupsLocally, saveMyGroupsLocally } from "@/services/offlineStorage";
+import type { Group } from "@/types/groups";
+
 export function useMyGroups() {
-  const [groups, setGroups] = useState<any[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -32,7 +34,8 @@ export function useMyGroups() {
                       descricao,
                       foto_grupo,
                       meta_horas,
-                      publico
+                      publico,
+                      codigo_convite
                   )
                 `)
         .eq("user_id", user.id);
@@ -44,8 +47,8 @@ export function useMyGroups() {
 
       // Mapeia e garante que está extraindo os dados corretamente
       const myGroups = memberData
-        ?.filter(m => m.grupos)
-        .map(m => m.grupos);
+        ?.flatMap(m => Array.isArray(m.grupos) ? m.grupos : [m.grupos])
+        .filter((group): group is Group => Boolean(group));
 
       const finalGroups = myGroups || [];
       setGroups(finalGroups);
