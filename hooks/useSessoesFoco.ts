@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useFocusEffect } from "expo-router";
-import { buscarSessoesPorUsuario, buscarSessoesRecentes, SessaoFocoRow } from "@/services/sessions";
+import { buscarSessoesPorUsuario, buscarSessoesRecentes } from "@/services/sessions";
+import { SessaoFocoRow } from "@/types/sessions";
 
 /**
  * Hook que busca sessões de foco públicas para o Feed.

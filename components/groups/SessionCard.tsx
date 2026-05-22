@@ -4,30 +4,7 @@ import { router } from "expo-router";
 import { COLORS } from "@/constants/colors";
 import { getSubjectColor, formatDuration } from "@/constants/helpers";
 import Avatar from "@/components/ui/Avatar";
-
-// Interface compatível com a linha do Supabase + JOIN profiles
-interface SessionCardItem {
-    id: string;
-    user_id: string;
-    disciplina: string;
-    conteudo_especifico: string | null;
-    tempo_minutos: number;
-    questoes_respondidas: number;
-    questoes_acertadas: number;
-    is_public: boolean;
-    data_sessao: string;
-    created_at: string;
-    profiles?: {
-        nome_real: string | null;
-        nome_usuario: string | null;
-        foto_usuario: string | null;
-    };
-}
-
-interface SessionCardProps {
-    session: SessionCardItem;
-    colorIndex: number;
-}
+import { SessionCardProps } from "@/types/sessions";
 
 // Calcula "Xh ago" / "Xm ago" / "Just now" a partir do created_at
 function getTimeAgo(createdAt: string): string {

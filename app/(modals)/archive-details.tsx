@@ -12,8 +12,7 @@ import { COLORS } from "@/constants/colors";
 import { deleteFileFromB2, getAuthenticatedDownloadUrl } from "@/services/backblaze";
 import { useMyGroups } from "@/hooks/useMyGroups";
 import { deletaRegistro } from "@/services/archives";
-import { AuthUser } from "@/types/auth";
-
+import { detalheArquivoProps } from "@/types/archives";
 
 /**
  * Modal responsável por exibir os detalhes de um arquivo.
@@ -24,12 +23,6 @@ import { AuthUser } from "@/types/auth";
  * @returns Modal de detalhes do arquivo.
  */
 
-type detalheArquivoProps = {
-    detalheArquivo: any | null,
-    onClose: () => void,
-    onRefresh: () => void,
-    currentUser: AuthUser | null
-}
 export default function FileDetailModal({
     detalheArquivo,
     onClose,

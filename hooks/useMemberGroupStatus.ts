@@ -3,13 +3,7 @@ import { supabase } from '../lib/supabase';
 import { loadLastGroupLocally } from '../services/offlineStorage';
 import { fetchGroupById } from '../services/groups';
 import { Session } from '@supabase/supabase-js';
-
-type LastGroupParams = {
-  groupId: string;
-  groupName: string;
-  groupPhoto: string | null;
-
-};
+import { LastGroupParams } from '@/types/groups';
 
 export function useMemberGroupStatus(session: Session | null, isInitialized: boolean) {
   const [isMember, setIsMember] = useState<boolean | null>(null);

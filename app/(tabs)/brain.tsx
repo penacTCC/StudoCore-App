@@ -9,7 +9,7 @@ import { COLORS } from "@/constants/colors";
 import { ProgressBar, StatCard } from "@/components/ui/";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { useAuth } from "@/hooks/useAuth";
-import { SessaoFocoRow } from "@/services/sessions";
+import { SessaoFocoRow } from "@/types/sessions";
 
 type BrainTab = "database" | "analytics";
 

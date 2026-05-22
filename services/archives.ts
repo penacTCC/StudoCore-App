@@ -2,18 +2,8 @@ import { supabase } from "@/lib/supabase";
 import { uploadFileToB2 } from "@/services/backblaze";
 import { File as FileClass } from "expo-file-system";
 import { decode } from "base64-arraybuffer";
+import { DeletaRegistroProps, UploadArquivoParams } from "@/types/archives";
 
-type UploadArquivoParams = {
-  userId: string;
-  arquivo: {
-    uri: string;
-    name: string;
-    mimeType: string;
-    size: number;
-  };
-  disciplina: string;
-  gruposIds: string[];
-};
 
 export async function uploadArquivo({
   userId,
@@ -68,9 +58,7 @@ export async function uploadArquivo({
 
   return novoArquivo;
 }
-type DeletaRegistroProps = {
-  arquivoId: string;
-};
+
 export const deletaRegistro = async ({arquivoId}: DeletaRegistroProps) => {
   return await supabase
   .from("arquivos") // Nome da sua tabela

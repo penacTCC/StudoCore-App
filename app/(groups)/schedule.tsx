@@ -8,18 +8,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Plus } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
-import { diasDaSemana, disciplinasComCores } from "@/constants/mock-data";
-import ScheduleBlock, { ScheduleBlockData } from "@/components/schedule/ScheduleBlock";
+import { diasDaSemana } from "@/constants/mock-data";
+import ScheduleBlock from "@/components/schedule/ScheduleBlock";
 import AddBlockModal from "@/components/schedule/AddBlockModal";
+import { DayIndex, ScheduleBlockData, ScheduleState } from "@/types/schedule";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tipos
 // ──────────────────────────────────────────────────────────────────────────────
-type DayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-
-type ScheduleState = {
-    [day: number]: ScheduleBlockData[];
-};
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tela principal

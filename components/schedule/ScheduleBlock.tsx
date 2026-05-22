@@ -1,13 +1,6 @@
 import { TouchableOpacity, View, Text } from "react-native";
 import { Trash2 } from "lucide-react-native";
-
-export type ScheduleBlockData = {
-    id: string;
-    disciplina: string;
-    topico: string;
-    duracao: number; // em horas: 1 | 2 | 3 | 4
-    cor: string;
-};
+import { ScheduleBlockData } from "@/types/schedule";
 
 type Props = {
     block: ScheduleBlockData;

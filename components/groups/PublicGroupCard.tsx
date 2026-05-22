@@ -5,25 +5,7 @@ import { COLORS } from "@/constants/colors";
 import { joinPublicGroup } from "@/services/groups";
 import { usePublicGroups } from "@/hooks/usePublicGroups";
 import { saveLastGroupLocally } from "@/services/offlineStorage";
-
-interface PublicGroup {
-    id: string;
-    nome_grupo: string;
-    descricao: string;
-    foto_grupo?: string | null;
-    meta_horas: number;
-    publico: boolean;
-    members: number;
-    activeNow: number;
-    weeklyTarget: number;
-    isOnline: boolean;
-}
-
-interface PublicGroupCardProps {
-    group: PublicGroup;
-    colorIndex: number;
-    onJoin?: () => void;
-}
+import { PublicGroupCard, PublicGroupCardProps } from "@/types/groups";
 
 /**
  * Card de grupo público com avatar, nome, descrição, membros, meta semanal

@@ -13,3 +13,14 @@ export type ProfilePreview = Pick<
   Profile,
   "nome_real" | "nome_usuario" | "foto_usuario"
 >;
+
+export type UserStats = {
+    totalHours: number;
+    totalQuestions: number;
+    favoriteSubject: string;
+    weeklyCurrent: number;
+    weeklyGoal: number;
+    studyHistory: Record<string, number>; // Record<"YYYY-MM-DD", hours>
+    badgesUnlocked: string[];
+    totalSessions: number;
+};

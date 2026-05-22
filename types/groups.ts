@@ -10,6 +10,25 @@ export type Group = {
   codigo_convite: string | null;
 };
 
+export type PublicGroupCard = {
+    id: string;
+    nome_grupo: string;
+    descricao: string;
+    foto_grupo?: string | null;
+    meta_horas: number;
+    publico: boolean;
+    members: number;
+    activeNow: number;
+    weeklyTarget: number;
+    isOnline: boolean;
+}
+
+export type PublicGroupCardProps = {
+    group: PublicGroupCard;
+    colorIndex: number;
+    onJoin?: () => void;
+}
+
 export type GroupWithMembersCount = Group & {
   members: number;
 };

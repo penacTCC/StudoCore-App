@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState } from "react";
 import {
     View,
     Text,
@@ -13,6 +13,7 @@ import ViewShot from "react-native-view-shot";
 import Share from "react-native-share";
 import { useAuth } from "@/hooks/useAuth";
 import { buscarPerfil } from "@/services/auth";
+import { SubjectItem } from "@/types/share";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const ORANGE = "#F7982C";
@@ -22,18 +23,9 @@ const GRID_LINE = "rgba(255,255,255,0.04)";
 const TEXT_MUTED = "rgba(255,255,255,0.45)";
 const BORDER_SUBTLE = "rgba(255,255,255,0.08)";
 
-type SubjectItem = {
-    subject: string;
-    hours: number;
-    color: string;
-};
-
-
 export default function ShareWeeklyProgress() {
     const router = useRouter();
     const {
-        hours,
-        streak,
         totalMinutes: totalMinutesParam,
         sequencia: sequenciaParam,
         diasEstaSemana: diasParam,

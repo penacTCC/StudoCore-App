@@ -1,12 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { uploadArquivoBucketProps } from "@/types/archives";
 import { decode } from "base64-arraybuffer";
-
-type uploadArquivoBucketProps = {
-    bucket: string,
-    fileName: string,
-    fileExt: string,
-    base64: string
-}
 
 //Faz upload da imagem no bucket do Supabase
 export const uploadArquivoBucket = async ({bucket, fileName, base64, fileExt}: uploadArquivoBucketProps ) => {

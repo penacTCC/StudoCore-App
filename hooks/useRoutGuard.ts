@@ -1,15 +1,7 @@
 import { useEffect } from 'react';
 import { useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { Session } from '@supabase/supabase-js';
-
-type GuardProps = {
-  isInitialized: boolean;
-  session: Session | null;
-  profileComplete: boolean | null;
-  isMember: boolean | null;
-  lastGroupParams: any;
-};
+import { GuardProps } from '@/types/routing';
 
 export function useRouteGuard({ isInitialized, session, profileComplete, isMember, lastGroupParams }: GuardProps) {
   const segments = useSegments();

@@ -3,17 +3,7 @@ import { APP_BADGES } from '../constants/badges';
 import { supabase } from '@/lib/supabase';
 import { buscarUsuarioLogado } from '@/services/auth';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-export interface UserStats {
-    totalHours: number;
-    totalQuestions: number;
-    favoriteSubject: string;
-    weeklyCurrent: number;
-    weeklyGoal: number;
-    studyHistory: Record<string, number>; // Record<"YYYY-MM-DD", hours>
-    badgesUnlocked: string[];
-    totalSessions: number;
-}
+import { UserStats } from '@/types/profile';
 
 const DEFAULT_STATS: UserStats = {
     totalHours: 0,

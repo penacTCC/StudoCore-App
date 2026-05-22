@@ -1,36 +1,5 @@
 import { supabase } from "@/lib/supabase";
-
-// ───── TIPOS ─────
-export interface SessaoFocoInsert {
-    user_id: string;
-    disciplina: string;
-    conteudo_especifico: string;
-    tempo_minutos: number;
-    questoes_respondidas: number;
-    questoes_acertadas: number;
-    is_public: boolean;
-    status: string;
-}
-
-export interface SessaoFocoRow {
-    id: string;
-    user_id: string;
-    disciplina: string;
-    conteudo_especifico: string | null;
-    tempo_minutos: number;
-    questoes_respondidas: number;
-    questoes_acertadas: number;
-    is_public: boolean;
-    status: string;
-    data_sessao: string;
-    created_at: string;
-    // Vem do JOIN com profiles
-    profiles?: {
-        nome_real: string | null;
-        nome_usuario: string | null;
-        foto_usuario: string | null;
-    };
-}
+import { SessaoFocoInsert } from "@/types/sessions";
 
 // ───── INSERT ─────
 export const salvarSessaoFoco = async (sessao: SessaoFocoInsert) => {

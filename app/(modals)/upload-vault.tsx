@@ -15,9 +15,11 @@ import { COLORS } from "@/constants/colors";
 //Funções do Projeto
 import { useMyGroups } from "@/hooks/useMyGroups";
 import { useAuth } from "@/hooks/useAuth";
+import { selectedFile } from "@/types/upload";
 
 //categorias de arquivo
 type FileCategory = "pdf" | "imagem" | "outro";
+
 const FILE_TYPE_TABS = [
     { key: "pdf", label: "PDF" },
     { key: "imagem", label: "Imagem" },
@@ -33,11 +35,12 @@ const disciplinas = ["matematica", "portugues", "historia", "geografia", "biolog
  * @param onRefresh - Função para atualizar os dados.
  * @returns Modal de upload de arquivos.
  */
+
 export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () => void, onRefresh?: () => void }) {
 
     //upload de arquivo
     const [uploadFileType, setUploadFileType] = useState<FileCategory>("pdf"); //Controla o tipo de arquivo que você vai escolher
-    const [selectedFile, setSelectedFile] = useState<{ uri: string; name: string; mimeType: string; size: number } | null>(null); //Guarda o arquivo que você vai escolher
+    const [selectedFile, setSelectedFile] = useState<selectedFile | null>(null); //Guarda o arquivo que você vai escolher
 
     //carregamento
     const [isUploading, setIsUploading] = useState(false); // Avisa o app se o upload está acontecendo para mostrar a bolinha de carregamento.

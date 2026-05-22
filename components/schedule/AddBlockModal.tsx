@@ -10,7 +10,7 @@ import {
 import { X, Trash2 } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 import { disciplinasComCores } from "@/constants/mock-data";
-import { ScheduleBlockData } from "./ScheduleBlock";
+import { ScheduleBlockData } from "@/types/schedule";
 
 type Props = {
     visible: boolean;
