@@ -1,4 +1,5 @@
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/repositories/supabase";
+import type { Group, GroupMemberWithProfile } from "@/types/groups";
 
 /**
  * Função para contar quantos membros tem um grupo específico, usando o ID do grupo.
@@ -28,7 +29,7 @@ export const qtdGroupMembers = async (id: string) => {
 export const fetchMyGroups = async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return [];
 
     // Busca por grupos onde o usuário é membro
     const { data: memberData, error } = await supabase
@@ -41,26 +42,92 @@ export const fetchMyGroups = async () => {
                         descricao,
                         foto_grupo,
                         meta_horas,
-                        publico
+                        publico,
+                        codigo_convite
                     )
                 `)
       .eq("user_id", user.id);
 
     if (error) {
       console.error("Erro ao buscar grupos:", error);
-      return;
+      return [];
     }
 
     // Exclui membros que não tem um grupo correspondente, se houver, e mapeia para a array de grupos
     const myGroups = memberData
-      ?.filter(m => m.grupos)
-      .map(m => m.grupos);
+      ?.flatMap(m => Array.isArray(m.grupos) ? m.grupos : [m.grupos])
+      .filter((group): group is Group => Boolean(group));
 
     return myGroups || [];
   } catch (error) {
     console.error("Error fetching groups:", error);
     return [];
   }
+};
+
+export const buscarGruposPublicosDisponiveis = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: grupoPublico, error } = await supabase
+    .from('grupos')
+    .select('*, membros(count)')
+    .eq('publico', true);
+
+  if (error) {
+    console.error("Erro ao buscar grupos:", error);
+    return [];
+  }
+
+  const { data: meusMembros } = await supabase
+    .from('membros')
+    .select('grupo_id')
+    .eq('user_id', user.id);
+
+  const myGroupIds = meusMembros?.map(m => m.grupo_id) || [];
+  const filteredGroups = grupoPublico?.filter(grupo => !myGroupIds.includes(grupo.id));
+
+  return filteredGroups?.map((grupo) => ({
+    ...grupo,
+    members: grupo.membros[0]?.count || 0
+  })) || [];
+};
+
+export const buscarMembrosGrupo = async (groupId: string) => {
+  if (!groupId) return [];
+
+  const { data: usuarioMembro, error } = await supabase
+    .from("membros")
+    .select(`
+      *,
+      profiles:user_id (
+        id,
+        nome_usuario,
+        foto_usuario
+      )
+    `)
+    .eq("grupo_id", groupId);
+
+  if (error) {
+    console.error("Erro ao puxar membros:", error);
+    return [];
+  }
+
+  return ((usuarioMembro || []) as GroupMemberWithProfile[]).map((membro) => ({
+    ...membro,
+    userData: membro.profiles,
+  }));
+};
+
+export const usuarioParticipaDeGrupo = async (userId: string) => {
+  const { data: member } = await supabase
+    .from('membros')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle();
+
+  return !!member;
 };
 
 //Insere grupo na tabela grupos
@@ -96,7 +163,7 @@ export const insereMembro = async (userId: string, NewGroup: { id: string }) => 
 export const joinPublicGroup = async (groupId: string) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return null;
 
     const { data: NewMember, error: MemberError } = await supabase
       .from("membros")
@@ -110,14 +177,14 @@ export const joinPublicGroup = async (groupId: string) => {
 
     if (MemberError) {
       console.error("Erro ao entrar no grupo:", MemberError);
-      return;
+      return null;
     }
 
     return NewMember;
 
   } catch (error) {
     console.error("Error joining group:", error);
-    return;
+    return null;
   }
 }
 

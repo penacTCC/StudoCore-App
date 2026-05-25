@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DeviceEventEmitter } from 'react-native';
-import { supabase } from '../lib/supabase';
-import type { AuthSession } from '../types/auth';
+import { obterSessaoAtual, observarMudancasAuth, perfilEstaCompleto } from '@/services/auth';
+import type { AuthSession } from '@/types/auth';
 
 export function useAuthState() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -11,7 +11,7 @@ export function useAuthState() {
   // ── 1. Inicializa a Sessão 
   useEffect(() => {
     console.log("RootLayout: Iniciando busca de sessão...");
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    obterSessaoAtual().then(({ data: { session } }) => {
       console.log("RootLayout: Sessão obtida:", session ? "Sim" : "Não");
       setSession(session);
       setIsInitialized(true); //só inicia o app se pegar a sessão
@@ -20,7 +20,7 @@ export function useAuthState() {
       setIsInitialized(true); // tenta prosseguir mesmo com erro para não travar infinitamente
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = observarMudancasAuth((_event, session) => {
       console.log("RootLayout: AuthState changed:", _event);
       setSession(session);
     });
@@ -39,12 +39,7 @@ export function useAuthState() {
 
     const checkProfileComplete = async () => {
       console.log("RootLayout: Verificando perfil para usuário:", session.user.id);
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('nome_usuario')
-        .eq('id', session.user.id) // Certifique-se de que é 'id' e não 'user_id' aqui
-        .single();
-
+      const { profile } = await perfilEstaCompleto(session.user.id);
       console.log("RootLayout: Perfil encontrado:", profile ? profile.nome_usuario : "Nenhum");
       setProfileComplete(!!profile?.nome_usuario);
     };

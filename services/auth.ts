@@ -1,5 +1,7 @@
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/repositories/supabase";
 import { makeRedirectUri } from "expo-auth-session";
+import type { AuthChangeEvent } from "@supabase/supabase-js";
+import type { AuthSession } from "@/types/auth";
 
 //Login com Email e Senha
 export const loginComSenha = async (email: string, password: string) => {
@@ -76,6 +78,16 @@ export const buscarPerfil = async (userId: string) => {
     .maybeSingle();
 };
 
+export const perfilEstaCompleto = async (userId: string) => {
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("nome_usuario")
+    .eq("id", userId)
+    .single();
+
+  return { profile, error, completo: !!profile?.nome_usuario };
+};
+
 //Deslogar Usuario
 export const deslogarUsuario = async () => {
   return await supabase.auth.signOut();
@@ -87,6 +99,18 @@ export const verificaEmailConfirmado = async () => {
   const emailVerificado = !!data.session?.user?.email_confirmed_at;
   return {data, error, emailVerificado}
 }
+
+export const obterSessaoAtual = async () => {
+  return await supabase.auth.getSession();
+};
+
+export const observarMudancasAuth = (
+  callback: (event: AuthChangeEvent, session: AuthSession | null) => void
+) => {
+  return supabase.auth.onAuthStateChange((event, session) => {
+    callback(event, session);
+  });
+};
 
 //Obtém o email do usuário
 export const obtemEmailUsuario = async () => {

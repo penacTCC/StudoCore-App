@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/repositories/supabase";
 import { uploadArquivoBucketProps } from "@/types/archives";
 import { decode } from "base64-arraybuffer";
 

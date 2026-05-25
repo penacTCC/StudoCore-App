@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/repositories/supabase";
 import { SessaoFocoInsert } from "@/types/sessions";
 
 // ───── INSERT ─────
