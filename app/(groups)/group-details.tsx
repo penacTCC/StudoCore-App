@@ -157,7 +157,7 @@ export default function GroupDetailsScreen() {
                                     <Avatar
                                         foto={member.userData?.foto_usuario}
                                         size={32}
-                                        showOnlineDot={activeGroupMembers.includes(member.user_id || member.userData?.id)}
+                                        showOnlineDot={activeGroupMembers.includes(member.user_id)}
                                     />
                                     <Text className="text-sm text-slate-200">{member.userData?.nome_usuario || "Membro"}</Text>
                                 </View>

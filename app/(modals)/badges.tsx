@@ -19,7 +19,8 @@ import {
     APP_BADGES, BADGE_LEVEL_LABELS, BADGE_LEVEL_COLORS,
     BadgeType, BadgeLevel,
 } from "@/constants/badges";
-import { loadProfileStats, UserStats } from "@/services/profileStats";
+import { loadProfileStats } from "@/services/profileStats";
+import type { UserStats } from "@/types/profile";
 
 const iconMap: Record<string, any> = {
     Star, BookOpen, Flame, Trophy, Clock, Zap, Play, BookMarked, Pencil,

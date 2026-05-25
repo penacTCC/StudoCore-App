@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import type { ArquivoDetalhe, ArquivoGrupoLink } from "@/types/archives";
+import type { AuthUser } from "@/types/auth";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 
@@ -10,9 +12,9 @@ import { useCallback, useEffect, useState } from "react";
  */
 export const useArchives = (userId: string | undefined) => {
 
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<AuthUser | null>(null);
 
-    const [archives, setArchives] = useState<any[]>([]); // Estado para armazenar a lista de arquivos vinda do banco de dados
+    const [archives, setArchives] = useState<ArquivoDetalhe[]>([]); // Estado para armazenar a lista de arquivos vinda do banco de dados
 
     const [isLoading, setIsLoading] = useState(false); // Estado para controlar se os dados estão sendo buscados
 
@@ -37,27 +39,31 @@ export const useArchives = (userId: string | undefined) => {
             const groupIds = userGroups?.map(g => g.grupo_id) || [];
 
             // Busca arquivos entregues por mim
-            const { data: myFiles } = await supabase
+            const { data: myFilesData } = await supabase
                 .from("arquivos")
                 .select("*, profiles(nome_usuario), arquivos_grupos(grupo_id)")
                 .eq("user_id", userId);
 
+            const myFiles = (myFilesData || []) as ArquivoDetalhe[];
+
             // Busca arquivos enviados para meus grupos por outras pessoas (ou por mim também)
-            let groupFiles: any[] = [];
+            let groupFiles: ArquivoDetalhe[] = [];
             if (groupIds.length > 0) {
                 const { data: groupLinks } = await supabase
                     .from("arquivos_grupos")
                     .select("grupo_id, arquivos(*, profiles(nome_usuario), arquivos_grupos(grupo_id))")
                     .in("grupo_id", groupIds);
 
-                groupFiles = groupLinks?.map(link => link.arquivos).filter(Boolean) || [];
+                groupFiles = ((groupLinks || []) as ArquivoGrupoLink[])
+                    .flatMap(link => Array.isArray(link.arquivos) ? link.arquivos : [link.arquivos])
+                    .filter((arquivo): arquivo is ArquivoDetalhe => Boolean(arquivo));
             }
 
             // Consolida e remove duplicatas (um arquivo pode ter sido enviado por mim E estar no meu grupo)
-            const allFiles = [...(myFiles || []), ...groupFiles];
+            const allFiles = [...myFiles, ...groupFiles];
 
             // Mapa para deduplicação baseado no id do arquivo
-            const uniqueMap = new Map();
+            const uniqueMap = new Map<string, ArquivoDetalhe>();
             allFiles.forEach(f => {
                 if (!uniqueMap.has(f.id)) {
                     uniqueMap.set(f.id, f);

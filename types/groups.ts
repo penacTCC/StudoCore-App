@@ -44,6 +44,8 @@ export type GroupMember = {
   user_id: string;
   grupo_id: string;
   administrador: boolean;
+  rank?: number;
+  ofensiva?: number;
 };
 
 export type GroupMemberWithProfile = GroupMember & {

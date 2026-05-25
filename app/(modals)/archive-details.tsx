@@ -36,7 +36,10 @@ export default function FileDetailModal({
 
     //grupos
     const { groups } = useMyGroups();
-    const sentGroupsIds = detalheArquivo?.arquivos_grupos?.map((ag: any) => ag.grupo_id) || [];
+
+    if (!detalheArquivo) return null;
+
+    const sentGroupsIds = detalheArquivo.arquivos_grupos?.map((ag) => ag.grupo_id) || [];
     const sentGroupsNames = groups.filter((g: any) => sentGroupsIds.includes(g.id)).map((g: any) => g.nome_grupo);
 
     const fileType = detalheArquivo?.storage_path?.split('.').pop()?.toLowerCase();

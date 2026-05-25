@@ -163,7 +163,7 @@ export default function GroupScreen() {
                                     foto={member.userData?.foto_usuario}
                                     nome={member.userData?.nome_usuario}
                                     size={40}
-                                    showOnlineDot={onlineUsers.includes(member.user_id || member.userData?.id)}
+                                    showOnlineDot={onlineUsers.includes(member.user_id)}
                                 />
 
                                 {/* Info */}
@@ -183,7 +183,7 @@ export default function GroupScreen() {
                                 <View className="flex-row items-center gap-1">
                                     <Flame size={14} color={COLORS.emeraldLight} />
                                     <Text className="text-sm font-bold text-emerald-400">
-                                        {member.ofensiva}
+                                        {member.ofensiva ?? 0}
                                     </Text>
                                     {member.administrador ? (
                                         <Text className="text-xs font-bold text-amber-400">ADM</Text>
@@ -244,9 +244,9 @@ export default function GroupScreen() {
                                     onPress={() => setSelectedMember(member)}
                                     className="flex-row items-center gap-2 bg-slate-800/30 px-3 py-2 rounded-xl"
                                 >
-                                    <Avatar foto={member.userData?.foto_usuario} nome={member.userData?.nome_usuario} size={32} showOnlineDot={onlineUsers.includes(member.user_id || member.userData?.id)} />
+                                    <Avatar foto={member.userData?.foto_usuario} nome={member.userData?.nome_usuario} size={32} showOnlineDot={onlineUsers.includes(member.user_id)} />
                                     <Text className="text-sm text-slate-200">{member.userData?.nome_usuario}</Text>
-                                    {member.ofensiva >= 10 && (
+                                    {(member.ofensiva ?? 0) >= 10 && (
                                         <Flame size={14} color={COLORS.emeraldLight} />
                                     )}
                                 </TouchableOpacity>

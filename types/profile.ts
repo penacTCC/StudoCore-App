@@ -11,7 +11,7 @@ export type Profile = {
 
 export type ProfilePreview = Pick<
   Profile,
-  "nome_real" | "nome_usuario" | "foto_usuario"
+  "id" | "nome_real" | "nome_usuario" | "foto_usuario"
 >;
 
 export type UserStats = {

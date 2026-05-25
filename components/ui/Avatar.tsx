@@ -2,8 +2,8 @@ import { View, Text, Image } from "react-native";
 import { getAvatarColor } from "@/constants/helpers";
 
 interface AvatarProps {
-    foto?: string;
-    nome?: string;
+    foto?: string | null;
+    nome?: string | null;
     /** Tamanho em px. Padrão: 40 */
     size?: number;
     /** Exibe ponto verde de "online" no canto inferior direito. Padrão: false */

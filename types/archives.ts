@@ -15,11 +15,36 @@ export type DeletaRegistroProps = {
   arquivoId: string;
 };
 
+export type ArquivoGrupo = {
+  grupo_id: string;
+};
+
+export type ArquivoProfile = {
+  nome_usuario: string | null;
+};
+
+export type ArquivoDetalhe = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  disciplina: string;
+  storage_path: string | null;
+  backblaze_file_id: string | null;
+  created_at: string;
+  profiles?: ArquivoProfile | null;
+  arquivos_grupos?: ArquivoGrupo[];
+};
+
+export type ArquivoGrupoLink = {
+  grupo_id: string;
+  arquivos: ArquivoDetalhe | ArquivoDetalhe[] | null;
+};
+
 export type detalheArquivoProps = {
-    detalheArquivo: any | null,
-    onClose: () => void,
-    onRefresh: () => void,
-    currentUser: AuthUser | null
+  detalheArquivo: ArquivoDetalhe | null,
+  onClose: () => void,
+  onRefresh: () => void,
+  currentUser: AuthUser | null
 }
 
 export type uploadArquivoBucketProps = {
