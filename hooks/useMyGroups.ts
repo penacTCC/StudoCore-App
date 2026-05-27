@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "expo-router"; // ou @react-navigation/native, dependendo da sua importação
-import { supabase } from "@/lib/supabase"; // Ajuste o caminho
 import { loadMyGroupsLocally, saveMyGroupsLocally } from "@/services/offlineStorage";
+import { fetchMyGroups as buscarMeusGrupos } from "@/services/groups";
 import type { Group } from "@/types/groups";
 
 export function useMyGroups() {
@@ -20,37 +20,7 @@ export function useMyGroups() {
         setIsLoading(true);
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Busca por grupos onde o usuário é membro
-      const { data: memberData, error } = await supabase
-        .from("membros")
-        .select(`
-                  grupo_id,
-                  grupos (
-                      id,
-                      nome_grupo,
-                      descricao,
-                      foto_grupo,
-                      meta_horas,
-                      publico,
-                      codigo_convite
-                  )
-                `)
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.error("Erro ao buscar grupos:", error);
-        return;
-      }
-
-      // Mapeia e garante que está extraindo os dados corretamente
-      const myGroups = memberData
-        ?.flatMap(m => Array.isArray(m.grupos) ? m.grupos : [m.grupos])
-        .filter((group): group is Group => Boolean(group));
-
-      const finalGroups = myGroups || [];
+      const finalGroups = await buscarMeusGrupos();
       setGroups(finalGroups);
       await saveMyGroupsLocally(finalGroups);
     } catch (error) {

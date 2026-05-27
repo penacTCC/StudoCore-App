@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { AuthUser } from '../types/auth';
-import { supabase } from '../lib/supabase'; // Ajuste o caminho conforme sua estrutura
+import { obterSessaoAtual, observarMudancasAuth } from '@/services/auth';
+import type { AuthUser } from '@/types/auth';
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -9,14 +9,14 @@ export function useAuth() {
 
   useEffect(() => {
     // 1. Pega o status do usuário assim que o hook é chamado
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    obterSessaoAtual().then(({ data: { session } }) => {
       setUser(session?.user || null);
       setUserId(session?.user?.id || null);
       setIsLoading(false);
     });
 
     // 2. Fica "escutando" mudanças na autenticação (login, logout, token atualizado)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = observarMudancasAuth((_event, session) => {
       setUser(session?.user || null);
       setUserId(session?.user?.id || null);
     });

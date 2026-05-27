@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { buscarMembrosGrupo } from "@/services/groups";
 import type { GroupMemberWithProfile } from "@/types/groups";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -13,29 +13,8 @@ export function useGroupMembers({ groupId }: { groupId: string }) {
 
       if (!groupId) return;
 
-      const { data: usuarioMembro, error } = await supabase
-        .from("membros")
-        .select(`
-          *,
-          profiles:user_id (
-            id,
-            nome_usuario,
-            foto_usuario
-          )
-        `)
-        .eq("grupo_id", groupId);
-
-      if (error) {
-        console.error("Erro ao puxar membros:", error);
-        return;
-      }
-
-      const formattedMembers = ((usuarioMembro || []) as GroupMemberWithProfile[]).map((membro) => ({
-        ...membro,
-        userData: membro.profiles,
-      }));
-
-      setMembers(formattedMembers);
+      const membros = await buscarMembrosGrupo(groupId);
+      setMembers(membros);
     } catch (err) {
       console.error("Erro inesperado:", err);
     } finally {

@@ -1,0 +1,177 @@
+Sim. O ideal é transformar essas regras em **barreiras automáticas**, não só em “combinados”. Para um projeto com 5 pessoas, eu faria em camadas:
+
+**1. ESLint para regras de código**
+Dá para bloquear `any`, imports indevidos e padrões proibidos.
+
+Exemplos:
+
+```js
+// eslint.config.js ou .eslintrc
+rules: {
+  "@typescript-eslint/no-explicit-any": "error",
+
+  "no-restricted-imports": [
+    "error",
+    {
+      "paths": [
+        {
+          "name": "@/lib/supabase",
+          "message": "A camada app não deve acessar Supabase diretamente. Use services."
+        }
+      ],
+      "patterns": [
+        {
+          "group": ["**/supabase/**"],
+          "message": "Supabase deve ser acessado apenas pela camada de services."
+        }
+      ]
+    }
+  ]
+}
+```
+
+Para regras mais fortes de arquitetura, vale usar:
+
+```bash
+eslint-plugin-boundaries
+```
+
+Com ele você consegue dizer algo como:
+
+```txt
+app pode importar components, hooks e services
+components não pode importar supabase
+services pode importar supabase
+```
+
+Esse é provavelmente o melhor caminho para a regra “app não mexe no Supabase”.
+
+**2. TypeScript mais rígido**
+No `tsconfig.json`, ativar ou manter:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true
+  }
+}
+```
+
+Isso força o projeto a ficar mais tipado. Junto com `@typescript-eslint/no-explicit-any`, bloqueia bastante coisa.
+
+**3. CI obrigatória no GitHub/GitLab**
+Não basta rodar localmente. Tem que impedir merge quebrado.
+
+Pipeline mínimo:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+```
+
+E configurar a branch `main`/`develop` para só aceitar merge se esses checks passarem.
+
+Scripts úteis no `package.json`:
+
+```json
+{
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck"
+  }
+}
+```
+
+**4. Pre-commit com Husky + lint-staged**
+Isso pega erro antes do commit:
+
+```bash
+npm install -D husky lint-staged
+```
+
+```json
+{
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix"
+    ]
+  }
+}
+```
+
+Mas eu trataria isso como conveniência. A regra real precisa estar na CI, porque hook local pode ser ignorado.
+
+**5. Regras de importação por pasta**
+Se a arquitetura de vocês é algo como:
+
+```txt
+src/
+  app/
+  components/
+  hooks/
+  services/
+  repositories/
+  lib/
+```
+
+Dá para estabelecer:
+
+```txt
+app -> chama services
+services -> chama repositories/supabase
+components -> não chama supabase
+hooks -> podem chamar services
+lib/supabase -> só pode ser usado por services/repositories
+```
+
+Isso pode ser aplicado com ESLint.
+
+**6. Padronização de nomes**
+Variáveis em português é mais difícil de automatizar bem. Dá para criar regra customizada de ESLint, mas costuma dar trabalho e gerar falso positivo.
+
+Eu recomendo documentar isso em um `CONTRIBUTING.md`, e automatizar o que for mais objetivo:
+
+- nada de `any`
+- nada de import direto do Supabase fora da camada permitida
+- nada de arquivos fora da estrutura
+- padrão de nomes de arquivos
+- padrão de exports
+- typecheck obrigatório
+- lint obrigatório
+
+**7. Arquivo de regras do projeto**
+Criaria algo assim:
+
+```txt
+docs/architecture.md
+CONTRIBUTING.md
+```
+
+Com decisões claras:
+
+```md
+# Regras de Arquitetura
+
+- A camada `app` não acessa Supabase diretamente.
+- Toda comunicação com dados passa por `services`.
+- Não usamos `any`.
+- Componentes não executam regra de negócio complexa.
+- Services retornam tipos explícitos.
+- Variáveis, funções e tipos do domínio devem usar português.
+```
+
+**Minha recomendação prática**
+
+Começaria por estes 4 passos:
+
+1. Ativar `strict` no TypeScript.
+2. Configurar ESLint com `no-explicit-any`.
+3. Bloquear import do Supabase fora de `services`/`repositories`.
+4. Criar CI obrigatória rodando `lint` e `typecheck`.
+
+Isso já muda a cultura do projeto, porque a regra deixa de depender da memória de cada pessoa e passa a fazer parte da própria estrutura.

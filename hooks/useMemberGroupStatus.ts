@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { loadLastGroupLocally } from '../services/offlineStorage';
-import { fetchGroupById } from '../services/groups';
+import { loadLastGroupLocally } from '@/services/offlineStorage';
+import { fetchGroupById, usuarioParticipaDeGrupo } from '@/services/groups';
 import { Session } from '@supabase/supabase-js';
 import { LastGroupParams } from '@/types/groups';
 
@@ -20,14 +19,8 @@ export function useMemberGroupStatus(session: Session | null, isInitialized: boo
     }
 
     const checkGroup = async () => {
-      const { data: member } = await supabase
-        .from('membros')
-        .select('id')
-        .eq('user_id', session?.user?.id)
-        .limit(1)
-        .maybeSingle();
-
-      setIsMember(!!member);
+      const member = await usuarioParticipaDeGrupo(session.user.id);
+      setIsMember(member);
       console.log("Member: ", member);
 
       // Se for membro, tenta carregar o último grupo visitado

@@ -1,8 +1,8 @@
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/repositories/supabase";
 import { uploadFileToB2 } from "@/services/backblaze";
 import { File as FileClass } from "expo-file-system";
 import { decode } from "base64-arraybuffer";
-import { DeletaRegistroProps, UploadArquivoParams } from "@/types/archives";
+import { ArquivoDetalhe, ArquivoGrupoLink, DeletaRegistroProps, UploadArquivoParams } from "@/types/archives";
 
 
 export async function uploadArquivo({
@@ -65,3 +65,41 @@ export const deletaRegistro = async ({arquivoId}: DeletaRegistroProps) => {
   .delete() // Operação de deleção
   .eq("id", arquivoId); // Condição: onde o ID for igual ao ID do arquivo atual
 }
+
+export const buscarArquivosVisiveis = async (userId: string) => {
+  const { data: userGroups } = await supabase
+    .from("membros")
+    .select("grupo_id")
+    .eq("user_id", userId);
+
+  const groupIds = userGroups?.map(g => g.grupo_id) || [];
+
+  const { data: myFilesData } = await supabase
+    .from("arquivos")
+    .select("*, profiles(nome_usuario), arquivos_grupos(grupo_id)")
+    .eq("user_id", userId);
+
+  const myFiles = (myFilesData || []) as ArquivoDetalhe[];
+
+  let groupFiles: ArquivoDetalhe[] = [];
+  if (groupIds.length > 0) {
+    const { data: groupLinks } = await supabase
+      .from("arquivos_grupos")
+      .select("grupo_id, arquivos(*, profiles(nome_usuario), arquivos_grupos(grupo_id))")
+      .in("grupo_id", groupIds);
+
+    groupFiles = ((groupLinks || []) as ArquivoGrupoLink[])
+      .flatMap(link => Array.isArray(link.arquivos) ? link.arquivos : [link.arquivos])
+      .filter((arquivo): arquivo is ArquivoDetalhe => Boolean(arquivo));
+  }
+
+  const uniqueMap = new Map<string, ArquivoDetalhe>();
+  [...myFiles, ...groupFiles].forEach(file => {
+    if (!uniqueMap.has(file.id)) {
+      uniqueMap.set(file.id, file);
+    }
+  });
+
+  return Array.from(uniqueMap.values())
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+};

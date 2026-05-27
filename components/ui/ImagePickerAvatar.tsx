@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { View, Text, Image, TouchableOpacity, Alert } from "react-native";
 import { Plus, Users } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
-import { supabase } from "@/lib/supabase";
 import { COLORS } from "@/constants/colors";
 import { uploadArquivoBucket } from "@/services/supabaseStorage";
 
