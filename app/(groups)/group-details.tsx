@@ -8,10 +8,10 @@ import { getAvatarColor } from "@/constants/helpers";
 import Avatar from "@/components/ui/Avatar";
 import ProgressBar from "@/components/ui/ProgressBar";
 import StatCard from "@/components/ui/StatCard";
-import { fetchGroupById, joinPublicGroup } from "@/services/groups";
-import { saveLastGroupLocally } from "@/services/offlineStorage";
+import { buscarGrupoPorId, entrarEmGrupoPublico } from "@/services/grupos";
+import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import { useEffect, useState } from "react";
-import { useGroupMembers } from "@/hooks/useGroupMembers";
+import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -21,7 +21,7 @@ export default function GroupDetailsScreen() {
     const [isLoading, setIsLoading] = useState(true);
 
     //Pega membros do grupo
-    const { members } = useGroupMembers({ groupId });
+    const { membros } = useMembrosGrupo({ grupoId: groupId });
 
     //Pega o id do usuário logado
     const { userId } = useAuth();
@@ -30,7 +30,7 @@ export default function GroupDetailsScreen() {
     useEffect(() => {
         const loadGroup = async () => {
             setIsLoading(true);
-            const fetchedGroup = await fetchGroupById(groupId!);
+            const fetchedGroup = await buscarGrupoPorId(groupId!);
             setGroup(fetchedGroup);
             setIsLoading(false);
         };
@@ -41,7 +41,7 @@ export default function GroupDetailsScreen() {
     const { onlineUsers } = useOnlineUsers(groupId);
     
     // Pega as IDs de todos os membros DESTE grupo específico
-    const memberIds = members.map((m: any) => m.user_id || m.userData?.id);
+    const memberIds = membros.map((m: any) => m.user_id || m.userData?.id);
 
     // Filtra a lista global para mostrar APENAS quem tá logado, é membro daqui E não é você
     const activeGroupMembers = onlineUsers.filter(id => id !== userId && memberIds.includes(id));
@@ -149,7 +149,7 @@ export default function GroupDetailsScreen() {
                             </View>
                         </View>
                         <View className="flex-row flex-wrap gap-2">
-                            {members.map((member) => (
+                            {membros.map((member) => (
                                 <View
                                     key={member.id}
                                     className="flex-row items-center gap-2 px-3 py-2 rounded-xl bg-slate-800"
@@ -192,8 +192,8 @@ export default function GroupDetailsScreen() {
             >
                 <TouchableOpacity
                     onPress={async () => {
-                        await joinPublicGroup(group.id);
-                        await saveLastGroupLocally(group.id);
+                        await entrarEmGrupoPublico(group.id);
+                        await salvarUltimoGrupoLocalmente(group.id);
                         router.push({
                             pathname: "/(tabs)",
                             params: {

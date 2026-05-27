@@ -8,7 +8,7 @@ import { ArrowLeft, Globe, Compass, Link as LinkIcon } from "lucide-react-native
 //Componentes do Projeto
 import { router } from "expo-router";
 import { COLORS } from "@/constants/colors";
-import { usePublicGroups } from "@/hooks/usePublicGroups";
+import { useGruposPublicos } from "@/hooks/useGruposPublicos";
 
 //Componentes gráficos
 import SearchBar from "@/components/ui/SearchBar";
@@ -21,18 +21,18 @@ export default function BrowseGroupsScreen() {
     const [searchQuery, setSearchQuery] = useState("");
 
     //Busca os grupos públicos
-    const { publicGroups, isLoading } = usePublicGroups();
+    const { gruposPublicos, carregando } = useGruposPublicos();
 
     //Filtra os grupos por pesquisa
-    const filteredGroups = publicGroups.filter(
+    const gruposFiltrados = gruposPublicos.filter(
         (g) =>
             g.nome_grupo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            g.descricao.toLowerCase().includes(searchQuery.toLowerCase())
+            g.descricao?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const { onlineUsers } = useOnlineUsers();
 
-    if (isLoading) {
+    if (carregando) {
         return <Text>Carregando os melhores grupos para você...</Text>;
     }
 
@@ -89,7 +89,7 @@ export default function BrowseGroupsScreen() {
                             {onlineUsers.length} estudando agora
                         </Text>
                         <Text className="text-sm text-slate-400">
-                            {publicGroups.length} grupos públicos disponíveis
+                            {gruposPublicos.length} grupos públicos disponíveis
                         </Text>
                     </View>
                 </View>
@@ -97,15 +97,15 @@ export default function BrowseGroupsScreen() {
 
             <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
                 <View className="gap-3 pb-6">
-                    {filteredGroups.map((group, index) => (
+                    {gruposFiltrados.map((group, index) => (
                         <PublicGroupCard
                             key={group.id}
-                            group={group}
+                            grupo={group}
                             colorIndex={index}
                         />
                     ))}
 
-                    {filteredGroups.length === 0 && (
+                    {gruposFiltrados.length === 0 && (
                         <View className="items-center py-8">
                             <Compass size={48} color={COLORS.textFaint} />
                             <Text className="text-slate-400 font-medium mt-3">Nenhum grupo encontrado</Text>

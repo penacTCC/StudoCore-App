@@ -1,10 +1,10 @@
 import { supabase } from "@/repositories/supabase";
-import type { Group, GroupMemberWithProfile } from "@/types/groups";
+import type { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 
 /**
  * Função para contar quantos membros tem um grupo específico, usando o ID do grupo.
  */
-export const qtdGroupMembers = async (id: string) => {
+export const contarMembrosGrupo = async (id: string) => {
   try {
 
     const { count, error } = await supabase
@@ -26,7 +26,7 @@ export const qtdGroupMembers = async (id: string) => {
 };
 
 //Busca por grupos onde o usuário é membro
-export const fetchMyGroups = async () => {
+export const buscarMeusGrupos = async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
@@ -54,11 +54,11 @@ export const fetchMyGroups = async () => {
     }
 
     // Exclui membros que não tem um grupo correspondente, se houver, e mapeia para a array de grupos
-    const myGroups = memberData
+    const meusGrupos = memberData
       ?.flatMap(m => Array.isArray(m.grupos) ? m.grupos : [m.grupos])
-      .filter((group): group is Group => Boolean(group));
+      .filter((grupo): grupo is Grupo => Boolean(grupo));
 
-    return myGroups || [];
+    return meusGrupos || [];
   } catch (error) {
     console.error("Error fetching groups:", error);
     return [];
@@ -84,17 +84,17 @@ export const buscarGruposPublicosDisponiveis = async () => {
     .select('grupo_id')
     .eq('user_id', user.id);
 
-  const myGroupIds = meusMembros?.map(m => m.grupo_id) || [];
-  const filteredGroups = grupoPublico?.filter(grupo => !myGroupIds.includes(grupo.id));
+  const meusGruposIds = meusMembros?.map(m => m.grupo_id) || [];
+  const gruposFiltrados = grupoPublico?.filter(grupo => !meusGruposIds.includes(grupo.id));
 
-  return filteredGroups?.map((grupo) => ({
+  return gruposFiltrados?.map((grupo) => ({
     ...grupo,
     members: grupo.membros[0]?.count || 0
   })) || [];
 };
 
-export const buscarMembrosGrupo = async (groupId: string) => {
-  if (!groupId) return [];
+export const buscarMembrosGrupo = async (grupoId: string) => {
+  if (!grupoId) return [];
 
   const { data: usuarioMembro, error } = await supabase
     .from("membros")
@@ -106,14 +106,14 @@ export const buscarMembrosGrupo = async (groupId: string) => {
         foto_usuario
       )
     `)
-    .eq("grupo_id", groupId);
+    .eq("grupo_id", grupoId);
 
   if (error) {
     console.error("Erro ao puxar membros:", error);
     return [];
   }
 
-  return ((usuarioMembro || []) as GroupMemberWithProfile[]).map((membro) => ({
+  return ((usuarioMembro || []) as MembroGrupoComPerfil[]).map((membro) => ({
     ...membro,
     userData: membro.profiles,
   }));
@@ -131,28 +131,28 @@ export const usuarioParticipaDeGrupo = async (userId: string) => {
 };
 
 //Insere grupo na tabela grupos
-export const insereGrupo = async (name: string, description: string, isPublic: boolean, weeklyTarget: number, inviteLink: string, imageUrl: string | null) => {
+export const inserirGrupo = async (nome: string, descricao: string, publico: boolean, metaSemanal: number, linkConvite: string, urlImagem: string | null) => {
   return await supabase
     .from('grupos')
     .upsert({ //upsert é uma função que insere ou atualiza um registro
-      nome_grupo: name.trim(),
-      descricao: description.trim(),
-      publico: isPublic,
-      meta_horas: weeklyTarget,
-      codigo_convite: inviteLink,
-      foto_grupo: imageUrl,
+      nome_grupo: nome.trim(),
+      descricao: descricao.trim(),
+      publico,
+      meta_horas: metaSemanal,
+      codigo_convite: linkConvite,
+      foto_grupo: urlImagem,
     })
     .select()
     .single()//retorna apenas um registro, nesse caso, o id do grupo, utilizado na tabela membros
 }
 
 //Insere usuário na tabela membros
-export const insereMembro = async (userId: string, NewGroup: { id: string }) => {
+export const inserirMembro = async (userId: string, novoGrupo: { id: string }) => {
   return await supabase
     .from('membros')
     .upsert({
       user_id: userId,
-      grupo_id: NewGroup.id,
+      grupo_id: novoGrupo.id,
       administrador: true
     })
     .select()
@@ -160,27 +160,27 @@ export const insereMembro = async (userId: string, NewGroup: { id: string }) => 
 }
 
 //Entrar em um grupo público
-export const joinPublicGroup = async (groupId: string) => {
+export const entrarEmGrupoPublico = async (grupoId: string) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const { data: NewMember, error: MemberError } = await supabase
+    const { data: novoMembro, error: erroMembro } = await supabase
       .from("membros")
       .insert({
         user_id: user.id,
-        grupo_id: groupId,
+        grupo_id: grupoId,
         administrador: false
       })
       .select()
       .single();
 
-    if (MemberError) {
-      console.error("Erro ao entrar no grupo:", MemberError);
+    if (erroMembro) {
+      console.error("Erro ao entrar no grupo:", erroMembro);
       return null;
     }
 
-    return NewMember;
+    return novoMembro;
 
   } catch (error) {
     console.error("Error joining group:", error);
@@ -189,24 +189,24 @@ export const joinPublicGroup = async (groupId: string) => {
 }
 
 //Insere código de convite na tabela grupos
-export const insereCodigoConvite = async (groupId: string, inviteCode: string) => {
+export const inserirCodigoConvite = async (grupoId: string, codigoConvite: string) => {
   return await supabase
     .from('grupos')
     .update({
-      code_convite: inviteCode
+      code_convite: codigoConvite
     })
-    .eq('id', groupId)
+    .eq('id', grupoId)
     .select()
     .single();
 }
 
 //Busca um grupo específico pelo ID
-export const fetchGroupById = async (groupId: string) => {
+export const buscarGrupoPorId = async (grupoId: string) => {
   try {
-    const { data: group, error } = await supabase
+    const { data: grupo, error } = await supabase
       .from('grupos')
       .select('*, membros(count)')
-      .eq('id', groupId)
+      .eq('id', grupoId)
       .single();
 
     if (error) {
@@ -215,8 +215,8 @@ export const fetchGroupById = async (groupId: string) => {
     }
 
     return {
-      ...group,
-      members: group.membros[0]?.count || 0
+      ...grupo,
+      members: grupo.membros[0]?.count || 0
     };
   } catch (error) {
     console.error("Error fetching group:", error);

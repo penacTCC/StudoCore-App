@@ -13,7 +13,7 @@ import TabSelector from "@/components/ui/TabSelector";
 import { COLORS } from "@/constants/colors";
 
 //Funções do Projeto
-import { useMyGroups } from "@/hooks/useMyGroups";
+import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { useAuth } from "@/hooks/useAuth";
 import { selectedFile } from "@/types/upload";
 
@@ -52,19 +52,19 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
     const { user } = useAuth();
 
     //grupos
-    const { groups } = useMyGroups();
-    const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+    const { grupos } = useMeusGrupos();
+    const [gruposSelecionados, setGruposSelecionados] = useState<string[]>([]);
 
 
     /**
      * função adiciona o grupo se ele não estiver na lista ou remove se já estiver.
      * @param groupId id do grupo
      */
-    const toggleGroup = (groupId: string) => {
-        setSelectedGroups((prev) =>
-            prev.includes(groupId)
-                ? prev.filter((g) => g !== groupId)
-                : [...prev, groupId]
+    const alternarGrupo = (grupoId: string) => {
+        setGruposSelecionados((prev) =>
+            prev.includes(grupoId)
+                ? prev.filter((g) => g !== grupoId)
+                : [...prev, grupoId]
         );
     };
 
@@ -81,7 +81,7 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
             userId: user.id,
             arquivo: selectedFile,
             disciplina: selectedDiscipline,
-            gruposIds: selectedGroups,
+            gruposIds: gruposSelecionados,
             });
 
             Alert.alert("Sucesso", "Arquivo enviado com sucesso!");
@@ -154,13 +154,13 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                     </Text>
 
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-                        {groups.map((group) => {
-                            const isSelected = selectedGroups.includes(group.id);
+                        {grupos.map((group) => {
+                            const isSelected = gruposSelecionados.includes(group.id);
 
                             return (
                                 <TouchableOpacity
                                     key={group.id}
-                                    onPress={() => toggleGroup(group.id)}
+                                    onPress={() => alternarGrupo(group.id)}
                                     className={`px-4 py-2 rounded-full mr-2 border ${isSelected
                                         ? 'bg-brand-500 border-brand-500'
                                         : 'bg-slate-800 border-slate-700'

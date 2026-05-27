@@ -1,10 +1,10 @@
 import { AuthSession } from "./auth";
-import { LastGroupParams } from "./groups";
+import { ParametrosUltimoGrupo } from "./grupos";
 
 export type GuardProps = {
-  isInitialized: boolean;
+  inicializado: boolean;
   session: AuthSession | null;
-  profileComplete: boolean | null;
-  isMember: boolean | null;
-  lastGroupParams: LastGroupParams | null | undefined;
+  perfilCompleto: boolean | null;
+  membro: boolean | null;
+  parametrosUltimoGrupo: ParametrosUltimoGrupo | null | undefined;
 };

@@ -1,10 +1,10 @@
 import { View, Text, TouchableOpacity, Image } from "react-native";
 import { Users, Clock } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
-import type { Group } from "@/types/groups";
+import type { Grupo } from "@/types/grupos";
 
 interface GroupCardProps {
-    group: Group;
+    group: Grupo;
     onPress: () => void;
 }
 

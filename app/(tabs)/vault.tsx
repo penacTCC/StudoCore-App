@@ -7,7 +7,7 @@ import { FileText, Image as ImageIcon, ChevronRight, ChevronDown, FileUp, Folder
 
 //Componentes do Projeto
 import { COLORS } from "@/constants/colors";
-import { useMyGroups } from "@/hooks/useMyGroups";
+import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 
 //Componentes gráficos
 import SearchBar from "@/components/ui/SearchBar";
@@ -37,7 +37,7 @@ export default function VaultScreen() {
 
     // Chama o hook para buscar os arquivos reais do banco de dados de forma incondicional
     const { archives, refresh } = useArchives(userId || undefined);
-    const { groups } = useMyGroups();
+    const { grupos } = useMeusGrupos();
 
     // Accordion state - stores IDs of open sections
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -201,7 +201,7 @@ export default function VaultScreen() {
             <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
                 <View className="pb-24">
                     {/* Groups Sections */}
-                    {groups.map((group: any) => (
+                    {grupos.map((group: any) => (
                         <AccordionSection
                             key={group.id}
                             id={group.id}

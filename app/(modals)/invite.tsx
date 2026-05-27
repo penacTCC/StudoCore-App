@@ -16,7 +16,7 @@ import { COLORS } from "@/constants/colors";
 
 //Componentes do projeto
 import ShareLink from "@/components/ShareLink";
-import { insereCodigoConvite } from "@/services/groups";
+import { inserirCodigoConvite } from "@/services/grupos";
 
 //Mock
 const mockPendingInvites = [
@@ -39,7 +39,7 @@ export default function InviteScreen() {
 
     //Insere o código de convite na tabela grupos
     useEffect(() => {
-        insereCodigoConvite(groupId as string, inviteLink);
+        inserirCodigoConvite(groupId as string, inviteLink);
     }, []);
 
     //Formata o número de telefone

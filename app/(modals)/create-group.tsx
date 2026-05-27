@@ -15,7 +15,7 @@ import { ImagePickerAvatar } from "@/components/ui/";
 
 //Serviços
 import { buscarUsuarioLogado } from "@/services/auth";
-import { insereGrupo, insereMembro } from "@/services/groups";
+import { inserirGrupo, inserirMembro } from "@/services/grupos";
 
 export default function CreateGroupScreen() {
     const [name, setName] = useState("");
@@ -40,17 +40,17 @@ export default function CreateGroupScreen() {
             }
 
             //Insere o grupo na tabela grupos
-            const { data: NewGroup, error: NewGroupError } = await insereGrupo(name, description, isPublic, weeklyTarget, inviteLink, imageUrl);
+            const { data: novoGrupo, error: erroNovoGrupo } = await inserirGrupo(name, description, isPublic, weeklyTarget, inviteLink, imageUrl);
 
-            if (NewGroupError) {
-                Alert.alert('Erro ao criar grupo', NewGroupError.message);
+            if (erroNovoGrupo) {
+                Alert.alert('Erro ao criar grupo', erroNovoGrupo.message);
             }
 
             //Insere o usuário na tabela membros
-            const { data: NewMember, error: MemberError } = await insereMembro(user?.id, NewGroup);
+            const { error: erroNovoMembro } = await inserirMembro(user?.id, novoGrupo);
 
-            if (MemberError) {
-                Alert.alert('Erro ao criar membro', MemberError.message);
+            if (erroNovoMembro) {
+                Alert.alert('Erro ao criar membro', erroNovoMembro.message);
             }
 
             Alert.alert('Sucesso!', 'Grupo criado com sucesso!');

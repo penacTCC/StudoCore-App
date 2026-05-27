@@ -17,7 +17,7 @@ import { Avatar, TabSelector } from "@/components/ui";
 import SessionCard from "@/components/groups/SessionCard";
 
 //Hooks
-import { useGroupMembers } from "@/hooks/useGroupMembers";
+import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useSessoesFoco } from "@/hooks/useSessoesFoco";
@@ -38,13 +38,13 @@ export default function GroupScreen() {
     const { groupName, groupId, groupPhoto, groupCode } = useLocalSearchParams(); //<- os parametros
 
     //Pega os membros do grupo
-    const { members } = useGroupMembers({ groupId: groupId as string });
+    const { membros } = useMembrosGrupo({ grupoId: groupId as string });
 
     //Pega o usuário atual
     const { userId } = useAuth();
 
     //Verifica se o usuário atual é o administrador
-    const isAdmin = members.some(member => member.user_id === userId && member.administrador);
+    const isAdmin = membros.some(member => member.user_id === userId && member.administrador);
 
     //Pega a quantidade de usuários online
     const { onlineUsers } = useOnlineUsers(groupId as string);
@@ -123,7 +123,7 @@ export default function GroupScreen() {
                             />
                         </View>
 
-                        {members.map((member, index) => (
+                        {membros.map((member, index) => (
                             <TouchableOpacity
                                 key={member.id}
                                 onPress={() => setSelectedMember(member)}
@@ -238,7 +238,7 @@ export default function GroupScreen() {
                             </TouchableOpacity>
                         </View>
                         <View className="flex-row flex-wrap gap-3">
-                            {members.map((member, index) => (
+                            {membros.map((member, index) => (
                                 <TouchableOpacity
                                     key={member.id}
                                     onPress={() => setSelectedMember(member)}

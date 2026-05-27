@@ -6,14 +6,14 @@ import { router } from "expo-router";
 //Serviços do Projeto
 import GroupCard from "@/components/GroupCard";
 import { COLORS } from "@/constants/colors";
-import { useMyGroups } from "@/hooks/useMyGroups";
-import { saveLastGroupLocally } from "@/services/offlineStorage";
+import { useMeusGrupos } from "@/hooks/useMeusGrupos";
+import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 
 //Componentes Lucide Native
 import { Plus, Users } from "lucide-react-native";
 
 export default function MyGroupsScreen() {
-    const { groups, isLoading, refreshing, onRefresh } = useMyGroups();
+    const { grupos, carregando, atualizando, atualizar } = useMeusGrupos();
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950 edges={['top']}">
@@ -36,18 +36,18 @@ export default function MyGroupsScreen() {
                 </TouchableOpacity>
             </View>
 
-            {isLoading ? (
+            {carregando ? (
                 <View className="flex-1 items-center justify-center">
                     <ActivityIndicator size="large" color={COLORS.primary} />
                 </View>
             ) : (
                 <FlatList
-                    data={groups}
+                    data={grupos}
                     keyExtractor={(item) => item.id.toString()}
                     contentContainerStyle={{ padding: 24, paddingBottom: 100 }}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+                        <RefreshControl refreshing={atualizando} onRefresh={atualizar} tintColor={COLORS.primary} />
                     }
                     ListEmptyComponent={
                         <View className="items-center justify-center py-20">
@@ -59,7 +59,7 @@ export default function MyGroupsScreen() {
                             group={item}
                             onPress={async () => {
                                 // Salva esse grupo na memória antes de navegar
-                                await saveLastGroupLocally(item.id);
+                                await salvarUltimoGrupoLocalmente(item.id);
                                 router.push({
                                     pathname: "/(tabs)",
                                     params: {

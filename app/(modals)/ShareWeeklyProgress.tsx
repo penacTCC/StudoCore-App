@@ -10,7 +10,7 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Share2, Check, Flame, Trophy } from "lucide-react-native";
 import ViewShot from "react-native-view-shot";
-import Share from "react-native-share";
+import * as Sharing from "expo-sharing";
 import { useAuth } from "@/hooks/useAuth";
 import { buscarPerfil } from "@/services/auth";
 import { SubjectItem } from "@/types/share";
@@ -93,14 +93,14 @@ export default function ShareWeeklyProgress() {
             const uri = await viewShotRef.current?.capture?.();
             if (!uri) return;
 
-            await Share.open({
-                url: uri,
-                type: "image/png",
+            const compartilhamentoDisponivel = await Sharing.isAvailableAsync();
+            if (!compartilhamentoDisponivel) return;
+
+            await Sharing.shareAsync(uri, {
+                mimeType: "image/png",
+                dialogTitle: "Compartilhar progresso semanal",
             });
         } catch (error: any) {
-            if (error?.message === "User did not share") {
-                return;
-            }
             console.log("Erro ao compartilhar:", error);
         }
     }

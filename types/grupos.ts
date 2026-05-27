@@ -1,6 +1,6 @@
 import type { ProfilePreview } from "./profile";
 
-export type Group = {
+export type Grupo = {
   id: string;
   nome_grupo: string;
   descricao: string | null;
@@ -10,36 +10,36 @@ export type Group = {
   codigo_convite: string | null;
 };
 
-export type PublicGroupCard = {
+export type CartaoGrupoPublico = {
     id: string;
     nome_grupo: string;
-    descricao: string;
+    descricao: string | null;
     foto_grupo?: string | null;
     meta_horas: number;
     publico: boolean;
     members: number;
-    activeNow: number;
-    weeklyTarget: number;
-    isOnline: boolean;
+    activeNow?: number;
+    weeklyTarget?: number;
+    isOnline?: boolean;
 }
 
-export type PublicGroupCardProps = {
-    group: PublicGroupCard;
+export type CartaoGrupoPublicoProps = {
+    grupo: CartaoGrupoPublico;
     colorIndex: number;
     onJoin?: () => void;
 }
 
-export type GroupWithMembersCount = Group & {
+export type GrupoComTotalMembros = Grupo & {
   members: number;
 };
 
-export type PublicGroup = GroupWithMembersCount & {
+export type GrupoPublico = GrupoComTotalMembros & {
   activeNow?: number;
   weeklyTarget?: number;
   isOnline?: boolean;
 };
 
-export type GroupMember = {
+export type MembroGrupo = {
   id: string;
   user_id: string;
   grupo_id: string;
@@ -48,12 +48,12 @@ export type GroupMember = {
   ofensiva?: number;
 };
 
-export type GroupMemberWithProfile = GroupMember & {
+export type MembroGrupoComPerfil = MembroGrupo & {
   profiles?: ProfilePreview | null;
   userData?: ProfilePreview | null;
 };
 
-export type LastGroupParams = {
+export type ParametrosUltimoGrupo = {
   groupId: string;
   groupName: string;
   groupPhoto: string | null;

@@ -10,7 +10,7 @@ import * as Sharing from "expo-sharing";
 //Componentes do Projeto
 import { COLORS } from "@/constants/colors";
 import { deleteFileFromB2, getAuthenticatedDownloadUrl } from "@/services/backblaze";
-import { useMyGroups } from "@/hooks/useMyGroups";
+import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { deletaRegistro } from "@/services/archives";
 import { detalheArquivoProps } from "@/types/archives";
 
@@ -35,12 +35,12 @@ export default function FileDetailModal({
     console.log(detalheArquivo);
 
     //grupos
-    const { groups } = useMyGroups();
+    const { grupos } = useMeusGrupos();
 
     if (!detalheArquivo) return null;
 
     const sentGroupsIds = detalheArquivo.arquivos_grupos?.map((ag) => ag.grupo_id) || [];
-    const sentGroupsNames = groups.filter((g: any) => sentGroupsIds.includes(g.id)).map((g: any) => g.nome_grupo);
+    const sentGroupsNames = grupos.filter((g: any) => sentGroupsIds.includes(g.id)).map((g: any) => g.nome_grupo);
 
     const fileType = detalheArquivo?.storage_path?.split('.').pop()?.toLowerCase();
 

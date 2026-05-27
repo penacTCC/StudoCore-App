@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAuthState } from "@/hooks/useAuthState";
-import { useMemberGroupStatus } from "@/hooks/useMemberGroupStatus";
+import { useStatusMembroGrupo } from "@/hooks/useStatusMembroGrupo";
 import { useRouteGuard } from "@/hooks/useRoutGuard";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import MedalAlert from "@/components/MedalAlert";
@@ -16,15 +16,15 @@ export default function RootLayout() {
     const { isInitialized, session, profileComplete } = useAuthState();
 
     //Busca se o usuário tem um grupo
-    const { isMember, lastGroupParams } = useMemberGroupStatus(session, isInitialized);
+    const { membro, parametrosUltimoGrupo } = useStatusMembroGrupo(session, isInitialized);
 
     //Roteia o usuário para as telas
     useRouteGuard({
-        isInitialized,
+        inicializado: isInitialized,
         session,
-        profileComplete,
-        isMember,
-        lastGroupParams
+        perfilCompleto: profileComplete,
+        membro,
+        parametrosUltimoGrupo
     });
 
     if (!isInitialized) return <LoadingScreen />
