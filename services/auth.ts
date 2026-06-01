@@ -1,5 +1,5 @@
 import { supabase } from "@/repositories/supabase";
-import { makeRedirectUri } from "expo-auth-session";
+import * as Linking from "expo-linking";
 import type { AuthChangeEvent } from "@supabase/supabase-js";
 import type { AuthSession } from "@/types/auth";
 
@@ -27,8 +27,23 @@ export const validarSessaoGoogle = async (code: string) => {
 //Recuperação de Senha
 export const recuperarSenha = async (email: string) => {
   return await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: makeRedirectUri({ path: "forgot-password" }),
+    redirectTo: Linking.createURL("/forgot-password"),
   });
+};
+
+export const validarSessaoPorCodigo = async (code: string) => {
+  return await supabase.auth.exchangeCodeForSession(code);
+};
+
+export const validarSessaoPorTokens = async (accessToken: string, refreshToken: string) => {
+  return await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+};
+
+export const redefinirSenha = async (password: string) => {
+  return await supabase.auth.updateUser({ password });
 };
 
 //Verificar nome de usuário

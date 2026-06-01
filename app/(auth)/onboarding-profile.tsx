@@ -11,6 +11,7 @@ import {
     Alert,
     DeviceEventEmitter,
 } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 
 //Componentes da Aplicação
 import { COLORS } from "@/constants/colors";
@@ -22,12 +23,14 @@ import { User, AtSign, Calendar, ChevronDown, Brain } from "lucide-react-native"
 
 //Serviços da aplicação
 import { useAuth } from "@/hooks/useAuth";
-import { refreshSessao, salvarDadosPerfil, verificarNomeUsuario } from "@/services/auth";
+import { obterSessaoAtual, refreshSessao, salvarDadosPerfil, validarSessaoGoogle, verificarNomeUsuario } from "@/services/auth";
 
 export default function OnboardingProfile() {
+    const params = useLocalSearchParams<{ code?: string }>();
     const [realName, setRealName] = useState("");
     const [username, setUsername] = useState("");
     const [loading, setLoading] = useState(false);
+    const [validatingGoogleLogin, setValidatingGoogleLogin] = useState(false);
     const [imageUrl, setImageUrl] = useState<string | null>(null);
 
     // Aniversário
@@ -42,6 +45,26 @@ export default function OnboardingProfile() {
     ];
 
     const { userId, isLoading } = useAuth();
+
+    useEffect(() => {
+        const finishGoogleLogin = async () => {
+            if (!params.code) return;
+
+            setValidatingGoogleLogin(true);
+            const { error } = await validarSessaoGoogle(params.code);
+            setValidatingGoogleLogin(false);
+
+            if (error) {
+                const { data: { session } } = await obterSessaoAtual();
+                if (!session) {
+                    Alert.alert("Erro no Google", error.message);
+                }
+            }
+        };
+
+        finishGoogleLogin();
+    }, [params.code]);
+
     useEffect(() => {
         console.log("Id usuario: ", userId);
     }, [userId]);
@@ -68,6 +91,10 @@ export default function OnboardingProfile() {
         }
         if (year < 1946 || year > new Date().getFullYear()) {
             Alert.alert("Ano inválido", "Insira um ano válido.");
+            return;
+        }
+        if (isLoading || validatingGoogleLogin) {
+            Alert.alert("Aguarde", "Ainda estamos finalizando seu login com o Google.");
             return;
         }
         if (!userId) {
@@ -103,7 +130,7 @@ export default function OnboardingProfile() {
             setLoading(false);
         } else {
             await refreshSessao();
-            DeviceEventEmitter.emit("profileUpdated");
+            DeviceEventEmitter.emit("profileReady");
         }
     };
 
@@ -349,7 +376,8 @@ export default function OnboardingProfile() {
                         <PrimaryButton
                             label="Começar ✓"
                             onPress={handleFinish}
-                            isLoading={loading}
+                            isLoading={loading || isLoading || validatingGoogleLogin}
+                            disabled={isLoading || validatingGoogleLogin}
                             style={{ borderRadius: 16, paddingHorizontal: 32, letterSpacing: 1 } as any}
                         />
                     </View>

@@ -16,7 +16,16 @@ export function useRouteGuard({ inicializado, session, perfilCompleto, membro, p
     const estaNoGrupoAuth = segmentos[0] === '(auth)';
     const estaNaTelaPerfil = segmentos.includes('onboarding-profile');
     const estaNaTelaVerificarEmail = segmentos.includes('verify-email');
+    const estaNaTelaRecuperarSenha = segmentos.includes('forgot-password');
     const emailVerificado = !!session?.user?.email_confirmed_at;
+
+    if (estaNaTelaRecuperarSenha) {
+      destinoTratado = true;
+      setTimeout(() => {
+        SplashScreen.hideAsync().catch(() => { });
+      }, 200);
+      return;
+    }
 
     if (!session) {
       if (!estaNoGrupoAuth) {
