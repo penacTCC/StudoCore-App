@@ -26,7 +26,7 @@ export const qtdGroupMembers = async (id: string) => {
 };
 
 //Busca por grupos onde o usuário é membro
-export const fetchMyGroups = async () => {
+export const buscarMeusGrupos = async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];

@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "expo-router"; // ou @react-navigation/native, dependendo da sua importação
 import { loadMyGroupsLocally, saveMyGroupsLocally } from "@/services/offlineStorage";
-import { fetchMyGroups as buscarMeusGrupos } from "@/services/groups";
+import { buscarMeusGrupos as buscarMeusGrupos } from "@/services/groups";
 import type { Group } from "@/types/groups";
 
 export function useMyGroups() {
