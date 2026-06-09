@@ -19,13 +19,14 @@ import {
     Square,
     ToggleLeft,
     ToggleRight,
+    Plus,
 } from "lucide-react-native";
 
 //Constantes
 import { COLORS } from "@/constants/colors";
-import { subjects } from "@/constants/mock-data";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
+import { useMaterias } from "@/hooks/useMaterias";
 import { addStudyHours } from "@/services/profileStats";
 import { useArchives } from "@/hooks/useArchives";
 
@@ -59,9 +60,10 @@ export default function FocusScreen() {
     const startTimeRef = useRef<number | null>(null);
     const pausedSecondsRef = useRef<number>(0);
 
-    const { userId } = useAuth();
+    const { userId, user } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
     const { archives } = useArchives(userId || undefined);
+    const { materias, recarregarMaterias } = useMaterias(userId);
     const params = useLocalSearchParams();
     const router = useRouter();
 
@@ -156,7 +158,6 @@ export default function FocusScreen() {
 
         try {
             // Busca o usuário atual
-            const {user} = useAuth();
             if (!user) return;
 
             // Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)
@@ -348,23 +349,31 @@ export default function FocusScreen() {
                                 showsHorizontalScrollIndicator={false}
                                 contentContainerStyle={{ gap: 8 }}
                             >
-                                {subjects.map((subject) => (
+                                {materias.map((materia) => (
                                     <TouchableOpacity
-                                        key={subject}
-                                        onPress={() => setSelectedSubject(subject === selectedSubject ? "" : subject)}
-                                        className={`px-4 py-2.5 rounded-xl border ${selectedSubject === subject
+                                        key={materia.nomeNormalizado}
+                                        onPress={() => setSelectedSubject(materia.nomeExibicao === selectedSubject ? "" : materia.nomeExibicao)}
+                                        className={`px-4 py-2.5 rounded-xl border ${selectedSubject === materia.nomeExibicao
                                             ? "bg-violet-600 border-violet-500"
                                             : "bg-slate-800 border-slate-700"
                                             }`}
                                     >
                                         <Text
-                                            className={`text-sm font-medium ${selectedSubject === subject ? "text-white" : "text-slate-300"
+                                            className={`text-sm font-medium ${selectedSubject === materia.nomeExibicao ? "text-white" : "text-slate-300"
                                                 }`}
                                         >
-                                            {subject}
+                                            {materia.nomeExibicao}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
+                                {/* Botão para criar nova matéria */}
+                                <TouchableOpacity
+                                    onPress={() => router.push("/(modals)/criar-materia")}
+                                    className="px-4 py-2.5 rounded-xl border border-dashed border-violet-500/50 flex-row items-center gap-1.5"
+                                >
+                                    <Plus size={14} color={COLORS.violetLight} />
+                                    <Text className="text-sm font-medium text-violet-400">Nova</Text>
+                                </TouchableOpacity>
                             </ScrollView>
                         </View>
 
