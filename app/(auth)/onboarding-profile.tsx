@@ -52,7 +52,6 @@ export default function OnboardingProfile() {
 
             setValidatingGoogleLogin(true);
             const { error } = await validarSessaoGoogle(params.code);
-            setValidatingGoogleLogin(false);
 
             if (error) {
                 const { data: { session } } = await obterSessaoAtual();
@@ -60,6 +59,8 @@ export default function OnboardingProfile() {
                     Alert.alert("Erro no Google", error.message);
                 }
             }
+
+            setValidatingGoogleLogin(false);
         };
 
         finishGoogleLogin();
@@ -97,7 +98,10 @@ export default function OnboardingProfile() {
             Alert.alert("Aguarde", "Ainda estamos finalizando seu login com o Google.");
             return;
         }
-        if (!userId) {
+        const { data: { session } } = await obterSessaoAtual();
+        const usuarioId = userId ?? session?.user.id;
+
+        if (!usuarioId) {
             Alert.alert("Erro", "Usuário não encontrado. Tente logar novamente.");
             return;
         }
@@ -123,7 +127,7 @@ export default function OnboardingProfile() {
 
 
         //Salva os dados do perfil
-        const { error: insertError } = await salvarDadosPerfil(userId, realName, username, dataFormatada, imageUrl);
+        const { error: insertError } = await salvarDadosPerfil(usuarioId, realName, username, dataFormatada, imageUrl);
 
         if (insertError) {
             Alert.alert("Erro ao salvar", insertError.message);
@@ -393,4 +397,3 @@ export default function OnboardingProfile() {
         </KeyboardAvoidingView>
     );
 }
-

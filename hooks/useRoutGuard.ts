@@ -43,7 +43,14 @@ export function useRouteGuard({ inicializado, session, perfilCompleto, membro, p
       }
       destinoTratado = true;
     } else if (!membro) {
-      if (estaNoGrupoAuth) {
+      const estaEmTelaDeGrupoSemGrupo =
+        segmentos[0] === '(groups)' &&
+        ['no-group', 'browse-groups', 'group-details'].includes(String(segmentos[1]));
+      const estaEmModalSemGrupo =
+        segmentos[0] === '(modals)' &&
+        ['create-group', 'join-by-code'].includes(String(segmentos[1]));
+
+      if (!estaEmTelaDeGrupoSemGrupo && !estaEmModalSemGrupo) {
         router.replace('/(groups)/no-group');
       }
       destinoTratado = true;

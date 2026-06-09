@@ -13,6 +13,7 @@ export function useAuthState() {
     console.log("RootLayout: Iniciando busca de sessão...");
     obterSessaoAtual().then(({ data: { session } }) => {
       console.log("RootLayout: Sessão obtida:", session ? "Sim" : "Não");
+      setProfileComplete(session ? null : false);
       setSession(session);
       setIsInitialized(true); //só inicia o app se pegar a sessão
     }).catch(err => {
@@ -22,6 +23,7 @@ export function useAuthState() {
 
     const { data: { subscription } } = observarMudancasAuth((_event, session) => {
       console.log("RootLayout: AuthState changed:", _event);
+      setProfileComplete(session ? null : false);
       setSession(session);
     });
 
@@ -39,9 +41,9 @@ export function useAuthState() {
 
     const checkProfileComplete = async () => {
       console.log("RootLayout: Verificando perfil para usuário:", session.user.id);
-      const { profile } = await perfilEstaCompleto(session.user.id);
+      const { profile, completo } = await perfilEstaCompleto(session.user.id);
       console.log("RootLayout: Perfil encontrado:", profile ? profile.nome_usuario : "Nenhum");
-      setProfileComplete(!!profile?.nome_usuario);
+      setProfileComplete(completo);
     };
 
     checkProfileComplete();

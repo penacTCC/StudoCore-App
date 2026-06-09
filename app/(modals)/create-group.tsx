@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 //Componentes do Native
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Alert, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { X, Plus, Brain } from "lucide-react-native";
 
@@ -28,9 +28,11 @@ export default function CreateGroupScreen() {
 
 
     const handleCreateGroup = async () => {
-        try {
-            if (!name.trim() || !description.trim() || isLoading) return;
+        if (!name.trim() || !description.trim() || isLoading) return;
 
+        setIsLoading(true);
+
+        try {
             //Busca o usuário logado
             const { data: { user } } = await buscarUsuarioLogado();
 
@@ -40,24 +42,41 @@ export default function CreateGroupScreen() {
             }
 
             //Insere o grupo na tabela grupos
-            const { data: novoGrupo, error: erroNovoGrupo } = await inserirGrupo(name, description, isPublic, weeklyTarget, inviteLink, imageUrl);
+            const { data: novoGrupo, error: erroNovoGrupo } = await inserirGrupo(
+                name,
+                description,
+                isPublic,
+                weeklyTarget,
+                inviteLink,
+                imageUrl || null
+            );
 
             if (erroNovoGrupo) {
                 Alert.alert('Erro ao criar grupo', erroNovoGrupo.message);
+                return;
+            }
+
+            if (!novoGrupo) {
+                Alert.alert('Erro ao criar grupo', 'O grupo não foi retornado pelo banco de dados.');
+                return;
             }
 
             //Insere o usuário na tabela membros
-            const { error: erroNovoMembro } = await inserirMembro(user?.id, novoGrupo);
+            const { error: erroNovoMembro } = await inserirMembro(user.id, novoGrupo);
 
             if (erroNovoMembro) {
                 Alert.alert('Erro ao criar membro', erroNovoMembro.message);
+                return;
             }
 
             Alert.alert('Sucesso!', 'Grupo criado com sucesso!');
-            router.push("/(groups)");
+            DeviceEventEmitter.emit('groupMembershipChanged');
+            router.replace("/(groups)");
 
         } catch (error) {
             Alert.alert('Erro ao criar grupo', JSON.stringify(error));
+        } finally {
+            setIsLoading(false);
         }
 
     };
@@ -199,16 +218,18 @@ export default function CreateGroupScreen() {
             </ScrollView>
 
             {/* Bottom Button */}
-            <Text className="px-4 pb-6 pt-2 border-t border-navy-800" style={{ backgroundColor: COLORS.bgPrimary }}>
+            <View className="px-4 pb-6 pt-2 border-t border-navy-800" style={{ backgroundColor: COLORS.bgPrimary }}>
                 <TouchableOpacity
                     disabled={!name.trim() || !description.trim() || isLoading}
                     onPress={handleCreateGroup}
                     className={`py-4 rounded-2xl flex-row items-center justify-center gap-2 ${name.trim() && description.trim() && !isLoading ? "bg-brand-500" : "bg-navy-800"
                         }`}
                 >
-                    {isLoading ? "Criando..." : "Criar Grupo"}
+                    <Text className="text-white font-bold">
+                        {isLoading ? "Criando..." : "Criar Grupo"}
+                    </Text>
                 </TouchableOpacity>
-            </Text>
+            </View>
         </SafeAreaView>
     );
 }

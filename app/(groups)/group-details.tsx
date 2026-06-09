@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Image, Alert, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Globe, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -192,9 +192,15 @@ export default function GroupDetailsScreen() {
             >
                 <TouchableOpacity
                     onPress={async () => {
-                        await entrarEmGrupoPublico(group.id);
+                        const novoMembro = await entrarEmGrupoPublico(group.id);
+                        if (!novoMembro) {
+                            Alert.alert("Erro", "Não foi possível entrar no grupo.");
+                            return;
+                        }
+
                         await salvarUltimoGrupoLocalmente(group.id);
-                        router.push({
+                        DeviceEventEmitter.emit('groupMembershipChanged');
+                        router.replace({
                             pathname: "/(tabs)",
                             params: {
                                 groupId: group.id,

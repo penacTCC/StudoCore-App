@@ -75,7 +75,7 @@ export default function MyGroupsScreen() {
                 />
             )}
             <TouchableOpacity
-                onPress={() => router.push("/create-group")}
+                onPress={() => router.push("/(modals)/create-group")}
                 className="w-full flex-row items-center justify-center gap-2 bg-brand-500 py-4 rounded-xl"
             >
                 <Plus size={20} color={COLORS.white} />

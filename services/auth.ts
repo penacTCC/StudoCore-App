@@ -98,7 +98,7 @@ export const perfilEstaCompleto = async (userId: string) => {
     .from("profiles")
     .select("nome_usuario")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   return { profile, error, completo: !!profile?.nome_usuario };
 };

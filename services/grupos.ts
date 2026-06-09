@@ -193,7 +193,7 @@ export const inserirCodigoConvite = async (grupoId: string, codigoConvite: strin
   return await supabase
     .from('grupos')
     .update({
-      code_convite: codigoConvite
+      codigo_convite: codigoConvite
     })
     .eq('id', grupoId)
     .select()

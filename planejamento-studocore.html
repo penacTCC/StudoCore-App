@@ -1,0 +1,1599 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Planejamento StudoCore</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0d12;
+      --panel: #12151d;
+      --panel-2: #171b24;
+      --panel-3: #1d2230;
+      --line: #2a3142;
+      --muted: #9aa3b2;
+      --text: #f4f1ea;
+      --soft: #d7dbe4;
+      --brand: #f59e0b;
+      --brand-2: #6e7bff;
+      --green: #2ea043;
+      --red: #f47067;
+      --blue: #58a6ff;
+      --ink: #0b0d12;
+      --radius: 8px;
+      --shadow: 0 18px 44px rgba(0, 0, 0, .28);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body.locked .shell {
+      display: none;
+    }
+
+    body.unlocked .login-screen {
+      display: none;
+    }
+
+    button, select, input {
+      font: inherit;
+    }
+
+    .shell {
+      width: min(1440px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 22px 0 34px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      color: var(--brand);
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: clamp(28px, 3vw, 40px);
+      line-height: 1.08;
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    .sub {
+      color: var(--muted);
+      max-width: 760px;
+      margin-top: 10px;
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .mode-switch {
+      background: rgba(110, 123, 255, .13);
+      border-color: rgba(110, 123, 255, .42);
+      color: #dfe2ff;
+      font-weight: 800;
+    }
+
+    .btn, .select {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 0 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      background: var(--brand);
+      color: #11100b;
+      border-color: rgba(245, 158, 11, .55);
+      font-weight: 900;
+    }
+
+    .btn:hover, .select:hover {
+      border-color: rgba(245, 158, 11, .62);
+    }
+
+    .login-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .login-card {
+      width: min(420px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+
+    .login-card h1 {
+      font-size: 26px;
+      margin-bottom: 8px;
+    }
+
+    .login-card .sub {
+      margin: 0 0 22px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      color: var(--soft);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .field input {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #0b0d12;
+      color: var(--text);
+      padding: 0 13px;
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: rgba(245, 158, 11, .68);
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, .12);
+    }
+
+    .login-error {
+      min-height: 20px;
+      color: var(--red);
+      font-size: 13px;
+      margin: 4px 0 14px;
+    }
+
+    .login-card .btn {
+      width: 100%;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 360px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: grid;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel.pad {
+      padding: 18px;
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+
+    .panel-title h2 {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      min-height: 92px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .progress-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .phase-row {
+      display: grid;
+      gap: 7px;
+    }
+
+    .phase-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--soft);
+      font-size: 13px;
+    }
+
+    .bar {
+      height: 9px;
+      border-radius: 999px;
+      background: #252b38;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    .fill {
+      height: 100%;
+      width: 0%;
+      background: var(--brand);
+      border-radius: inherit;
+      transition: width .25s ease;
+    }
+
+    .filters {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #0f1219;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 8px 11px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .chip.active {
+      color: #11100b;
+      background: var(--brand);
+      border-color: var(--brand);
+      font-weight: 900;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 42px;
+      gap: 10px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #0f1219;
+    }
+
+    .search {
+      min-height: 42px;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #0b0d12;
+      color: var(--text);
+      padding: 0 13px;
+      outline: none;
+    }
+
+    .search::placeholder {
+      color: #707888;
+    }
+
+    .search:focus {
+      border-color: rgba(245, 158, 11, .68);
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, .12);
+    }
+
+    .icon-btn {
+      width: 42px;
+      min-height: 42px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel-2);
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
+    .icon-btn svg {
+      width: 19px;
+      height: 19px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .icon-btn.active {
+      background: var(--brand);
+      color: #11100b;
+      border-color: rgba(245, 158, 11, .7);
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, .12);
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(360px, .92fr);
+      gap: 18px;
+    }
+
+    .task-list {
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+      max-height: calc(100vh - 218px);
+      overflow: auto;
+    }
+
+    .task {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 13px;
+      cursor: pointer;
+      transition: border-color .18s ease, background .18s ease, transform .18s ease;
+    }
+
+    .task.maxima { box-shadow: inset 3px 0 0 rgba(244, 112, 103, .86); }
+    .task.importante { box-shadow: inset 3px 0 0 rgba(88, 166, 255, .86); }
+    .task.legal { box-shadow: inset 3px 0 0 rgba(110, 123, 255, .86); }
+
+    .task:hover, .task.selected {
+      border-color: rgba(245, 158, 11, .58);
+      background: var(--panel-3);
+    }
+
+    .task:hover {
+      transform: translateY(-1px);
+    }
+
+    .task.done {
+      opacity: .66;
+    }
+
+    .task.done .task-name {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+
+    .check {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1px solid #4b5568;
+      background: #0b0d12;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      color: #071009;
+      font-weight: 900;
+      margin-top: 2px;
+    }
+
+    .task.done .check {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .task-name {
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.35;
+      margin-bottom: 7px;
+    }
+
+    .task-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .task-group {
+      color: var(--brand);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 5px;
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      color: var(--soft);
+      background: #0f1219;
+      border-radius: 999px;
+      padding: 6px 9px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .badge.maxima { border-color: rgba(244,112,103,.52); color: #ffb8b2; background: rgba(244, 112, 103, .10); }
+    .badge.importante { border-color: rgba(88,166,255,.52); color: #b7d8ff; background: rgba(88, 166, 255, .10); }
+    .badge.legal { border-color: rgba(110,123,255,.52); color: #cfd4ff; background: rgba(110, 123, 255, .10); }
+
+    .schedule-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .schedule {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      max-height: calc(100vh - 218px);
+      overflow: auto;
+    }
+
+    .detail {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .detail h3 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .detail p {
+      margin: 0;
+      color: var(--soft);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .detail-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .detail-list li {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr);
+      gap: 8px;
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.42;
+    }
+
+    .step-number {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(247, 152, 44, .16);
+      color: #fed7aa;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .dependency-list {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .dependency {
+      border: 1px solid var(--line);
+      background: #0f1219;
+      border-radius: 999px;
+      padding: 6px 9px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .dependency.done {
+      border-color: rgba(34, 197, 94, .55);
+      color: #bbf7d0;
+    }
+
+    .roadmap-view {
+      grid-template-columns: minmax(0, 1fr) 390px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .roadmap {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+    }
+
+    .stage {
+      border: 1px solid var(--line);
+      background: #0f1219;
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .stage-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 14px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stage-head strong {
+      font-size: 14px;
+    }
+
+    .stage-head span {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .roadmap-list {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .roadmap-card {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel-2);
+      cursor: pointer;
+    }
+
+    .roadmap-card.maxima { box-shadow: inset 3px 0 0 rgba(244, 112, 103, .86); }
+    .roadmap-card.importante { box-shadow: inset 3px 0 0 rgba(88, 166, 255, .86); }
+    .roadmap-card.legal { box-shadow: inset 3px 0 0 rgba(110, 123, 255, .86); }
+
+    .roadmap-card.available {
+      border-color: rgba(88, 166, 255, .5);
+    }
+
+    .roadmap-card.selected {
+      border-color: rgba(245, 158, 11, .62);
+      background: var(--panel-3);
+    }
+
+    .roadmap-card.done {
+      opacity: .7;
+      border-color: rgba(34, 197, 94, .45);
+    }
+
+    .roadmap-card.locked {
+      opacity: .52;
+    }
+
+    .status-dot {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      border: 1px solid #4b5568;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .roadmap-card.done .status-dot {
+      background: var(--green);
+      border-color: var(--green);
+      color: #071009;
+    }
+
+    .roadmap-card.available .status-dot {
+      border-color: rgba(88, 166, 255, .7);
+      color: #b7d8ff;
+    }
+
+    .week {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #0f1219;
+      overflow: hidden;
+    }
+
+    .week-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 13px;
+      background: var(--panel-2);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .week-head strong {
+      font-size: 13px;
+    }
+
+    .week-head span {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .week ul {
+      list-style: none;
+      margin: 0;
+      padding: 10px 13px 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .week li {
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.38;
+      display: grid;
+      grid-template-columns: 8px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--brand);
+      margin-top: 5px;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 20px;
+      text-align: center;
+      border: 1px dashed var(--line);
+      border-radius: var(--radius);
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 1120px) {
+      .layout, .main-grid, .roadmap-view {
+        grid-template-columns: 1fr;
+      }
+
+      .task-list, .schedule {
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .shell { width: min(100vw - 20px, 1440px); padding-top: 18px; }
+      .topbar { grid-template-columns: 1fr; }
+      .actions { justify-content: stretch; }
+      .actions > * { flex: 1; }
+      .stat-grid, .schedule-controls { grid-template-columns: 1fr; }
+      .task { grid-template-columns: 28px minmax(0, 1fr); }
+      .task .badge { grid-column: 2; justify-self: start; }
+    }
+  </style>
+</head>
+<body class="locked">
+  <section class="login-screen" id="loginScreen">
+    <form class="login-card" id="loginForm">
+      <div class="eyebrow">Acesso privado</div>
+      <h1>Planejamento StudoCore</h1>
+      <p class="sub">Entre para editar o cronograma e acompanhar as tarefas do TCC.</p>
+
+      <div class="field">
+        <label for="loginUser">Usuario</label>
+        <input id="loginUser" name="usuario" autocomplete="username" required />
+      </div>
+
+      <div class="field">
+        <label for="loginPassword">Senha</label>
+        <input id="loginPassword" name="senha" type="password" autocomplete="current-password" required />
+      </div>
+
+      <div class="login-error" id="loginError" aria-live="polite"></div>
+      <button class="btn primary" type="submit">Entrar</button>
+    </form>
+  </section>
+
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">StudoCore App</div>
+        <h1>Plano de Entrega</h1>
+      </div>
+      <div class="actions">
+        <button id="modeToggle" class="btn mode-switch">Modo roadmap</button>
+        <select id="deadline" class="select" aria-label="Mes final do cronograma">
+          <option value="7">Ate julho</option>
+          <option value="8">Ate agosto</option>
+          <option value="9">Ate setembro</option>
+          <option value="10">Ate outubro</option>
+          <option value="11">Ate novembro</option>
+          <option value="12" selected>Ate dezembro</option>
+        </select>
+        <button id="reset" class="btn">Limpar checks</button>
+        <button id="logout" class="btn">Sair</button>
+        <button id="copy" class="btn primary">Copiar resumo</button>
+      </div>
+    </header>
+
+    <section class="layout view active" id="checklistView">
+      <aside class="panel pad">
+        <div class="stat-grid">
+          <div class="stat">
+            <strong id="doneCount">0</strong>
+            <span>tarefas concluidas</span>
+          </div>
+          <div class="stat">
+            <strong id="progressCount">0%</strong>
+            <span>progresso geral</span>
+          </div>
+          <div class="stat">
+            <strong id="openCount">0</strong>
+            <span>pendencias abertas</span>
+          </div>
+          <div class="stat">
+            <strong id="visibleCount">0</strong>
+            <span>tarefas no filtro atual</span>
+          </div>
+        </div>
+
+        <div class="progress-list" id="phaseProgress"></div>
+
+        <p class="footer-note">
+          Dica: marque o que foi entregue de verdade. O cronograma ignora tarefas concluidas e redistribui o que falta.
+        </p>
+      </aside>
+
+      <section class="main-grid">
+        <section class="panel">
+          <div class="panel-title">
+            <h2>Tarefas</h2>
+            <span class="badge" id="currentFilter">Todas</span>
+          </div>
+          <div class="toolbar">
+            <input id="search" class="search" type="search" placeholder="Buscar tarefa, grupo ou descricao..." aria-label="Buscar tarefas" />
+            <button id="noDeps" class="icon-btn" title="Mostrar tarefas sem dependencias diretas" aria-label="Mostrar tarefas sem dependencias diretas">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="6" cy="7" r="3"></circle>
+                <circle cx="18" cy="17" r="3"></circle>
+                <path d="M9 8.5c3.2.7 5.5 2.6 7 5.4"></path>
+                <path d="M5 14v4h4"></path>
+              </svg>
+            </button>
+          </div>
+          <div class="filters" id="filters"></div>
+          <div class="task-list" id="tasks"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>Detalhes e cronograma</h2>
+            <span class="badge" id="scheduleMeta">Jun-Dez</span>
+          </div>
+          <div class="detail" id="taskDetail"></div>
+          <div class="schedule-controls">
+            <select id="capacity" class="select" aria-label="Quantidade de tarefas por semana">
+              <option value="2">2 tarefas/semana</option>
+              <option value="3" selected>3 tarefas/semana</option>
+              <option value="4">4 tarefas/semana</option>
+              <option value="5">5 tarefas/semana</option>
+            </select>
+            <select id="scope" class="select" aria-label="Escopo do cronograma">
+              <option value="all" selected>Todas pendentes</option>
+              <option value="maxima">Prioridade maxima</option>
+              <option value="importante">Faltas importantes</option>
+              <option value="legal">Features legais</option>
+            </select>
+          </div>
+          <div class="schedule" id="schedule"></div>
+        </section>
+      </section>
+    </section>
+
+    <section class="roadmap-view view" id="roadmapView">
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Roadmap cronologico</h2>
+          <span class="badge">Dependencias</span>
+        </div>
+        <div class="roadmap" id="roadmap"></div>
+      </section>
+
+      <aside class="panel">
+        <div class="panel-title">
+          <h2>Tarefa selecionada</h2>
+          <span class="badge" id="roadmapStatus">Aberta</span>
+        </div>
+        <div class="detail" id="roadmapDetail"></div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const storageKey = "studocore-planejamento-v1";
+    const authStorageKey = "studocore-planejamento-auth";
+    const loginUsuario = "penacTCC";
+    const loginSenha = "peevnaarca";
+    const startMonth = 6;
+    const year = 2026;
+
+    const phases = {
+      maxima: { label: "Prioridade maxima", deadline: 7, className: "maxima" },
+      importante: { label: "Faltas importantes", deadline: 8, className: "importante" },
+      legal: { label: "Features legais", deadline: 12, className: "legal" }
+    };
+
+    const monthNames = {
+      6: "junho",
+      7: "julho",
+      8: "agosto",
+      9: "setembro",
+      10: "outubro",
+      11: "novembro",
+      12: "dezembro"
+    };
+
+    const baseTasks = [
+      ["max-01", "Tela de Configuracoes do grupo", "maxima", 7],
+      ["max-02", "Meta correta do grupo", "maxima", 7],
+      ["max-03", "Ranking funcionando: filtros e horas certas", "maxima", 7],
+      ["max-04", "Ofensiva correta", "maxima", 7],
+      ["max-05", "Total de horas do live feed correto", "maxima", 7],
+      ["max-06", "Carrossel e perfil de membros", "maxima", 7],
+      ["max-07", "Informacoes corretas dos grupos publicos", "maxima", 7],
+      ["max-08", "Entrar em grupo por codigo", "maxima", 7],
+      ["max-09", "Analytics pessoal x grupo", "maxima", 7],
+      ["max-10", "Analytics com informacoes corretas", "maxima", 7],
+      ["max-11", "Compartilhar progresso", "maxima", 7],
+      ["max-12", "Melhorar medalhas", "maxima", 7],
+      ["max-13", "Cronograma de estudos funcional", "maxima", 7],
+
+      ["imp-01", "Convites de grupo de verdade", "importante", 8, "Codigo/link com validacao, expiracao opcional e preview antes de entrar."],
+      ["imp-02", "Permissoes por papel", "importante", 8, "Admin, membro e possivel moderador."],
+      ["imp-03", "Sair do grupo com regra de admin", "importante", 8, "Transferir admin ou bloquear saida quando necessario."],
+      ["imp-04", "Excluir grupo com confirmacao forte", "importante", 8],
+      ["imp-05", "Editar perfil completo", "importante", 8, "Foto, nome, username, materia favorita e meta pessoal."],
+      ["imp-06", "Notificacoes", "importante", 8, "Lembrete, convite, entrada no grupo e torneio."],
+      ["imp-07", "Tratamento offline/cache", "importante", 8, "Especialmente grupos, perfil e vault."],
+      ["imp-08", "Estados vazios e erros", "importante", 8, "Sem dados, sem internet, erro ao carregar e sem permissao."],
+      ["imp-09", "Revisao de politicas RLS no Supabase", "importante", 8],
+
+      ["leg-01", "Missoes semanais", "legal", 12],
+      ["leg-02", "Desafios entre membros", "legal", 12],
+      ["leg-03", "Pomodoro em grupo ao vivo", "legal", 12],
+      ["leg-04", "Check-in diario", "legal", 12],
+      ["leg-05", "Revisao espacada", "legal", 12],
+      ["leg-06", "Banco de dificuldades", "legal", 12],
+      ["leg-07", "Metas por materia", "legal", 12],
+      ["leg-08", "Ranking por categoria", "legal", 12],
+      ["leg-09", "Badges por comportamento", "legal", 12],
+      ["leg-10", "Dashboard do grupo para admin", "legal", 12],
+      ["leg-11", "Feed mais util", "legal", 12],
+      ["leg-12", "Templates de cronograma", "legal", 12],
+      ["leg-13", "Roadmaps por objetivo", "legal", 12],
+      ["leg-14", "Biblioteca publica de materiais", "legal", 12],
+      ["leg-15", "Sistema de favoritos/salvos", "legal", 12],
+      ["leg-16", "Relatorio semanal automatico", "legal", 12]
+    ];
+
+    const taskDetails = {
+      "max-01": {
+        group: "Base de grupo",
+        description: "Criar a tela onde admin consegue ver e editar dados do grupo sem quebrar permissao, meta, membros ou imagem.",
+        steps: ["Listar campos editaveis e quem pode editar.", "Criar service para buscar/salvar configuracoes.", "Montar formulario com loading, erro e confirmacao.", "Bloquear acoes para quem nao for admin."],
+        depends: ["imp-02"]
+      },
+      "max-02": {
+        group: "Metricas",
+        description: "Garantir que a meta exibida venha da fonte certa e seja usada igual em ranking, analytics, card e tela do grupo.",
+        steps: ["Mapear onde a meta aparece hoje.", "Centralizar leitura/calculo no service.", "Corrigir unidade: minutos, horas e percentual.", "Testar grupo sem meta, com meta e meta alterada."],
+        depends: ["max-01"]
+      },
+      "max-03": {
+        group: "Metricas",
+        description: "Fazer ranking refletir horas reais e filtros consistentes por periodo, grupo e categoria.",
+        steps: ["Definir filtros finais: hoje, semana, mes e geral.", "Buscar sessoes de estudo pelo periodo correto.", "Somar minutos por usuario no service.", "Ordenar, tratar empates e validar tela vazia."],
+        depends: ["max-02"]
+      },
+      "max-04": {
+        group: "Metricas",
+        description: "Calcular ofensiva por dias consecutivos com estudo/check-in, sem contar duplicado e respeitando virada de dia.",
+        steps: ["Definir evento que conta para ofensiva.", "Agrupar atividades por data local.", "Calcular sequencia atual e maior sequencia.", "Mostrar estado quando o usuario ainda nao estudou hoje."],
+        depends: ["max-10"]
+      },
+      "max-05": {
+        group: "Feed e atividade",
+        description: "Corrigir o total de horas exibido no live feed para bater com as sessoes reais do usuario ou grupo.",
+        steps: ["Encontrar origem atual do total no feed.", "Trocar soma visual por soma vinda do service.", "Normalizar minutos para horas.", "Validar feed com sessao em andamento e sessao finalizada."],
+        depends: ["max-10"]
+      },
+      "max-06": {
+        group: "Membros",
+        description: "Melhorar navegacao entre membros do grupo e abrir um perfil com informacoes uteis de estudo.",
+        steps: ["Definir dados minimos do card de membro.", "Criar service de membros do grupo.", "Montar carrossel responsivo.", "Criar perfil com ranking, horas e badges principais."],
+        depends: ["imp-02"]
+      },
+      "max-07": {
+        group: "Descoberta de grupos",
+        description: "Garantir que grupos publicos mostram foto, descricao, meta, membros, privacidade e status de entrada corretamente.",
+        steps: ["Auditar cards e detalhes de grupos publicos.", "Ajustar consulta para trazer contadores e flags.", "Tratar grupo cheio, privado e ja participante.", "Adicionar loading/erro/vazio decentes."],
+        depends: ["imp-08"]
+      },
+      "max-08": {
+        group: "Entrada em grupos",
+        description: "Permitir entrar em grupo digitando codigo, validando existencia, duplicidade e permissao.",
+        steps: ["Criar service de consulta por codigo.", "Validar codigo vazio, invalido ou expirado.", "Mostrar preview antes de entrar.", "Inserir membro e atualizar guarda de rotas."],
+        depends: ["imp-09"]
+      },
+      "max-09": {
+        group: "Analytics",
+        description: "Separar visao pessoal e visao do grupo para nao misturar dados de progresso individual com medias coletivas.",
+        steps: ["Definir cards pessoais e cards do grupo.", "Criar consultas separadas no service.", "Adicionar seletor pessoal/grupo.", "Validar dados com usuario em mais de um grupo."],
+        depends: ["max-10"]
+      },
+      "max-10": {
+        group: "Analytics",
+        description: "Corrigir fonte, periodo e agregacao dos analytics para que todos os numeros batam entre telas.",
+        steps: ["Mapear todas as tabelas envolvidas.", "Padronizar periodo e timezone.", "Criar funcoes de agregacao reutilizaveis.", "Comparar analytics com sessoes reais no Supabase."],
+        depends: ["imp-09"]
+      },
+      "max-11": {
+        group: "Compartilhamento",
+        description: "Gerar um resumo bonito e confiavel de progresso para o usuario compartilhar.",
+        steps: ["Definir dados compartilhaveis.", "Criar layout de card/relatorio.", "Gerar imagem ou texto compartilhavel.", "Adicionar fallback quando o share nativo falhar."],
+        depends: ["max-09"]
+      },
+      "max-12": {
+        group: "Gamificacao",
+        description: "Deixar medalhas mais claras, bonitas e baseadas em conquistas reais do usuario.",
+        steps: ["Listar medalhas atuais e criterios.", "Separar medalhas por tipo de comportamento.", "Corrigir calculo de desbloqueio.", "Melhorar tela/icone/estado bloqueado."],
+        depends: ["max-10"]
+      },
+      "max-13": {
+        group: "Estudos",
+        description: "Transformar cronograma em ferramenta utilizavel: criar, editar, concluir e visualizar estudos planejados.",
+        steps: ["Definir modelo de cronograma.", "Criar CRUD em service/repository.", "Montar calendario/lista semanal.", "Conectar conclusao com sessoes e analytics."],
+        depends: ["imp-05"]
+      },
+      "imp-01": {
+        group: "Entrada em grupos",
+        description: "Trocar convite simbolico por convite real, com codigo/link validado e preview antes de entrar.",
+        steps: ["Criar entidade de convite ou campos de codigo.", "Adicionar expiracao opcional.", "Criar tela de preview.", "Validar duplicidade e permissao antes de inserir membro."],
+        depends: ["max-08"]
+      },
+      "imp-02": {
+        group: "Permissoes",
+        description: "Definir papeis do grupo para proteger acoes sensiveis e destravar telas administrativas.",
+        steps: ["Adicionar papel no relacionamento usuario-grupo.", "Criar helpers tipo ehAdmin/ehMembro.", "Usar permissao nos services.", "Espelhar regra nas politicas RLS."],
+        depends: ["imp-09"]
+      },
+      "imp-03": {
+        group: "Permissoes",
+        description: "Permitir saida do grupo com regra especial para admin, evitando grupo sem dono.",
+        steps: ["Criar service de saida.", "Se admin unico, exigir transferencia ou bloquear.", "Atualizar estado do membro e rotas.", "Mostrar confirmacao clara."],
+        depends: ["imp-02"]
+      },
+      "imp-04": {
+        group: "Permissoes",
+        description: "Permitir excluir grupo apenas para admin, com confirmacao forte e limpeza dos dados ligados.",
+        steps: ["Mapear dados que dependem do grupo.", "Criar acao somente admin.", "Pedir confirmacao digitando nome do grupo.", "Invalidar caches e redirecionar usuarios."],
+        depends: ["imp-02", "imp-09"]
+      },
+      "imp-05": {
+        group: "Perfil",
+        description: "Permitir usuario editar todos os dados centrais do perfil depois do onboarding.",
+        steps: ["Listar campos finais do perfil.", "Reusar upload de avatar.", "Criar service de update com validacao.", "Atualizar hook de auth/perfil apos salvar."],
+        depends: ["imp-08"]
+      },
+      "imp-06": {
+        group: "Engajamento",
+        description: "Adicionar notificacoes para lembretes, convites, entrada no grupo e eventos futuros.",
+        steps: ["Escolher eventos iniciais.", "Configurar permissoes de notificacao.", "Criar disparos locais/remotos.", "Adicionar preferencias para nao irritar usuario."],
+        depends: ["imp-01", "max-13"]
+      },
+      "imp-07": {
+        group: "Confiabilidade",
+        description: "Melhorar comportamento sem internet e cache de dados importantes como grupos, perfil e vault.",
+        steps: ["Identificar telas criticas offline.", "Escolher estrategia de cache.", "Mostrar dados antigos com aviso.", "Sincronizar quando a conexao voltar."],
+        depends: ["imp-08"]
+      },
+      "imp-08": {
+        group: "UX de estados",
+        description: "Padronizar telas de vazio, erro, sem internet e sem permissao para reduzir travamentos silenciosos.",
+        steps: ["Criar componentes padrao de estado.", "Aplicar em grupos, perfil, vault e analytics.", "Adicionar retry onde fizer sentido.", "Evitar botoes que parecem funcionar mas nao fazem nada."],
+        depends: []
+      },
+      "imp-09": {
+        group: "Seguranca",
+        description: "Revisar RLS do Supabase para impedir edicao indevida, acesso privado e entrada duplicada.",
+        steps: ["Listar tabelas sensiveis.", "Escrever regras por papel e dono.", "Testar usuario comum vs admin.", "Adicionar constraints para duplicidade quando possivel."],
+        depends: []
+      },
+      "leg-01": {
+        group: "Gamificacao",
+        description: "Criar missoes semanais com metas curtas que incentivam estudo constante.",
+        steps: ["Definir tipos de missao.", "Criar geracao semanal.", "Calcular progresso por usuario.", "Mostrar recompensa/estado concluido."],
+        depends: ["max-10", "max-12"]
+      },
+      "leg-02": {
+        group: "Social",
+        description: "Permitir desafios curtos entre membros, como bater uma meta ate o fim da semana.",
+        steps: ["Definir fluxo de convite do desafio.", "Criar aceite/recusa.", "Acompanhar progresso dos dois lados.", "Mostrar resultado no feed."],
+        depends: ["max-06", "leg-01"]
+      },
+      "leg-03": {
+        group: "Social",
+        description: "Criar sala de Pomodoro sincronizada para estudo em grupo ao vivo.",
+        steps: ["Definir modelo de sala.", "Sincronizar timer entre participantes.", "Mostrar online/reacoes/chat minimo.", "Registrar sessao ao finalizar."],
+        depends: ["max-06", "max-10"]
+      },
+      "leg-04": {
+        group: "Habito",
+        description: "Adicionar check-in diario para alimentar planejamento, ofensiva e feed.",
+        steps: ["Criar pergunta do dia.", "Salvar materia/objetivo.", "Usar check-in na ofensiva.", "Exibir atividade no feed."],
+        depends: ["imp-05"]
+      },
+      "leg-05": {
+        group: "Estudos",
+        description: "Sugerir revisoes automaticas de assuntos em intervalos como 1, 3, 7 e 14 dias.",
+        steps: ["Criar cadastro de assunto estudado.", "Gerar datas futuras de revisao.", "Exibir fila de revisoes.", "Conectar revisao concluida com analytics."],
+        depends: ["max-13"]
+      },
+      "leg-06": {
+        group: "Estudos",
+        description: "Registrar temas e questoes erradas para encontrar padroes de dificuldade.",
+        steps: ["Criar formulario de dificuldade.", "Relacionar materia e assunto.", "Listar reincidencias.", "Sugerir foco de estudo."],
+        depends: ["leg-07"]
+      },
+      "leg-07": {
+        group: "Metricas",
+        description: "Permitir metas especificas por disciplina, nao apenas horas totais.",
+        steps: ["Modelar meta por materia.", "Atualizar criacao/edicao de meta.", "Somar horas por disciplina.", "Mostrar progresso por materia."],
+        depends: ["max-02", "max-13"]
+      },
+      "leg-08": {
+        group: "Metricas",
+        description: "Adicionar rankings diferentes: horas, consistencia, questoes, sessoes e ajuda.",
+        steps: ["Definir categorias.", "Criar agregacoes por categoria.", "Adicionar filtros no ranking.", "Tratar empate e periodo."],
+        depends: ["max-03", "leg-07"]
+      },
+      "leg-09": {
+        group: "Gamificacao",
+        description: "Criar badges por comportamento, como ajudar colegas ou estudar materias variadas.",
+        steps: ["Definir criterios comportamentais.", "Criar calculo de desbloqueio.", "Mostrar progresso ate badge.", "Conectar com perfil de membro."],
+        depends: ["max-12", "leg-08"]
+      },
+      "leg-10": {
+        group: "Admin",
+        description: "Dar ao admin uma tela com saude do grupo: inativos, progresso, meta media e materias principais.",
+        steps: ["Definir indicadores de admin.", "Criar consultas agregadas.", "Montar dashboard denso e escaneavel.", "Adicionar acoes para membros inativos."],
+        depends: ["max-01", "max-09"]
+      },
+      "leg-11": {
+        group: "Feed e atividade",
+        description: "Transformar feed em resumo util de atividade, progresso e conquistas do grupo.",
+        steps: ["Definir tipos de evento.", "Padronizar payload do feed.", "Filtrar ruido repetido.", "Adicionar textos claros e acionaveis."],
+        depends: ["max-05", "leg-03", "leg-04"]
+      },
+      "leg-12": {
+        group: "Estudos",
+        description: "Criar modelos prontos de cronograma para ENEM, vestibular, faculdade e concursos.",
+        steps: ["Mapear templates iniciais.", "Criar gerador a partir do objetivo.", "Permitir customizacao.", "Salvar como cronograma do usuario."],
+        depends: ["max-13"]
+      },
+      "leg-13": {
+        group: "Estudos",
+        description: "Criar trilhas por objetivo, com etapas, materiais e progresso.",
+        steps: ["Definir estrutura de roadmap publico.", "Criar telas de lista e detalhe.", "Permitir salvar/iniciar roadmap.", "Conectar progresso ao cronograma."],
+        depends: ["leg-12", "leg-15"]
+      },
+      "leg-14": {
+        group: "Materiais",
+        description: "Disponibilizar materiais publicos por grupo ou materia, com favoritos.",
+        steps: ["Definir privacidade dos arquivos.", "Criar listagem publica filtravel.", "Validar acesso via RLS.", "Conectar favoritos."],
+        depends: ["imp-09", "leg-15"]
+      },
+      "leg-15": {
+        group: "Materiais",
+        description: "Permitir salvar arquivos, grupos, roadmaps e sessoes para acessar depois.",
+        steps: ["Criar modelo generico de favorito.", "Adicionar botao salvar nas telas.", "Criar tela de salvos.", "Evitar duplicidade por usuario/item."],
+        depends: ["imp-05"]
+      },
+      "leg-16": {
+        group: "Compartilhamento",
+        description: "Gerar relatorio semanal automatico com resumo visual de progresso pessoal e/ou grupo.",
+        steps: ["Escolher metricas semanais.", "Gerar resumo textual e visual.", "Permitir compartilhar.", "Guardar historico de relatorios."],
+        depends: ["max-11", "leg-10"]
+      }
+    };
+
+    const tasks = baseTasks.map(([id, title, phase, deadline, note]) => ({
+      id,
+      title,
+      phase,
+      deadline,
+      note: note || "",
+      group: taskDetails[id]?.group || "Geral",
+      description: taskDetails[id]?.description || "Detalhar escopo antes de implementar.",
+      steps: taskDetails[id]?.steps || ["Definir escopo.", "Implementar service/repository.", "Criar tela.", "Testar fluxo completo."],
+      depends: taskDetails[id]?.depends || []
+    }));
+
+    const roadmapStages = [
+      { title: "1. Fundacao segura", ids: ["imp-09", "imp-08", "imp-02", "imp-05"] },
+      { title: "2. Entrada e administracao de grupos", ids: ["max-08", "imp-01", "imp-03", "imp-04", "max-01"] },
+      { title: "3. Dados confiaveis do grupo", ids: ["max-02", "max-07", "max-06", "max-10"] },
+      { title: "4. Experiencia principal", ids: ["max-03", "max-09", "max-05", "max-12", "max-13"] },
+      { title: "5. Habito e compartilhamento", ids: ["leg-04", "max-04", "max-11", "imp-06", "imp-07"] },
+      { title: "6. Estudos avancados", ids: ["leg-07", "leg-05", "leg-06", "leg-12", "leg-15", "leg-13", "leg-14"] },
+      { title: "7. Social, admin e relatorios", ids: ["leg-01", "leg-08", "leg-09", "leg-02", "leg-03", "leg-10", "leg-11", "leg-16"] }
+    ];
+
+    let state = JSON.parse(localStorage.getItem(storageKey) || "{}");
+    let activeFilter = "all";
+    let activeMode = "checklist";
+    let selectedTaskId = "imp-09";
+    let onlyNoDeps = false;
+    let searchTerm = "";
+
+    const $ = (id) => document.getElementById(id);
+
+    function estaAutenticado() {
+      return localStorage.getItem(authStorageKey) === "ok";
+    }
+
+    function aplicarEstadoAuth() {
+      const autenticado = estaAutenticado();
+      document.body.classList.toggle("unlocked", autenticado);
+      document.body.classList.toggle("locked", !autenticado);
+      if (!autenticado) {
+        setTimeout(() => $("loginUser")?.focus(), 0);
+      }
+    }
+
+    function save() {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+
+    function isDone(id) {
+      return Boolean(state[id]);
+    }
+
+    function toggle(id) {
+      state[id] = !state[id];
+      save();
+      render();
+    }
+
+    function getTask(id) {
+      return tasks.find((task) => task.id === id);
+    }
+
+    function selectTask(id) {
+      selectedTaskId = id;
+      renderDetails();
+      renderTasks();
+      renderRoadmap();
+    }
+
+    function dependenciesDone(task) {
+      return task.depends.every((id) => isDone(id));
+    }
+
+    function dependencyLabel(id) {
+      return getTask(id)?.title || id;
+    }
+
+    function renderDetailInto(targetId) {
+      const task = getTask(selectedTaskId) || tasks[0];
+      const phase = phases[task.phase];
+      const deps = task.depends.length
+        ? task.depends.map((id) => `<span class="dependency ${isDone(id) ? "done" : ""}">${isDone(id) ? "feito" : "depende"} · ${dependencyLabel(id)}</span>`).join("")
+        : `<span class="dependency done">Sem dependencias diretas</span>`;
+
+      $(targetId).innerHTML = `
+        <div>
+          <div class="task-group">${task.group}</div>
+          <h3>${task.title}</h3>
+        </div>
+        <p>${task.description}</p>
+        <div>
+          <div class="task-note" style="margin-bottom: 8px;">Passo a passo sugerido</div>
+          <ol class="detail-list">
+            ${task.steps.map((step, index) => `
+              <li><span class="step-number">${index + 1}</span><span>${step}</span></li>
+            `).join("")}
+          </ol>
+        </div>
+        <div>
+          <div class="task-note" style="margin-bottom: 8px;">Dependencias</div>
+          <div class="dependency-list">${deps}</div>
+        </div>
+        <div class="dependency-list">
+          <span class="badge ${phase.className}">${phase.label}</span>
+          <span class="badge">Entrega alvo: ${monthNames[task.deadline]} de ${year}</span>
+          <span class="badge">${isDone(task.id) ? "Concluida" : dependenciesDone(task) ? "Liberada" : "Bloqueada"}</span>
+        </div>
+      `;
+    }
+
+    function renderDetails() {
+      renderDetailInto("taskDetail");
+      renderDetailInto("roadmapDetail");
+      const task = getTask(selectedTaskId) || tasks[0];
+      $("roadmapStatus").textContent = isDone(task.id) ? "Concluida" : dependenciesDone(task) ? "Liberada" : "Bloqueada";
+    }
+
+    function filteredTasks() {
+      return tasks.filter((task) => {
+        const matchesFilter =
+          activeFilter === "all" ||
+          (activeFilter === "open" && !isDone(task.id)) ||
+          (activeFilter === "done" && isDone(task.id)) ||
+          task.phase === activeFilter;
+
+        const matchesDeps = !onlyNoDeps || task.depends.length === 0;
+        const haystack = [
+          task.title,
+          task.group,
+          task.description,
+          task.note,
+          task.steps.join(" "),
+          phases[task.phase].label
+        ].join(" ").toLowerCase();
+        const matchesSearch = !searchTerm || haystack.includes(searchTerm);
+
+        return matchesFilter && matchesDeps && matchesSearch;
+      });
+    }
+
+    function renderFilters() {
+      const filters = [
+        ["all", "Todas"],
+        ["open", "Pendentes"],
+        ["done", "Concluidas"],
+        ["maxima", "Prioridade maxima"],
+        ["importante", "Faltas importantes"],
+        ["legal", "Features legais"]
+      ];
+
+      $("filters").innerHTML = filters.map(([id, label]) =>
+        `<button class="chip ${activeFilter === id ? "active" : ""}" data-filter="${id}">${label}</button>`
+      ).join("");
+
+      document.querySelectorAll("[data-filter]").forEach((button) => {
+        button.addEventListener("click", () => {
+          activeFilter = button.dataset.filter;
+          render();
+        });
+      });
+
+      const label = filters.find(([id]) => id === activeFilter)?.[1] || "Todas";
+      $("currentFilter").textContent = onlyNoDeps ? `${label} · sem deps` : label;
+      $("noDeps").classList.toggle("active", onlyNoDeps);
+    }
+
+    function renderTasks() {
+      const items = filteredTasks();
+      $("visibleCount").textContent = items.length;
+      $("tasks").innerHTML = items.map((task) => {
+        const phase = phases[task.phase];
+        const done = isDone(task.id);
+        return `
+          <article class="task ${task.phase} ${done ? "done" : ""} ${selectedTaskId === task.id ? "selected" : ""}" data-select="${task.id}">
+            <button class="check" data-task="${task.id}" aria-label="Marcar ${task.title}">${done ? "✓" : ""}</button>
+            <div>
+              <div class="task-group">${task.group}</div>
+              <div class="task-name">${task.title}</div>
+              <div class="task-note">${task.note || `Entrega alvo: ${monthNames[task.deadline]} de ${year}.`}</div>
+            </div>
+            <span class="badge ${phase.className}">${phase.label}</span>
+          </article>
+        `;
+      }).join("") || `<div class="empty">Nada encontrado neste filtro.</div>`;
+
+      document.querySelectorAll("[data-task]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          toggle(button.dataset.task);
+        });
+      });
+
+      document.querySelectorAll("[data-select]").forEach((card) => {
+        card.addEventListener("click", () => selectTask(card.dataset.select));
+      });
+    }
+
+    function renderStats() {
+      const done = tasks.filter((task) => isDone(task.id)).length;
+      const total = tasks.length;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      $("doneCount").textContent = done;
+      $("openCount").textContent = total - done;
+      $("progressCount").textContent = `${pct}%`;
+
+      $("phaseProgress").innerHTML = Object.entries(phases).map(([phaseId, phase]) => {
+        const phaseTasks = tasks.filter((task) => task.phase === phaseId);
+        const phaseDone = phaseTasks.filter((task) => isDone(task.id)).length;
+        const phasePct = phaseTasks.length ? Math.round((phaseDone / phaseTasks.length) * 100) : 0;
+        return `
+          <div class="phase-row">
+            <div class="phase-meta">
+              <span>${phase.label}</span>
+              <strong>${phaseDone}/${phaseTasks.length}</strong>
+            </div>
+            <div class="bar"><div class="fill" style="width: ${phasePct}%"></div></div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function weeksUntil(endMonth) {
+      const weeks = [];
+      for (let month = startMonth; month <= endMonth; month++) {
+        const weekCount = month === 6 ? 4 : 4;
+        for (let week = 1; week <= weekCount; week++) {
+          weeks.push({ month, week, label: `${monthNames[month]} · semana ${week}` });
+        }
+      }
+      return weeks;
+    }
+
+    function renderSchedule() {
+      const endMonth = Number($("deadline").value);
+      const capacity = Number($("capacity").value);
+      const scope = $("scope").value;
+      $("scheduleMeta").textContent = `Jun-${monthNames[endMonth].slice(0, 3)}`;
+
+      const planned = tasks
+        .filter((task) => !isDone(task.id))
+        .filter((task) => scope === "all" || task.phase === scope)
+        .filter((task) => task.phase !== "legal" || endMonth >= 9)
+        .sort((a, b) => {
+          const phaseWeight = { maxima: 1, importante: 2, legal: 3 };
+          return phaseWeight[a.phase] - phaseWeight[b.phase] || a.deadline - b.deadline;
+        });
+
+      const weeks = weeksUntil(endMonth).map((week) => ({ ...week, tasks: [] }));
+
+      planned.forEach((task) => {
+        const allowedWeeks = weeks.filter((week) => week.month <= Math.min(task.deadline, endMonth));
+        const pool = allowedWeeks.length ? allowedWeeks : weeks;
+        const target = pool.reduce((best, current) =>
+          current.tasks.length < best.tasks.length ? current : best
+        , pool[0]);
+
+        if (target && target.tasks.length < capacity) {
+          target.tasks.push(task);
+          return;
+        }
+
+        const fallback = weeks.reduce((best, current) =>
+          current.tasks.length < best.tasks.length ? current : best
+        , weeks[0]);
+        fallback?.tasks.push(task);
+      });
+
+      $("schedule").innerHTML = weeks.map((week) => `
+        <section class="week">
+          <div class="week-head">
+            <strong>${week.label}</strong>
+            <span>${week.tasks.length} tarefa${week.tasks.length === 1 ? "" : "s"}</span>
+          </div>
+          ${
+            week.tasks.length
+              ? `<ul>${week.tasks.map((task) => `<li><span class="dot"></span><span>${task.title}</span></li>`).join("")}</ul>`
+              : `<div class="empty">Semana livre para teste, correcao ou buffer.</div>`
+          }
+        </section>
+      `).join("");
+    }
+
+    function renderRoadmap() {
+      $("roadmap").innerHTML = roadmapStages.map((stage) => {
+        const stageTasks = stage.ids.map(getTask).filter(Boolean);
+        const doneCount = stageTasks.filter((task) => isDone(task.id)).length;
+        return `
+          <section class="stage">
+            <div class="stage-head">
+              <strong>${stage.title}</strong>
+              <span>${doneCount}/${stageTasks.length} concluidas</span>
+            </div>
+            <div class="roadmap-list">
+              ${stageTasks.map((task) => {
+                const done = isDone(task.id);
+                const available = dependenciesDone(task);
+                const statusClass = done ? "done" : available ? "available" : "locked";
+                const statusLabel = done ? "✓" : available ? "!" : "x";
+                const statusText = done ? "Concluida" : available ? "Liberada" : "Bloqueada";
+                return `
+                  <article class="roadmap-card ${task.phase} ${statusClass} ${selectedTaskId === task.id ? "selected" : ""}" data-roadmap-task="${task.id}">
+                    <button class="status-dot" data-roadmap-check="${task.id}" aria-label="Marcar ${task.title}">${statusLabel}</button>
+                    <div>
+                      <div class="task-group">${task.group}</div>
+                      <div class="task-name">${task.title}</div>
+                      <div class="task-note">${statusText}${task.depends.length ? ` · depende de ${task.depends.map(dependencyLabel).join(", ")}` : " · sem dependencia direta"}</div>
+                    </div>
+                    <span class="badge ${phases[task.phase].className}">${monthNames[task.deadline]}</span>
+                  </article>
+                `;
+              }).join("")}
+            </div>
+          </section>
+        `;
+      }).join("");
+
+      document.querySelectorAll("[data-roadmap-task]").forEach((card) => {
+        card.addEventListener("click", () => selectTask(card.dataset.roadmapTask));
+      });
+
+      document.querySelectorAll("[data-roadmap-check]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          selectedTaskId = button.dataset.roadmapCheck;
+          toggle(button.dataset.roadmapCheck);
+        });
+      });
+    }
+
+    function renderMode() {
+      $("checklistView").classList.toggle("active", activeMode === "checklist");
+      $("roadmapView").classList.toggle("active", activeMode === "roadmap");
+      $("modeToggle").textContent = activeMode === "checklist" ? "Modo roadmap" : "Modo checklist";
+    }
+
+    function render() {
+      renderMode();
+      renderFilters();
+      renderTasks();
+      renderStats();
+      renderSchedule();
+      renderRoadmap();
+      renderDetails();
+    }
+
+    $("deadline").addEventListener("change", renderSchedule);
+    $("capacity").addEventListener("change", renderSchedule);
+    $("scope").addEventListener("change", renderSchedule);
+
+    $("search").addEventListener("input", (event) => {
+      searchTerm = event.target.value.trim().toLowerCase();
+      render();
+    });
+
+    $("noDeps").addEventListener("click", () => {
+      onlyNoDeps = !onlyNoDeps;
+      render();
+    });
+
+    $("modeToggle").addEventListener("click", () => {
+      activeMode = activeMode === "checklist" ? "roadmap" : "checklist";
+      render();
+    });
+
+    $("reset").addEventListener("click", () => {
+      if (!confirm("Limpar todas as tarefas concluidas?")) return;
+      state = {};
+      save();
+      render();
+    });
+
+    $("copy").addEventListener("click", async () => {
+      const done = tasks.filter((task) => isDone(task.id)).length;
+      const open = tasks.length - done;
+      const text = `StudoCore - Progresso: ${done}/${tasks.length} concluidas, ${open} pendentes. Cronograma ate ${monthNames[$("deadline").value]}/${year}.`;
+      await navigator.clipboard?.writeText(text);
+      $("copy").textContent = "Resumo copiado";
+      setTimeout(() => $("copy").textContent = "Copiar resumo", 1400);
+    });
+
+    $("loginForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const usuario = $("loginUser").value;
+      const senha = $("loginPassword").value;
+
+      if (usuario === loginUsuario && senha === loginSenha) {
+        localStorage.setItem(authStorageKey, "ok");
+        $("loginPassword").value = "";
+        $("loginError").textContent = "";
+        aplicarEstadoAuth();
+        return;
+      }
+
+      $("loginError").textContent = "Usuario ou senha incorretos.";
+      $("loginPassword").value = "";
+      $("loginPassword").focus();
+    });
+
+    $("logout").addEventListener("click", () => {
+      localStorage.removeItem(authStorageKey);
+      aplicarEstadoAuth();
+    });
+
+    aplicarEstadoAuth();
+    render();
+  </script>
+</body>
+</html>
