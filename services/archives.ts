@@ -11,7 +11,9 @@ export async function uploadArquivo({
   disciplina,
   gruposIds,
 }: UploadArquivoParams) {
+    console.log("1 - lendo arquivo");
     const objetoArquivo = new FileClass(arquivo.uri); // Cria o objeto do arquivo
+    console.log("2 - convertendo base64");
     const base64 = await objetoArquivo.base64Sync(); // Lê o arquivo em base64
 
     const nomeFormatado = arquivo.name.replace(/[^a-zA-Z0-9.]/g, '_'); // Limpa o nome
@@ -29,6 +31,7 @@ export async function uploadArquivo({
     // O fetch do Backblaze retorna uma Response. Precisamos extrair o JSON dela:
     const uploadData = await upload.json();
 
+    console.log("6 - salvando no Supabase");
     const { data: novoArquivo, error: dbError } = await supabase
     .from("arquivos")
     .insert({
