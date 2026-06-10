@@ -59,7 +59,7 @@ export default function FocusScreen() {
     const startTimeRef = useRef<number | null>(null);
     const pausedSecondsRef = useRef<number>(0);
 
-    const { userId } = useAuth();
+    const { userId, user } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
     const { archives } = useArchives(userId || undefined);
     const params = useLocalSearchParams();
@@ -155,8 +155,7 @@ export default function FocusScreen() {
         }
 
         try {
-            // Busca o usuário atual
-            const {user} = useAuth();
+            // Já temos o usuário carregado no corpo do componente
             if (!user) return;
 
             // Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)
