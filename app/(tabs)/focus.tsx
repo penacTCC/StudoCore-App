@@ -298,7 +298,7 @@ export default function FocusScreen() {
         startTimeRef.current = null;
         pausedSecondsRef.current = 0;
         setIsPaused(false);
-        
+
         if (intervalRef.current) clearInterval(intervalRef.current);
 
         // Limpa os dados salvos no AsyncStorage
@@ -307,7 +307,7 @@ export default function FocusScreen() {
         } catch (e) {
             console.warn("Erro ao limpar sessão:", e);
         }
-        
+
         // Abre o modal de feedback após a sessão passando os parâmetros
         router.push({
             pathname: "/(modals)/focus-feedback",
@@ -338,12 +338,12 @@ export default function FocusScreen() {
                 {focusState === "config" && (
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
                         <Text className="text-lg font-semibold text-slate-200 mb-6 text-center">
-                            Configure Session
+                            Configurar Sessão de Estudos
                         </Text>
 
                         {/* Subject Picker */}
                         <View className="mb-4">
-                            <Text className="text-sm text-slate-400 mb-2">Matéria</Text>
+                            <Text className="text-sm text-slate-400 mb-2">Matérias</Text>
                             <ScrollView
                                 horizontal
                                 showsHorizontalScrollIndicator={false}
@@ -366,15 +366,15 @@ export default function FocusScreen() {
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
-                                {/* Botão para criar nova matéria */}
-                                <TouchableOpacity
-                                    onPress={() => router.push("/(modals)/criar-materia")}
-                                    className="px-4 py-2.5 rounded-xl border border-dashed border-violet-500/50 flex-row items-center gap-1.5"
-                                >
-                                    <Plus size={14} color={COLORS.violetLight} />
-                                    <Text className="text-sm font-medium text-violet-400">Nova</Text>
-                                </TouchableOpacity>
                             </ScrollView>
+                            {/* Botão para criar nova matéria (abaixo do carrossel) */}
+                            <TouchableOpacity
+                                onPress={() => router.push("/(modals)/criar-materia")}
+                                className="mt-2 px-4 py-2 rounded-xl border border-dashed border-violet-500/50 flex-row items-center justify-center gap-1.5 self-start"
+                            >
+                                <Plus size={14} color={COLORS.violetLight} />
+                                <Text className="text-sm font-medium text-violet-400">Nova matéria</Text>
+                            </TouchableOpacity>
                         </View>
 
                         {/* Specific Content */}

@@ -14,7 +14,8 @@ import {
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { COLORS } from "@/constants/colors";
-import { disciplinasComCores } from "@/constants/mock-data";
+import { useAuth } from "@/hooks/useAuth";
+import { useMaterias } from "@/hooks/useMaterias";
 import { APP_BADGES, BADGE_LEVEL_COLORS, BadgeType } from "@/constants/badges";
 import { getAvatarColor } from "@/constants/helpers";
 import type { LucideIcon } from "lucide-react-native";
@@ -52,6 +53,9 @@ export default function ProfileScreen() {
     const [tempGoalValue, setTempGoalValue] = useState("");
     const [showHeatmapModal, setShowHeatmapModal] = useState(false);
     const [selectedDayInfo, setSelectedDayInfo] = useState<{ date: Date; hours: number } | null>(null);
+
+    const { userId } = useAuth();
+    const { materiasComCores } = useMaterias(userId);
 
     useFocusEffect(
         useCallback(() => {
@@ -494,7 +498,7 @@ export default function ProfileScreen() {
                         >
                             <View>
                                 <Text className="text-lg font-bold" style={{
-                                    color: disciplinasComCores.find(d => d.name === stats.favoriteSubject)?.color || COLORS.violetLight
+                                    color: materiasComCores.find(d => d.nomeExibicao === stats.favoriteSubject)?.cor || COLORS.violetLight
                                 }}>
                                     {stats.favoriteSubject}
                                 </Text>
@@ -586,15 +590,15 @@ export default function ProfileScreen() {
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            {disciplinasComCores.map((disciplina, idx) => (
+                            {materiasComCores.map((disciplina, idx) => (
                                 <TouchableOpacity
                                     key={idx}
-                                    onPress={() => handleSubjectSelect(disciplina.name)}
+                                    onPress={() => handleSubjectSelect(disciplina.nomeExibicao)}
                                     className="p-4 border-b border-slate-800 flex-row items-center gap-4"
                                 >
-                                    <View className="w-4 h-4 rounded-full" style={{ backgroundColor: disciplina.color }} />
-                                    <Text className="text-base text-slate-200">{disciplina.name}</Text>
-                                    {stats.favoriteSubject === disciplina.name && (
+                                    <View className="w-4 h-4 rounded-full" style={{ backgroundColor: disciplina.cor }} />
+                                    <Text className="text-base text-slate-200">{disciplina.nomeExibicao}</Text>
+                                    {stats.favoriteSubject === disciplina.nomeExibicao && (
                                         <View className="bg-emerald-500/20 px-2 py-1 rounded">
                                             <Text className="text-xs text-emerald-400">Atual</Text>
                                         </View>

@@ -1,4 +1,4 @@
-
+-- TEM QUE CRIAR no supabase
 CREATE TABLE IF NOT EXISTS public.materias_usuario (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   usuario_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,

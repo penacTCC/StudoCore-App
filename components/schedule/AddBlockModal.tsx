@@ -11,11 +11,13 @@ import { X, Trash2 } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 import { disciplinasComCores } from "@/constants/mock-data";
 import { ScheduleBlockData } from "@/types/schedule";
+import type { MateriaComCor } from "@/types/materias";
 
 type Props = {
     visible: boolean;
     diaNome: string;
     existingBlock?: ScheduleBlockData | null;
+    materias?: MateriaComCor[];
     onClose: () => void;
     onConfirm: (block: Omit<ScheduleBlockData, "id">) => void;
     onRemove?: () => void;
@@ -27,12 +29,17 @@ export default function AddBlockModal({
     visible,
     diaNome,
     existingBlock,
+    materias,
     onClose,
     onConfirm,
     onRemove,
 }: Props) {
-    const [disciplina, setDisciplina] = useState(disciplinasComCores[0].name);
-    const [cor, setCor] = useState(disciplinasComCores[0].color);
+    // Usa matérias dinâmicas se disponíveis, senão fallback para dados estáticos
+    const listaDisciplinas = materias
+        ? materias.map((m) => ({ name: m.nomeExibicao, color: m.cor }))
+        : disciplinasComCores;
+    const [disciplina, setDisciplina] = useState(listaDisciplinas[0]?.name ?? '');
+    const [cor, setCor] = useState(listaDisciplinas[0]?.color ?? COLORS.violet);
     const [topico, setTopico] = useState("");
     const [duracao, setDuracao] = useState(1);
 
@@ -44,8 +51,8 @@ export default function AddBlockModal({
             setTopico(existingBlock.topico);
             setDuracao(existingBlock.duracao);
         } else {
-            setDisciplina(disciplinasComCores[0].name);
-            setCor(disciplinasComCores[0].color);
+            setDisciplina(listaDisciplinas[0]?.name ?? '');
+            setCor(listaDisciplinas[0]?.color ?? COLORS.violet);
             setTopico("");
             setDuracao(1);
         }
@@ -155,7 +162,7 @@ export default function AddBlockModal({
                                 gap: 8,
                             }}
                         >
-                            {disciplinasComCores.map((item) => {
+                            {listaDisciplinas.map((item) => {
                                 const selected = disciplina === item.name;
                                 return (
                                     <TouchableOpacity

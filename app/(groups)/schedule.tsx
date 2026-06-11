@@ -12,6 +12,8 @@ import { diasDaSemana } from "@/constants/mock-data";
 import ScheduleBlock from "@/components/schedule/ScheduleBlock";
 import AddBlockModal from "@/components/schedule/AddBlockModal";
 import { DayIndex, ScheduleBlockData, ScheduleState } from "@/types/schedule";
+import { useAuth } from "@/hooks/useAuth";
+import { useMaterias } from "@/hooks/useMaterias";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -25,6 +27,9 @@ export default function ScheduleScreen() {
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedDay, setSelectedDay] = useState<DayIndex>(0);
     const [editingBlock, setEditingBlock] = useState<ScheduleBlockData | null>(null);
+
+    const { userId } = useAuth();
+    const { materiasComCores } = useMaterias(userId);
 
     // ── Abertura do modal para adicionar bloco ───────────────────────────────
     const handleAddBlock = (dayIndex: DayIndex) => {
@@ -309,6 +314,7 @@ export default function ScheduleScreen() {
                 visible={modalVisible}
                 diaNome={`${diasDaSemana[selectedDay]}-feira`}
                 existingBlock={editingBlock}
+                materias={materiasComCores}
                 onClose={() => setModalVisible(false)}
                 onConfirm={handleConfirm}
                 onRemove={handleRemove}
