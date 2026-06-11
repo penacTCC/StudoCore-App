@@ -205,7 +205,8 @@ export default function GroupDetailsScreen() {
                             params: {
                                 groupId: group.id,
                                 groupName: group.nome_grupo,
-                                groupPhoto: group.foto_grupo
+                                groupPhoto: group.foto_grupo,
+                                groupGoal: group.meta_horas
                             }
                         })
                     }}

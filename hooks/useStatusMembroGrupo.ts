@@ -35,7 +35,8 @@ export function useStatusMembroGrupo(session: Session | null, inicializado: bool
             parametrosParaSalvar = {
               groupId: grupo.id,
               groupName: grupo.nome_grupo,
-              groupPhoto: grupo.foto_grupo
+              groupPhoto: grupo.foto_grupo,
+              groupGoal: grupo.meta_horas
             };
           }
         }

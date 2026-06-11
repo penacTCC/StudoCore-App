@@ -34,6 +34,7 @@ export default function PublicGroupCard({
                 groupId: grupoId,
                 groupName: grupo.nome_grupo,
                 groupPhoto: grupo.foto_grupo,
+                groupGoal: grupo.meta_horas,
             }
         })
     }
