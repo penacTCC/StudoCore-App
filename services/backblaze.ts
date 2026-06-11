@@ -1,15 +1,23 @@
 import * as Crypto from 'expo-crypto';
 
 
-const KEY_ID = process.env.KEY_ID;
-const APPLICATION_KEY = process.env.APPLICATION_KEY;
-const BUCKET_ID = process.env.BUCKET_ID;
+const KEY_ID = "005893297dce6c50000000002";
+const APPLICATION_KEY = "K005fW6VRQX0lqwQqxatQot2a+GbMBI";
+const BUCKET_ID = "8859e372c9274dfc9ed60c15";
+//const KEY_ID = process.env.KEY_ID;
+//const APPLICATION_KEY = process.env.APPLICATION_KEY;
+//const BUCKET_ID = process.env.BUCKET_ID;
 
 /**
  * Autoriza a conta Backblaze
  * @returns autorização.json
  */
 export async function _authorizeB2() {
+
+    console.log("3.1 - iniciando auth");
+    console.log("KEY_ID", KEY_ID);
+    console.log("APPLICATION_KEY", APPLICATION_KEY);
+    console.log("BUCKET_ID", BUCKET_ID);
     const res = await fetch(
         "https://api.backblazeb2.com/b2api/v2/b2_authorize_account",
         {
@@ -19,8 +27,13 @@ export async function _authorizeB2() {
             },
         }
     );
+    console.log("status auth:", res.status);
 
-    return res.json();
+    const data = await res.json();
+
+    console.log("AUTH:", data);
+
+    return data;
 }
 
 
@@ -32,18 +45,28 @@ export async function _authorizeB2() {
  * @returns url de upload.json
  */
 export async function _getUploadUrl(apiUrl: string, authToken: string) {
-    const res = await fetch(`${apiUrl}/b2api/v2/b2_get_upload_url`, {
-        method: "POST",
-        headers: {
-            Authorization: authToken,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            bucketId: BUCKET_ID,
-        }),
-    });
+    console.log("4.1 - entrando em _getUploadUrl");
+    try {
+        console.log("API URL:", apiUrl);
+        console.log("URL final:", `${apiUrl}/b2api/v2/b2_get_upload_url`);
+        console.log("BUCKET_ID:", BUCKET_ID);
+        const res = await fetch(`${apiUrl}/b2api/v2/b2_get_upload_url`, {
+            method: "POST",
+            headers: {
+                Authorization: authToken,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                bucketId: BUCKET_ID,
+            }),
+        });
+        console.log("4.2 - resposta recebida", res.status);
 
-    return res.json();
+        return res.json();
+    } catch (err) {
+        console.error("ERRO _getUploadUrl:", err);
+        throw err;
+    }
 }
 
 
@@ -62,9 +85,12 @@ export async function uploadFileToB2(
 ) {
 
     //Autorizar conta Backblaze
+    console.log("3 - autorizando B2");
     const auth = await _authorizeB2();
+    console.log("AUTH:", auth);
 
     //pegar upload url do Backblaze
+    console.log("4 - obtendo upload URL");
     const uploadData = await _getUploadUrl(
         auth.apiUrl,
         auth.authorizationToken
@@ -88,6 +114,7 @@ export async function uploadFileToB2(
 
     const realSha1 = await getSha1(fileBuffer);
 
+    console.log("5 - enviando arquivo");
     const uploadResponse = await fetch(uploadData.uploadUrl, {
         method: "POST",
         headers: {

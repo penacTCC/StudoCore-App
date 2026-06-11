@@ -9,6 +9,8 @@ export default function GroupsLayout() {
                 animation: "slide_from_right",
             }}
         >
+            <Stack.Screen name="no-group" />
+            <Stack.Screen name="index" />
             <Stack.Screen name="browse-groups" />
             <Stack.Screen name="group-details" />
             <Stack.Screen name="detailing" />

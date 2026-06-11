@@ -157,7 +157,7 @@ export default function FocusScreen() {
         }
 
         try {
-            // Busca o usuário atual
+            // Já temos o usuário carregado no corpo do componente
             if (!user) return;
 
             // Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)

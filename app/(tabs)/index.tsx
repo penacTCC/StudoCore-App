@@ -21,6 +21,7 @@ import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useSessoesFoco } from "@/hooks/useSessoesFoco";
+import { horasSemanaisGrupo } from "@/services/grupos";
 
 type LeaderboardFilter = "semanal" | "mensal" | "anual";
 
@@ -33,9 +34,10 @@ const LEADERBOARD_TABS = [
 export default function GroupScreen() {
     const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
     const [selectedMember, setSelectedMember] = useState<any>(null);
+    const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
 
     // Captura os parâmetros recebidos da tela anterior
-    const { groupName, groupId, groupPhoto, groupCode } = useLocalSearchParams(); //<- os parametros
+    const { groupName, groupId, groupPhoto, groupGoal } = useLocalSearchParams(); //<- os parametros
 
     //Pega os membros do grupo
     const { membros } = useMembrosGrupo({ grupoId: groupId as string });
@@ -52,13 +54,33 @@ export default function GroupScreen() {
     // Busca sessões de foco do Supabase
     const { sessions, loading: loadingSessions } = useSessoesFoco(5);
 
+    //Faz useEffect para pegar as horas semanais do grupo
+    useEffect(() => {
+        if(!groupId) return
+        const carregarHoras = async () => {
+            const horas = await horasSemanaisGrupo(groupId as string)
+            setHorasSemanaGrupo(horas)
+        }
+        carregarHoras()
+    }, [groupId])
+
+    //Cálculo do progresso do grupo
+    const metaPorMembro = Number(Array.isArray(groupGoal) ? groupGoal[0] : groupGoal) || 0
+    const totalMembros = membros.length
+
+    const metaTotalGrupo = metaPorMembro * totalMembros
+
+    const progressoGrupo = metaTotalGrupo > 0 ? horasSemanaGrupo / metaTotalGrupo : 0
+
+    const progressoPercentual = Math.min(Math.round(progressoGrupo * 100), 100)
+
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
                 {/* Header */}
                 <View className="bg-slate-950 px-4 pt-4 pb-2">
-                    <View className="flex-row items-center gap-3 justify-between">
-                        <View className="flex-row items-center gap-4">
+                    <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center gap-4 flex-1 pr-4">
                             <View className="w-12 h-12 rounded-xl bg-slate-800 items-center justify-center border border-slate-700">
                                 {groupPhoto ? (
                                     <Image source={{ uri: Array.isArray(groupPhoto) ? groupPhoto[0] : groupPhoto }} className="w-full h-full rounded-xl" resizeMode="cover" />
@@ -66,10 +88,10 @@ export default function GroupScreen() {
                                     <Users size={28} color={COLORS.textMuted} />
                                 )}
                             </View>
-                            <View >
+                            <View className="flex-1">
                                 <TouchableOpacity
                                     onPress={() => router.push("/(groups)")}
-                                    className="flex-row items-center gap-2"
+                                    className="flex-row items-center"
                                     activeOpacity={0.7}
                                 >
                                     <Text
@@ -84,13 +106,24 @@ export default function GroupScreen() {
                                     </View>
                                 </TouchableOpacity>
                             </View>
-                            {isAdmin && (
-                                <TouchableOpacity onPress={() => router.push("/(groups)/settings")}>
-                                    <Settings size={20} color={COLORS.textMuted} />
-                                </TouchableOpacity>
-                            )}
-
                         </View>
+
+                        {isAdmin && (
+                            <TouchableOpacity
+                                onPress={() =>
+                                    router.push({
+                                        pathname: "/(groups)/settings",
+                                        params: {
+                                            groupId
+                                        }
+                                    })
+                                }
+                                className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 items-center justify-center"
+                                activeOpacity={0.75}
+                            >
+                                <Settings size={20} color={COLORS.textMuted} />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
@@ -98,14 +131,14 @@ export default function GroupScreen() {
                 <View className="px-4 pb-4 border-b border-slate-800 bg-slate-950 mt-5">
                     <View className="flex-row justify-between items-center mb-2">
                         <Text className="text-sm text-slate-400 font-medium">Meta do Grupo</Text>
-                        <Text className="text-sm text-emerald-400 font-bold">80% Atingida</Text>
+                        <Text className="text-sm text-emerald-400 font-bold">{progressoPercentual}% Atingida</Text>
                     </View>
                     <View className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
                         <LinearGradient
                             colors={["#8b5cf6", "#10b981"]}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
-                            style={{ height: "100%", width: "80%", borderRadius: 999 }}
+                            style={{ height: "100%", width: `${progressoPercentual}%`, borderRadius: 999 }}
                         />
                     </View>
                 </View>

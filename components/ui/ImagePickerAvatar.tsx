@@ -92,11 +92,14 @@ export default function ImagePickerAvatar({
                     {imagePreview ? (
                         <Image className="h-full w-full" source={{ uri: imagePreview }} />
                     ) : (
-                        <Users size={46} color={COLORS.textMuted} />
+                        <View className="items-center">
+                            <Users size={46} color={COLORS.textMuted} />
+                            <Text className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                                Foto
+                            </Text>
+                        </View>
                     )}
-                    <Text className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
-                        Photo
-                    </Text>
+
                 </TouchableOpacity>
 
                 <TouchableOpacity

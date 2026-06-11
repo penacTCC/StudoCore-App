@@ -8,6 +8,7 @@ export type Grupo = {
   meta_horas: number;
   publico: boolean;
   codigo_convite: string | null;
+  created_at: string | null;
 };
 
 export type CartaoGrupoPublico = {
@@ -57,4 +58,5 @@ export type ParametrosUltimoGrupo = {
   groupId: string;
   groupName: string;
   groupPhoto: string | null;
+  groupGoal: number;
 };

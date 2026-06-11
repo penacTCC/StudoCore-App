@@ -54,7 +54,7 @@ export default function BrowseGroupsScreen() {
                         </View>
                     </View>
                     <TouchableOpacity
-                        onPress={() => router.push("/join-by-code")}
+                        onPress={() => router.push("/(modals)/join-by-code")}
                         className="w-10 h-10 rounded-full bg-brand-500/10 items-center justify-center border border-brand-500/20"
                     >
                         <LinkIcon size={20} color={COLORS.primary} />

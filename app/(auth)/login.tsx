@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 //Componentes do React Native
 import {
     View,
@@ -13,9 +13,8 @@ import {
 } from "react-native";
 
 //Componentes do Expo
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import * as QueryParams from "expo-auth-session/build/QueryParams";
 import * as Linking from "expo-linking";
 
 import { Eye, EyeOff, Github } from "lucide-react-native";
@@ -26,39 +25,125 @@ import { DotPattern, LogoMark, BackButton, DragHandle } from "@/components/auth"
 import { PrimaryButton } from "@/components/form";
 
 //Serviços da Aplicação
-import { gerarUrlLoginGoogle, loginComSenha, validarSessaoGoogle } from "@/services/auth";
+import { gerarUrlLoginGoogle, loginComSenha, obterSessaoAtual, validarSessaoGoogle, validarSessaoPorTokens } from "@/services/auth";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const GOOGLE_REDIRECT_URL = "studocore://login";
+
+type GoogleCallbackParams = {
+    code: string | null;
+    accessToken: string | null;
+    refreshToken: string | null;
+    error: string | null;
+    errorDescription: string | null;
+};
 
 // Avisa ao sistema para fechar o navegador automaticamente quando terminar
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
+    const params = useLocalSearchParams<{ code?: string; error?: string; error_description?: string }>();
+    const codigoGoogleProcessado = useRef<string | null>(null);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
+    const extrairParametrosUrl = (url: string): GoogleCallbackParams => {
+        const queryString = url.split("?")[1]?.split("#")[0] ?? "";
+        const hashString = url.split("#")[1] ?? "";
+        const searchParams = new URLSearchParams(queryString || hashString);
+
+        return {
+            code: searchParams.get("code"),
+            accessToken: searchParams.get("access_token"),
+            refreshToken: searchParams.get("refresh_token"),
+            error: searchParams.get("error"),
+            errorDescription: searchParams.get("error_description"),
+        };
+    };
+
+    const finalizarLoginGoogle = async (code: string) => {
+        if (codigoGoogleProcessado.current === code) return;
+        codigoGoogleProcessado.current = code;
+
+        const { error: sessionError } = await validarSessaoGoogle(code);
+        if (sessionError) {
+            const { data: { session } } = await obterSessaoAtual();
+            if (!session) throw sessionError;
+        }
+
+        router.replace("/");
+    };
+
+    const finalizarCallbackGoogle = async (
+        code?: string | null,
+        accessToken?: string | null,
+        refreshToken?: string | null,
+        error?: string | null,
+        errorDescription?: string | null
+    ) => {
+        if (error) {
+            Alert.alert("Erro no Google", errorDescription ?? error);
+            return;
+        }
+
+        if (!code && (!accessToken || !refreshToken)) return;
+
+        try {
+            setIsLoading(true);
+            if (code) {
+                await finalizarLoginGoogle(code);
+            } else if (accessToken && refreshToken) {
+                const { error: sessionError } = await validarSessaoPorTokens(accessToken, refreshToken);
+                if (sessionError) throw sessionError;
+                router.replace("/");
+            }
+        } catch (error) {
+            console.error("Erro no callback do Google:", error);
+            Alert.alert("Erro", "Não foi possível concluir o login com o Google.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        finalizarCallbackGoogle(params.code, null, null, params.error, params.error_description);
+    }, [params.code, params.error, params.error_description]);
+
+    useEffect(() => {
+        const subscription = Linking.addEventListener("url", ({ url }) => {
+            if (!url.startsWith(GOOGLE_REDIRECT_URL)) return;
+
+            const { code, accessToken, refreshToken, error, errorDescription } = extrairParametrosUrl(url);
+            finalizarCallbackGoogle(code, accessToken, refreshToken, error, errorDescription);
+        });
+
+        return () => subscription.remove();
+    }, []);
+
     const handleGoogleSignIn = async () => {
         try {
-            const redirectUrl = Linking.createURL("/(auth)/onboarding-profile");
-            const { data, error } = await gerarUrlLoginGoogle(redirectUrl);
+            setIsLoading(true);
+            const { data, error } = await gerarUrlLoginGoogle(GOOGLE_REDIRECT_URL);
             if (error) throw error;
 
-            const res = await WebBrowser.openAuthSessionAsync(data?.url ?? "", redirectUrl);
+            const res = await WebBrowser.openAuthSessionAsync(data?.url ?? "", GOOGLE_REDIRECT_URL);
 
             if (res.type === "success") {
-                const { params } = QueryParams.getQueryParams(res.url);
-                if (params.code) {
-                    const { error: sessionError } = await validarSessaoGoogle(params.code);
-                    if (sessionError) throw sessionError;
-                } else if (params.error) {
-                    Alert.alert("Erro no Google", params.error_description ?? params.error);
+                const { code, accessToken, refreshToken, error, errorDescription } = extrairParametrosUrl(res.url);
+
+                await finalizarCallbackGoogle(code, accessToken, refreshToken, error, errorDescription);
+
+                if (!code && !accessToken && !error) {
+                    Alert.alert("Erro no Google", "O Google voltou sem código de autenticação.");
                 }
             }
         } catch (error) {
             console.error("Erro no fluxo do Google:", error);
             Alert.alert("Erro", "Não foi possível concluir o login com o Google.");
+        } finally {
+            setIsLoading(false);
         }
     };
 

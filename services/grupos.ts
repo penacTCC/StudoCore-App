@@ -193,7 +193,7 @@ export const inserirCodigoConvite = async (grupoId: string, codigoConvite: strin
   return await supabase
     .from('grupos')
     .update({
-      code_convite: codigoConvite
+      codigo_convite: codigoConvite
     })
     .eq('id', grupoId)
     .select()
@@ -222,4 +222,83 @@ export const buscarGrupoPorId = async (grupoId: string) => {
     console.error("Error fetching group:", error);
     return null;
   }
+}
+
+//Atualiza os dados do grupo
+export const atualizarDadosGrupo = async (grupo: Grupo) => {
+  return await supabase
+    .from('grupos')
+    .update({
+      nome_grupo: grupo.nome_grupo.trim(),
+      descricao: grupo.descricao?.trim() || null,
+      meta_horas: grupo.meta_horas,
+      publico: grupo.publico,
+      foto_grupo: grupo.foto_grupo
+    })
+    .eq("id", grupo.id)
+    .select()
+    .single();
+}
+
+//Exclusão de um grupo
+export const excluirGrupoAtual = async (groupId: string) => {
+  return await supabase
+    .from('grupos')
+    .delete()
+    .match({ id: groupId })
+}
+
+const obterSemanaAtual = () => {
+  const hoje = new Date();
+
+  const diaSemana = hoje.getDay();
+  // domingo = 0, segunda = 1, ..., sábado = 6
+
+  const diffSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+
+  const inicioSemana = new Date(hoje);
+  inicioSemana.setDate(hoje.getDate() + diffSegunda);
+
+  const fimSemana = new Date(inicioSemana);
+  fimSemana.setDate(inicioSemana.getDate() + 6);
+
+  const formatar = (data: Date) => data.toISOString().split("T")[0];
+
+  return {
+    inicio: formatar(inicioSemana),
+    fim: formatar(fimSemana),
+  };
+};
+
+export const horasSemanaisGrupo = async (groupId: string) => {
+  //Busca os membros do grupo
+  const membros = await buscarMembrosGrupo(groupId)
+
+  //Busca a semana atual
+  const { inicio, fim } = obterSemanaAtual()
+
+  //busca todos os membros
+  const membrosIds = membros.map((membro) => membro.user_id)
+
+  if (membrosIds.length === 0) return 0;
+
+  //realiza a query
+  const { data: horas, error } = await supabase
+    .from('sessoes_foco')
+    .select('tempo_minutos')
+    .in("user_id", membrosIds)
+    .gte("data_sessao", inicio)
+    .lte("data_sessao", fim);
+
+  if (error) {
+    console.log("Erro ao buscar as horas dos membros", error)
+    return 0
+  }
+
+  //Total de minutos estudados nessa semana
+  const totalMinutos = horas?.reduce((total, sessao) =>
+    total + (sessao.tempo_minutos ?? 0), 0
+  ) ?? 0
+
+  return totalMinutos / 60
 }

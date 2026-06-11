@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { DeviceEventEmitter } from 'react-native';
 import { carregarUltimoGrupoLocalmente } from '@/services/armazenamentoOffline';
 import { buscarGrupoPorId, usuarioParticipaDeGrupo } from '@/services/grupos';
 import { Session } from '@supabase/supabase-js';
@@ -13,10 +14,14 @@ export function useStatusMembroGrupo(session: Session | null, inicializado: bool
 
     if (!session) {
       setMembro(false);
+      setParametrosUltimoGrupo(null);
       return;
     }
 
     const verificarGrupo = async () => {
+      setMembro(null);
+      setParametrosUltimoGrupo(undefined);
+
       const participaDeGrupo = await usuarioParticipaDeGrupo(session.user.id);
       setMembro(participaDeGrupo);
 
@@ -30,7 +35,8 @@ export function useStatusMembroGrupo(session: Session | null, inicializado: bool
             parametrosParaSalvar = {
               groupId: grupo.id,
               groupName: grupo.nome_grupo,
-              groupPhoto: grupo.foto_grupo
+              groupPhoto: grupo.foto_grupo,
+              groupGoal: grupo.meta_horas
             };
           }
         }
@@ -43,6 +49,10 @@ export function useStatusMembroGrupo(session: Session | null, inicializado: bool
     };
 
     verificarGrupo();
+
+    const subscription = DeviceEventEmitter.addListener('groupMembershipChanged', verificarGrupo);
+
+    return () => subscription.remove();
   }, [session, inicializado]);
 
   return { membro, parametrosUltimoGrupo };

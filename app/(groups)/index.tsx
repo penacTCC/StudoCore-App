@@ -66,7 +66,8 @@ export default function MyGroupsScreen() {
                                         groupId: item.id,
                                         groupName: item.nome_grupo,
                                         groupPhoto: item.foto_grupo,
-                                        groupCode: item.codigo_convite
+                                        groupCode: item.codigo_convite,
+                                        groupGoal: item.meta_horas
                                     }
                                 });
                             }}
@@ -75,7 +76,7 @@ export default function MyGroupsScreen() {
                 />
             )}
             <TouchableOpacity
-                onPress={() => router.push("/create-group")}
+                onPress={() => router.push("/(modals)/create-group")}
                 className="w-full flex-row items-center justify-center gap-2 bg-brand-500 py-4 rounded-xl"
             >
                 <Plus size={20} color={COLORS.white} />

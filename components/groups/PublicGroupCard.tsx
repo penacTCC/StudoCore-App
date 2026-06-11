@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, Image } from "react-native";
+import { View, Text, TouchableOpacity, Image, Alert, DeviceEventEmitter } from "react-native";
 import { Users, Target } from "lucide-react-native";
 import { router } from "expo-router";
 import { COLORS } from "@/constants/colors";
@@ -19,15 +19,22 @@ export default function PublicGroupCard({
 
 
     const entrarNoGrupo = async (grupoId: string) => {
-        await entrarEmGrupoPublico(grupoId);
+        const novoMembro = await entrarEmGrupoPublico(grupoId);
+        if (!novoMembro) {
+            Alert.alert("Erro", "Não foi possível entrar no grupo.");
+            return;
+        }
+
         await salvarUltimoGrupoLocalmente(grupoId);
         recarregarGrupos();
-        router.push({
+        DeviceEventEmitter.emit('groupMembershipChanged');
+        router.replace({
             pathname: "/(tabs)",
             params: {
                 groupId: grupoId,
                 groupName: grupo.nome_grupo,
                 groupPhoto: grupo.foto_grupo,
+                groupGoal: grupo.meta_horas,
             }
         })
     }
@@ -36,7 +43,7 @@ export default function PublicGroupCard({
         <TouchableOpacity
             onPress={() =>
                 router.push({
-                    pathname: "/group-details",
+                    pathname: "/(groups)/group-details",
                     params: { groupId: grupo.id.toString() },
                 })
             }
