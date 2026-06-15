@@ -160,3 +160,74 @@ export const buscarSessoesPorUsuario = async (userId: string, limit: number = 20
         .order("created_at", { ascending: false })
         .limit(limit);
 };
+
+//dataAtual
+const dataAtual = new Date().toISOString().split('T')[0]
+
+//Cálculo do tempo total de hoje, das sessões de foco
+export const tempoTotalSessoesFoco = async (groupId?: string) => {
+    if(!groupId)
+    return {
+        horasFormatadas: "0h0",
+        totalMinutos: 0,
+    };
+
+    const {data, error} = await supabase 
+        .from("sessoes_foco")
+        .select('tempo_minutos')
+        .eq('grupo_id', groupId)
+        .eq('data_sessao', dataAtual)
+    
+    if(error) {
+        console.log(error) 
+        return {
+            horasFormatadas: "0h0",
+            totalMinutos: 0,
+        };
+    }
+    console.log(data)
+    //reduce percorre todo um array e reduz todos os seus elementos a um único valor
+    const totalMinutos = data?.reduce((acumulador, sessao) => {
+        return acumulador + (sessao.tempo_minutos ?? 0)
+    }, 0) ?? 0
+
+    //Horas em decimais
+    const totalHoras = totalMinutos/60
+    //Hora inteira
+    const horas = Math.floor(totalHoras)
+    //Minutos
+    const minutos = Math.round((totalHoras - horas) * 60)
+    //Horas formatadas
+    const horasFormatadas = `${horas}h${minutos}`
+
+    return {
+        horasFormatadas, totalMinutos,
+    }
+}
+
+export const tempoTotalSessoesFocoOntem = async (groupId?: string) => {
+    if(!groupId) return 0
+
+    //pegando a data de ontem para o aumento percentual
+    const ontem = new Date()
+    const hoje = new Date()
+    ontem.setDate(hoje.getDate() - 1)
+
+    const diaOntem = ontem.toISOString().split('T')[0]
+
+    const {data, error} = await supabase 
+        .from("sessoes_foco")
+        .select('tempo_minutos')
+        .eq('grupo_id', groupId)
+        .eq('data_sessao', diaOntem)
+    
+    if(error) {
+        console.log(error) 
+        return 0
+    }
+    const totalMinutosAnteriores = data?.reduce((acumulador, sessao) => {
+        return acumulador + (sessao.tempo_minutos ?? 0)
+    }, 0) ?? 0
+
+    return totalMinutosAnteriores
+}

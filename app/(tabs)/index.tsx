@@ -358,7 +358,7 @@ export default function GroupScreen() {
                         <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={{ gap: 14, paddingRight: 4 }}
+                            contentContainerStyle={{ gap: 14, paddingRight: 4, marginTop: 15 }}
                         >
                             {membros.map((member) => (
                                 <TouchableOpacity
