@@ -190,12 +190,12 @@ export default function SettingsScreen() {
                         </View>
 
                         <View>
-                            <Text className="text-xs text-slate-400 mb-2 ml-1">Username (Nome de Usuário)</Text>
+                            <Text className="text-xs text-slate-400 mb-2 ml-1">Nome de usuário</Text>
                             <View className="flex-row items-center bg-slate-950/50 border border-slate-800 rounded-2xl px-4 py-3">
                                 <Text className="text-slate-500 mr-1">@</Text>
                                 <TextInput
                                     className="flex-1 text-slate-200"
-                                    placeholder="username"
+                                    placeholder="nome_de_usuario"
                                     placeholderTextColor="#64748b"
                                     value={username}
                                     onChangeText={setUsername}
@@ -244,7 +244,7 @@ export default function SettingsScreen() {
                                 </View>
                                 <View>
                                     <Text className="text-sm font-medium text-slate-200">Modo de Testes Rápido</Text>
-                                    <Text className="text-xs text-slate-400">Transformar 10s reais em 1h no DB</Text>
+                                    <Text className="text-xs text-slate-400">Transformar 10s reais em 1h no banco de dados</Text>
                                 </View>
                             </View>
                             <Switch
@@ -267,7 +267,7 @@ export default function SettingsScreen() {
                                 </View>
                                 <View>
                                     <Text className="text-sm font-bold text-rose-500">Limpar Cache Local</Text>
-                                    <Text className="text-xs text-slate-400">Restaurar fav. subject e estatísticas</Text>
+                                    <Text className="text-xs text-slate-400">Restaurar matéria favorita e estatísticas</Text>
                                 </View>
                             </View>
                         </TouchableOpacity>
@@ -280,7 +280,7 @@ export default function SettingsScreen() {
                                     <Smartphone size={20} color="#cbd5e1" />
                                 </View>
                                 <View>
-                                    <Text className="text-sm font-medium text-slate-200">Versão do App</Text>
+                                    <Text className="text-sm font-medium text-slate-200">Versão do aplicativo</Text>
                                     <Text className="text-xs text-slate-400">1.0.0 (Beta)</Text>
                                 </View>
                             </View>

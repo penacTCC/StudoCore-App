@@ -150,13 +150,13 @@ export default function LoginScreen() {
     const handleLogin = async () => {
         setIsLoading(true);
         if (!email || !password) {
-            Alert.alert("Campos obrigatórios", "Por favor, preencha o email e a senha.");
+            Alert.alert("Campos obrigatórios", "Por favor, preencha o e-mail e a senha.");
             setIsLoading(false);
             return;
         }
         const { error } = await loginComSenha(email, password);
         if (error) {
-            Alert.alert("Erro no Login", error.message);
+            Alert.alert("Erro ao entrar", error.message);
         }
         setIsLoading(false);
     };
@@ -226,7 +226,7 @@ export default function LoginScreen() {
                     <TextInput
                         value={email}
                         onChangeText={setEmail}
-                        placeholder="Email"
+                        placeholder="E-mail"
                         placeholderTextColor="#94a3b8"
                         keyboardType="email-address"
                         autoCapitalize="none"

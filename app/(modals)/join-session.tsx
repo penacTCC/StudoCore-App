@@ -41,7 +41,7 @@ export default function JoinSessionScreen() {
         <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>
             {/* Header */}
             <View className="px-4 py-3 flex-row items-center justify-between border-b border-navy-800">
-                <Text className="text-xl font-bold text-slate-200">Join Session</Text>
+                <Text className="text-xl font-bold text-slate-200">Entrar na sessão</Text>
                 <TouchableOpacity
                     onPress={() => router.back()}
                     className="w-8 h-8 rounded-full bg-slate-800 items-center justify-center"

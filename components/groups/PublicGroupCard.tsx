@@ -76,7 +76,7 @@ export default function PublicGroupCard({
                                 style={{ backgroundColor: "rgba(16, 185, 129, 0.2)" }}
                             >
                                 <Text className="text-xs text-emerald-400">
-                                    {grupo.activeNow ?? 0} active
+                                    {grupo.activeNow ?? 0} ativos
                                 </Text>
                             </View>
                         )}
@@ -88,13 +88,13 @@ export default function PublicGroupCard({
                         <View className="flex-row items-center gap-1">
                             <Users size={12} color={COLORS.textMuted} />
                             <Text className="text-xs text-slate-500">
-                                {grupo.members} members
+                                {grupo.members} membros
                             </Text>
                         </View>
                         <View className="flex-row items-center gap-1">
                             <Target size={12} color={COLORS.textMuted} />
                             <Text className="text-xs text-slate-500">
-                                {grupo.meta_horas}h/week
+                                {grupo.meta_horas}h/semana
                             </Text>
                         </View>
                     </View>
@@ -105,7 +105,7 @@ export default function PublicGroupCard({
                     onPress={() => entrarNoGrupo(grupo.id)}
                     className="bg-brand-500 px-4 py-2 rounded-xl"
                 >
-                    <Text className="text-white text-sm font-medium">Join</Text>
+                    <Text className="text-white text-sm font-medium">Entrar</Text>
                 </TouchableOpacity>
             </View>
         </TouchableOpacity>

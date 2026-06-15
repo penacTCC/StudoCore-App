@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 //Componentes de Native
 import { View, Text, TouchableOpacity, ScrollView, Image, Modal } from "react-native";
@@ -7,13 +7,13 @@ import { Crown, Flame, Plus, ChevronRight, ChevronDown, Compass, Users, Settings
 
 //Componentes de Expo
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 //Constantes
 import { COLORS } from "@/constants/colors";
 
 //Componentes
-import { Avatar, TabSelector } from "@/components/ui";
+import { Avatar } from "@/components/ui";
 import SessionCard from "@/components/groups/SessionCard";
 
 //Hooks
@@ -23,16 +23,43 @@ import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useSessoesFoco } from "@/hooks/useSessoesFoco";
 import { horasSemanaisGrupo } from "@/services/grupos";
 
-type LeaderboardFilter = "semanal" | "mensal" | "anual";
+type LeaderboardFilter = "horas" | "constancia" | "questoes" | "acertos" | "semanal" | "mensal" | "anual";
 
 const LEADERBOARD_TABS = [
-    { key: "semanal", label: "Semanal" },
-    { key: "mensal", label: "Mensal" },
-    { key: "anual", label: "Anual" },
+    // Filtro principal atual, baseado nas horas de estudo do membro.
+    { key: "horas", label: "Horas" },
+
+    // Filtro reservado para o ranking futuro de constância.
+    { key: "constancia", label: "Constância" },
+
+    // Filtro reservado para o ranking futuro por quantidade de questões respondidas.
+    { key: "questoes", label: "Questões" },
+
+    // Filtro reservado para o ranking futuro por questões acertadas.
+    { key: "acertos", label: "Acertos" },
+
+    // Filtros de período mantidos no layout para a evolução do ranking.
+    { key: "semanal", label: "Semana" },
+    { key: "mensal", label: "Mês" },
+    { key: "anual", label: "Ano" },
 ];
 
+const getRankColor = (rank: number) => {
+    // Primeiro lugar usa dourado para combinar com a borda especial do campeão.
+    if (rank === 1) return COLORS.amber;
+
+    // Segundo lugar usa prata para manter a hierarquia visual clássica do pódio.
+    if (rank === 2) return "#cbd5e1";
+
+    // Terceiro lugar usa bronze para fechar o destaque dos três primeiros colocados.
+    if (rank === 3) return "#fb923c";
+
+    // Demais posições ficam neutras para não competir com o top 3.
+    return COLORS.textMuted;
+};
+
 export default function GroupScreen() {
-    const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
+    const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("horas");
     const [selectedMember, setSelectedMember] = useState<any>(null);
     const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
 
@@ -51,8 +78,8 @@ export default function GroupScreen() {
     //Pega a quantidade de usuários online
     const { onlineUsers } = useOnlineUsers(groupId as string);
 
-    // Busca sessões de foco do Supabase
-    const { sessions, loading: loadingSessions } = useSessoesFoco(5);
+    // Busca apenas as sessões públicas do grupo atual para o feed ao vivo.
+    const { sessions, loading: loadingSessions } = useSessoesFoco(5, groupId as string);
 
     //Faz useEffect para pegar as horas semanais do grupo
     useEffect(() => {
@@ -63,6 +90,20 @@ export default function GroupScreen() {
         }
         carregarHoras()
     }, [groupId])
+
+    // Recarrega o progresso quando a aba volta para frente depois de uma sessão de foco.
+    useFocusEffect(
+        useCallback(() => {
+            if (!groupId) return;
+
+            const reloadGroupProgress = async () => {
+                const weeklyHours = await horasSemanaisGrupo(groupId as string);
+                setHorasSemanaGrupo(weeklyHours);
+            };
+
+            reloadGroupProgress();
+        }, [groupId])
+    );
 
     //Cálculo do progresso do grupo
     const metaPorMembro = Number(Array.isArray(groupGoal) ? groupGoal[0] : groupGoal) || 0
@@ -146,84 +187,128 @@ export default function GroupScreen() {
                 {/* Leaderboard */}
                 <View className="px-4 mt-4">
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <View className="flex-row items-center justify-between mb-4">
-                            <Text className="text-lg font-semibold text-slate-200">Ranking</Text>
-                            <TabSelector
-                                tabs={LEADERBOARD_TABS}
-                                active={leaderboardFilter}
-                                onSelect={(k) => setLeaderboardFilter(k as LeaderboardFilter)}
-                                activeColor="brand"
-                            />
+                        <View className="mb-4">
+                            <View className="flex-row items-center justify-between mb-3">
+                                <View>
+                                    <Text className="text-lg font-semibold text-slate-200">Ranking</Text>
+                                    <Text className="text-xs text-slate-500">Compare por horas, constância e questões</Text>
+                                </View>
+                                <Text className="text-xs font-semibold text-slate-400">top 5</Text>
+                            </View>
+
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ gap: 8, paddingRight: 4 }}
+                            >
+                                {LEADERBOARD_TABS.map((tab) => {
+                                    // Identifica o filtro ativo para aplicar destaque visual no chip.
+                                    const isActiveFilter = tab.key === leaderboardFilter;
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={tab.key}
+                                            onPress={() => setLeaderboardFilter(tab.key as LeaderboardFilter)}
+                                            activeOpacity={0.75}
+                                            className={`px-3 py-2 rounded-full border ${isActiveFilter
+                                                ? "bg-brand-500 border-brand-400"
+                                                : "bg-slate-800/60 border-slate-700"
+                                                }`}
+                                        >
+                                            {/* Nome do filtro em formato de chip para suportar muitos critérios. */}
+                                            <Text
+                                                className={`text-xs font-semibold ${isActiveFilter ? "text-white" : "text-slate-300"
+                                                    }`}
+                                            >
+                                                {tab.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
                         </View>
 
-                        {membros.map((member, index) => (
-                            <TouchableOpacity
-                                key={member.id}
-                                onPress={() => setSelectedMember(member)}
-                                className={`flex-row items-center gap-3 p-3 rounded-2xl mb-2 ${member.rank === 1 ? "bg-slate-800/50" : "bg-slate-800/30"
-                                    }`}
-                                style={
-                                    member.rank === 1
-                                        ? {
-                                            borderWidth: 2,
-                                            borderColor: COLORS.amber,
-                                            shadowColor: COLORS.amber,
-                                            shadowOffset: { width: 0, height: 0 },
-                                            shadowOpacity: 0.4,
-                                            shadowRadius: 10,
-                                            elevation: 5,
+                        <ScrollView
+                            nestedScrollEnabled
+                            showsVerticalScrollIndicator={membros.length > 5}
+                            style={{ maxHeight: 350 }}
+                        >
+                            {membros.map((member, index) => {
+                                // Usa o rank vindo do membro quando existir e cai para a posição da lista como segurança.
+                                const memberRank = member.rank || index + 1;
+
+                                // Define se a linha recebe o destaque visual do primeiro colocado.
+                                const isFirstPlace = memberRank === 1;
+
+                                // Calcula a cor do número para diferenciar 1º, 2º e 3º lugar.
+                                const rankColor = getRankColor(memberRank);
+
+                                return (
+                                    <TouchableOpacity
+                                        key={member.id}
+                                        onPress={() => setSelectedMember(member)}
+                                        className="flex-row items-center gap-3 p-3 rounded-2xl mb-2 bg-slate-800/30"
+                                        style={
+                                            isFirstPlace
+                                                ? {
+                                                    borderWidth: 2,
+                                                    borderColor: COLORS.amber,
+                                                    shadowColor: COLORS.amber,
+                                                    shadowOffset: { width: 0, height: 0 },
+                                                    shadowOpacity: 0.4,
+                                                    shadowRadius: 10,
+                                                    elevation: 5,
+                                                }
+                                                : undefined
                                         }
-                                        : undefined
-                                }
-                            >
-                                {/* Rank */}
-                                <View className="relative">
-                                    {member.rank === 1 && (
-                                        <View className="absolute -top-3 -right-1 z-10">
-                                            <Crown size={14} color={COLORS.amber} />
+                                    >
+                                        {/* Número do ranking posicionado à esquerda do avatar. */}
+                                        <View className="w-8 items-center justify-center">
+                                            {isFirstPlace && (
+                                                <View className="absolute -top-3 z-10">
+                                                    <Crown size={14} color={COLORS.amber} />
+                                                </View>
+                                            )}
+                                            <Text className="text-base font-bold" style={{ color: rankColor }}>
+                                                #{memberRank}
+                                            </Text>
                                         </View>
-                                    )}
-                                    <Text
-                                        className={`text-sm font-bold ${member.rank === 1 ? "text-amber-400" : "text-slate-500"
-                                            }`}
-                                    >
-                                        #{member.rank}
-                                    </Text>
-                                </View>
 
-                                {/* Avatar */}
-                                <Avatar
-                                    foto={member.userData?.foto_usuario}
-                                    nome={member.userData?.nome_usuario}
-                                    size={40}
-                                    showOnlineDot={onlineUsers.includes(member.user_id)}
-                                />
+                                        {/* Avatar do membro com indicador online. */}
+                                        <Avatar
+                                            foto={member.userData?.foto_usuario}
+                                            nome={member.userData?.nome_usuario}
+                                            size={40}
+                                            showOnlineDot={onlineUsers.includes(member.user_id)}
+                                        />
 
-                                {/* Info */}
-                                <View className="flex-1">
-                                    <Text
-                                        className={`font-medium ${member.rank === 1 ? "text-amber-400" : "text-slate-200"
-                                            }`}
-                                    >
-                                        {member.userData?.nome_usuario || "Sem nome"}
-                                    </Text>
-                                    <Text className="text-xs text-slate-400">
-                                        15h esta semana
-                                    </Text>
-                                </View>
+                                        {/* Informações principais do membro no ranking. */}
+                                        <View className="flex-1">
+                                            <Text
+                                                className={`font-medium ${isFirstPlace ? "text-amber-400" : "text-slate-200"
+                                                    }`}
+                                            >
+                                                {member.userData?.nome_usuario || "Sem nome"}
+                                            </Text>
+                                            <Text className="text-xs text-slate-400">
+                                                15h esta semana
+                                            </Text>
+                                        </View>
 
-                                {/* Ofensiva */}
-                                <View className="flex-row items-center gap-1">
-                                    <Flame size={14} color={COLORS.emeraldLight} />
-                                    <Text className="text-sm font-bold text-emerald-400">
-                                        {member.ofensiva ?? 0}
-                                    </Text>
-                                    {member.administrador ? (
-                                        <Text className="text-xs font-bold text-amber-400">ADM</Text>
-                                    ) : null}
-                                </View>
-                            </TouchableOpacity>
-                        ))}
+                                        {/* Ofensiva e selo de administrador do membro. */}
+                                        <View className="flex-row items-center gap-1">
+                                            <Flame size={14} color={COLORS.emeraldLight} />
+                                            <Text className="text-sm font-bold text-emerald-400">
+                                                {member.ofensiva ?? 0}
+                                            </Text>
+                                            {member.administrador ? (
+                                                <Text className="text-xs font-bold text-amber-400">ADM</Text>
+                                            ) : null}
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
                     </View>
                 </View>
 
@@ -231,12 +316,12 @@ export default function GroupScreen() {
                 <View className="px-4 mt-4">
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
                         <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-lg font-semibold text-slate-200">Live Feed</Text>
+                            <Text className="text-lg font-semibold text-slate-200">Atividades ao vivo</Text>
                             <TouchableOpacity
                                 className="flex-row items-center gap-1"
-                                onPress={() => router.push("/detailing")}
+                                onPress={() => router.push({ pathname: "/detailing", params: { groupId: groupId as string } })}
                             >
-                                <Text className="text-sm text-violet-400">See all</Text>
+                                <Text className="text-sm text-violet-400">Ver tudo</Text>
                                 <ChevronRight size={16} color={COLORS.violetLight} />
                             </TouchableOpacity>
                         </View>
@@ -270,21 +355,49 @@ export default function GroupScreen() {
                                 <Text className="text-white text-xs font-medium">Convidar</Text>
                             </TouchableOpacity>
                         </View>
-                        <View className="flex-row flex-wrap gap-3">
-                            {membros.map((member, index) => (
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={{ gap: 14, paddingRight: 4 }}
+                        >
+                            {membros.map((member) => (
                                 <TouchableOpacity
                                     key={member.id}
                                     onPress={() => setSelectedMember(member)}
-                                    className="flex-row items-center gap-2 bg-slate-800/30 px-3 py-2 rounded-xl"
+                                    activeOpacity={0.75}
+                                    className="items-center w-20"
                                 >
-                                    <Avatar foto={member.userData?.foto_usuario} nome={member.userData?.nome_usuario} size={32} showOnlineDot={onlineUsers.includes(member.user_id)} />
-                                    <Text className="text-sm text-slate-200">{member.userData?.nome_usuario}</Text>
-                                    {(member.ofensiva ?? 0) >= 10 && (
-                                        <Flame size={14} color={COLORS.emeraldLight} />
-                                    )}
+                                    {/* Foto circular do membro no carrossel horizontal. */}
+                                    <View className="relative mb-2">
+                                        <Avatar
+                                            foto={member.userData?.foto_usuario}
+                                            nome={member.userData?.nome_usuario}
+                                            size={56}
+                                            showOnlineDot={onlineUsers.includes(member.user_id)}
+                                        />
+
+                                        {/* Sinaliza administradores sem ocupar espaço no nome. */}
+                                        {member.administrador ? (
+                                            <View className="absolute -top-1 -right-1 bg-amber-500 rounded-full px-1.5 py-0.5 border border-slate-900">
+                                                <Text className="text-[9px] font-bold text-slate-950">ADM</Text>
+                                            </View>
+                                        ) : null}
+
+                                        {/* Destaca membros com ofensiva alta com o ícone de fogo. */}
+                                        {(member.ofensiva ?? 0) >= 10 && (
+                                            <View className="absolute -bottom-1 -right-1 bg-slate-900 rounded-full p-1 border border-slate-800">
+                                                <Flame size={12} color={COLORS.emeraldLight} />
+                                            </View>
+                                        )}
+                                    </View>
+
+                                    {/* Nome curto abaixo da bolinha para manter o carrossel limpo. */}
+                                    <Text className="text-xs text-slate-200 text-center" numberOfLines={1}>
+                                        {member.userData?.nome_usuario || "Sem nome"}
+                                    </Text>
                                 </TouchableOpacity>
                             ))}
-                        </View>
+                        </ScrollView>
                     </View>
                 </View>
 
@@ -342,7 +455,7 @@ export default function GroupScreen() {
                                 <Text className="text-xl font-bold text-slate-200">#{selectedMember?.rank || "-"}</Text>
                             </View>
                             <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50 items-center">
-                                <Text className="text-slate-400 text-xs mb-1">Streak</Text>
+                                <Text className="text-slate-400 text-xs mb-1">Sequência</Text>
                                 <View className="flex-row items-center gap-1">
                                     <Flame size={18} color={COLORS.emeraldLight} />
                                     <Text className="text-xl font-bold text-emerald-400">{selectedMember?.streak || 0}</Text>

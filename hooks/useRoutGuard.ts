@@ -17,6 +17,7 @@ export function useRouteGuard({ inicializado, session, perfilCompleto, membro, p
     const estaNaTelaPerfil = segmentos.includes('onboarding-profile');
     const estaNaTelaVerificarEmail = segmentos.includes('verify-email');
     const estaNaTelaRecuperarSenha = segmentos.includes('forgot-password');
+    const segundoSegmento = (segmentos as string[])[1];
     const emailVerificado = !!session?.user?.email_confirmed_at;
 
     if (estaNaTelaRecuperarSenha) {
@@ -45,10 +46,10 @@ export function useRouteGuard({ inicializado, session, perfilCompleto, membro, p
     } else if (!membro) {
       const estaEmTelaDeGrupoSemGrupo =
         segmentos[0] === '(groups)' &&
-        ['no-group', 'browse-groups', 'group-details'].includes(String(segmentos[1]));
+        ['no-group', 'browse-groups', 'group-details'].includes(String(segundoSegmento));
       const estaEmModalSemGrupo =
         segmentos[0] === '(modals)' &&
-        ['create-group', 'join-by-code'].includes(String(segmentos[1]));
+        ['create-group', 'join-by-code'].includes(String(segundoSegmento));
 
       if (!estaEmTelaDeGrupoSemGrupo && !estaEmModalSemGrupo) {
         router.replace('/(groups)/no-group');

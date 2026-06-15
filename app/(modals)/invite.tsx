@@ -79,7 +79,7 @@ export default function InviteScreen() {
 
                 {/* Email Invite Section */}
                 <View className="mb-6">
-                    <Text className="text-sm text-slate-400 mb-3">Or invite by whatsapp</Text>
+                    <Text className="text-sm text-slate-400 mb-3">Ou convide pelo WhatsApp</Text>
                     <View className="flex-row items-center gap-2">
                         <TextInput
                             value={zapNumber}
@@ -102,7 +102,7 @@ export default function InviteScreen() {
 
                 {/* Pending Invites */}
                 <View className="border-t border-navy-800 pt-6">
-                    <Text className="text-sm font-medium text-slate-400 mb-4">Pending invitations</Text>
+                    <Text className="text-sm font-medium text-slate-400 mb-4">Convites pendentes</Text>
                     <View className="gap-2">
                         {mockPendingInvites.map((invite) => (
                             <View
@@ -110,7 +110,7 @@ export default function InviteScreen() {
                                 className="flex-row items-center justify-between bg-navy-900 border border-navy-800 p-4 rounded-xl"
                             >
                                 <Text className="text-sm text-slate-300">{invite.email}</Text>
-                                <Text className="text-xs font-medium text-amber-400">Pending</Text>
+                                <Text className="text-xs font-medium text-amber-400">Pendente</Text>
                             </View>
                         ))}
                     </View>

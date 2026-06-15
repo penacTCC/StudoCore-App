@@ -208,7 +208,7 @@ export default function FileDetailModal({
                         </Text>
                     </View>
                     <View className="flex-row justify-between items-center border-t border-slate-700 pt-4">
-                        <Text className="text-slate-400">Data de Upload</Text>
+                        <Text className="text-slate-400">Data de envio</Text>
                         <Text className="text-slate-200 font-medium">
                             {detalheArquivo && new Date(detalheArquivo.created_at).toLocaleDateString()}
                         </Text>

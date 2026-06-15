@@ -271,34 +271,64 @@ const obterSemanaAtual = () => {
 };
 
 export const horasSemanaisGrupo = async (groupId: string) => {
-  //Busca os membros do grupo
-  const membros = await buscarMembrosGrupo(groupId)
-
-  //Busca a semana atual
+  // Busca o intervalo da semana atual para filtrar apenas o progresso semanal.
   const { inicio, fim } = obterSemanaAtual()
 
-  //busca todos os membros
-  const membrosIds = membros.map((membro) => membro.user_id)
-
-  if (membrosIds.length === 0) return 0;
-
-  //realiza a query
-  const { data: horas, error } = await supabase
+  // Soma apenas sessões vinculadas ao grupo atual, evitando misturar estudos de outros grupos do mesmo usuário.
+  const { data: sessions, error } = await supabase
     .from('sessoes_foco')
     .select('tempo_minutos')
-    .in("user_id", membrosIds)
+    .eq("grupo_id", groupId)
     .gte("data_sessao", inicio)
     .lte("data_sessao", fim);
 
   if (error) {
-    console.log("Erro ao buscar as horas dos membros", error)
+    // O Postgres retorna 42703 e o PostgREST retorna PGRST204 quando `grupo_id` ainda não existe no remoto.
+    const grupoIdAusenteNoSchema = ["42703", "PGRST204"].includes(error.code) && String(error.message || "").includes("grupo_id");
+
+    // Enquanto a migration de `grupo_id` não estiver aplicada no remoto, usa o fallback antigo por membros.
+    if (grupoIdAusenteNoSchema) {
+      // Busca os membros do grupo para montar o filtro compatível com o schema antigo.
+      const membros = await buscarMembrosGrupo(groupId)
+
+      // Extrai os IDs dos membros que podem ter sessões registradas.
+      const membrosIds = membros.map((membro) => membro.user_id)
+
+      // Se não houver membros, o grupo ainda não tem horas acumuladas.
+      if (membrosIds.length === 0) return 0;
+
+      // Busca sessões da semana atual feitas pelos membros do grupo.
+      const { data: fallbackSessions, error: fallbackError } = await supabase
+        .from('sessoes_foco')
+        .select('tempo_minutos')
+        .in("user_id", membrosIds)
+        .gte("data_sessao", inicio)
+        .lte("data_sessao", fim);
+
+      // Se o fallback também falhar, registra o erro e devolve zero para manter a UI viva.
+      if (fallbackError) {
+        console.log("Erro ao buscar as horas do grupo pelo fallback", fallbackError)
+        return 0
+      }
+
+      // Soma os minutos encontrados pelo fallback de membros.
+      const fallbackTotalMinutes = fallbackSessions?.reduce((total, session) =>
+        total + (session.tempo_minutos ?? 0), 0
+      ) ?? 0
+
+      // Converte minutos para horas para manter o contrato da função.
+      return fallbackTotalMinutes / 60
+    }
+
+    console.log("Erro ao buscar as horas do grupo", error)
     return 0
   }
 
-  //Total de minutos estudados nessa semana
-  const totalMinutos = horas?.reduce((total, sessao) =>
-    total + (sessao.tempo_minutos ?? 0), 0
+  // Total de minutos estudados no grupo durante a semana atual.
+  const totalMinutes = sessions?.reduce((total, session) =>
+    total + (session.tempo_minutos ?? 0), 0
   ) ?? 0
 
-  return totalMinutos / 60
+  // Converte minutos para horas porque a UI compara com metas em horas.
+  return totalMinutes / 60
 }

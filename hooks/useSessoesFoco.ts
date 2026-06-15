@@ -6,20 +6,20 @@ import { SessaoFocoRow } from "@/types/sessions";
 /**
  * Hook que busca sessões de foco públicas para o Feed.
  */
-export const useSessoesFoco = (limit: number = 20) => {
+export const useSessoesFoco = (limit: number = 20, groupId?: string | null) => {
     const [sessions, setSessions] = useState<SessaoFocoRow[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchSessions = useCallback(async () => {
         setLoading(true);
-        const { data, error } = await buscarSessoesRecentes(limit);
+        const { data, error } = await buscarSessoesRecentes(limit, groupId);
         if (error) {
             console.error("Erro ao buscar sessões de foco:", error);
         } else {
             setSessions((data as SessaoFocoRow[]) || []);
         }
         setLoading(false);
-    }, [limit]);
+    }, [limit, groupId]);
 
     useEffect(() => {
         fetchSessions();

@@ -5,7 +5,8 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { CheckCircle2, ChevronLeft, BookOpen, XCircle, AlertCircle } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
-import { salvarSessaoFoco, atualizarSessaoFoco } from "@/services/sessions";
+import { salvarSessaoFoco, atualizarSessaoFoco, calculateFocusSessionMinutes } from "@/services/sessions";
+import { syncProfileStatsAfterFocusSession } from "@/services/profileStats";
 
 // Helper para misturar qualquer array (Fisher-Yates) sem mutar o original
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -64,6 +65,82 @@ export default function FocusFeedbackModal() {
     // Guarda o ID da sessão assim que ela é inserida no banco (evita duplicatas ao refazer)
     const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
 
+    const persistFocusSession = async (status: string) => {
+        // Impede gravação sem usuário autenticado, porque a tabela exige `user_id`.
+        if (!userId) {
+            Alert.alert("Erro", "Usuário não autenticado.");
+            return false;
+        }
+
+        // Liga o estado de salvamento para bloquear múltiplos cliques durante a escrita no banco.
+        setSaving(true);
+
+        // Converte os segundos reais do cronômetro para os minutos que serão gravados no banco.
+        const durationSecs = Number(params.duration) || 0;
+        const sessionMinutes = await calculateFocusSessionMinutes(durationSecs);
+
+        // Mantém o vínculo da sessão com o grupo atual para isolar feed e progresso por grupo.
+        const groupId = (params.groupId as string) || null;
+
+        // Usa o ID vindo do Brain ou o ID recém-criado nesta tela para atualizar em vez de duplicar.
+        const existingId = (params.sessionId as string) || savedSessionId;
+
+        // Guarda erro em variável única para tratar insert e update do mesmo jeito.
+        let dbError = null;
+
+        if (existingId) {
+            // `oldDuration` vem em minutos quando a sessão é uma revisão/refação do Brain.
+            const oldDuration = Number(params.oldDuration) || 0;
+
+            // Se o registro foi criado nesta mesma tela, não soma de novo; se veio do Brain, acumula o novo tempo.
+            const totalMinutes = savedSessionId ? sessionMinutes : (oldDuration + sessionMinutes);
+
+            // Atualiza o registro existente com as respostas atuais e o status escolhido.
+            const { error } = await atualizarSessaoFoco(existingId, {
+                grupo_id: groupId,
+                questoes_respondidas: shuffledQuestions.length,
+                questoes_acertadas: score,
+                status,
+                tempo_minutos: totalMinutes,
+            });
+            dbError = error;
+        } else {
+            // Insere a sessão pela primeira vez assim que o usuário conclui as 10 questões.
+            const { data, error } = await salvarSessaoFoco({
+                user_id: userId,
+                grupo_id: groupId,
+                disciplina: params.subject as string || "Estudo Geral",
+                conteudo_especifico: params.content as string || "Sessão livre",
+                tempo_minutos: sessionMinutes,
+                questoes_respondidas: shuffledQuestions.length,
+                questoes_acertadas: score,
+                is_public: params.isPublic === "true",
+                status,
+            });
+            dbError = error;
+
+            // Guarda o ID retornado para que refazer ou salvar depois atualize a mesma sessão.
+            if (!error && data) {
+                const inserted = (data as any)[0];
+                if (inserted?.id) setSavedSessionId(inserted.id);
+            }
+        }
+
+        // Desliga o estado visual de salvamento antes de mostrar erro ou gabarito.
+        setSaving(false);
+
+        if (dbError) {
+            console.error("Erro ao salvar sessão:", dbError);
+            Alert.alert("Erro", "Não foi possível salvar a sessão. Tente novamente.");
+            return false;
+        }
+
+        // Recalcula perfil, estatísticas e medalhas depois que a sessão já existe no banco.
+        await syncProfileStatsAfterFocusSession(userId);
+
+        return true;
+    };
+
     const handleSubmit = async (status: string = "salvo") => {
         if (!showResults) {
             // Passo 1: Avaliar/Validar
@@ -71,7 +148,9 @@ export default function FocusFeedbackModal() {
                 Alert.alert("Incompleto", "Por favor, responda todas as questões.");
                 return;
             }
-            setShowResults(true); // Muda pra tela de review do gabarito
+            const initialStatus = score > 7 ? "salvo" : "pendente";
+            const saved = await persistFocusSession(initialStatus);
+            if (saved) setShowResults(true); // Muda pra tela de review do gabarito
         } else {
             // Passo 2: Salvar ou atualizar sessão no Supabase
             if (!userId) {
@@ -81,8 +160,12 @@ export default function FocusFeedbackModal() {
 
             setSaving(true);
 
+            // Converte os segundos reais do cronômetro para os minutos que serão gravados no banco.
             const durationSecs = Number(params.duration) || 0;
-            const tempoMinutos = Math.round(durationSecs / 60);
+            const sessionMinutes = await calculateFocusSessionMinutes(durationSecs);
+
+            // Mantém o vínculo da sessão com o grupo atual para isolar feed e progresso por grupo.
+            const groupId = (params.groupId as string) || null;
 
             let dbError = null;
 
@@ -92,10 +175,15 @@ export default function FocusFeedbackModal() {
 
             if (existingId) {
                 // Atualiza o registro existente (refazer, revisão ou segunda tentativa)
+                // `oldDuration` vem em minutos quando a sessão é uma revisão/refação do Brain.
                 const oldDuration = Number(params.oldDuration) || 0;
-                const totalMinutes = savedSessionId ? tempoMinutos : (oldDuration + tempoMinutos);
+
+                // Se o registro foi criado nesta mesma tela, não soma de novo; se veio do Brain, acumula o novo tempo.
+                const totalMinutes = savedSessionId ? sessionMinutes : (oldDuration + sessionMinutes);
 
                 const { error } = await atualizarSessaoFoco(existingId, {
+                    grupo_id: groupId,
+                    questoes_respondidas: shuffledQuestions.length,
                     questoes_acertadas: score,
                     status: status,
                     tempo_minutos: totalMinutes,
@@ -105,9 +193,10 @@ export default function FocusFeedbackModal() {
                 // Primeira vez salvando essa sessão — insere e guarda o ID
                 const { data, error } = await salvarSessaoFoco({
                     user_id: userId,
+                    grupo_id: groupId,
                     disciplina: params.subject as string || "Estudo Geral",
                     conteudo_especifico: params.content as string || "Sessão livre",
-                    tempo_minutos: tempoMinutos,
+                    tempo_minutos: sessionMinutes,
                     questoes_respondidas: shuffledQuestions.length,
                     questoes_acertadas: score,
                     is_public: params.isPublic === "true",
@@ -128,6 +217,9 @@ export default function FocusFeedbackModal() {
                 Alert.alert("Erro", "Não foi possível salvar a sessão. Tente novamente.");
                 return;
             }
+
+            // Recalcula perfil, estatísticas e medalhas depois que a sessão já existe no banco.
+            await syncProfileStatsAfterFocusSession(userId);
 
             router.back();
         }

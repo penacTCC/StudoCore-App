@@ -338,7 +338,7 @@ export default function GroupSettingsScreen() {
 
                 <View className="mt-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
                   <Text className="text-emerald-300 text-sm font-semibold">
-                    Preview: meta de {metaHoras || "0"}h por semana
+                    Prévia: meta de {metaHoras || "0"}h por semana
                   </Text>
                 </View>
               </View>

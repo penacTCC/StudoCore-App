@@ -79,7 +79,7 @@ export default function OnboardingProfile() {
             return;
         }
         if (!username.trim()) {
-            Alert.alert("Username obrigatório", "Escolha um nome de usuário.");
+            Alert.alert("Nome de usuário obrigatório", "Escolha um nome de usuário.");
             return;
         }
         if (!birthDay || !birthMonth || !birthYear || isNaN(day) || isNaN(year)) {

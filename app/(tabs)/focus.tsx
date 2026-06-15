@@ -27,8 +27,8 @@ import { COLORS } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { useMaterias } from "@/hooks/useMaterias";
-import { addStudyHours } from "@/services/profileStats";
 import { useArchives } from "@/hooks/useArchives";
+import { carregarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 
 
 import * as Notifications from 'expo-notifications';
@@ -56,6 +56,7 @@ export default function FocusScreen() {
     const [specificContent, setSpecificContent] = useState("");
     const [timerSeconds, setTimerSeconds] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
+    const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const startTimeRef = useRef<number | null>(null);
     const pausedSecondsRef = useRef<number>(0);
@@ -66,6 +67,22 @@ export default function FocusScreen() {
     const { materias, recarregarMaterias } = useMaterias(userId);
     const params = useLocalSearchParams();
     const router = useRouter();
+
+    // Carrega o grupo atual a partir dos parâmetros da rota ou do último grupo salvo localmente.
+    useEffect(() => {
+        const loadCurrentGroup = async () => {
+            const routeGroupId = Array.isArray(params.groupId) ? params.groupId[0] : params.groupId;
+            if (routeGroupId) {
+                setCurrentGroupId(routeGroupId);
+                return;
+            }
+
+            const storedGroupId = await carregarUltimoGrupoLocalmente();
+            setCurrentGroupId(storedGroupId);
+        };
+
+        loadCurrentGroup();
+    }, [params.groupId]);
 
     // Recupera sessão ativa ao abrir o app (caso tenha saído com timer rodando)
     useEffect(() => {
@@ -81,6 +98,7 @@ export default function FocusScreen() {
                     setSelectedSubject(sessionData.subject || "");
                     setSpecificContent(sessionData.content || "");
                     setIsPublicSession(sessionData.isPublic ?? true);
+                    setCurrentGroupId(sessionData.groupId || null);
                     setTimerSeconds(elapsed);
                     setFocusState("active");
                 }
@@ -160,6 +178,10 @@ export default function FocusScreen() {
             // Já temos o usuário carregado no corpo do componente
             if (!user) return;
 
+            // Garante o grupo ativo mesmo se o estado ainda não tiver terminado de carregar do AsyncStorage.
+            const activeGroupId = currentGroupId || await carregarUltimoGrupoLocalmente();
+            setCurrentGroupId(activeGroupId);
+
             // Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)
             const disciplinaBusca = selectedSubject
                 .toLowerCase()
@@ -207,6 +229,7 @@ export default function FocusScreen() {
                                         subject: selectedSubject,
                                         content: specificContent,
                                         isPublic: isPublicSession,
+                                        groupId: activeGroupId,
                                     }));
                                 } catch (e) {
                                     console.warn("Erro ao salvar sessão:", e);
@@ -233,6 +256,7 @@ export default function FocusScreen() {
                         subject: selectedSubject,
                         content: specificContent,
                         isPublic: isPublicSession,
+                        groupId: activeGroupId,
                     }));
                 } catch (e) {
                     console.warn("Erro ao salvar sessão:", e);
@@ -245,12 +269,15 @@ export default function FocusScreen() {
             // Inicia mesmo se houver erro na busca
             const now = Date.now();
             startTimeRef.current = now;
+            const fallbackGroupId = currentGroupId || await carregarUltimoGrupoLocalmente();
+            setCurrentGroupId(fallbackGroupId);
             try {
                 await AsyncStorage.setItem(STORAGE_KEY_START_TIME, now.toString());
                 await AsyncStorage.setItem(STORAGE_KEY_SESSION_DATA, JSON.stringify({
                     subject: selectedSubject,
                     content: specificContent,
                     isPublic: isPublicSession,
+                    groupId: fallbackGroupId,
                 }));
             } catch (e) {
                 console.warn("Erro ao salvar sessão:", e);
@@ -288,9 +315,7 @@ export default function FocusScreen() {
         const finalContent = specificContent;
         const finalDuration = timerSeconds;
         const finalIsPublic = isPublicSession;
-
-        // Registrar as horas e despachar evento
-        const result = await addStudyHours(timerSeconds, selectedSubject || "Matemática");
+        const finalGroupId = currentGroupId || await carregarUltimoGrupoLocalmente();
 
         setTimerSeconds(0);
         setSelectedSubject("");
@@ -316,7 +341,8 @@ export default function FocusScreen() {
                 content: finalContent,
                 duration: finalDuration.toString(),
                 isPublic: finalIsPublic.toString(),
-                sessionId: params.reviewSessionId || result?.sessionId || undefined,
+                groupId: finalGroupId || undefined,
+                sessionId: params.reviewSessionId || undefined,
                 oldDuration: params.oldDuration || undefined,
             }
         });

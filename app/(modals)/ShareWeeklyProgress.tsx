@@ -111,7 +111,7 @@ export default function ShareWeeklyProgress() {
 
             {/* Top bar with share button */}
             <View style={styles.topBar}>
-                <Text style={styles.topBarLabel}>Share weekly</Text>
+                <Text style={styles.topBarLabel}>Compartilhar semana</Text>
                 <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
                     <Share2 size={18} color="#fff" />
                 </TouchableOpacity>

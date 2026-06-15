@@ -36,7 +36,7 @@ export default function VerifyEmailScreen() {
         //Se der erro, dá um alerta
         if (error || !data.session || !emailVerificado) {
             Alert.alert(
-                "Email não confirmado",
+                "E-mail não confirmado",
                 "Ainda não detectamos a confirmação. Verifique sua caixa de entrada e clique no link."
             );
             setIsChecking(false);
@@ -55,7 +55,7 @@ export default function VerifyEmailScreen() {
         const {email} = await obtemEmailUsuario()
 
         if (!email) {
-            Alert.alert("Erro", "Não foi possível obter o email. Volte e tente novamente.");
+            Alert.alert("Erro", "Não foi possível obter o e-mail. Volte e tente novamente.");
             setIsResending(false);
             return;
         }
@@ -66,7 +66,7 @@ export default function VerifyEmailScreen() {
         if (error) {
             Alert.alert("Erro ao reenviar", error.message);
         } else {
-            Alert.alert("Email reenviado!", "Um novo link de confirmação foi enviado para " + email + ".");
+            Alert.alert("E-mail reenviado!", "Um novo link de confirmação foi enviado para " + email + ".");
         }
         setIsResending(false);
     };
@@ -126,7 +126,7 @@ export default function VerifyEmailScreen() {
                 </View>
 
                 <Text style={{ fontSize: 22, fontWeight: "800", color: COLORS.bgPrimary, letterSpacing: -0.5 }}>
-                    Verifique seu email
+                    Verifique seu e-mail
                 </Text>
                 <Text style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 4 }}>
                     Etapa 2 de 2 — Confirmação
@@ -217,7 +217,7 @@ export default function VerifyEmailScreen() {
                     >
                         <CheckCircle size={16} color={COLORS.emerald} />
                         <Text style={{ fontSize: 13, color: COLORS.textSecondary, flex: 1 }}>
-                            Verifique também sua pasta de spam caso não encontre o email.
+                            Verifique também sua pasta de spam caso não encontre o e-mail.
                         </Text>
                     </View>
                 </View>
@@ -270,7 +270,7 @@ export default function VerifyEmailScreen() {
                             <RefreshCw size={15} color={COLORS.textMuted} />
                         )}
                         <Text style={{ fontSize: 14, color: COLORS.textMuted, fontWeight: "600" }}>
-                            {isResending ? "Reenviando..." : "Reenviar email"}
+                            {isResending ? "Reenviando..." : "Reenviar e-mail"}
                         </Text>
                     </TouchableOpacity>
                 </View>

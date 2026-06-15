@@ -3,12 +3,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Globe, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { COLORS } from "@/constants/colors";
-import { mockUsers, mockDetailingFeed } from "@/constants/mock-data";
 import { getAvatarColor } from "@/constants/helpers";
 import Avatar from "@/components/ui/Avatar";
 import ProgressBar from "@/components/ui/ProgressBar";
 import StatCard from "@/components/ui/StatCard";
-import { buscarGrupoPorId, entrarEmGrupoPublico } from "@/services/grupos";
+import { buscarGrupoPorId, entrarEmGrupoPublico, horasSemanaisGrupo } from "@/services/grupos";
 import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import { useEffect, useState } from "react";
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
@@ -19,6 +18,7 @@ export default function GroupDetailsScreen() {
     const { groupId } = useLocalSearchParams<{ groupId: string }>();
     const [group, setGroup] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [weeklyGroupHours, setWeeklyGroupHours] = useState(0);
 
     //Pega membros do grupo
     const { membros } = useMembrosGrupo({ grupoId: groupId });
@@ -37,6 +37,18 @@ export default function GroupDetailsScreen() {
         loadGroup();
     }, [groupId]);
 
+    // Busca as horas reais da semana para mostrar o progresso correto nos detalhes do grupo.
+    useEffect(() => {
+        const loadWeeklyProgress = async () => {
+            if (!groupId) return;
+
+            const weeklyHours = await horasSemanaisGrupo(groupId);
+            setWeeklyGroupHours(weeklyHours);
+        };
+
+        loadWeeklyProgress();
+    }, [groupId]);
+
     //Pega usuários online no App (A Lista Global)
     const { onlineUsers } = useOnlineUsers(groupId);
     
@@ -49,12 +61,13 @@ export default function GroupDetailsScreen() {
     if (isLoading || !group) {
         return (
             <SafeAreaView className="flex-1 bg-navy-950 items-center justify-center">
-                <Text className="text-slate-400">{isLoading ? "Carregando detalhes..." : "Group not found"}</Text>
+                <Text className="text-slate-400">{isLoading ? "Carregando detalhes..." : "Grupo não encontrado"}</Text>
             </SafeAreaView>
         );
     }
 
-    const weeklyProgress = 0.75;
+    const totalWeeklyGoal = (group.meta_horas || 0) * (group.members || membros.length || 1);
+    const weeklyProgress = totalWeeklyGoal > 0 ? Math.min(weeklyGroupHours / totalWeeklyGoal, 1) : 0;
     const initials = group.nome_grupo ? group.nome_grupo.substring(0, 2).toUpperCase() : "GR";
 
     return (
@@ -70,7 +83,7 @@ export default function GroupDetailsScreen() {
                     </TouchableOpacity>
                     <View className="flex-1">
                         <Text className="text-xl font-bold text-slate-200">{group.nome_grupo}</Text>
-                        <Text className="text-sm text-slate-400">{group.members} members</Text>
+                        <Text className="text-sm text-slate-400">{group.members} membros</Text>
                     </View>
                 </View>
             </View>
@@ -113,7 +126,7 @@ export default function GroupDetailsScreen() {
                                 <View className="flex-row items-center gap-2 mb-1">
                                     <Globe size={14} color={COLORS.emeraldLight} />
                                     <Text className="text-xs text-emerald-400 font-medium">
-                                        {group.publico ? "Public Group" : "Private Group"}
+                                        {group.publico ? "Grupo público" : "Grupo privado"}
                                     </Text>
                                 </View>
                                 <Text className="text-sm text-slate-300 leading-5">
@@ -127,9 +140,9 @@ export default function GroupDetailsScreen() {
                 {/* Stats Grid */}
                 <View className="px-4 mb-4">
                     <View className="flex-row gap-3">
-                        <StatCard value={group.members} label="Members" valueColor={COLORS.violetLight} />
-                        <StatCard value={activeGroupMembers.length} label="Active Now" valueColor={COLORS.emeraldLight} />
-                        <StatCard value={`${group.meta_horas || 0}h`} label="Weekly Goal" valueColor={COLORS.amber} />
+                        <StatCard value={group.members} label="Membros" valueColor={COLORS.violetLight} />
+                        <StatCard value={activeGroupMembers.length} label="Ativos agora" valueColor={COLORS.emeraldLight} />
+                        <StatCard value={`${group.meta_horas || 0}h`} label="Meta semanal" valueColor={COLORS.amber} />
                     </View>
                 </View>
 
@@ -137,7 +150,7 @@ export default function GroupDetailsScreen() {
                 <View className="px-4 mb-4">
                     <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4">
                         <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-sm font-medium text-slate-200">Active Members</Text>
+                            <Text className="text-sm font-medium text-slate-200">Membros ativos</Text>
                             <View
                                 className="flex-row items-center gap-1 px-2 py-1 rounded-full"
                                 style={activeGroupMembers.length > 0 ? { backgroundColor: "rgba(16, 185, 129, 0.2)" } : { backgroundColor: "rgba(255, 0, 0, 0.2)" }}
@@ -170,14 +183,14 @@ export default function GroupDetailsScreen() {
                 <View className="px-4 mb-4">
                     <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4">
                         <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-sm font-medium text-slate-200">Weekly Progress</Text>
+                            <Text className="text-sm font-medium text-slate-200">Progresso semanal</Text>
                             <Text className="text-xs text-emerald-400">
-                                {Math.round(weeklyProgress * 100)}% achieved
+                                {Math.round(weeklyProgress * 100)}% atingido
                             </Text>
                         </View>
                         <ProgressBar progress={weeklyProgress} color={COLORS.emerald} height={12} />
                         <Text className="text-xs text-slate-500 mt-2">
-                            {Math.round((group.meta_horas || 0) * weeklyProgress)}h / {group.meta_horas || 0}h this week
+                            {Math.round(weeklyGroupHours)}h / {totalWeeklyGoal}h nesta semana
                         </Text>
                     </View>
                 </View>
@@ -220,7 +233,7 @@ export default function GroupDetailsScreen() {
                     }}
                 >
                     <Users size={20} color={COLORS.white} />
-                    <Text className="text-white font-semibold text-lg">Join This Group</Text>
+                    <Text className="text-white font-semibold text-lg">Entrar neste grupo</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>

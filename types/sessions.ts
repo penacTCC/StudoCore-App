@@ -1,5 +1,6 @@
 export type SessaoFocoInsert = {
     user_id: string;
+    grupo_id?: string | null;
     disciplina: string;
     conteudo_especifico: string;
     tempo_minutos: number;
@@ -12,6 +13,7 @@ export type SessaoFocoInsert = {
 export type SessaoFocoRow = {
     id: string;
     user_id: string;
+    grupo_id?: string | null;
     disciplina: string;
     conteudo_especifico: string | null;
     tempo_minutos: number;
@@ -33,6 +35,7 @@ export type SessaoFocoRow = {
 export type SessionCardItem  = {
     id: string;
     user_id: string;
+    grupo_id?: string | null;
     disciplina: string;
     conteudo_especifico: string | null;
     tempo_minutos: number;

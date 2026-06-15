@@ -45,7 +45,7 @@ export default function SignUpScreen() {
         }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            Alert.alert("Email inválido", "Por favor insira um email válido.");
+            Alert.alert("E-mail inválido", "Por favor, insira um e-mail válido.");
             return;
         }
         if (password.length < 8) {
@@ -62,7 +62,7 @@ export default function SignUpScreen() {
         //Cadastra o usuário
         const { data, error } = await cadastrarUsuario(email, password);
         if (error) {
-            Alert.alert("Erro no Cadastro", error.message);
+            Alert.alert("Erro no cadastro", error.message);
         } else {
             console.log("DADOS DO CADASTRO:", data);
             router.replace("/(auth)/onboarding-profile");
@@ -153,7 +153,7 @@ export default function SignUpScreen() {
                         icon={<Mail size={18} color={COLORS.primary} />}
                         value={email}
                         onChangeText={setEmail}
-                        placeholder="Email"
+                        placeholder="E-mail"
                         keyboardType="email-address"
                     />
 

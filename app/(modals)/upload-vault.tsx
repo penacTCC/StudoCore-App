@@ -104,7 +104,7 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
             <View className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-6">
                 {/* Header */}
                 <View className="flex-row items-center justify-between mb-6">
-                    <Text className="text-lg font-semibold text-slate-200">Upload de arquivos</Text>
+                    <Text className="text-lg font-semibold text-slate-200">Envio de arquivos</Text>
                     <TouchableOpacity onPress={onClose}>
                         <X size={20} color={COLORS.textMuted} />
                     </TouchableOpacity>
@@ -191,7 +191,7 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                             <FileUp size={20} color={COLORS.white} />
                         )}
                         <Text className="text-white font-semibold text-lg">
-                            {isUploading ? "Enviando..." : "Confirmar Upload"}
+                            {isUploading ? "Enviando..." : "Confirmar envio"}
                         </Text>
                     </TouchableOpacity>
                 )}

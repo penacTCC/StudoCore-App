@@ -14,8 +14,8 @@ import { SessaoFocoRow } from "@/types/sessions";
 type BrainTab = "database" | "analytics";
 
 const BRAIN_TABS = [
-    { key: "database", label: "Database" },
-    { key: "analytics", label: "Analytics" },
+    { key: "database", label: "Banco de dados" },
+    { key: "analytics", label: "Análises" },
 ];
 
 const COLORS_PALETTE = ["#8b5cf6", "#10b981", "#fbbf24", "#f43f5e", "#3b82f6", "#ec4899", "#14b8a6", "#f97316"];
@@ -172,7 +172,7 @@ export default function BrainScreen() {
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
             {/* Header */}
             <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">Brain Hub</Text>
+                <Text className="text-xl font-bold text-slate-200">Central de aprendizado</Text>
                 <Text className="text-sm text-slate-400">Seu painel de aprendizado</Text>
             </View>
 
@@ -329,7 +329,7 @@ export default function BrainScreen() {
                                     <Sparkles size={24} color={COLORS.violetLight} />
                                 </View>
                                 <View>
-                                    <Text className="text-sm text-slate-400">IA Insight</Text>
+                                    <Text className="text-sm text-slate-400">Insight da IA</Text>
                                     <Text className="text-lg font-semibold text-emerald-400">
                                         +15% vs mês passado
                                     </Text>

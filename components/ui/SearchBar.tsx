@@ -17,7 +17,7 @@ interface SearchBarProps {
 export default function SearchBar({
     value,
     onChangeText,
-    placeholder = "Search...",
+    placeholder = "Pesquisar...",
     variant = "dark",
 }: SearchBarProps) {
     const bgClass =

@@ -22,12 +22,12 @@ export default function CronogramScreen() {
             <View className="bg-navy-950 border-b border-navy-800 px-4 py-3">
                 <View className="flex-row items-center justify-between">
                     <View>
-                        <Text className="text-xl font-bold text-slate-200">Cronogram</Text>
-                        <Text className="text-sm text-slate-400">Plan your studies</Text>
+                        <Text className="text-xl font-bold text-slate-200">Cronograma</Text>
+                        <Text className="text-sm text-slate-400">Planeje seus estudos</Text>
                     </View>
                     <TouchableOpacity className="flex-row items-center gap-1 bg-brand-500 px-3 py-2 rounded-xl">
                         <Plus size={16} color={COLORS.white} />
-                        <Text className="text-white text-sm font-medium">Add</Text>
+                        <Text className="text-white text-sm font-medium">Adicionar</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -40,7 +40,7 @@ export default function CronogramScreen() {
                         className={`flex-1 py-2 rounded-lg items-center ${cronogramView === "week" ? "bg-brand-500" : ""}`}
                     >
                         <Text className={`text-sm font-medium ${cronogramView === "week" ? "text-white" : "text-slate-400"}`}>
-                            Week
+                            Semana
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -48,7 +48,7 @@ export default function CronogramScreen() {
                         className={`flex-1 py-2 rounded-lg items-center ${cronogramView === "month" ? "bg-brand-500" : ""}`}
                     >
                         <Text className={`text-sm font-medium ${cronogramView === "month" ? "text-white" : "text-slate-400"}`}>
-                            Month
+                            Mês
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -77,7 +77,7 @@ export default function CronogramScreen() {
                 {/* Schedule Cards */}
                 <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4">
                     <Text className="text-sm font-medium text-slate-400 mb-3">
-                        {selectedDay !== null ? weekDays[selectedDay] : "All"}'s Schedule
+                        Cronograma de {selectedDay !== null ? weekDays[selectedDay] : "todos os dias"}
                     </Text>
                     <View className="gap-3">
                         {filteredSchedule.map((item) => (
@@ -96,33 +96,33 @@ export default function CronogramScreen() {
                                 />
                                 <View className="flex-1">
                                     <Text className="font-medium text-slate-200">{item.subject}</Text>
-                                    <Text className="text-xs text-slate-500">Focus session</Text>
+                                    <Text className="text-xs text-slate-500">Sessão de foco</Text>
                                 </View>
                                 <ChevronRight size={18} color={COLORS.textMuted} />
                             </View>
                         ))}
                         {filteredSchedule.length === 0 && (
-                            <Text className="text-center text-slate-500 text-sm py-4">No sessions scheduled</Text>
+                            <Text className="text-center text-slate-500 text-sm py-4">Nenhuma sessão agendada</Text>
                         )}
                     </View>
                 </View>
 
                 {/* Weekly Goals */}
                 <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4 mt-4 mb-6">
-                    <Text className="text-sm font-medium text-slate-400 mb-3">Weekly Goals</Text>
+                    <Text className="text-sm font-medium text-slate-400 mb-3">Metas semanais</Text>
                     <View className="flex-row gap-3">
                         <View className="flex-1 p-3 rounded-xl items-center" style={{ backgroundColor: COLORS.primaryFaint }}>
                             <Text className="text-2xl font-bold text-emerald-400">18h</Text>
-                            <Text className="text-xs text-slate-400">Planned</Text>
+                            <Text className="text-xs text-slate-400">Planejado</Text>
                         </View>
                         <View className="flex-1 p-3 rounded-xl items-center" style={{ backgroundColor: COLORS.primaryFaint }}>
                             <Text className="text-2xl font-bold text-brand-500">12h</Text>
-                            <Text className="text-xs text-slate-400">Completed</Text>
+                            <Text className="text-xs text-slate-400">Concluído</Text>
                         </View>
                     </View>
                     <View className="mt-3">
                         <View className="flex-row items-center justify-between mb-1">
-                            <Text className="text-xs text-slate-400">Progress</Text>
+                            <Text className="text-xs text-slate-400">Progresso</Text>
                             <Text className="text-xs text-emerald-400">67%</Text>
                         </View>
                         <View className="h-2 bg-navy-800 rounded-full overflow-hidden">

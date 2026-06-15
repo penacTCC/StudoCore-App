@@ -66,12 +66,12 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
                     {session.is_public ? (
                         <>
                             <Globe size={10} color={COLORS.textSecondary} />
-                            <Text className="text-xs text-slate-400">Public</Text>
+                            <Text className="text-xs text-slate-400">Pública</Text>
                         </>
                     ) : (
                         <>
                             <Lock size={10} color={COLORS.textMuted} />
-                            <Text className="text-xs text-slate-500">Private</Text>
+                            <Text className="text-xs text-slate-500">Privada</Text>
                         </>
                     )}
                 </View>
@@ -109,7 +109,7 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
                             className="text-slate-500 uppercase"
                             style={{ fontSize: 10, letterSpacing: 1 }}
                         >
-                            duration
+                            duração
                         </Text>
                     </View>
                 </View>

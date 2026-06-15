@@ -15,7 +15,7 @@ const ShareLink = ({ inviteLink }: { inviteLink: string }) => {
 
   return (
     <View className="bg-navy-900 border border-navy-800 p-4 rounded-xl mb-6">
-      <Text className="text-sm text-slate-400 mb-3">Share invite link</Text>
+      <Text className="text-sm text-slate-400 mb-3">Compartilhar link de convite</Text>
       <View className="flex-row items-center gap-2">
         <View className="flex-1 bg-navy-800 border border-navy-700 rounded-lg px-3 py-3">
           <Text className="text-slate-200 text-sm" numberOfLines={1}>

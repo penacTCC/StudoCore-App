@@ -4,9 +4,13 @@ import { TrendingUp } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 import SessionCard from "@/components/groups/SessionCard";
 import { useSessoesFoco } from "@/hooks/useSessoesFoco";
+import { useLocalSearchParams } from "expo-router";
 
 export default function DetailingScreen() {
-    const { sessions, loading } = useSessoesFoco(50);
+    const { groupId } = useLocalSearchParams<{ groupId?: string }>();
+
+    // Busca o histórico público do grupo atual para não misturar sessões de outros grupos.
+    const { sessions, loading } = useSessoesFoco(50, groupId);
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
@@ -27,7 +31,7 @@ export default function DetailingScreen() {
                     >
                         <View className="w-2 h-2 bg-emerald-400 rounded-full" />
                         <Text className="text-xs font-medium text-emerald-400">
-                            3 studying now
+                            3 estudando agora
                         </Text>
                     </View>
                 </View>
@@ -51,12 +55,12 @@ export default function DetailingScreen() {
                                 <TrendingUp size={24} color={COLORS.violetLight} />
                             </View>
                             <View className="flex-1">
-                                <Text className="text-sm text-slate-400">Today's total</Text>
+                                <Text className="text-sm text-slate-400">Total de hoje</Text>
                                 <Text className="text-2xl font-bold text-slate-200">8h 38m</Text>
                             </View>
                             <View className="items-end">
                                 <Text className="text-sm text-emerald-400 font-medium">+12%</Text>
-                                <Text className="text-xs text-slate-500">vs yesterday</Text>
+                                <Text className="text-xs text-slate-500">vs. ontem</Text>
                             </View>
                         </View>
                     </View>

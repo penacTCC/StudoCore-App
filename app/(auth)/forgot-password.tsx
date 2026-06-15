@@ -86,7 +86,7 @@ export default function ForgotPasswordScreen() {
 
     const handleSendReset = async () => {
         if (!email.trim()) {
-            Alert.alert("Campo obrigatório", "Por favor, informe seu email.");
+            Alert.alert("Campo obrigatório", "Por favor, informe seu e-mail.");
             return;
         }
 
@@ -334,7 +334,7 @@ export default function ForgotPasswordScreen() {
                                 letterSpacing: -0.3,
                             }}
                         >
-                            Email enviado!
+                            E-mail enviado!
                         </Text>
                         <Text
                             style={{
@@ -380,7 +380,7 @@ export default function ForgotPasswordScreen() {
                                 lineHeight: 22,
                             }}
                         >
-                            Informe seu email e enviaremos um link para redefinir sua senha.
+                            Informe seu e-mail e enviaremos um link para redefinir sua senha.
                         </Text>
 
                         {/* Email input */}
@@ -388,7 +388,7 @@ export default function ForgotPasswordScreen() {
                             <TextInput
                                 value={email}
                                 onChangeText={setEmail}
-                                placeholder="Email"
+                                placeholder="E-mail"
                                 placeholderTextColor="#94a3b8"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
