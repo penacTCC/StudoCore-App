@@ -67,7 +67,7 @@ export default function MyGroupsScreen() {
                                         groupName: item.nome_grupo,
                                         groupPhoto: item.foto_grupo,
                                         groupCode: item.codigo_convite,
-                                        groupGoal: item.meta_horas
+                                        groupGoal: item.meta_horas   
                                     }
                                 });
                             }}

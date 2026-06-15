@@ -198,7 +198,7 @@ export const tempoTotalSessoesFoco = async (groupId?: string) => {
     //Minutos
     const minutos = Math.round((totalHoras - horas) * 60)
     //Horas formatadas
-    const horasFormatadas = `${horas}h${minutos}`
+    const horasFormatadas = `${horas} h${minutos}m`
 
     return {
         horasFormatadas, totalMinutos,

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 //Componentes de Native
 import { View, Text, TouchableOpacity, ScrollView, Image, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Crown, Flame, Plus, ChevronRight, ChevronDown, Compass, Users, Settings } from "lucide-react-native";
+import { Crown, Flame, Plus, ChevronRight, ChevronDown, Compass, Users, Settings, SlidersHorizontal } from "lucide-react-native";
 
 //Componentes de Expo
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,21 +22,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useSessoesFoco } from "@/hooks/useSessoesFoco";
 import { horasSemanaisGrupo } from "@/services/grupos";
+import { buscarRankingHorasMembros } from "@/services/ranking";
+import { RankingMembroComPerfil } from "@/types/ranking";
 
-type LeaderboardFilter = "horas" | "constancia" | "questoes" | "acertos" | "semanal" | "mensal" | "anual";
+type LeaderboardFilter = "total" | "semanal" | "mensal" | "anual"
 
 const LEADERBOARD_TABS = [
     // Filtro principal atual, baseado nas horas de estudo do membro.
-    { key: "horas", label: "Horas" },
-
-    // Filtro reservado para o ranking futuro de constância.
-    { key: "constancia", label: "Constância" },
-
-    // Filtro reservado para o ranking futuro por quantidade de questões respondidas.
-    { key: "questoes", label: "Questões" },
-
-    // Filtro reservado para o ranking futuro por questões acertadas.
-    { key: "acertos", label: "Acertos" },
+    { key: "total", label: "total" },
 
     // Filtros de período mantidos no layout para a evolução do ranking.
     { key: "semanal", label: "Semana" },
@@ -58,10 +51,22 @@ const getRankColor = (rank: number) => {
     return COLORS.textMuted;
 };
 
+const formatarMinutos = (totalMinutos: number) => {
+    const horas = Math.floor(totalMinutos / 60);
+    const minutos = totalMinutos % 60;
+
+    if (horas === 0) return `${minutos}m`;
+    if (minutos === 0) return `${horas}h`;
+
+    return `${horas}h ${minutos}m`;
+};
+
 export default function GroupScreen() {
-    const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("horas");
+    const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
+    const [showLeaderboardFilters, setShowLeaderboardFilters] = useState(false);
     const [selectedMember, setSelectedMember] = useState<any>(null);
     const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
+    const [rankingMembros, setRankingMembros] = useState<RankingMembroComPerfil[]>([])
 
     // Captura os parâmetros recebidos da tela anterior
     const { groupName, groupId, groupPhoto, groupGoal } = useLocalSearchParams(); //<- os parametros
@@ -105,6 +110,35 @@ export default function GroupScreen() {
         }, [groupId])
     );
 
+    //Chama função rpc do supabase
+    useEffect(() => {
+        const carregarRankingHoras = async () => {
+            if (!groupId) return;
+
+            const ranking = await buscarRankingHorasMembros(groupId as string, leaderboardFilter)
+
+            const rankingComMembros = ranking.map((item) => {
+                const membro = membros.find((m) => m.user_id === item.user_id);
+
+                return {
+                    ...item,
+                    membro
+                }
+            })
+
+            const membrosSemRanking = membros
+                .filter((membro) => !ranking.some((item) => item.user_id === membro.user_id))
+                .map((membro) => ({
+                    user_id: membro.user_id,
+                    total_minutos: 0,
+                    membro,
+                }));
+
+            setRankingMembros([...rankingComMembros, ...membrosSemRanking])
+        }
+        carregarRankingHoras();
+    }, [groupId, leaderboardFilter, membros])
+
     //Cálculo do progresso do grupo
     const metaPorMembro = Number(Array.isArray(groupGoal) ? groupGoal[0] : groupGoal) || 0
     const totalMembros = membros.length
@@ -114,6 +148,7 @@ export default function GroupScreen() {
     const progressoGrupo = metaTotalGrupo > 0 ? horasSemanaGrupo / metaTotalGrupo : 0
 
     const progressoPercentual = Math.min(Math.round(progressoGrupo * 100), 100)
+    const activeLeaderboardFilter = LEADERBOARD_TABS.find((tab) => tab.key === leaderboardFilter);
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
@@ -189,53 +224,69 @@ export default function GroupScreen() {
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
                         <View className="mb-4">
                             <View className="flex-row items-center justify-between mb-3">
-                                <View>
-                                    <Text className="text-lg font-semibold text-slate-200">Ranking</Text>
-                                    <Text className="text-xs text-slate-500">Compare por horas, constância e questões</Text>
+                                <View className="flex-1 pr-3">
+                                    <Text className="text-lg font-semibold text-slate-200">Ranking</Text> 
+                                    <Text className="text-xs font-semibold text-slate-400">top 5</Text>                              
                                 </View>
-                                <Text className="text-xs font-semibold text-slate-400">top 5</Text>
+                                <TouchableOpacity
+                                    onPress={() => setShowLeaderboardFilters((current) => !current)}
+                                    activeOpacity={0.75}
+                                    className="self-start flex-row items-center gap-2 mt-2 px-3 py-2 rounded-full bg-slate-800/70 border border-slate-700"
+                                >
+                                    <SlidersHorizontal size={14} color={COLORS.textSecondary} />
+                                    <Text className="text-xs font-semibold text-slate-300">
+                                        {activeLeaderboardFilter?.label ?? "Filtro"}
+                                    </Text>
+                                    <ChevronDown size={14} color={COLORS.textMuted} />
+                                </TouchableOpacity>
                             </View>
 
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ gap: 8, paddingRight: 4 }}
-                            >
-                                {LEADERBOARD_TABS.map((tab) => {
-                                    // Identifica o filtro ativo para aplicar destaque visual no chip.
-                                    const isActiveFilter = tab.key === leaderboardFilter;
+                            {showLeaderboardFilters && (
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={{ gap: 8, paddingRight: 4 }}
+                                >
+                                    {LEADERBOARD_TABS.map((tab) => {
+                                        // Identifica o filtro ativo para aplicar destaque visual no chip.
+                                        const isActiveFilter = tab.key === leaderboardFilter;
 
-                                    return (
-                                        <TouchableOpacity
-                                            key={tab.key}
-                                            onPress={() => setLeaderboardFilter(tab.key as LeaderboardFilter)}
-                                            activeOpacity={0.75}
-                                            className={`px-3 py-2 rounded-full border ${isActiveFilter
-                                                ? "bg-brand-500 border-brand-400"
-                                                : "bg-slate-800/60 border-slate-700"
-                                                }`}
-                                        >
-                                            {/* Nome do filtro em formato de chip para suportar muitos critérios. */}
-                                            <Text
-                                                className={`text-xs font-semibold ${isActiveFilter ? "text-white" : "text-slate-300"
+                                        return (
+                                            <TouchableOpacity
+                                                key={tab.key}
+                                                onPress={() => setLeaderboardFilter(tab.key as LeaderboardFilter)}
+                                                activeOpacity={0.75}
+                                                className={`px-3 py-2 rounded-full border ${isActiveFilter
+                                                    ? "bg-brand-500 border-brand-400"
+                                                    : "bg-slate-800/60 border-slate-700"
                                                     }`}
                                             >
-                                                {tab.label}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
+                                                {/* Nome do filtro em formato de chip para suportar muitos critérios. */}
+                                                <Text
+                                                    className={`text-xs font-semibold ${isActiveFilter ? "text-white" : "text-slate-300"
+                                                        }`}
+                                                >
+                                                    {tab.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+                            )}
                         </View>
 
                         <ScrollView
                             nestedScrollEnabled
-                            showsVerticalScrollIndicator={membros.length > 5}
+                            showsVerticalScrollIndicator={rankingMembros.length > 5}
                             style={{ maxHeight: 350 }}
                         >
-                            {membros.map((member, index) => {
-                                // Usa o rank vindo do membro quando existir e cai para a posição da lista como segurança.
-                                const memberRank = member.rank || index + 1;
+                            {rankingMembros.map((item, index) => {
+                                const member = item.membro;
+
+                                if (!member) return null;
+
+                                // Usa a posição da lista já ordenada pela RPC para definir o rank.
+                                const memberRank = index + 1;
 
                                 // Define se a linha recebe o destaque visual do primeiro colocado.
                                 const isFirstPlace = memberRank === 1;
@@ -245,7 +296,7 @@ export default function GroupScreen() {
 
                                 return (
                                     <TouchableOpacity
-                                        key={member.id}
+                                        key={item.user_id}
                                         onPress={() => setSelectedMember(member)}
                                         className="flex-row items-center gap-3 p-3 rounded-2xl mb-2 bg-slate-800/30"
                                         style={
@@ -291,7 +342,7 @@ export default function GroupScreen() {
                                                 {member.userData?.nome_usuario || "Sem nome"}
                                             </Text>
                                             <Text className="text-xs text-slate-400">
-                                                15h esta semana
+                                                {formatarMinutos(item.total_minutos)}
                                             </Text>
                                         </View>
 

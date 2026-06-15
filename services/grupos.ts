@@ -332,3 +332,14 @@ export const horasSemanaisGrupo = async (groupId: string) => {
   // Converte minutos para horas porque a UI compara com metas em horas.
   return totalMinutes / 60
 }
+
+//horas totais do usuario
+export const horasTotaisUsuario = async (groupId?: string) => {
+  if (!groupId) return 0
+
+  const { data, error } = await supabase
+  .from("ranking_horas_grupo")
+  .select("*")
+  .eq("grupo_id", groupId)
+  .order("total_minutos", { ascending: false });
+}
