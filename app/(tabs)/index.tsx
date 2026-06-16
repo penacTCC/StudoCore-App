@@ -298,10 +298,11 @@ export default function GroupScreen() {
                                     <TouchableOpacity
                                         key={item.user_id}
                                         onPress={() => setSelectedMember(member)}
-                                        className="flex-row items-center gap-3 p-3 rounded-2xl mb-2 bg-slate-800/30"
+                                        className={`flex-row items-center gap-3 p-3 rounded-2xl mb-2 ${isFirstPlace ? "" : "bg-slate-800/30"}`}
                                         style={
                                             isFirstPlace
                                                 ? {
+                                                    backgroundColor: "rgba(245, 158, 11, 0.28)",
                                                     borderWidth: 2,
                                                     borderColor: COLORS.amber,
                                                     shadowColor: COLORS.amber,
