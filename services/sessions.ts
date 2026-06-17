@@ -1,5 +1,5 @@
 import { supabase } from "@/repositories/supabase";
-import { SessaoFocoInsert } from "@/types/sessions";
+import { MemberSession, MemberSessionInsert, SessaoFocoInsert } from "@/types/sessions";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TEST_MODE_KEY = "@app_test_mode";
@@ -166,20 +166,20 @@ const dataAtual = new Date().toISOString().split('T')[0]
 
 //Cálculo do tempo total de hoje, das sessões de foco
 export const tempoTotalSessoesFoco = async (groupId?: string) => {
-    if(!groupId)
-    return {
-        horasFormatadas: "0h0",
-        totalMinutos: 0,
-    };
+    if (!groupId)
+        return {
+            horasFormatadas: "0h0",
+            totalMinutos: 0,
+        };
 
-    const {data, error} = await supabase 
+    const { data, error } = await supabase
         .from("sessoes_foco")
         .select('tempo_minutos')
         .eq('grupo_id', groupId)
         .eq('data_sessao', dataAtual)
-    
-    if(error) {
-        console.log(error) 
+
+    if (error) {
+        console.log(error)
         return {
             horasFormatadas: "0h0",
             totalMinutos: 0,
@@ -192,7 +192,7 @@ export const tempoTotalSessoesFoco = async (groupId?: string) => {
     }, 0) ?? 0
 
     //Horas em decimais
-    const totalHoras = totalMinutos/60
+    const totalHoras = totalMinutos / 60
     //Hora inteira
     const horas = Math.floor(totalHoras)
     //Minutos
@@ -206,7 +206,7 @@ export const tempoTotalSessoesFoco = async (groupId?: string) => {
 }
 
 export const tempoTotalSessoesFocoOntem = async (groupId?: string) => {
-    if(!groupId) return 0
+    if (!groupId) return 0
 
     //pegando a data de ontem para o aumento percentual
     const ontem = new Date()
@@ -215,14 +215,14 @@ export const tempoTotalSessoesFocoOntem = async (groupId?: string) => {
 
     const diaOntem = ontem.toISOString().split('T')[0]
 
-    const {data, error} = await supabase 
+    const { data, error } = await supabase
         .from("sessoes_foco")
         .select('tempo_minutos')
         .eq('grupo_id', groupId)
         .eq('data_sessao', diaOntem)
-    
-    if(error) {
-        console.log(error) 
+
+    if (error) {
+        console.log(error)
         return 0
     }
     const totalMinutosAnteriores = data?.reduce((acumulador, sessao) => {
@@ -230,4 +230,21 @@ export const tempoTotalSessoesFocoOntem = async (groupId?: string) => {
     }, 0) ?? 0
 
     return totalMinutosAnteriores
+}
+
+
+export const insertTabSessaoMembros = async (memberData: MemberSessionInsert) => {
+    const { data, error } = await supabase
+        .from('tab_sessao_membros')
+        .insert(memberData)
+        .select();
+    return { data, error };
+}
+
+export const fetchSessionMembers = async (sessaoId: string) => {
+    const { data, error } = await supabase
+        .from('tab_sessao_membros')
+        .select('*, profiles:user_id (nome_real)')
+        .eq('sessao_id', sessaoId);
+    return { data, error };
 }

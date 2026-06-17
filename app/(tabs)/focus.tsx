@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
     View,
@@ -29,6 +29,9 @@ import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { useMaterias } from "@/hooks/useMaterias";
 import { useArchives } from "@/hooks/useArchives";
 import { carregarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
+import { SessionCardItem } from "@/types/sessions";
+import { insertTabSessaoMembros, fetchSessionMembers } from "@/services/sessions";
+import { MemberSession } from "@/types/sessions";
 
 
 import * as Notifications from 'expo-notifications';
@@ -61,12 +64,28 @@ export default function FocusScreen() {
     const startTimeRef = useRef<number | null>(null);
     const pausedSecondsRef = useRef<number>(0);
 
+
     const { userId, user } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
     const { archives } = useArchives(userId || undefined);
     const { materias, recarregarMaterias } = useMaterias(userId);
-    const params = useLocalSearchParams();
     const router = useRouter();
+    const params = useLocalSearchParams(); //parametros gerais
+    const { session: sessionParam } = useLocalSearchParams<{ session?: string }>(); // parametros de sessão em grupo
+    // Parse session data enviada pelo SessionCard.
+    const session = useMemo<SessionCardItem | null>(() => {
+        if (!sessionParam) return null;
+
+        try {
+            return JSON.parse(sessionParam as string) as SessionCardItem;
+        } catch (error) {
+            console.warn("Erro ao parsear sessão:", error);
+            return null;
+        }
+    }, [sessionParam]);
+
+    //estado dos membros da sessão
+    const [members, setMembers] = useState<Array<MemberSession>>([]);
 
     // Carrega o grupo atual a partir dos parâmetros da rota ou do último grupo salvo localmente.
     useEffect(() => {
@@ -163,6 +182,44 @@ export default function FocusScreen() {
         return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
     };
 
+    /**
+     * função para entrar na sessão em grupo
+     */
+    const handleJoinGroupSession = async () => {
+        if (!session || !userId) return;
+
+        // inserir o usuário na tabela de membros da sessão
+        const { error: insertError } = await insertTabSessaoMembros({
+            sessao_id: session.id,
+            membro_id: userId,
+            funcao: 'membro',
+            tempo_segundos: 0,
+        });
+
+        if (insertError) {
+            console.warn("Erro ao adicionar membro na sessão:", insertError);
+            return;
+        }
+
+        // carregar dados dos membros da sessão para mostrar no carrossel
+        const { data: sessionMembers, error } = await fetchSessionMembers(session.id);
+        if (error) {
+            console.error("Erro ao buscar membros da sessão:", error);
+            return;
+        }
+
+        if (sessionMembers) {
+            setMembers(sessionMembers);
+        }
+
+        // mudar para o modo de foco
+        setFocusState('active');
+    };
+
+    /**
+     * Inicia a sessão de foco. Verifica se os campos estão preenchidos, se há sessões pendentes e se existem arquivos relacionados à matéria no vault. Se houver arquivos, notifica o usuário e oferece a opção de revisar antes de iniciar. Salva os dados da sessão e o timestamp de início no AsyncStorage para persistência.
+     * @returns void
+     */
     const startSession = async () => {
         if (!selectedSubject || !specificContent.trim()) {
             Alert.alert("Incompleto", "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar.");
@@ -198,12 +255,6 @@ export default function FocusScreen() {
             console.log("Count: ", count);
 
             if (count && count > 0) {
-                /*
-                
-                a biblioteca Expo Go removeu o suporte a notificações push remotas a partir do SDK 53
-                A biblioteca expo-notifications continua funcionando, porém não dentro do Expo Go.
-                */
-
 
                 // Dispara a notificação de sistema imediatamente
                 await Notifications.scheduleNotificationAsync({
@@ -261,6 +312,10 @@ export default function FocusScreen() {
                 } catch (e) {
                     console.warn("Erro ao salvar sessão:", e);
                 }
+                if (session) {
+                    await handleJoinGroupSession();
+                }
+
                 setFocusState("active");
                 setTimerSeconds(0);
             }
@@ -282,11 +337,17 @@ export default function FocusScreen() {
             } catch (e) {
                 console.warn("Erro ao salvar sessão:", e);
             }
+            if (session) {
+                await handleJoinGroupSession();
+            }
             setFocusState("active");
             setTimerSeconds(0);
         }
     };
 
+    /**
+     * Função para pausar ou retomar a sessão. Ao pausar, salva os segundos acumulados e para o timer. Ao retomar, calcula um novo startTime baseado nos segundos acumulados para continuar a contagem de onde parou.
+     */
     const togglePause = async () => {
         if (isPaused) {
             // Retomar: cria um novo startTime baseado nos segundos acumulados
@@ -307,6 +368,9 @@ export default function FocusScreen() {
         }
     };
 
+    /**
+     * Para de contar o tempo, reseta os estados relacionados e navega para o modal de feedback, passando os dados da sessão como parâmetros.
+     */
     const stopSession = async () => {
         setFocusState("config");
 
@@ -361,6 +425,22 @@ export default function FocusScreen() {
                 className="flex-1"
                 contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 16, paddingVertical: 32 }}
             >
+                {session && !session.concluido_em ? (
+                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6 mb-10">
+                        <Text className="text-lg font-semibold text-slate-200 mb-6 text-center">
+                            Sessão de Estudos em Grupo
+                            {"\n"}
+                            (anfitrião: {session?.profiles?.nome_usuario || "Desconhecido"})
+                        </Text>
+                        {/* botão cancelar sessão em grupo */}
+                        <TouchableOpacity
+                            onPress={() => router.replace({ pathname: "/(tabs)/focus" })}
+                            className="bg-rose-500/20 border border-rose-500 py-2 px-4 rounded-2xl items-center justify-center"
+                        >
+                            <Text className="text-rose-500 font-semibold text-sm">Cancelar</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : null}
                 {focusState === "config" && (
                     <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
                         <Text className="text-lg font-semibold text-slate-200 mb-6 text-center">
@@ -415,22 +495,24 @@ export default function FocusScreen() {
                             />
                         </View>
 
-                        {/* Session Visibility Toggle */}
-                        <View className="flex-row items-center justify-between bg-slate-800/50 p-4 rounded-xl mb-6">
-                            <View>
-                                <Text className="text-sm font-medium text-slate-200">Visibilidade da Sessão</Text>
-                                <Text className="text-xs text-slate-400">
-                                    {isPublicSession ? "Outros podem entrar" : "Sessão privada"}
-                                </Text>
+                        {/* Mudar visibilidade sessao */}
+                        {!session ? (
+                            <View className="flex-row items-center justify-between bg-slate-800/50 p-4 rounded-xl mb-6">
+                                <View>
+                                    <Text className="text-sm font-medium text-slate-200">Visibilidade da Sessão</Text>
+                                    <Text className="text-xs text-slate-400">
+                                        {isPublicSession ? "Outros podem entrar" : "Sessão privada"}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity onPress={() => setIsPublicSession(!isPublicSession)}>
+                                    {isPublicSession ? (
+                                        <ToggleRight size={32} color={COLORS.violetLight} />
+                                    ) : (
+                                        <ToggleLeft size={32} color={COLORS.textMuted} />
+                                    )}
+                                </TouchableOpacity>
                             </View>
-                            <TouchableOpacity onPress={() => setIsPublicSession(!isPublicSession)}>
-                                {isPublicSession ? (
-                                    <ToggleRight size={32} color={COLORS.violetLight} />
-                                ) : (
-                                    <ToggleLeft size={32} color={COLORS.textMuted} />
-                                )}
-                            </TouchableOpacity>
-                        </View>
+                        ) : null}
 
                         {/* Start Button */}
                         <TouchableOpacity
@@ -450,7 +532,94 @@ export default function FocusScreen() {
                     </View>
                 )}
 
-                {focusState === "active" && (
+                {focusState === "active" && session ? (
+                    // Modo de sessão em grupo: carrossel com membros
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        {members.map((member) => (
+                            <View key={member.membro_id} className="items-center justify-center">
+                                {/* Subject info */}
+                                <View className="mb-8 items-center">
+                                    <Text className="text-sm text-violet-400 font-medium mb-1">
+                                        {member.profiles?.nome_usuario || "Desconhecido"}
+                                    </Text>
+                                    <Text className="text-sm text-violet-400 font-medium mb-1">
+                                        {selectedSubject || "Estudo Geral"}
+                                    </Text>
+                                    <Text className="text-xs text-slate-500">
+                                        {specificContent || "Sessão Livre"}
+                                    </Text>
+                                </View>
+
+                                {/* Big Neon Clock */}
+                                <View className="items-center justify-center mb-10">
+                                    <View
+                                        className="w-64 h-64 rounded-full items-center justify-center"
+                                        style={{
+                                            backgroundColor: "rgba(15, 23, 42, 0.8)",
+                                            borderWidth: 4,
+                                            borderColor: "rgba(139, 92, 246, 0.5)",
+                                            shadowColor: COLORS.violet,
+                                            shadowOffset: { width: 0, height: 0 },
+                                            shadowOpacity: 0.6,
+                                            shadowRadius: 30,
+                                            elevation: 15,
+                                        }}
+                                    >
+                                        <Text
+                                            className="font-bold text-violet-400"
+                                            style={{ fontSize: 42, letterSpacing: 2 }}
+                                        >
+                                            {formatTime(member.tempo_segundos)}
+                                        </Text>
+                                        <Text className="text-xs text-slate-500">{member.funcao === 'anfitriao' ? 'Anfitrião' : 'Membro'}</Text>
+                                        <Text className="text-xs text-slate-500 mt-2 uppercase tracking-widest">
+                                            {isPaused ? "Pausado" : "Elapsed"}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {/* Visibility Badge */}
+                                <View className="flex-row items-center gap-2 mb-8">
+                                    <View
+                                        className={`w-2 h-2 rounded-full ${isPublicSession ? "bg-emerald-400" : "bg-slate-500"
+                                            }`}
+                                    />
+                                    <Text className="text-sm text-slate-400">
+                                        {isPublicSession ? "Sessão Pública" : "Sessão Privada"}
+                                    </Text>
+                                </View>
+
+                                {/* Pause & Stop Buttons */}
+                                <View className="flex-row items-center gap-4">
+                                    <TouchableOpacity
+                                        onPress={togglePause}
+                                        className={`py-4 px-8 rounded-2xl flex-row items-center justify-center gap-2 ${isPaused ? "bg-violet-600" : "bg-amber-500/20 border border-amber-500"}`}
+                                    >
+                                        {isPaused ? (
+                                            <>
+                                                <Play size={20} color={COLORS.white} />
+                                                <Text className="text-white font-semibold text-lg">Retomar</Text>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Pause size={20} color="#f59e0b" />
+                                                <Text className="text-amber-500 font-semibold text-lg">Pausar</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={stopSession}
+                                        className="bg-rose-500/20 border border-rose-500 py-4 px-8 rounded-2xl flex-row items-center justify-center gap-2"
+                                    >
+                                        <Square size={20} color={COLORS.rose} />
+                                        <Text className="text-rose-500 font-semibold text-lg">Parar</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ))}
+                    </ScrollView>
+                ) : focusState === "active" ? (
+                    // Modo individual: apenas cronômetro pessoal
                     <View className="items-center justify-center">
                         {/* Subject info */}
                         <View className="mb-8 items-center">
@@ -527,7 +696,7 @@ export default function FocusScreen() {
                             </TouchableOpacity>
                         </View>
                     </View>
-                )}
+                ) : null}
             </ScrollView>
         </SafeAreaView>
     );

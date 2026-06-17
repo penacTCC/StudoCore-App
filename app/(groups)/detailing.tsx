@@ -20,6 +20,7 @@ export default function DetailingScreen() {
 
     //Busca de membros online agora
     const {totalOnline} = useMembrosOnline(groupId)
+    
 
     //Busca o tempo total das sessões de foco
     useEffect(() => {
@@ -81,7 +82,7 @@ export default function DetailingScreen() {
             </View>
 
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-                {/* Today's Summary Bar */}
+                {/* Total de estudo Hoje */}
                 <View className="px-4 py-3">
                     <View
                         className="border rounded-2xl p-4"
@@ -111,7 +112,8 @@ export default function DetailingScreen() {
                         </View>
                     </View>
                 </View>
-
+                
+                {/* Sessões de estudo */}
                 <View className="px-4 pb-6">
                     <View className="gap-3">
                         {loading ? (
