@@ -199,10 +199,10 @@ export default function ProfileScreen() {
     const progressPercent = Math.min((stats.weeklyCurrent / stats.weeklyGoal) * 100, 100);
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
+        <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
             {/* Header */}
-            <View className="bg-slate-950 border-b border-slate-800 px-4 py-3 flex-row items-center justify-between">
-                <Text className="text-xl font-bold text-slate-200">Perfil</Text>
+            <View className="bg-black border-b border-white/10 px-5 py-4 flex-row items-center justify-between">
+                <Text className="text-3xl font-black text-slate-100">Perfil</Text>
                 <TouchableOpacity onPress={() => router.push("/(modals)/settings")} className="p-2">
                     <Settings size={24} color="#cbd5e1" />
                 </TouchableOpacity>
@@ -249,7 +249,7 @@ export default function ProfileScreen() {
                             setTempGoalValue(String(stats.weeklyGoal));
                             setShowGoalModal(true);
                         }}
-                        className="bg-slate-900 border border-slate-800 rounded-3xl p-4"
+                        className="bg-[#151515] border border-white/10 rounded-[28px] p-4"
                     >
                         <View className="flex-row items-center justify-between mb-2">
                             <View className="flex-row items-center gap-2">
@@ -263,11 +263,11 @@ export default function ProfileScreen() {
                         </View>
                         <View className="h-3 bg-slate-800 rounded-full overflow-hidden">
                             <View
-                                className="h-full bg-emerald-500 rounded-full"
+                                className="h-full bg-brand-500 rounded-full"
                                 style={{ width: `${progressPercent}%` }}
                             />
                         </View>
-                        <Text className="text-xs text-emerald-400 mt-2">
+                        <Text className="text-xs text-brand-400 mt-2">
                             {stats.weeklyGoal - stats.weeklyCurrent > 0
                                 ? `Faltam ${stats.weeklyGoal - stats.weeklyCurrent} horas para atingir sua meta!`
                                 : "Meta semanal atingida! Parabéns!"}
@@ -277,7 +277,7 @@ export default function ProfileScreen() {
 
                 {/* Heatmap Github Style */}
                 <View className="px-4 mb-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                    <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4">
                         <View className="flex-row items-center justify-between mb-3">
                              <Text className="text-sm font-medium text-slate-400">Histórico de Contribuições</Text>
                              <TouchableOpacity onPress={() => setShowHeatmapModal(true)} className="bg-slate-800 p-2 rounded-xl flex-row items-center gap-2">
@@ -367,7 +367,7 @@ export default function ProfileScreen() {
 
                 {/* ── MEDALHAS – PREVIEW ─────────────────────────── */}
                 <View className="px-4 mb-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                    <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4">
 
                         {/* Header com botão Ver todas */}
                         <TouchableOpacity
@@ -477,7 +477,7 @@ export default function ProfileScreen() {
 
                 {/* Stats & Favorite Subject */}
                 <View className="px-4 mb-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                    <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4">
                         <Text className="text-sm font-medium text-slate-400 mb-3">Estatísticas Gerais</Text>
                         <View className="flex-row flex-wrap gap-3">
                             <View className="flex-1 p-3 rounded-xl" style={{ backgroundColor: COLORS.primaryFaint, minWidth: "45%" }}>
@@ -498,7 +498,7 @@ export default function ProfileScreen() {
                         >
                             <View>
                                 <Text className="text-lg font-bold" style={{
-                                    color: materiasComCores.find(d => d.nomeExibicao === stats.favoriteSubject)?.cor || COLORS.violetLight
+                                    color: materiasComCores.find(d => d.nomeExibicao === stats.favoriteSubject)?.cor || COLORS.primaryLight
                                 }}>
                                     {stats.favoriteSubject}
                                 </Text>
@@ -513,13 +513,13 @@ export default function ProfileScreen() {
                 <View className="px-4 mb-4">
                     <TouchableOpacity
                         onPress={() => router.push("/(groups)")}
-                        className="bg-slate-900 border border-slate-800 rounded-3xl p-4 flex-row items-center gap-4"
+                        className="bg-[#151515] border border-white/10 rounded-[28px] p-4 flex-row items-center gap-4"
                     >
                         <View
                             className="w-12 h-12 rounded-xl items-center justify-center"
-                            style={{ backgroundColor: "rgba(139, 92, 246, 0.15)" }}
+                            style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
                         >
-                            <Users size={24} color={COLORS.violetLight} />
+                            <Users size={24} color={COLORS.primary} />
                         </View>
                         <View className="flex-1">
                             <Text className="font-medium text-slate-200">Meus Grupos</Text>
@@ -533,13 +533,13 @@ export default function ProfileScreen() {
                 <View className="px-4 mb-4">
                     <TouchableOpacity
                         onPress={() => router.push("/schedule")}
-                        className="bg-slate-900 border border-slate-800 rounded-3xl p-4 flex-row items-center gap-4"
+                        className="bg-[#151515] border border-white/10 rounded-[28px] p-4 flex-row items-center gap-4"
                     >
                         <View
                             className="w-12 h-12 rounded-xl items-center justify-center"
                             style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
                         >
-                            <CalendarDays size={24} color={COLORS.violetLight} />
+                            <CalendarDays size={24} color={COLORS.primary} />
                         </View>
                         <View className="flex-1">
                             <Text className="font-medium text-slate-200">Cronograma de Estudo</Text>

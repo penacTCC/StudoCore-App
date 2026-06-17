@@ -1,5 +1,4 @@
 import { View, Text } from "react-native";
-import { COLORS } from "@/constants/colors";
 
 interface StatCardProps {
     value: string | number;
@@ -14,9 +13,7 @@ interface StatCardProps {
  */
 export default function StatCard({ value, label, valueColor }: StatCardProps) {
     return (
-        <View
-            className="flex-1 bg-navy-900 border border-navy-800 rounded-2xl p-4 items-center"
-        >
+        <View className="flex-1 bg-[#151515] border border-white/10 rounded-2xl p-4 items-center">
             <Text
                 className={`text-2xl font-bold text-center ${!valueColor ? "text-slate-200" : ""}`}
                 style={valueColor ? { color: valueColor } : undefined}

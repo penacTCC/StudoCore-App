@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity } from "react-native";
-import { Globe, Lock, Flame, Clock, CheckCircle } from "lucide-react-native";
+import { Globe, Lock, Flame, Clock, CheckCircle, MessageCircle, ThumbsUp, Share2 } from "lucide-react-native";
 import { router } from "expo-router";
 import { COLORS } from "@/constants/colors";
 import { getSubjectColor, formatDuration } from "@/constants/helpers";
@@ -39,7 +39,8 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
                 pathname: "/join-session",
                 params: { subjectColors: JSON.stringify(subjectColors) }
             })}
-            className="bg-slate-900 border border-slate-800 rounded-2xl p-4"
+            activeOpacity={0.85}
+            className="mb-3 border-b border-white/10 bg-black px-1 pb-4"
         >
             {/* User row */}
             <View className="flex-row items-center gap-3 mb-3">
@@ -61,11 +62,10 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
                     <Text className="text-xs text-slate-500">{timeAgo}</Text>
                 </View>
 
-                {/* Public / Private badge */}
-                <View className="flex-row items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg">
+                <View className="flex-row items-center gap-1 rounded-full bg-white/5 px-2.5 py-1">
                     {session.is_public ? (
                         <>
-                            <Globe size={10} color={COLORS.textSecondary} />
+                            <Globe size={10} color={COLORS.primary} />
                             <Text className="text-xs text-slate-400">Pública</Text>
                         </>
                     ) : (
@@ -79,37 +79,32 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
 
             {/* Session info */}
             <View
-                className="rounded-xl p-3 mb-3"
+                className="mb-3 rounded-2xl border p-4"
                 style={{
-                    backgroundColor: subjectColors.bg,
-                    borderWidth: 1,
-                    borderColor: subjectColors.border,
+                    backgroundColor: "rgba(255,255,255,0.04)",
+                    borderColor: "rgba(255,255,255,0.08)",
                 }}
             >
-                <View className="flex-row items-center justify-between">
-                    <View className="flex-1 mr-3">
-                        <Text
-                            className="text-xs font-medium"
-                            style={{ color: subjectColors.text }}
-                        >
-                            {session.disciplina}
-                        </Text>
-                        <Text
-                            className="text-sm text-slate-300 mt-0.5"
-                            numberOfLines={1}
-                        >
-                            {session.conteudo_especifico || "Sessão livre"}
-                        </Text>
-                    </View>
-                    <View className="items-end">
-                        <Text className="text-2xl font-bold text-slate-100">
+                <View className="mb-3 flex-row items-center gap-2">
+                    <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: subjectColors.text }} />
+                    <Text className="text-xs font-bold uppercase text-slate-500">
+                        {session.disciplina}
+                    </Text>
+                </View>
+                <Text className="text-xl font-bold text-slate-100" numberOfLines={2}>
+                    {session.conteudo_especifico || "Sessão livre"}
+                </Text>
+                <View className="mt-4 flex-row gap-4">
+                    <View>
+                        <Text className="text-xs text-slate-500">Tempo</Text>
+                        <Text className="text-lg font-bold text-slate-100">
                             {formatDuration(durationHours, durationMinutes)}
                         </Text>
-                        <Text
-                            className="text-slate-500 uppercase"
-                            style={{ fontSize: 10, letterSpacing: 1 }}
-                        >
-                            duração
+                    </View>
+                    <View>
+                        <Text className="text-xs text-slate-500">Questões</Text>
+                        <Text className="text-lg font-bold text-slate-100">
+                            {session.questoes_respondidas || 0}
                         </Text>
                     </View>
                 </View>
@@ -121,7 +116,7 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
                     <Clock size={12} color={COLORS.textMuted} />
                     <Text className="text-xs text-slate-500">{timestamp}</Text>
                 </View>
-                <View className="flex-row items-center gap-3">
+                <View className="flex-row items-center gap-5">
                     {session.questoes_acertadas > 0 && (
                         <View className="flex-row items-center gap-1">
                             <Flame size={14} color={COLORS.amber} />
@@ -130,6 +125,9 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
                             </Text>
                         </View>
                     )}
+                    <ThumbsUp size={18} color={COLORS.textSecondary} />
+                    <MessageCircle size={18} color={COLORS.textSecondary} />
+                    <Share2 size={18} color={COLORS.textSecondary} />
                 </View>
             </View>
         </TouchableOpacity>

@@ -151,13 +151,13 @@ export default function GroupScreen() {
     const activeLeaderboardFilter = LEADERBOARD_TABS.find((tab) => tab.key === leaderboardFilter);
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
+        <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
                 {/* Header */}
-                <View className="bg-slate-950 px-4 pt-4 pb-2">
+                <View className="bg-black px-5 pt-5 pb-3">
                     <View className="flex-row items-center justify-between">
                         <View className="flex-row items-center gap-4 flex-1 pr-4">
-                            <View className="w-12 h-12 rounded-xl bg-slate-800 items-center justify-center border border-slate-700">
+                            <View className="w-12 h-12 rounded-2xl bg-[#1d1d1d] items-center justify-center border border-white/10">
                                 {groupPhoto ? (
                                     <Image source={{ uri: Array.isArray(groupPhoto) ? groupPhoto[0] : groupPhoto }} className="w-full h-full rounded-xl" resizeMode="cover" />
                                 ) : (
@@ -171,7 +171,7 @@ export default function GroupScreen() {
                                     activeOpacity={0.7}
                                 >
                                     <Text
-                                        className="text-2xl font-bold text-slate-200"
+                                        className="text-3xl font-black text-slate-100"
                                         numberOfLines={1}
                                         style={{ maxWidth: 200 }}
                                     >
@@ -194,7 +194,7 @@ export default function GroupScreen() {
                                         }
                                     })
                                 }
-                                className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 items-center justify-center"
+                                className="w-10 h-10 rounded-full bg-white/5 border border-white/10 items-center justify-center"
                                 activeOpacity={0.75}
                             >
                                 <Settings size={20} color={COLORS.textMuted} />
@@ -204,14 +204,14 @@ export default function GroupScreen() {
                 </View>
 
                 {/* Gradient Progress Bar */}
-                <View className="px-4 pb-4 border-b border-slate-800 bg-slate-950 mt-5">
+                <View className="mx-5 mt-5 rounded-[28px] border border-white/10 bg-[#151515] p-4">
                     <View className="flex-row justify-between items-center mb-2">
                         <Text className="text-sm text-slate-400 font-medium">Meta do Grupo</Text>
-                        <Text className="text-sm text-emerald-400 font-bold">{progressoPercentual}% Atingida</Text>
+                        <Text className="text-sm text-brand-400 font-bold">{progressoPercentual}% Atingida</Text>
                     </View>
-                    <View className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <View className="h-2.5 w-full bg-white/10 rounded-full overflow-hidden">
                         <LinearGradient
-                            colors={["#8b5cf6", "#10b981"]}
+                            colors={[COLORS.primary, COLORS.primaryLight]}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                             style={{ height: "100%", width: `${progressoPercentual}%`, borderRadius: 999 }}
@@ -220,18 +220,18 @@ export default function GroupScreen() {
                 </View>
 
                 {/* Leaderboard */}
-                <View className="px-4 mt-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                <View className="px-5 mt-4">
+                    <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4">
                         <View className="mb-4">
                             <View className="flex-row items-center justify-between mb-3">
                                 <View className="flex-1 pr-3">
-                                    <Text className="text-lg font-semibold text-slate-200">Ranking</Text> 
+                                    <Text className="text-xl font-bold text-slate-100">Ranking</Text> 
                                     <Text className="text-xs font-semibold text-slate-400">top 5</Text>                              
                                 </View>
                                 <TouchableOpacity
                                     onPress={() => setShowLeaderboardFilters((current) => !current)}
                                     activeOpacity={0.75}
-                                    className="self-start flex-row items-center gap-2 mt-2 px-3 py-2 rounded-full bg-slate-800/70 border border-slate-700"
+                                    className="self-start flex-row items-center gap-2 mt-2 px-3 py-2 rounded-full bg-white/5 border border-white/10"
                                 >
                                     <SlidersHorizontal size={14} color={COLORS.textSecondary} />
                                     <Text className="text-xs font-semibold text-slate-300">
@@ -258,7 +258,7 @@ export default function GroupScreen() {
                                                 activeOpacity={0.75}
                                                 className={`px-3 py-2 rounded-full border ${isActiveFilter
                                                     ? "bg-brand-500 border-brand-400"
-                                                    : "bg-slate-800/60 border-slate-700"
+                                                    : "bg-white/5 border-white/10"
                                                     }`}
                                             >
                                                 {/* Nome do filtro em formato de chip para suportar muitos critérios. */}
@@ -298,14 +298,14 @@ export default function GroupScreen() {
                                     <TouchableOpacity
                                         key={item.user_id}
                                         onPress={() => setSelectedMember(member)}
-                                        className={`flex-row items-center gap-3 p-3 rounded-2xl mb-2 ${isFirstPlace ? "" : "bg-slate-800/30"}`}
+                                        className={`flex-row items-center gap-3 p-3 rounded-2xl mb-2 ${isFirstPlace ? "" : "bg-white/5"}`}
                                         style={
                                             isFirstPlace
                                                 ? {
-                                                    backgroundColor: "rgba(245, 158, 11, 0.28)",
+                                                    backgroundColor: "rgba(247, 152, 44, 0.16)",
                                                     borderWidth: 2,
-                                                    borderColor: COLORS.amber,
-                                                    shadowColor: COLORS.amber,
+                                                    borderColor: COLORS.primary,
+                                                    shadowColor: COLORS.primary,
                                                     shadowOffset: { width: 0, height: 0 },
                                                     shadowOpacity: 0.4,
                                                     shadowRadius: 10,
@@ -365,16 +365,16 @@ export default function GroupScreen() {
                 </View>
 
                 {/* Live Feed */}
-                <View className="px-4 mt-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                <View className="px-5 mt-4">
+                    <View className="bg-black border-y border-white/10 py-4">
                         <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-lg font-semibold text-slate-200">Atividades ao vivo</Text>
+                            <Text className="text-xl font-bold text-slate-100">Atividades ao vivo</Text>
                             <TouchableOpacity
                                 className="flex-row items-center gap-1"
                                 onPress={() => router.push({ pathname: "/detailing", params: { groupId: groupId as string } })}
                             >
-                                <Text className="text-sm text-violet-400">Ver tudo</Text>
-                                <ChevronRight size={16} color={COLORS.violetLight} />
+                                <Text className="text-sm text-brand-400">Ver tudo</Text>
+                                <ChevronRight size={16} color={COLORS.primary} />
                             </TouchableOpacity>
                         </View>
 
@@ -395,8 +395,8 @@ export default function GroupScreen() {
                 </View>
 
                 {/* Members */}
-                <View className="px-4 mt-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                <View className="px-5 mt-4">
+                    <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4">
                         <View className="flex-row items-center justify-between mb-3">
                             <Text className="text-lg font-semibold text-slate-200">Membros</Text>
                             <TouchableOpacity
@@ -454,7 +454,7 @@ export default function GroupScreen() {
                 </View>
 
                 {/* Browse Groups CTA */}
-                <View className="px-4 mt-4 mb-6">
+                <View className="px-5 mt-4 mb-6">
                     <TouchableOpacity
                         onPress={() => router.push("/browse-groups")}
                         className="flex-row items-center gap-4 p-4 rounded-2xl border border-brand-500/30"
@@ -464,13 +464,13 @@ export default function GroupScreen() {
                             className="w-12 h-12 rounded-xl items-center justify-center"
                             style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
                         >
-                            <Compass size={24} color={COLORS.violetLight} />
+                            <Compass size={24} color={COLORS.primary} />
                         </View>
                         <View className="flex-1">
                             <Text className="font-medium text-slate-200">Grupos Públicos</Text>
                             <Text className="text-xs text-slate-400">Encontre e entre em grupos de estudo</Text>
                         </View>
-                        <ChevronRight size={20} color={COLORS.violetLight} />
+                        <ChevronRight size={20} color={COLORS.primary} />
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -483,7 +483,7 @@ export default function GroupScreen() {
                 onRequestClose={() => setSelectedMember(null)}
             >
                 <View className="flex-1 bg-black/60 justify-center items-center px-6">
-                    <View className="bg-slate-900 w-full rounded-3xl p-6 border border-slate-800">
+                    <View className="bg-[#151515] w-full rounded-[28px] p-6 border border-white/10">
                         <View className="items-center mb-6">
                             <Avatar
                                 foto={selectedMember?.userData?.foto_usuario}
@@ -502,11 +502,11 @@ export default function GroupScreen() {
                         </View>
 
                         <View className="flex-row gap-4 mb-6">
-                            <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50 items-center">
+                            <View className="flex-1 bg-white/5 p-4 rounded-2xl border border-white/10 items-center">
                                 <Text className="text-slate-400 text-xs mb-1">Ranking</Text>
                                 <Text className="text-xl font-bold text-slate-200">#{selectedMember?.rank || "-"}</Text>
                             </View>
-                            <View className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50 items-center">
+                            <View className="flex-1 bg-white/5 p-4 rounded-2xl border border-white/10 items-center">
                                 <Text className="text-slate-400 text-xs mb-1">Sequência</Text>
                                 <View className="flex-row items-center gap-1">
                                     <Flame size={18} color={COLORS.emeraldLight} />
@@ -517,9 +517,9 @@ export default function GroupScreen() {
 
                         <TouchableOpacity
                             onPress={() => setSelectedMember(null)}
-                            className="bg-slate-800 py-4 rounded-2xl items-center"
+                            className="bg-white py-4 rounded-2xl items-center"
                         >
-                            <Text className="text-slate-200 font-semibold text-lg">Fechar</Text>
+                            <Text className="text-black font-bold text-lg">Fechar</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

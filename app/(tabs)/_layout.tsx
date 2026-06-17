@@ -8,18 +8,23 @@ export default function TabLayout() {
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {
-                    backgroundColor: "#0f172a", // slate-950
-                    borderTopColor: "#1e293b", // slate-800
+                    backgroundColor: "#101010",
+                    borderTopColor: "rgba(255,255,255,0.08)",
                     borderTopWidth: 1,
-                    height: 70,
-                    paddingBottom: 10,
-                    paddingTop: 8,
+                    height: 76,
+                    paddingBottom: 12,
+                    paddingTop: 10,
+                    elevation: 0,
                 },
                 tabBarActiveTintColor: COLORS.primary,
                 tabBarInactiveTintColor: COLORS.textMuted,
                 tabBarLabelStyle: {
                     fontSize: 11,
-                    fontWeight: "600",
+                    fontWeight: "700",
+                },
+                tabBarItemStyle: {
+                    borderRadius: 18,
+                    marginHorizontal: 2,
                 },
             }}
         >

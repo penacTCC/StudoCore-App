@@ -6,6 +6,36 @@
   <title>Planejamento StudoCore</title>
   <style>
     :root {
+      color-scheme: light;
+      --bg: #f7efe3;
+      --panel: #fffaf2;
+      --panel-2: #f3e2d0;
+      --panel-3: #ead1bb;
+      --line: #d8b89d;
+      --muted: #8f6c58;
+      --text: #3b2218;
+      --soft: #5f3d2e;
+      --brand: #b85c38;
+      --brand-2: #8f3f2b;
+      --green: #6d8b49;
+      --red: #a7432d;
+      --blue: #c06f4d;
+      --ink: #fffaf2;
+      --radius: 8px;
+      --shadow: 0 18px 44px rgba(90, 49, 28, .14);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body.dark-theme {
       color-scheme: dark;
       --bg: #0b0d12;
       --panel: #12151d;
@@ -21,18 +51,7 @@
       --red: #f47067;
       --blue: #58a6ff;
       --ink: #0b0d12;
-      --radius: 8px;
       --shadow: 0 18px 44px rgba(0, 0, 0, .28);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
     }
 
     body.locked .shell {
@@ -94,10 +113,20 @@
     }
 
     .mode-switch {
+      background: rgba(184, 92, 56, .12);
+      border-color: rgba(184, 92, 56, .36);
+      color: var(--brand-2);
+      font-weight: 800;
+    }
+
+    .theme-switch {
+      font-weight: 800;
+    }
+
+    body.dark-theme .mode-switch {
       background: rgba(110, 123, 255, .13);
       border-color: rgba(110, 123, 255, .42);
       color: #dfe2ff;
-      font-weight: 800;
     }
 
     .btn, .select {
@@ -116,13 +145,13 @@
 
     .btn.primary {
       background: var(--brand);
-      color: #11100b;
-      border-color: rgba(245, 158, 11, .55);
+      color: #fffaf2;
+      border-color: rgba(184, 92, 56, .55);
       font-weight: 900;
     }
 
     .btn:hover, .select:hover {
-      border-color: rgba(245, 158, 11, .62);
+      border-color: rgba(184, 92, 56, .62);
     }
 
     .login-screen {
@@ -166,15 +195,15 @@
       min-height: 44px;
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: #0b0d12;
+      background: #fffdf8;
       color: var(--text);
       padding: 0 13px;
       outline: none;
     }
 
     .field input:focus {
-      border-color: rgba(245, 158, 11, .68);
-      box-shadow: 0 0 0 3px rgba(245, 158, 11, .12);
+      border-color: rgba(184, 92, 56, .68);
+      box-shadow: 0 0 0 3px rgba(184, 92, 56, .14);
     }
 
     .login-error {
@@ -280,9 +309,9 @@
     .bar {
       height: 9px;
       border-radius: 999px;
-      background: #252b38;
+      background: #ead1bb;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,.06);
+      border: 1px solid rgba(184, 92, 56, .14);
     }
 
     .fill {
@@ -299,7 +328,7 @@
       flex-wrap: wrap;
       padding: 14px 18px;
       border-bottom: 1px solid var(--line);
-      background: #0f1219;
+      background: #f0ddca;
     }
 
     .chip {
@@ -313,7 +342,7 @@
     }
 
     .chip.active {
-      color: #11100b;
+      color: #fffaf2;
       background: var(--brand);
       border-color: var(--brand);
       font-weight: 900;
@@ -325,7 +354,7 @@
       gap: 10px;
       padding: 14px 18px;
       border-bottom: 1px solid var(--line);
-      background: #0f1219;
+      background: #f0ddca;
     }
 
     .search {
@@ -333,19 +362,19 @@
       width: 100%;
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: #0b0d12;
+      background: #fffdf8;
       color: var(--text);
       padding: 0 13px;
       outline: none;
     }
 
     .search::placeholder {
-      color: #707888;
+      color: #a98975;
     }
 
     .search:focus {
-      border-color: rgba(245, 158, 11, .68);
-      box-shadow: 0 0 0 3px rgba(245, 158, 11, .12);
+      border-color: rgba(184, 92, 56, .68);
+      box-shadow: 0 0 0 3px rgba(184, 92, 56, .14);
     }
 
     .icon-btn {
@@ -371,9 +400,9 @@
 
     .icon-btn.active {
       background: var(--brand);
-      color: #11100b;
-      border-color: rgba(245, 158, 11, .7);
-      box-shadow: 0 0 0 3px rgba(245, 158, 11, .12);
+      color: #fffaf2;
+      border-color: rgba(184, 92, 56, .7);
+      box-shadow: 0 0 0 3px rgba(184, 92, 56, .14);
     }
 
     .main-grid {
@@ -403,12 +432,12 @@
       transition: border-color .18s ease, background .18s ease, transform .18s ease;
     }
 
-    .task.maxima { box-shadow: inset 3px 0 0 rgba(244, 112, 103, .86); }
-    .task.importante { box-shadow: inset 3px 0 0 rgba(88, 166, 255, .86); }
-    .task.legal { box-shadow: inset 3px 0 0 rgba(110, 123, 255, .86); }
+    .task.maxima { box-shadow: inset 3px 0 0 rgba(167, 67, 45, .86); }
+    .task.importante { box-shadow: inset 3px 0 0 rgba(184, 92, 56, .86); }
+    .task.legal { box-shadow: inset 3px 0 0 rgba(192, 111, 77, .86); }
 
     .task:hover, .task.selected {
-      border-color: rgba(245, 158, 11, .58);
+      border-color: rgba(184, 92, 56, .58);
       background: var(--panel-3);
     }
 
@@ -429,12 +458,12 @@
       width: 22px;
       height: 22px;
       border-radius: 6px;
-      border: 1px solid #4b5568;
-      background: #0b0d12;
+      border: 1px solid #c89d7e;
+      background: #fffdf8;
       display: grid;
       place-items: center;
       cursor: pointer;
-      color: #071009;
+      color: #fffaf2;
       font-weight: 900;
       margin-top: 2px;
     }
@@ -469,16 +498,16 @@
     .badge {
       border: 1px solid var(--line);
       color: var(--soft);
-      background: #0f1219;
+      background: #f7eadc;
       border-radius: 999px;
       padding: 6px 9px;
       font-size: 11px;
       white-space: nowrap;
     }
 
-    .badge.maxima { border-color: rgba(244,112,103,.52); color: #ffb8b2; background: rgba(244, 112, 103, .10); }
-    .badge.importante { border-color: rgba(88,166,255,.52); color: #b7d8ff; background: rgba(88, 166, 255, .10); }
-    .badge.legal { border-color: rgba(110,123,255,.52); color: #cfd4ff; background: rgba(110, 123, 255, .10); }
+    .badge.maxima { border-color: rgba(167,67,45,.42); color: #8f321f; background: rgba(167, 67, 45, .10); }
+    .badge.importante { border-color: rgba(184,92,56,.42); color: #9f482c; background: rgba(184, 92, 56, .10); }
+    .badge.legal { border-color: rgba(192,111,77,.42); color: #9b573a; background: rgba(192, 111, 77, .12); }
 
     .schedule-controls {
       display: grid;
@@ -539,8 +568,8 @@
       display: grid;
       place-items: center;
       border-radius: 999px;
-      background: rgba(247, 152, 44, .16);
-      color: #fed7aa;
+      background: rgba(184, 92, 56, .14);
+      color: var(--brand-2);
       font-size: 11px;
       font-weight: 900;
     }
@@ -553,7 +582,7 @@
 
     .dependency {
       border: 1px solid var(--line);
-      background: #0f1219;
+      background: #f7eadc;
       border-radius: 999px;
       padding: 6px 9px;
       color: var(--muted);
@@ -561,8 +590,8 @@
     }
 
     .dependency.done {
-      border-color: rgba(34, 197, 94, .55);
-      color: #bbf7d0;
+      border-color: rgba(109, 139, 73, .55);
+      color: #4f6f2e;
     }
 
     .roadmap-view {
@@ -579,7 +608,7 @@
 
     .stage {
       border: 1px solid var(--line);
-      background: #0f1219;
+      background: #fff7ee;
       border-radius: var(--radius);
       overflow: hidden;
     }
@@ -621,22 +650,22 @@
       cursor: pointer;
     }
 
-    .roadmap-card.maxima { box-shadow: inset 3px 0 0 rgba(244, 112, 103, .86); }
-    .roadmap-card.importante { box-shadow: inset 3px 0 0 rgba(88, 166, 255, .86); }
-    .roadmap-card.legal { box-shadow: inset 3px 0 0 rgba(110, 123, 255, .86); }
+    .roadmap-card.maxima { box-shadow: inset 3px 0 0 rgba(167, 67, 45, .86); }
+    .roadmap-card.importante { box-shadow: inset 3px 0 0 rgba(184, 92, 56, .86); }
+    .roadmap-card.legal { box-shadow: inset 3px 0 0 rgba(192, 111, 77, .86); }
 
     .roadmap-card.available {
-      border-color: rgba(88, 166, 255, .5);
+      border-color: rgba(192, 111, 77, .5);
     }
 
     .roadmap-card.selected {
-      border-color: rgba(245, 158, 11, .62);
+      border-color: rgba(184, 92, 56, .62);
       background: var(--panel-3);
     }
 
     .roadmap-card.done {
       opacity: .7;
-      border-color: rgba(34, 197, 94, .45);
+      border-color: rgba(109, 139, 73, .45);
     }
 
     .roadmap-card.locked {
@@ -649,7 +678,7 @@
       display: grid;
       place-items: center;
       border-radius: 999px;
-      border: 1px solid #4b5568;
+      border: 1px solid #c89d7e;
       color: var(--muted);
       font-size: 12px;
       font-weight: 900;
@@ -658,18 +687,18 @@
     .roadmap-card.done .status-dot {
       background: var(--green);
       border-color: var(--green);
-      color: #071009;
+      color: #fffaf2;
     }
 
     .roadmap-card.available .status-dot {
-      border-color: rgba(88, 166, 255, .7);
-      color: #b7d8ff;
+      border-color: rgba(192, 111, 77, .7);
+      color: var(--brand-2);
     }
 
     .week {
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: #0f1219;
+      background: #fff7ee;
       overflow: hidden;
     }
 
@@ -733,6 +762,131 @@
       margin-top: 14px;
     }
 
+    body.dark-theme .btn.primary,
+    body.dark-theme .chip.active,
+    body.dark-theme .icon-btn.active {
+      color: #11100b;
+    }
+
+    body.dark-theme .field input,
+    body.dark-theme .search,
+    body.dark-theme .check {
+      background: #0b0d12;
+    }
+
+    body.dark-theme .field input:focus,
+    body.dark-theme .search:focus {
+      border-color: rgba(245, 158, 11, .68);
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, .12);
+    }
+
+    body.dark-theme .btn.primary {
+      border-color: rgba(245, 158, 11, .55);
+    }
+
+    body.dark-theme .btn:hover,
+    body.dark-theme .select:hover {
+      border-color: rgba(245, 158, 11, .62);
+    }
+
+    body.dark-theme .bar {
+      background: #252b38;
+      border-color: rgba(255, 255, 255, .06);
+    }
+
+    body.dark-theme .filters,
+    body.dark-theme .toolbar,
+    body.dark-theme .badge,
+    body.dark-theme .dependency,
+    body.dark-theme .stage,
+    body.dark-theme .week {
+      background: #0f1219;
+    }
+
+    body.dark-theme .search::placeholder {
+      color: #707888;
+    }
+
+    body.dark-theme .icon-btn.active {
+      border-color: rgba(245, 158, 11, .7);
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, .12);
+    }
+
+    body.dark-theme .task.maxima,
+    body.dark-theme .roadmap-card.maxima {
+      box-shadow: inset 3px 0 0 rgba(244, 112, 103, .86);
+    }
+
+    body.dark-theme .task.importante,
+    body.dark-theme .roadmap-card.importante {
+      box-shadow: inset 3px 0 0 rgba(88, 166, 255, .86);
+    }
+
+    body.dark-theme .task.legal,
+    body.dark-theme .roadmap-card.legal {
+      box-shadow: inset 3px 0 0 rgba(110, 123, 255, .86);
+    }
+
+    body.dark-theme .task:hover,
+    body.dark-theme .task.selected {
+      border-color: rgba(245, 158, 11, .58);
+    }
+
+    body.dark-theme .check,
+    body.dark-theme .status-dot {
+      border-color: #4b5568;
+    }
+
+    body.dark-theme .task.done .check,
+    body.dark-theme .roadmap-card.done .status-dot {
+      color: #071009;
+    }
+
+    body.dark-theme .badge.maxima {
+      border-color: rgba(244, 112, 103, .52);
+      color: #ffb8b2;
+      background: rgba(244, 112, 103, .10);
+    }
+
+    body.dark-theme .badge.importante {
+      border-color: rgba(88, 166, 255, .52);
+      color: #b7d8ff;
+      background: rgba(88, 166, 255, .10);
+    }
+
+    body.dark-theme .badge.legal {
+      border-color: rgba(110, 123, 255, .52);
+      color: #cfd4ff;
+      background: rgba(110, 123, 255, .10);
+    }
+
+    body.dark-theme .step-number {
+      background: rgba(247, 152, 44, .16);
+      color: #fed7aa;
+    }
+
+    body.dark-theme .dependency.done {
+      border-color: rgba(34, 197, 94, .55);
+      color: #bbf7d0;
+    }
+
+    body.dark-theme .roadmap-card.available {
+      border-color: rgba(88, 166, 255, .5);
+    }
+
+    body.dark-theme .roadmap-card.selected {
+      border-color: rgba(245, 158, 11, .62);
+    }
+
+    body.dark-theme .roadmap-card.done {
+      border-color: rgba(34, 197, 94, .45);
+    }
+
+    body.dark-theme .roadmap-card.available .status-dot {
+      border-color: rgba(88, 166, 255, .7);
+      color: #b7d8ff;
+    }
+
     @media (max-width: 1120px) {
       .layout, .main-grid, .roadmap-view {
         grid-template-columns: 1fr;
@@ -783,6 +937,7 @@
         <h1>Plano de Entrega</h1>
       </div>
       <div class="actions">
+        <button id="themeToggle" class="btn theme-switch">Modo escuro</button>
         <button id="modeToggle" class="btn mode-switch">Modo roadmap</button>
         <select id="deadline" class="select" aria-label="Mes final do cronograma">
           <option value="7">Ate julho</option>
@@ -894,6 +1049,7 @@
   <script>
     const storageKey = "studocore-planejamento-v1";
     const authStorageKey = "studocore-planejamento-auth";
+    const themeStorageKey = "studocore-planejamento-theme";
     const loginUsuario = "penacTCC";
     const loginSenha = "peevnaarca";
     const startMonth = 6;
@@ -1214,6 +1370,7 @@
     let state = JSON.parse(localStorage.getItem(storageKey) || "{}");
     let activeFilter = "all";
     let activeMode = "checklist";
+    let activeTheme = localStorage.getItem(themeStorageKey) || "light";
     let selectedTaskId = "imp-09";
     let onlyNoDeps = false;
     let searchTerm = "";
@@ -1524,7 +1681,14 @@
       $("modeToggle").textContent = activeMode === "checklist" ? "Modo roadmap" : "Modo checklist";
     }
 
+    function renderTheme() {
+      const isDark = activeTheme === "dark";
+      document.body.classList.toggle("dark-theme", isDark);
+      $("themeToggle").textContent = isDark ? "Modo claro" : "Modo escuro";
+    }
+
     function render() {
+      renderTheme();
       renderMode();
       renderFilters();
       renderTasks();
@@ -1551,6 +1715,12 @@
     $("modeToggle").addEventListener("click", () => {
       activeMode = activeMode === "checklist" ? "roadmap" : "checklist";
       render();
+    });
+
+    $("themeToggle").addEventListener("click", () => {
+      activeTheme = activeTheme === "light" ? "dark" : "light";
+      localStorage.setItem(themeStorageKey, activeTheme);
+      renderTheme();
     });
 
     $("reset").addEventListener("click", () => {

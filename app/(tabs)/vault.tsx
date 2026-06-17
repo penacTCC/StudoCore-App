@@ -81,7 +81,7 @@ export default function VaultScreen() {
         return (
             <TouchableOpacity
                 onPress={() => setSelectedFileForDetail(file)}
-                className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 flex-row items-center gap-4 mb-3"
+                className="bg-black/30 border border-white/10 rounded-2xl p-4 flex-row items-center gap-4 mb-3"
             >
                 <View
                     className="w-12 h-12 rounded-xl items-center justify-center"
@@ -95,7 +95,7 @@ export default function VaultScreen() {
                     {type === "pdf" ? (
                         <FileText size={24} color={COLORS.rose} />
                     ) : (
-                        <ImageIcon size={24} color={COLORS.violetLight} />
+                        <ImageIcon size={24} color={COLORS.primary} />
                     )}
                 </View>
 
@@ -145,7 +145,7 @@ export default function VaultScreen() {
                 <TouchableOpacity
                     onPress={() => toggleSection(id)}
                     activeOpacity={0.7}
-                    className={`flex-row items-center justify-between p-4 bg-slate-900 border border-slate-800 rounded-2xl ${isExpanded ? 'rounded-b-none border-b-0' : ''}`}
+                    className={`flex-row items-center justify-between p-4 bg-[#151515] border border-white/10 rounded-2xl ${isExpanded ? 'rounded-b-none border-b-0' : ''}`}
                 >
                     <View className="flex-row items-center gap-3">
                         <View className="w-10 h-10 rounded-full bg-brand-500/10 items-center justify-center">
@@ -164,7 +164,7 @@ export default function VaultScreen() {
                 </TouchableOpacity>
 
                 {isExpanded && (
-                    <View className="p-4 bg-slate-900 border-x border-b border-slate-800 rounded-b-2xl">
+                    <View className="p-4 bg-[#151515] border-x border-b border-white/10 rounded-b-2xl">
                         {files.length > 0 ? (
                             files.map(file => <FileCard key={file.id} file={file} />)
                         ) : (
@@ -180,10 +180,10 @@ export default function VaultScreen() {
 
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
+        <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
             {/* Header */}
-            <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">Meus Arquivos</Text>
+            <View className="bg-black border-b border-white/10 px-5 py-4">
+                <Text className="text-3xl font-black text-slate-100">Arquivos</Text>
                 <Text className="text-sm text-slate-400">Seus materiais de estudo</Text>
             </View>
 

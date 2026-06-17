@@ -18,7 +18,7 @@ const BRAIN_TABS = [
     { key: "analytics", label: "Análises" },
 ];
 
-const COLORS_PALETTE = ["#8b5cf6", "#10b981", "#fbbf24", "#f43f5e", "#3b82f6", "#ec4899", "#14b8a6", "#f97316"];
+const COLORS_PALETTE = ["#f7982c", "#10b981", "#fbbf24", "#f43f5e", "#38bdf8", "#ec4899", "#14b8a6", "#fbba65"];
 
 export default function BrainScreen() {
     const [brainTab, setBrainTab] = useState<BrainTab>("database");
@@ -169,21 +169,21 @@ export default function BrainScreen() {
     }, [savedSessions, pendingSessions, weekStartsOn]);
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
+        <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
             {/* Header */}
-            <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">Central de aprendizado</Text>
+            <View className="bg-black border-b border-white/10 px-5 py-4">
+                <Text className="text-3xl font-black text-slate-100">Central</Text>
                 <Text className="text-sm text-slate-400">Seu painel de aprendizado</Text>
             </View>
 
             {/* Tabs */}
             <View className="px-4 py-3">
-                <View className="flex-row bg-slate-900 p-1 rounded-xl">
+                <View className="flex-row bg-[#151515] border border-white/10 p-1 rounded-2xl">
                     {BRAIN_TABS.map((tab) => (
                         <TouchableOpacity
                             key={tab.key}
                             onPress={() => setBrainTab(tab.key as BrainTab)}
-                            className={`flex-1 py-2 rounded-lg items-center ${brainTab === tab.key ? "bg-violet-600" : ""
+                            className={`flex-1 py-2.5 rounded-xl items-center ${brainTab === tab.key ? "bg-brand-500" : ""
                                 }`}
                         >
                             <Text
@@ -202,7 +202,7 @@ export default function BrainScreen() {
                 {brainTab === "database" && (
                     <View className="px-4 pb-4 gap-4">
                         {/* Formulários Pendentes */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                        <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4">
                             <View className="flex-row items-center justify-between mb-4">
                                 <Text className="text-lg font-semibold text-slate-200">
                                     Formulários Pendentes
@@ -249,7 +249,7 @@ export default function BrainScreen() {
                         </View>
 
                         {/* Formulários Salvos */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                        <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4">
                             <View className="flex-row items-center justify-between mb-4">
                                 <Text className="text-lg font-semibold text-slate-200">
                                     Formulários Salvos
@@ -310,7 +310,7 @@ export default function BrainScreen() {
                                 }
                             })}
                             activeOpacity={0.8}
-                            className="bg-violet-600 py-4 rounded-3xl flex-row items-center justify-center gap-2 shadow-lg shadow-violet-500/20"
+                            className="bg-brand-500 py-4 rounded-2xl flex-row items-center justify-center gap-2"
                         >
                             <Share2 size={20} color="white" />
                             <Text className="text-white font-bold text-lg">Compartilhar Progresso</Text>
@@ -318,15 +318,15 @@ export default function BrainScreen() {
 
                         {/* AI Insight Card */}
                         <View
-                            className="border border-slate-800 rounded-3xl p-4"
-                            style={{ backgroundColor: "rgba(124, 58, 237, 0.08)" }}
+                            className="border border-brand-500/20 rounded-[28px] p-4"
+                            style={{ backgroundColor: "rgba(247, 152, 44, 0.08)" }}
                         >
                             <View className="flex-row items-center gap-3">
                                 <View
                                     className="w-12 h-12 rounded-xl items-center justify-center"
-                                    style={{ backgroundColor: "rgba(139, 92, 246, 0.3)" }}
+                                    style={{ backgroundColor: "rgba(247, 152, 44, 0.18)" }}
                                 >
-                                    <Sparkles size={24} color={COLORS.violetLight} />
+                                    <Sparkles size={24} color={COLORS.primary} />
                                 </View>
                                 <View>
                                     <Text className="text-sm text-slate-400">Insight da IA</Text>
@@ -338,7 +338,7 @@ export default function BrainScreen() {
                         </View>
 
                         {/* Distribuição de Estudo */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                        <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4">
                             <Text className="text-lg font-semibold text-slate-200 mb-4">
                                 Distribuição de Estudo
                             </Text>
@@ -363,13 +363,13 @@ export default function BrainScreen() {
                         </View>
 
                         {/* Resumo Semanal */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
+                        <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4">
                             <View className="flex-row items-center justify-between mb-4">
                                 <Text className="text-lg font-semibold text-slate-200">
                                     Esta Semana
                                 </Text>
                                 <TouchableOpacity onPress={() => setShowComparison(prev => !prev)} activeOpacity={0.7}>
-                                    <Text className={`text-xs ${showComparison ? 'text-violet-400' : 'text-slate-500'}`}>
+                                    <Text className={`text-xs ${showComparison ? 'text-brand-400' : 'text-slate-500'}`}>
                                         {showComparison ? 'ver atual' : 'comparar com semana passada'}
                                     </Text>
                                 </TouchableOpacity>
@@ -381,7 +381,7 @@ export default function BrainScreen() {
                                             <>
                                                 <StatCard value={analyticsData.horasEstaSemana} label="Horas" />
                                                 <StatCard value={analyticsData.sequencia} label="Sequência" valueColor={COLORS.emeraldLight} />
-                                                <StatCard value={analyticsData.questoesEstaSemana} label="Questões" valueColor={COLORS.violetLight} />
+                                                <StatCard value={analyticsData.questoesEstaSemana} label="Questões" valueColor={COLORS.primaryLight} />
                                             </>
                                         );
                                     }
@@ -409,7 +409,7 @@ export default function BrainScreen() {
                         </View>
 
                         {/* Configuração: Início da Semana */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-4">
+                        <View className="bg-[#151515] border border-white/10 rounded-[28px] p-4 mb-4">
                             <Text className="text-lg font-semibold text-slate-200 mb-4">
                                 A semana começa em:
                             </Text>
@@ -417,23 +417,23 @@ export default function BrainScreen() {
                                 <TouchableOpacity
                                     onPress={() => changeWeekStart('sunday')}
                                     activeOpacity={0.8}
-                                    className={`flex-1 flex-row items-center justify-center py-3 rounded-xl border ${weekStartsOn === 'sunday' ? 'bg-violet-600/20 border-violet-500' : 'bg-slate-800 border-slate-700'}`}
+                                    className={`flex-1 flex-row items-center justify-center py-3 rounded-xl border ${weekStartsOn === 'sunday' ? 'bg-brand-500/20 border-brand-500' : 'bg-slate-800 border-slate-700'}`}
                                 >
-                                    <View className={`w-4 h-4 rounded-full border mr-2 items-center justify-center ${weekStartsOn === 'sunday' ? 'border-violet-400' : 'border-slate-500'}`}>
-                                        {weekStartsOn === 'sunday' && <View className="w-2 h-2 rounded-full bg-violet-400" />}
+                                    <View className={`w-4 h-4 rounded-full border mr-2 items-center justify-center ${weekStartsOn === 'sunday' ? 'border-brand-400' : 'border-slate-500'}`}>
+                                        {weekStartsOn === 'sunday' && <View className="w-2 h-2 rounded-full bg-brand-400" />}
                                     </View>
-                                    <Text className={`font-medium ${weekStartsOn === 'sunday' ? 'text-violet-300' : 'text-slate-400'}`}>Domingo</Text>
+                                    <Text className={`font-medium ${weekStartsOn === 'sunday' ? 'text-brand-300' : 'text-slate-400'}`}>Domingo</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
                                     onPress={() => changeWeekStart('monday')}
                                     activeOpacity={0.8}
-                                    className={`flex-1 flex-row items-center justify-center py-3 rounded-xl border ${weekStartsOn === 'monday' ? 'bg-violet-600/20 border-violet-500' : 'bg-slate-800 border-slate-700'}`}
+                                    className={`flex-1 flex-row items-center justify-center py-3 rounded-xl border ${weekStartsOn === 'monday' ? 'bg-brand-500/20 border-brand-500' : 'bg-slate-800 border-slate-700'}`}
                                 >
-                                    <View className={`w-4 h-4 rounded-full border mr-2 items-center justify-center ${weekStartsOn === 'monday' ? 'border-violet-400' : 'border-slate-500'}`}>
-                                        {weekStartsOn === 'monday' && <View className="w-2 h-2 rounded-full bg-violet-400" />}
+                                    <View className={`w-4 h-4 rounded-full border mr-2 items-center justify-center ${weekStartsOn === 'monday' ? 'border-brand-400' : 'border-slate-500'}`}>
+                                        {weekStartsOn === 'monday' && <View className="w-2 h-2 rounded-full bg-brand-400" />}
                                     </View>
-                                    <Text className={`font-medium ${weekStartsOn === 'monday' ? 'text-violet-300' : 'text-slate-400'}`}>Segunda-feira</Text>
+                                    <Text className={`font-medium ${weekStartsOn === 'monday' ? 'text-brand-300' : 'text-slate-400'}`}>Segunda-feira</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -447,7 +447,7 @@ export default function BrainScreen() {
                     className="flex-1 justify-end"
                     style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
                 >
-                    <View className="w-full bg-slate-900 border-t border-slate-800 rounded-t-3xl p-6 pb-8">
+                    <View className="w-full bg-[#151515] border-t border-white/10 rounded-t-[32px] p-6 pb-8">
                         {/* Header */}
                         <View className="flex-row items-center justify-between mb-6">
                             <View className="flex-row items-center flex-1">
@@ -487,7 +487,7 @@ export default function BrainScreen() {
                                         }
                                     });
                                 }}
-                                className="flex-row items-center justify-center gap-2 py-4 rounded-xl bg-violet-600"
+                                className="flex-row items-center justify-center gap-2 py-4 rounded-xl bg-brand-500"
                             >
                                 <Clock size={20} color={COLORS.white} />
                                 <Text className="text-white font-semibold text-lg">Sessão de revisão</Text>

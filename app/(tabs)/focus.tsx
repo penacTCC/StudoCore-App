@@ -8,21 +8,24 @@ import {
     ScrollView,
     Alert,
     AppState,
+    Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-//Componentes do Lucide Native
 import {
-    Play,
+    BookOpen,
+    ChevronDown,
+    Globe,
+    Lock,
     Pause,
+    Play,
+    Plus,
     Square,
     ToggleLeft,
     ToggleRight,
-    Plus,
+    X,
 } from "lucide-react-native";
 
-//Constantes
 import { COLORS } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
@@ -30,9 +33,8 @@ import { useMaterias } from "@/hooks/useMaterias";
 import { useArchives } from "@/hooks/useArchives";
 import { carregarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 
+import * as Notifications from "expo-notifications";
 
-import * as Notifications from 'expo-notifications';
-// Configurar o comportamento das notificações (necessário para mostrar enquanto o app está aberto)
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
         shouldShowAlert: true,
@@ -43,11 +45,34 @@ Notifications.setNotificationHandler({
     }),
 });
 
-
 const STORAGE_KEY_START_TIME = "@focus_session_start_time";
 const STORAGE_KEY_SESSION_DATA = "@focus_session_data";
 
 type FocusState = "config" | "active";
+
+const FlipDigit = ({ value, label }: { value: string; label: string }) => (
+    <View className="flex-1">
+        <View
+            className="h-32 rounded-[28px] items-center justify-center overflow-hidden border"
+            style={{
+                backgroundColor: "#1f1f1f",
+                borderColor: "rgba(255,255,255,0.06)",
+            }}
+        >
+            <View className="absolute left-0 right-0 top-1/2 h-px bg-black" />
+            <View className="absolute left-0 right-0 top-0 h-1/2 bg-white/5" />
+            <Text
+                className="font-black text-slate-200"
+                style={{ fontSize: 58, lineHeight: 68 }}
+            >
+                {value}
+            </Text>
+        </View>
+        <Text className="mt-2 text-center text-[10px] font-bold uppercase text-slate-600">
+            {label}
+        </Text>
+    </View>
+);
 
 export default function FocusScreen() {
     const [focusState, setFocusState] = useState<FocusState>("config");
@@ -57,6 +82,7 @@ export default function FocusScreen() {
     const [timerSeconds, setTimerSeconds] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
     const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
+    const [showSubjectSheet, setShowSubjectSheet] = useState(false);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const startTimeRef = useRef<number | null>(null);
     const pausedSecondsRef = useRef<number>(0);
@@ -64,11 +90,10 @@ export default function FocusScreen() {
     const { userId, user } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
     const { archives } = useArchives(userId || undefined);
-    const { materias, recarregarMaterias } = useMaterias(userId);
+    const { materias } = useMaterias(userId);
     const params = useLocalSearchParams();
     const router = useRouter();
 
-    // Carrega o grupo atual a partir dos parâmetros da rota ou do último grupo salvo localmente.
     useEffect(() => {
         const loadCurrentGroup = async () => {
             const routeGroupId = Array.isArray(params.groupId) ? params.groupId[0] : params.groupId;
@@ -84,7 +109,6 @@ export default function FocusScreen() {
         loadCurrentGroup();
     }, [params.groupId]);
 
-    // Recupera sessão ativa ao abrir o app (caso tenha saído com timer rodando)
     useEffect(() => {
         const restoreSession = async () => {
             try {
@@ -109,20 +133,18 @@ export default function FocusScreen() {
         restoreSession();
     }, []);
 
-    // Solicitar permissão para notificações ao montar o componente
     useEffect(() => {
         const requestPermissions = async () => {
             const { status } = await Notifications.getPermissionsAsync() as any;
-            if (status !== 'granted') {
+            if (status !== "granted") {
                 await Notifications.requestPermissionsAsync();
             }
         };
         requestPermissions();
     }, []);
 
-    // Auto-start for review sessions
     useEffect(() => {
-        if (params.autoStart === 'true' && params.reviewSessionId) {
+        if (params.autoStart === "true" && params.reviewSessionId) {
             setSelectedSubject(params.subject as string);
             setSpecificContent(params.content as string);
             setFocusState("active");
@@ -130,7 +152,6 @@ export default function FocusScreen() {
         }
     }, [params.autoStart, params.reviewSessionId, params.subject, params.content]);
 
-    // Recalcula o tempo quando o app volta do background
     useEffect(() => {
         const subscription = AppState.addEventListener("change", (nextAppState) => {
             if (nextAppState === "active" && startTimeRef.current && !isPaused) {
@@ -141,7 +162,6 @@ export default function FocusScreen() {
         return () => subscription.remove();
     }, [isPaused]);
 
-    // Timer com setInterval (atualiza a cada segundo enquanto em foreground)
     useEffect(() => {
         if (focusState === "active" && !isPaused) {
             intervalRef.current = setInterval(() => {
@@ -156,11 +176,27 @@ export default function FocusScreen() {
         };
     }, [focusState, isPaused]);
 
-    const formatTime = (seconds: number) => {
+    const formatTimeParts = (seconds: number) => {
         const hrs = Math.floor(seconds / 3600);
         const mins = Math.floor((seconds % 3600) / 60);
         const secs = seconds % 60;
-        return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+        return {
+            hrs: hrs.toString().padStart(2, "0"),
+            mins: mins.toString().padStart(2, "0"),
+            secs: secs.toString().padStart(2, "0"),
+        };
+    };
+
+    const addOneMinute = async () => {
+        const nextSeconds = timerSeconds + 60;
+        setTimerSeconds(nextSeconds);
+        pausedSecondsRef.current = nextSeconds;
+
+        if (startTimeRef.current && !isPaused) {
+            const nextStartTime = startTimeRef.current - 60000;
+            startTimeRef.current = nextStartTime;
+            await AsyncStorage.setItem(STORAGE_KEY_START_TIME, nextStartTime.toString());
+        }
     };
 
     const startSession = async () => {
@@ -175,43 +211,29 @@ export default function FocusScreen() {
         }
 
         try {
-            // Já temos o usuário carregado no corpo do componente
             if (!user) return;
 
-            // Garante o grupo ativo mesmo se o estado ainda não tiver terminado de carregar do AsyncStorage.
             const activeGroupId = currentGroupId || await carregarUltimoGrupoLocalmente();
             setCurrentGroupId(activeGroupId);
 
-            // Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)
             const disciplinaBusca = selectedSubject
                 .toLowerCase()
                 .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, ""); // Remove acentos
-            console.log("Disciplina: ", disciplinaBusca);
+                .replace(/[\u0300-\u036f]/g, "");
 
-            // Conta quantos arquivos existem para essa matéria no Vault do usuário e nos grupos
             const count = archives.filter(f => {
                 if (!f.disciplina) return false;
                 const fileSubject = f.disciplina.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 return fileSubject === disciplinaBusca;
             }).length;
-            console.log("Count: ", count);
 
             if (count && count > 0) {
-                /*
-                
-                a biblioteca Expo Go removeu o suporte a notificações push remotas a partir do SDK 53
-                A biblioteca expo-notifications continua funcionando, porém não dentro do Expo Go.
-                */
-
-
-                // Dispara a notificação de sistema imediatamente
                 await Notifications.scheduleNotificationAsync({
                     content: {
-                        title: "📚 Materiais Disponíveis",
+                        title: "Materiais Disponíveis",
                         body: `Você tem ${count} ${count === 1 ? "arquivo" : "arquivos"} de ${selectedSubject} no seu Vault!`,
                     },
-                    trigger: null, // null envia imediatamente
+                    trigger: null,
                 });
 
                 Alert.alert(
@@ -220,7 +242,6 @@ export default function FocusScreen() {
                     [
                         {
                             text: "Agora não", onPress: async () => {
-                                // Salva o timestamp de início e dados da sessão no AsyncStorage
                                 const now = Date.now();
                                 startTimeRef.current = now;
                                 try {
@@ -240,14 +261,12 @@ export default function FocusScreen() {
                         },
                         {
                             text: "Ver Materiais", onPress: () => {
-                                //Navegar para o Vault filtrado, 
                                 router.push("/(tabs)/vault");
                             }
                         }
                     ]
                 );
             } else {
-                // Salva o timestamp de início e dados da sessão no AsyncStorage
                 const now = Date.now();
                 startTimeRef.current = now;
                 try {
@@ -266,7 +285,6 @@ export default function FocusScreen() {
             }
         } catch (error) {
             console.error("Erro ao verificar vault:", error);
-            // Inicia mesmo se houver erro na busca
             const now = Date.now();
             startTimeRef.current = now;
             const fallbackGroupId = currentGroupId || await carregarUltimoGrupoLocalmente();
@@ -289,7 +307,6 @@ export default function FocusScreen() {
 
     const togglePause = async () => {
         if (isPaused) {
-            // Retomar: cria um novo startTime baseado nos segundos acumulados
             const now = Date.now();
             const newStartTime = now - (pausedSecondsRef.current * 1000);
             startTimeRef.current = newStartTime;
@@ -300,7 +317,6 @@ export default function FocusScreen() {
             }
             setIsPaused(false);
         } else {
-            // Pausar: salva os segundos acumulados e para o interval
             pausedSecondsRef.current = timerSeconds;
             if (intervalRef.current) clearInterval(intervalRef.current);
             setIsPaused(true);
@@ -310,7 +326,6 @@ export default function FocusScreen() {
     const stopSession = async () => {
         setFocusState("config");
 
-        // Salva uma cópia dos valores antes de resetar
         const finalSubject = selectedSubject;
         const finalContent = specificContent;
         const finalDuration = timerSeconds;
@@ -326,14 +341,12 @@ export default function FocusScreen() {
 
         if (intervalRef.current) clearInterval(intervalRef.current);
 
-        // Limpa os dados salvos no AsyncStorage
         try {
             await AsyncStorage.multiRemove([STORAGE_KEY_START_TIME, STORAGE_KEY_SESSION_DATA]);
         } catch (e) {
             console.warn("Erro ao limpar sessão:", e);
         }
 
-        // Abre o modal de feedback após a sessão passando os parâmetros
         router.push({
             pathname: "/(modals)/focus-feedback",
             params: {
@@ -348,187 +361,257 @@ export default function FocusScreen() {
         });
     };
 
+    const timeParts = formatTimeParts(timerSeconds);
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
-            {/* Header */}
-            <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">Modo de Foco</Text>
-                <Text className="text-xs text-slate-500">{specificContent || "Sessão Livre"}</Text>
-            </View>
-
-            <ScrollView
-                className="flex-1"
-                contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 16, paddingVertical: 32 }}
-            >
-                {focusState === "config" && (
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
-                        <Text className="text-lg font-semibold text-slate-200 mb-6 text-center">
-                            Configurar Sessão de Estudos
-                        </Text>
-
-                        {/* Subject Picker */}
-                        <View className="mb-4">
-                            <Text className="text-sm text-slate-400 mb-2">Matérias</Text>
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ gap: 8 }}
-                            >
-                                {materias.map((materia) => (
-                                    <TouchableOpacity
-                                        key={materia.nomeNormalizado}
-                                        onPress={() => setSelectedSubject(materia.nomeExibicao === selectedSubject ? "" : materia.nomeExibicao)}
-                                        className={`px-4 py-2.5 rounded-xl border ${selectedSubject === materia.nomeExibicao
-                                            ? "bg-violet-600 border-violet-500"
-                                            : "bg-slate-800 border-slate-700"
-                                            }`}
-                                    >
-                                        <Text
-                                            className={`text-sm font-medium ${selectedSubject === materia.nomeExibicao ? "text-white" : "text-slate-300"
-                                                }`}
-                                        >
-                                            {materia.nomeExibicao}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                            {/* Botão para criar nova matéria (abaixo do carrossel) */}
-                            <TouchableOpacity
-                                onPress={() => router.push("/(modals)/criar-materia")}
-                                className="mt-2 px-4 py-2 rounded-xl border border-dashed border-violet-500/50 flex-row items-center justify-center gap-1.5 self-start"
-                            >
-                                <Plus size={14} color={COLORS.violetLight} />
-                                <Text className="text-sm font-medium text-violet-400">Nova matéria</Text>
-                            </TouchableOpacity>
+        <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
+            {focusState === "config" ? (
+                <>
+                    <ScrollView
+                        className="flex-1"
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
+                    >
+                        <View className="pt-6 pb-8">
+                            <Text className="text-4xl font-black text-slate-100">Foco</Text>
+                            <Text className="mt-2 text-base text-slate-500">
+                                Monte uma sessão limpa antes de começar.
+                            </Text>
                         </View>
 
-                        {/* Specific Content */}
-                        <View className="mb-4">
-                            <Text className="text-sm text-slate-400 mb-2">Conteúdo Específico</Text>
-                            <TextInput
-                                value={specificContent}
-                                onChangeText={setSpecificContent}
-                                placeholder="ex.: Capítulo 5: Derivadas"
-                                placeholderTextColor={COLORS.textMuted}
-                                className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-base"
-                            />
-                        </View>
-
-                        {/* Session Visibility Toggle */}
-                        <View className="flex-row items-center justify-between bg-slate-800/50 p-4 rounded-xl mb-6">
-                            <View>
-                                <Text className="text-sm font-medium text-slate-200">Visibilidade da Sessão</Text>
-                                <Text className="text-xs text-slate-400">
-                                    {isPublicSession ? "Outros podem entrar" : "Sessão privada"}
-                                </Text>
+                        <View className="rounded-[28px] border border-white/10 bg-[#151515] p-5">
+                            <View className="mb-6 flex-row items-center justify-between">
+                                <View>
+                                    <Text className="text-sm font-semibold uppercase text-slate-500">
+                                        Sessão de estudo
+                                    </Text>
+                                    <Text className="mt-1 text-2xl font-bold text-slate-100">
+                                        Preparar foco
+                                    </Text>
+                                </View>
+                                <View className="h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/15">
+                                    <BookOpen size={23} color={COLORS.primary} />
+                                </View>
                             </View>
-                            <TouchableOpacity onPress={() => setIsPublicSession(!isPublicSession)}>
-                                {isPublicSession ? (
-                                    <ToggleRight size={32} color={COLORS.violetLight} />
-                                ) : (
-                                    <ToggleLeft size={32} color={COLORS.textMuted} />
-                                )}
+
+                            <TouchableOpacity
+                                onPress={() => setShowSubjectSheet(true)}
+                                activeOpacity={0.8}
+                                className="mb-4 rounded-2xl border border-white/10 bg-[#202020] px-4 py-4"
+                            >
+                                <Text className="mb-2 text-xs font-bold uppercase text-slate-500">Matéria</Text>
+                                <View className="flex-row items-center justify-between gap-3">
+                                    <Text
+                                        className={`flex-1 text-lg font-semibold ${selectedSubject ? "text-slate-100" : "text-slate-500"}`}
+                                        numberOfLines={1}
+                                    >
+                                        {selectedSubject || "Selecionar matéria"}
+                                    </Text>
+                                    <ChevronDown size={22} color={COLORS.primary} />
+                                </View>
                             </TouchableOpacity>
-                        </View>
 
-                        {/* Start Button */}
-                        <TouchableOpacity
-                            onPress={startSession}
-                            className="bg-violet-600 py-4 rounded-2xl flex-row items-center justify-center gap-2"
-                            style={{
-                                shadowColor: COLORS.violet,
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 12,
-                                elevation: 8,
-                            }}
-                        >
-                            <Play size={20} color={COLORS.white} />
-                            <Text className="text-white font-semibold text-lg">Iniciar Sessão</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
+                            <View className="mb-4">
+                                <Text className="mb-2 text-xs font-bold uppercase text-slate-500">
+                                    Conteúdo específico
+                                </Text>
+                                <TextInput
+                                    value={specificContent}
+                                    onChangeText={setSpecificContent}
+                                    placeholder="ex.: Capítulo 5: Derivadas"
+                                    placeholderTextColor={COLORS.textMuted}
+                                    className="rounded-2xl border border-white/10 bg-[#202020] px-4 py-4 text-base text-slate-100"
+                                />
+                            </View>
 
-                {focusState === "active" && (
-                    <View className="items-center justify-center">
-                        {/* Subject info */}
-                        <View className="mb-8 items-center">
-                            <Text className="text-sm text-violet-400 font-medium mb-1">
-                                {selectedSubject || "Estudo Geral"}
-                            </Text>
-                            <Text className="text-xs text-slate-500">
-                                {specificContent || "Sessão Livre"}
-                            </Text>
-                        </View>
+                            <View className="mb-6 flex-row items-center justify-between rounded-2xl border border-white/10 bg-[#202020] p-4">
+                                <View className="flex-1 pr-3">
+                                    <View className="flex-row items-center gap-2">
+                                        {isPublicSession ? (
+                                            <Globe size={16} color={COLORS.primary} />
+                                        ) : (
+                                            <Lock size={16} color={COLORS.textMuted} />
+                                        )}
+                                        <Text className="text-sm font-semibold text-slate-100">
+                                            {isPublicSession ? "Sessão pública" : "Sessão privada"}
+                                        </Text>
+                                    </View>
+                                    <Text className="mt-1 text-xs text-slate-500">
+                                        {isPublicSession ? "Outros podem entrar e ver a atividade." : "Apenas você verá essa sessão."}
+                                    </Text>
+                                </View>
+                                <TouchableOpacity onPress={() => setIsPublicSession(!isPublicSession)}>
+                                    {isPublicSession ? (
+                                        <ToggleRight size={34} color={COLORS.primary} />
+                                    ) : (
+                                        <ToggleLeft size={34} color={COLORS.textMuted} />
+                                    )}
+                                </TouchableOpacity>
+                            </View>
 
-                        {/* Big Neon Clock */}
-                        <View className="items-center justify-center mb-10">
-                            <View
-                                className="w-64 h-64 rounded-full items-center justify-center"
+                            <TouchableOpacity
+                                onPress={startSession}
+                                activeOpacity={0.85}
+                                className="flex-row items-center justify-center gap-2 rounded-2xl bg-brand-500 py-4"
                                 style={{
-                                    backgroundColor: "rgba(15, 23, 42, 0.8)",
-                                    borderWidth: 4,
-                                    borderColor: "rgba(139, 92, 246, 0.5)",
-                                    shadowColor: COLORS.violet,
-                                    shadowOffset: { width: 0, height: 0 },
-                                    shadowOpacity: 0.6,
-                                    shadowRadius: 30,
-                                    elevation: 15,
+                                    shadowColor: COLORS.primary,
+                                    shadowOffset: { width: 0, height: 8 },
+                                    shadowOpacity: 0.28,
+                                    shadowRadius: 16,
+                                    elevation: 8,
                                 }}
                             >
-                                <Text
-                                    className="font-bold text-violet-400"
-                                    style={{ fontSize: 42, letterSpacing: 2 }}
+                                <Play size={20} color={COLORS.black} />
+                                <Text className="text-lg font-black text-black">Iniciar sessão</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </ScrollView>
+
+                    <Modal
+                        visible={showSubjectSheet}
+                        transparent
+                        animationType="slide"
+                        onRequestClose={() => setShowSubjectSheet(false)}
+                    >
+                        <View className="flex-1 justify-end bg-black/70">
+                            <View className="rounded-t-[32px] border-t border-white/10 bg-[#151515] px-5 pb-8 pt-4">
+                                <View className="mb-5 flex-row items-center justify-between">
+                                    <View>
+                                        <Text className="text-xs font-bold uppercase text-slate-500">Matérias</Text>
+                                        <Text className="text-xl font-bold text-slate-100">Escolha a sessão</Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        onPress={() => setShowSubjectSheet(false)}
+                                        className="h-10 w-10 items-center justify-center rounded-full bg-white"
+                                    >
+                                        <X size={20} color={COLORS.black} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
+                                    {materias.map((materia) => {
+                                        const isSelected = selectedSubject === materia.nomeExibicao;
+                                        return (
+                                            <TouchableOpacity
+                                                key={materia.nomeNormalizado}
+                                                onPress={() => {
+                                                    setSelectedSubject(isSelected ? "" : materia.nomeExibicao);
+                                                    setShowSubjectSheet(false);
+                                                }}
+                                                activeOpacity={0.75}
+                                                className={`mb-3 flex-row items-center justify-between rounded-2xl border px-4 py-4 ${
+                                                    isSelected ? "border-brand-500 bg-brand-500/15" : "border-white/10 bg-[#202020]"
+                                                }`}
+                                            >
+                                                <Text className="text-base font-semibold text-slate-100">
+                                                    {materia.nomeExibicao}
+                                                </Text>
+                                                <View
+                                                    className={`h-4 w-4 rounded-full border ${
+                                                        isSelected ? "border-brand-500 bg-brand-500" : "border-slate-600"
+                                                    }`}
+                                                />
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setShowSubjectSheet(false);
+                                        router.push("/(modals)/criar-materia");
+                                    }}
+                                    className="mt-2 flex-row items-center justify-center gap-2 rounded-2xl border border-dashed border-brand-500/60 py-4"
                                 >
-                                    {formatTime(timerSeconds)}
-                                </Text>
-                                <Text className="text-xs text-slate-500 mt-2 uppercase tracking-widest">
-                                    {isPaused ? "Pausado" : "Elapsed"}
-                                </Text>
+                                    <Plus size={18} color={COLORS.primary} />
+                                    <Text className="font-bold text-brand-400">Nova matéria</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
+                    </Modal>
+                </>
+            ) : (
+                <View className="flex-1 px-5 pb-8 pt-5">
+                    <View className="flex-row items-center justify-between">
+                        <TouchableOpacity
+                            onPress={stopSession}
+                            className="h-11 w-11 items-center justify-center rounded-full bg-white"
+                        >
+                            <X size={23} color={COLORS.black} />
+                        </TouchableOpacity>
+                        <View className="items-end">
+                            <Text className="text-xs font-bold uppercase text-slate-600">
+                                {isPaused ? "Pausado" : "Em andamento"}
+                            </Text>
+                            <Text className="text-sm font-semibold text-brand-400">
+                                {selectedSubject || "Estudo geral"}
+                            </Text>
+                        </View>
+                    </View>
 
-                        {/* Visibility Badge */}
-                        <View className="flex-row items-center gap-2 mb-8">
-                            <View
-                                className={`w-2 h-2 rounded-full ${isPublicSession ? "bg-emerald-400" : "bg-slate-500"
-                                    }`}
-                            />
-                            <Text className="text-sm text-slate-400">
-                                {isPublicSession ? "Sessão Pública" : "Sessão Privada"}
+                    <View className="flex-1 justify-center">
+                        <View className="mb-8 rounded-full border border-white/10 bg-white/5 px-5 py-3 self-center">
+                            <Text className="text-center text-sm font-semibold text-slate-400" numberOfLines={1}>
+                                {specificContent || "Sessão livre"}
                             </Text>
                         </View>
 
-                        {/* Pause & Stop Buttons */}
-                        <View className="flex-row items-center gap-4">
+                        <View className="gap-4">
+                            <View className="flex-row gap-4">
+                                <FlipDigit value={timeParts.hrs} label="horas" />
+                                <FlipDigit value={timeParts.mins} label="min" />
+                            </View>
+                            <View className="flex-row gap-4">
+                                <FlipDigit value={timeParts.secs} label="seg" />
+                                <View className="flex-1 justify-center rounded-[28px] border border-white/10 bg-[#151515] p-5">
+                                    <Text className="text-xs font-bold uppercase text-slate-600">
+                                        Visibilidade
+                                    </Text>
+                                    <Text className="mt-2 text-lg font-bold text-slate-100">
+                                        {isPublicSession ? "Pública" : "Privada"}
+                                    </Text>
+                                    <View className="mt-4 flex-row items-center gap-2">
+                                        <View
+                                            className={`h-2 w-2 rounded-full ${isPublicSession ? "bg-brand-500" : "bg-slate-500"}`}
+                                        />
+                                        <Text className="text-xs text-slate-500">
+                                            {isPublicSession ? "feed ativo" : "somente você"}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
+                    </View>
+
+                    <View className="self-center rounded-full border border-white/10 bg-[#211f29] p-2">
+                        <View className="flex-row items-center gap-2">
+                            <TouchableOpacity
+                                onPress={addOneMinute}
+                                className="h-14 w-14 items-center justify-center rounded-full bg-white"
+                            >
+                                <Text className="text-base font-black text-slate-900">+1</Text>
+                            </TouchableOpacity>
+                            <View className="h-9 w-px bg-white/10" />
                             <TouchableOpacity
                                 onPress={togglePause}
-                                className={`py-4 px-8 rounded-2xl flex-row items-center justify-center gap-2 ${isPaused ? "bg-violet-600" : "bg-amber-500/20 border border-amber-500"}`}
+                                className="h-14 w-14 items-center justify-center rounded-full bg-brand-500"
                             >
                                 {isPaused ? (
-                                    <>
-                                        <Play size={20} color={COLORS.white} />
-                                        <Text className="text-white font-semibold text-lg">Retomar</Text>
-                                    </>
+                                    <Play size={22} color={COLORS.black} />
                                 ) : (
-                                    <>
-                                        <Pause size={20} color="#f59e0b" />
-                                        <Text className="text-amber-500 font-semibold text-lg">Pausar</Text>
-                                    </>
+                                    <Pause size={22} color={COLORS.black} />
                                 )}
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={stopSession}
-                                className="bg-rose-500/20 border border-rose-500 py-4 px-8 rounded-2xl flex-row items-center justify-center gap-2"
+                                className="h-14 w-14 items-center justify-center rounded-full bg-white"
                             >
-                                <Square size={20} color={COLORS.rose} />
-                                <Text className="text-rose-500 font-semibold text-lg">Parar</Text>
+                                <Square size={20} color={COLORS.black} />
                             </TouchableOpacity>
                         </View>
                     </View>
-                )}
-            </ScrollView>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
