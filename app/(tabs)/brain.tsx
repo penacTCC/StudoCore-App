@@ -10,6 +10,7 @@ import { ProgressBar, StatCard } from "@/components/ui/";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { useAuth } from "@/hooks/useAuth";
 import { SessaoFocoRow } from "@/types/sessions";
+import { buscarGamificacao } from "@/services/gamificacao";
 
 type BrainTab = "database" | "analytics";
 
@@ -45,6 +46,16 @@ export default function BrainScreen() {
     const [selectedForm, setSelectedForm] = useState<SessaoFocoRow | null>(null);
     const router = useRouter();
 
+    // Ofensiva é calculada e persistida no backend (tabela gamificacoes) ao concluir uma sessão,
+    // então aqui só buscamos o valor já pronto em vez de recalcular a partir do histórico de sessões.
+    const [ofensivaReal, setOfensivaReal] = useState(0);
+    useEffect(() => {
+        if (!userId) return;
+        buscarGamificacao(userId).then((gamificacao) => {
+            setOfensivaReal(gamificacao?.ofensiva ?? 0);
+        });
+    }, [userId]);
+
     const analyticsData = useMemo(() => {
         const allSessions = [...savedSessions, ...pendingSessions];
 
@@ -52,7 +63,7 @@ export default function BrainScreen() {
             return {
                 horasEstaSemana: "0h",
                 questoesEstaSemana: 0,
-                sequencia: 0,
+                sequencia: ofensivaReal,
                 horasSemanaPasada: "0h",
                 questoesSemanaPasada: 0,
                 diasSemanaPasada: 0,
@@ -90,14 +101,9 @@ export default function BrainScreen() {
         const diasSemanaPasada = new Set<string>();
         const distMap: Record<string, number> = {};
 
-        const uniqueDates = new Set<string>();
-
         allSessions.forEach(session => {
             const sessionDate = new Date(session.created_at || session.data_sessao);
             const sessionTime = sessionDate.getTime();
-
-            // Para "Sequência" (General Streak)
-            uniqueDates.add(sessionDate.toISOString().split('T')[0]);
 
             // Para "Esta Semana"
             if (getStartOfWeek(sessionDate, weekStartsOn) === startOfThisWeek) {
@@ -118,30 +124,6 @@ export default function BrainScreen() {
             }
         });
 
-        // Compute sequência (ofensiva)
-        const sortedDates = Array.from(uniqueDates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-        let ofensiva = 0;
-        const todayStr = today.toISOString().split('T')[0];
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-        if (sortedDates.length > 0) {
-            let expectedDateStr = sortedDates[0];
-            if (expectedDateStr === todayStr || expectedDateStr === yesterdayStr) {
-                let currentDate = new Date(expectedDateStr + "T12:00:00");
-                for (let i = 0; i < sortedDates.length; i++) {
-                    if (sortedDates[i] === expectedDateStr) {
-                        ofensiva++;
-                        currentDate.setDate(currentDate.getDate() - 1);
-                        expectedDateStr = currentDate.toISOString().split('T')[0];
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
-
         // Distribuição de matérias (ordenado, da semana em horas)
         const distribuicao = Object.keys(distMap).map((subject, index) => ({
             subject,
@@ -155,7 +137,7 @@ export default function BrainScreen() {
         return {
             horasEstaSemana: `${Math.floor(horasTotaisMinutos / 60)}h${String(horasTotaisMinutos % 60).padStart(2, '0')}`,
             questoesEstaSemana: questoesTotais,
-            sequencia: ofensiva,
+            sequencia: ofensivaReal,
             diasEstaSemana: diasEstaSemana.size,
             // Semana passada
             horasSemanaPasada: `${Math.floor(horasSemanaPasadaMinutos / 60)}h${String(horasSemanaPasadaMinutos % 60).padStart(2, '0')}`,
@@ -166,7 +148,7 @@ export default function BrainScreen() {
             horasEstaSemanaMinutos: horasTotaisMinutos,
             horasSemanaPasadaMinutos: horasSemanaPasadaMinutos
         };
-    }, [savedSessions, pendingSessions, weekStartsOn]);
+    }, [savedSessions, pendingSessions, weekStartsOn, ofensivaReal]);
 
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>

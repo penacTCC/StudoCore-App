@@ -49,9 +49,14 @@ export type MembroGrupo = {
   ofensiva?: number;
 };
 
+// Perfil com a gamificação (ofensiva) embutida via join do PostgREST em buscarMembrosGrupo.
+type PerfilComGamificacao = ProfilePreview & {
+  gamificacoes?: { ofensiva: number } | { ofensiva: number }[] | null;
+};
+
 export type MembroGrupoComPerfil = MembroGrupo & {
-  profiles?: ProfilePreview | null;
-  userData?: ProfilePreview | null;
+  profiles?: PerfilComGamificacao | null;
+  userData?: PerfilComGamificacao | null;
 };
 
 export type ParametrosUltimoGrupo = {

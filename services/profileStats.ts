@@ -234,7 +234,6 @@ export const syncProfileStatsAfterFocusSession = async (userId: string): Promise
                 horas_totais: totalHours,
                 questoes_feitas: totals.totalQuestions,
                 medalhas_desbloqueadas: Array.from(newBadgesSet),
-                ultima_data_estudo: new Date().toISOString(),
             })
             .eq('id', userId);
 
@@ -353,13 +352,11 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
         });
         
         const newBadgesArray = Array.from(newBadgesSet);
-        const todayDateStr = new Date().toISOString();
 
         // UPDATE (não upsert!) para nunca tentar criar linha nova sem os campos NOT NULL (nome_real, etc.)
         const { error: profileError } = await supabase.from('profiles').update({
              horas_totais: Math.round(newTotalHours),
              medalhas_desbloqueadas: newBadgesArray, // Transição Array puro pro Postgres serializar JSONB
-             ultima_data_estudo: todayDateStr
         }).eq('id', userId);
 
         if (profileError) {

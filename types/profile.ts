@@ -7,6 +7,9 @@ export type Profile = {
     materia_favorita?: string | null;
     minutos_semana?: number | null;
     questoes_feitas?: number | null;
+    horas_totais?: number | null;
+    medalhas_desbloqueadas?: string[] | null;
+    created_at?: string | null;
 };
 
 export type ProfilePreview = Pick<

@@ -2,37 +2,22 @@ import { useState, useMemo, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, Image, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-    CalendarDays, ChevronRight, Star, Clock, BookOpen, Flame, Trophy,
-    Users, LogOut, Settings, X, Edit2,
-    Zap, Play, BookMarked, Pencil, HelpCircle, CheckCircle, List, Search,
-    CalendarCheck, TrendingUp, Award, BarChart2, Target, BookCheck,
-    Activity, Eye, Repeat, Calendar, Medal, FileSearch, Hash,
-    Shield, Layers, Lock, Cpu, GraduationCap, Milestone,
-    Crosshair, Sword, Swords, Anchor, Dumbbell, Mountain,
-    Compass, Sparkles, Globe, Crown, Gem, Infinity, Diamond,
-    Timer, LayoutGrid, BrainCircuit,
+    CalendarDays, ChevronRight, Star, LogOut, Settings, X, Edit2,
+    Search, Flame, Users,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { COLORS } from "@/constants/colors";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
 import { APP_BADGES, BADGE_LEVEL_COLORS, BadgeType } from "@/constants/badges";
+import { BADGE_ICON_MAP as iconMap } from "@/constants/badgeIcons";
 import { getAvatarColor } from "@/constants/helpers";
-import type { LucideIcon } from "lucide-react-native";
 import { loadProfileStats, updateFavoriteSubject, updateWeeklyGoal } from "@/services/profileStats";
+import { buscarGamificacao } from "@/services/gamificacao";
 import {UserStats} from "@/types/profile";
 import { buscarPerfil, buscarUsuarioLogado, deslogarUsuario } from "@/services/auth";
 import type { AuthUser } from "@/types/auth";
 import type { Profile } from "@/types/profile";
-
-const iconMap: Record<string, LucideIcon> = {
-    Star, Clock, BookOpen, Flame, Trophy, Users, Zap, Play, BookMarked, Pencil,
-    HelpCircle, CheckCircle, List, Search, CalendarCheck, TrendingUp, Award,
-    BarChart2, Target, BookCheck, Activity, Eye, Repeat, Calendar, Medal,
-    FileSearch, Hash, Shield, Layers, Lock, Cpu, GraduationCap, Milestone,
-    Crosshair, Sword, Swords, Anchor, Dumbbell, Mountain, Compass, Sparkles,
-    Globe, Crown, Gem, Infinity, Diamond, Timer, LayoutGrid, BrainCircuit,
-};
 
 function getBadgeProgress(badge: BadgeType, stats: UserStats): number {
     switch (badge.requirementType) {
@@ -53,6 +38,7 @@ export default function ProfileScreen() {
     const [tempGoalValue, setTempGoalValue] = useState("");
     const [showHeatmapModal, setShowHeatmapModal] = useState(false);
     const [selectedDayInfo, setSelectedDayInfo] = useState<{ date: Date; hours: number } | null>(null);
+    const [melhorOfensiva, setMelhorOfensiva] = useState(0);
 
     const { userId } = useAuth();
     const { materiasComCores } = useMaterias(userId);
@@ -65,6 +51,8 @@ export default function ProfileScreen() {
                     setSessionUser(data.user);
                     const { data: prof } = await buscarPerfil(data.user.id);
                     if (prof) setProfileData(prof);
+                    const gamificacao = await buscarGamificacao(data.user.id);
+                    setMelhorOfensiva(gamificacao?.melhor_ofensiva ?? 0);
                 }
                 const s = await loadProfileStats();
                 setStats(s);
@@ -487,6 +475,13 @@ export default function ProfileScreen() {
                             <View className="flex-1 p-3 rounded-xl" style={{ backgroundColor: COLORS.primaryFaint, minWidth: "45%" }}>
                                 <Text className="text-2xl font-bold text-slate-200">{stats.totalQuestions}</Text>
                                 <Text className="text-xs text-slate-400">Total Questões</Text>
+                            </View>
+                            <View className="flex-1 p-3 rounded-xl flex-row items-center gap-2" style={{ backgroundColor: COLORS.primaryFaint, minWidth: "45%" }}>
+                                <Flame size={20} color={COLORS.emeraldLight} />
+                                <View>
+                                    <Text className="text-2xl font-bold text-slate-200">{melhorOfensiva}</Text>
+                                    <Text className="text-xs text-slate-400">Melhor Ofensiva</Text>
+                                </View>
                             </View>
                         </View>
 

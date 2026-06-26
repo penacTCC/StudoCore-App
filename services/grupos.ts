@@ -103,7 +103,10 @@ export const buscarMembrosGrupo = async (grupoId: string) => {
       profiles:user_id (
         id,
         nome_usuario,
-        foto_usuario
+        foto_usuario,
+        gamificacoes (
+          ofensiva
+        )
       )
     `)
     .eq("grupo_id", grupoId);
@@ -113,10 +116,17 @@ export const buscarMembrosGrupo = async (grupoId: string) => {
     return [];
   }
 
-  return ((usuarioMembro || []) as MembroGrupoComPerfil[]).map((membro) => ({
-    ...membro,
-    userData: membro.profiles,
-  }));
+  return ((usuarioMembro || []) as MembroGrupoComPerfil[]).map((membro) => {
+    // `gamificacoes` vem como relação 1:1 (user_id é PK), mas o PostgREST pode devolver objeto ou array de 1 item.
+    const gamificacao = membro.profiles?.gamificacoes;
+    const ofensiva = Array.isArray(gamificacao) ? gamificacao[0]?.ofensiva : gamificacao?.ofensiva;
+
+    return {
+      ...membro,
+      userData: membro.profiles,
+      ofensiva: ofensiva ?? 0,
+    };
+  });
 };
 
 export const usuarioParticipaDeGrupo = async (userId: string) => {
