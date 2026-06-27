@@ -67,7 +67,6 @@ export default function GroupScreen() {
     const [showLeaderboardFilters, setShowLeaderboardFilters] = useState(false);
     const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
     const [rankingMembros, setRankingMembros] = useState<RankingMembroComPerfil[]>([])
-    const [isLoading, setIsLoading] = useState(false)
     const [grupo, setGroup] = useState<Grupo | null>(null)
 
     // Captura os parâmetros recebidos da tela anterior
@@ -424,7 +423,7 @@ export default function GroupScreen() {
                                     params: 
                                     { 
                                         grupoId: groupId as string, 
-                                        grupoCode: grupo?.codigo_convite
+                                        grupoCode: grupo?.codigo_convite,
                                     } 
                                 })}
                                 className="flex-row items-center gap-1 bg-brand-500 px-3 py-1.5 rounded-lg"

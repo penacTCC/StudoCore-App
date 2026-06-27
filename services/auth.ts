@@ -138,3 +138,11 @@ export const obtemEmailUsuario = async () => {
 export const refreshSessao = async () => {
   await supabase.auth.refreshSession();
 }
+
+//Busca número de celular do usuário
+export const verificaCelularUsuario = async (userId: string) => {
+  return await supabase
+    .from("profiles") 
+    .select("celular")
+    .eq("id", userId)
+}

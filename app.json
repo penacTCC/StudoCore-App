@@ -19,7 +19,8 @@
             "predictiveBackGestureEnabled": false,
             "package": "com.anonymous.StudoCoreMobile",
             "permissions": [
-                "POST_NOTIFICATIONS"
+                "POST_NOTIFICATIONS",
+                "READ_CONTACTS"
             ]
         },
         "web": {
@@ -32,6 +33,12 @@
             "expo-web-browser",
             "expo-sharing",
             "expo-font",
+            [
+                "expo-contacts",
+                {
+                    "contactsPermission": "O StudoCore usa seus contatos para você convidar amigos para estudar junto."
+                }
+            ],
             [
                 "react-native-share",
                 {
