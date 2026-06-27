@@ -27,19 +27,17 @@ const mockPendingInvites = [
 export default function InviteScreen() {
     const [zapNumber, setZapNumber] = useState("");
 
-    const { groupId, groupName } = useLocalSearchParams();
+    const { grupoId, grupoCode } = useLocalSearchParams();
 
-    //Nome do grupo tudo em minúsculo, sem espaços e sem caracteres especiais, depois os 6 primeiros números do id do grupo
+    // Gera o link sempre a partir do grupoId (estável), nunca a partir do valor salvo
+    // anteriormente — caso contrário, cada visita embrulha o link salvo em outro "studocore://".
+    const inviteLink = `https://studocore-convite.netlify.app/join?groupId=${grupoId}`;
 
-    //Esse link será utilizado quando estivermos na cloud, pois o supabase não consegue criar links profundos localmente
-    // const inviteLink = `https://studocore.app/${groupName?.toString().toLowerCase().replace(/\s/g, "")}-${groupId?.toString().replace(/\D/g, "").slice(0, 6)}`;
-
-    //Link provisório para testes
-    const inviteLink = Linking.createURL(`group-details?groupId=${groupId}`);
-
-    //Insere o código de convite na tabela grupos
+    //Insere o código de convite na tabela grupos (só escreve se ainda não estiver correto,
+    //o que também corrige sozinho qualquer valor duplicado que já esteja salvo)
     useEffect(() => {
-        inserirCodigoConvite(groupId as string, inviteLink);
+        if (grupoCode === inviteLink) return;
+        inserirCodigoConvite(grupoId as string, inviteLink);
     }, []);
 
     //Formata o número de telefone
@@ -52,7 +50,8 @@ export default function InviteScreen() {
     const handleSendInvite = () => {
         if (zapNumber.trim().length === 11) {
             const phoneNumber = formatPhoneNumber(zapNumber);
-            const url = `https://wa.me/55${phoneNumber}?text=Venha estudar comigo no *StudoCore*! \n\n${inviteLink}`;
+            const mensagem = `Venha estudar comigo no *StudoCore*!\n\n${inviteLink}`;
+            const url = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(mensagem)}`;
             Linking.openURL(url);
         } else {
             Alert.alert("Número de telefone inválido");

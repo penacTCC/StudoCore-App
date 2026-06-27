@@ -21,9 +21,10 @@ import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useSessoesFoco } from "@/hooks/useSessoesFoco";
-import { horasSemanaisGrupo } from "@/services/grupos";
+import { buscarGrupoPorId, horasSemanaisGrupo } from "@/services/grupos";
 import { buscarRankingHorasMembros } from "@/services/ranking";
 import { RankingMembroComPerfil } from "@/types/ranking";
+import { Grupo } from "@/types/grupos";
 
 type LeaderboardFilter = "total" | "semanal" | "mensal" | "anual"
 
@@ -66,9 +67,21 @@ export default function GroupScreen() {
     const [showLeaderboardFilters, setShowLeaderboardFilters] = useState(false);
     const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
     const [rankingMembros, setRankingMembros] = useState<RankingMembroComPerfil[]>([])
+    const [isLoading, setIsLoading] = useState(false)
+    const [grupo, setGroup] = useState<Grupo | null>(null)
 
     // Captura os parâmetros recebidos da tela anterior
-    const { groupName, groupId, groupPhoto, groupGoal } = useLocalSearchParams(); //<- os parametros
+    const {groupId,} = useLocalSearchParams(); //<- os parametros
+    
+    useEffect(() => {
+        if(!groupId) return
+        const loadGroup = async () => {
+            const grupo = await buscarGrupoPorId(groupId as string);
+            setGroup(grupo);
+            console.log('Código do grupo: ' + grupo?.codigo_convite)
+        };
+        loadGroup();
+    }, [groupId]);
 
     //Pega os membros do grupo
     const { membros } = useMembrosGrupo({ grupoId: groupId as string });
@@ -139,7 +152,7 @@ export default function GroupScreen() {
     }, [groupId, leaderboardFilter, membros])
 
     //Cálculo do progresso do grupo
-    const metaPorMembro = Number(Array.isArray(groupGoal) ? groupGoal[0] : groupGoal) || 0
+    const metaPorMembro = Number(Array.isArray(grupo?.meta_horas) ? grupo.meta_horas[0] : grupo?.meta_horas) || 0
     const totalMembros = membros.length
 
     const metaTotalGrupo = metaPorMembro * totalMembros
@@ -157,8 +170,8 @@ export default function GroupScreen() {
                     <View className="flex-row items-center justify-between">
                         <View className="flex-row items-center gap-4 flex-1 pr-4">
                             <View className="w-12 h-12 rounded-xl bg-slate-800 items-center justify-center border border-slate-700">
-                                {groupPhoto ? (
-                                    <Image source={{ uri: Array.isArray(groupPhoto) ? groupPhoto[0] : groupPhoto }} className="w-full h-full rounded-xl" resizeMode="cover" />
+                                {grupo?.foto_grupo ? (
+                                    <Image source={{ uri: Array.isArray(grupo?.foto_grupo) ? grupo?.foto_grupo[0] : grupo?.foto_grupo }} className="w-full h-full rounded-xl" resizeMode="cover" />
                                 ) : (
                                     <Users size={28} color={COLORS.textMuted} />
                                 )}
@@ -174,7 +187,7 @@ export default function GroupScreen() {
                                         numberOfLines={1}
                                         style={{ maxWidth: 200 }}
                                     >
-                                        {groupName || "Nome não encontrado"}
+                                        {grupo?.nome_grupo || "Nome não encontrado"}
                                     </Text>
                                     <View className="p-1.5 rounded-full ml-1">
                                         <ChevronDown size={22} color={COLORS.textMuted} />
@@ -406,7 +419,14 @@ export default function GroupScreen() {
                         <View className="flex-row items-center justify-between mb-3">
                             <Text className="text-lg font-semibold text-slate-200">Membros</Text>
                             <TouchableOpacity
-                                onPress={() => router.push({ pathname: "/invite", params: { groupId: groupId as string, groupName: groupName as string } })}
+                                onPress={() => router.push({ 
+                                    pathname: "/invite", 
+                                    params: 
+                                    { 
+                                        grupoId: groupId as string, 
+                                        grupoCode: grupo?.codigo_convite
+                                    } 
+                                })}
                                 className="flex-row items-center gap-1 bg-brand-500 px-3 py-1.5 rounded-lg"
                             >
                                 <Plus size={16} color={COLORS.white} />

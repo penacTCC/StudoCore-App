@@ -49,7 +49,7 @@ export function useRouteGuard({ inicializado, session, perfilCompleto, membro, p
         ['no-group', 'browse-groups', 'group-details'].includes(String(segundoSegmento));
       const estaEmModalSemGrupo =
         segmentos[0] === '(modals)' &&
-        ['create-group', 'join-by-code'].includes(String(segundoSegmento));
+        ['create-group', 'join-by-code', 'join'].includes(String(segundoSegmento));
 
       if (!estaEmTelaDeGrupoSemGrupo && !estaEmModalSemGrupo) {
         router.replace('/(groups)/no-group');

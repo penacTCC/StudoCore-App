@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Convite StudoCore</title>
+
+    <!-- Tags Open Graph: é isso que faz o WhatsApp/Telegram gerarem o card de preview ao colar o link -->
+    <meta property="og:title" content="Você foi convidado para um grupo no StudoCore" />
+    <meta property="og:description" content="Toque para entrar no grupo de estudos." />
+    <meta property="og:type" content="website" />
+
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #020617;
+            color: #e2e8f0;
+            font-family: -apple-system, Roboto, Helvetica, Arial, sans-serif;
+            text-align: center;
+            padding: 24px;
+        }
+
+        .card {
+            max-width: 360px;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
+        p {
+            color: #94a3b8;
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 28px;
+        }
+
+        a.button {
+            display: inline-block;
+            background: #f7982c;
+            color: #ffffff;
+            font-weight: 600;
+            padding: 14px 28px;
+            border-radius: 14px;
+            text-decoration: none;
+            font-size: 16px;
+        }
+
+        .hint {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Você foi convidado para o StudoCore</h1>
+        <p>Toque no botão abaixo para entrar no grupo de estudos no app.</p>
+        <a id="open-app" class="button" href="#">Abrir no app</a>
+        <p class="hint" id="install-hint" style="display: none;">
+            Ainda não baixou o app? Em breve disponibilizaremos o link para a loja.
+        </p>
+    </div>
+
+    <script>
+        // Lê o ?groupId=... que vem do link de convite gerado dentro do app
+        const params = new URLSearchParams(window.location.search);
+        const groupId = params.get("groupId");
+
+        const deepLink = groupId
+            ? `studocore://join?groupId=${encodeURIComponent(groupId)}`
+            : "studocore://";
+
+        document.getElementById("open-app").href = deepLink;
+
+        // Tenta abrir o app automaticamente ao carregar a página
+        window.location.href = deepLink;
+
+        // Se depois de um tempo a pessoa ainda estiver vendo essa página,
+        // o app provavelmente não está instalado — mostra a dica de instalação
+        setTimeout(() => {
+            document.getElementById("install-hint").style.display = "block";
+        }, 1500);
+    </script>
+</body>
+</html>

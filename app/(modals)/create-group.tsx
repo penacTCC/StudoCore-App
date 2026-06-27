@@ -90,7 +90,7 @@ export default function CreateGroupScreen() {
     const cleanName = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
     // O if ternário (cleanName ? ...) evita que o link fique com um hífen solto se o nome estiver vazio
-    const inviteLink = `studocore://join/${cleanName ? cleanName + '-' : ''}${pin}`;
+    const inviteLink = `join/${cleanName ? cleanName + '-' : ''}${pin}`;
 
     return (
         <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>

@@ -13,10 +13,11 @@ import { useEffect, useState } from "react";
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useAuth } from "@/hooks/useAuth";
+import { GrupoComTotalMembros } from "@/types/grupos";
 
 export default function GroupDetailsScreen() {
     const { groupId } = useLocalSearchParams<{ groupId: string }>();
-    const [group, setGroup] = useState<any>(null);
+    const [group, setGroup] = useState<GrupoComTotalMembros | null >(null);
     const [isLoading, setIsLoading] = useState(true);
     const [weeklyGroupHours, setWeeklyGroupHours] = useState(0);
 
@@ -53,7 +54,7 @@ export default function GroupDetailsScreen() {
     const { onlineUsers } = useOnlineUsers(groupId);
     
     // Pega as IDs de todos os membros DESTE grupo específico
-    const memberIds = membros.map((m: any) => m.user_id || m.userData?.id);
+    const memberIds = membros.map((m) => m.user_id);
 
     // Filtra a lista global para mostrar APENAS quem tá logado, é membro daqui E não é você
     const activeGroupMembers = onlineUsers.filter(id => id !== userId && memberIds.includes(id));
@@ -100,7 +101,7 @@ export default function GroupDetailsScreen() {
                                 <View
                                     className="w-20 h-20 rounded-2xl items-center justify-center"
                                     style={{
-                                        backgroundColor: getAvatarColor((group.id || 1) - 1),
+                                        backgroundColor: getAvatarColor(group.nome_grupo ? group.nome_grupo.charCodeAt(0) % 5 : 0),
                                         borderWidth: 2,
                                         borderColor: "rgba(247, 152, 44, 0.4)",
                                     }}
@@ -219,7 +220,8 @@ export default function GroupDetailsScreen() {
                                 groupId: group.id,
                                 groupName: group.nome_grupo,
                                 groupPhoto: group.foto_grupo,
-                                groupGoal: group.meta_horas
+                                groupGoal: group.meta_horas,
+                                groupCode: group.codigo_convite
                             }
                         })
                     }}

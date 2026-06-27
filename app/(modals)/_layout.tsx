@@ -7,6 +7,7 @@ export default function ModalsLayout() {
             <Stack.Screen name="invite" options={{ presentation: "modal" }} />
             <Stack.Screen name="join-session" options={{ presentation: "modal" }} />
             <Stack.Screen name="join-by-code" options={{ presentation: "modal" }} />
+            <Stack.Screen name="join" options={{ presentation: "modal" }} />
             <Stack.Screen name="badges" options={{ presentation: "modal" }} />
             <Stack.Screen name="ShareWeeklyProgress" options={{ presentation: "fullScreenModal" }} />
             <Stack.Screen name="criar-materia" options={{ presentation: "modal" }} />
