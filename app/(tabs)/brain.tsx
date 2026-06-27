@@ -1,16 +1,35 @@
 import { useState, useMemo, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight, Sparkles, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Share2 } from "lucide-react-native";
+import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Share2, Timer, Layers } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 import { COLORS } from "@/constants/colors";
-import { ProgressBar, StatCard } from "@/components/ui/";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { useAuth } from "@/hooks/useAuth";
 import { SessaoFocoRow } from "@/types/sessions";
 import { buscarGamificacao } from "@/services/gamificacao";
+import {
+    SeletorEscopo,
+    SeletorPeriodo,
+    GraficoArea,
+    CartaoMetrica,
+    GraficoComparativoSemanal,
+    GraficoDonutMaterias,
+    BarraTaxaAcerto,
+    GraficoDiaSemana,
+    GraficoOfensiva,
+    CabecalhoGrupo,
+    MetaSemanalGrupo,
+    RankingHorasGrupo,
+    MateriaMaisEstudadaGrupo,
+    MembrosAtivosGrupo,
+    EvolucaoGrupo,
+    QuestoesPorMembroGrupo,
+    EscopoAnalise,
+    PeriodoAnalise,
+} from "@/components/analytics/GraficosAnalise";
 
 type BrainTab = "database" | "analytics";
 
@@ -24,7 +43,8 @@ const COLORS_PALETTE = ["#8b5cf6", "#10b981", "#fbbf24", "#f43f5e", "#3b82f6", "
 export default function BrainScreen() {
     const [brainTab, setBrainTab] = useState<BrainTab>("database");
     const [weekStartsOn, setWeekStartsOn] = useState<'sunday' | 'monday'>('sunday');
-    const [showComparison, setShowComparison] = useState(false);
+    const [escopoAnalise, setEscopoAnalise] = useState<EscopoAnalise>("pessoal");
+    const [periodoAnalise, setPeriodoAnalise] = useState<PeriodoAnalise>("7d");
 
     useEffect(() => {
         const loadPref = async () => {
@@ -35,11 +55,6 @@ export default function BrainScreen() {
         };
         loadPref();
     }, []);
-
-    const changeWeekStart = async (day: 'sunday' | 'monday') => {
-        setWeekStartsOn(day);
-        await AsyncStorage.setItem('@app_week_starts_on', day);
-    };
 
     const { userId } = useAuth();
     const { savedSessions, pendingSessions, loading } = useSessoesUsuario(userId);
@@ -153,24 +168,23 @@ export default function BrainScreen() {
     return (
         <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
             {/* Header */}
-            <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">Central de aprendizado</Text>
-                <Text className="text-sm text-slate-400">Seu painel de aprendizado</Text>
+            <View className="bg-slate-950 px-4 py-3">
+                <Text className="text-xl font-bold text-slate-200">
+                    {brainTab === "analytics" ? "Central de análises" : "Central de aprendizado"}
+                </Text>
             </View>
 
             {/* Tabs */}
             <View className="px-4 py-3">
-                <View className="flex-row bg-slate-900 p-1 rounded-xl">
+                <View className="flex-row w-full">
                     {BRAIN_TABS.map((tab) => (
                         <TouchableOpacity
                             key={tab.key}
                             onPress={() => setBrainTab(tab.key as BrainTab)}
-                            className={`flex-1 py-2 rounded-lg items-center ${brainTab === tab.key ? "bg-violet-600" : ""
-                                }`}
+                            className={`flex-1 items-center pb-2 border-b-2 ${brainTab === tab.key ? "border-brand-500" : "border-transparent"}`}
                         >
                             <Text
-                                className={`text-sm font-medium ${brainTab === tab.key ? "text-white" : "text-slate-400"
-                                    }`}
+                                className={`text-sm font-medium ${brainTab === tab.key ? "text-white" : "text-slate-400"}`}
                             >
                                 {tab.label}
                             </Text>
@@ -277,148 +291,65 @@ export default function BrainScreen() {
 
                 {/* ── ANALYTICS ────────────────────────────────── */}
                 {brainTab === "analytics" && (
-                    <View className="px-4 pb-4 gap-4">
+                    <View className="px-4 pb-4 gap-7">
                         {/* Share Progress Button */}
-                        <TouchableOpacity
-                            onPress={() => router.push({
-                                pathname: "/(modals)/ShareWeeklyProgress",
-                                params: {
-                                    hours: `${analyticsData.horasEstaSemana}h`,
-                                    streak: `${analyticsData.sequencia} dias`,
-                                    totalMinutes: String(analyticsData.horasEstaSemanaMinutos),
-                                    sequencia: String(analyticsData.sequencia),
-                                    diasEstaSemana: String(analyticsData.diasEstaSemana),
-                                    distribuicao: JSON.stringify(analyticsData.distribuicao),
-                                }
-                            })}
-                            activeOpacity={0.8}
-                            className="bg-violet-600 py-4 rounded-3xl flex-row items-center justify-center gap-2 shadow-lg shadow-violet-500/20"
-                        >
-                            <Share2 size={20} color="white" />
-                            <Text className="text-white font-bold text-lg">Compartilhar Progresso</Text>
-                        </TouchableOpacity>
-
-                        {/* AI Insight Card */}
-                        <View
-                            className="border border-slate-800 rounded-3xl p-4"
-                            style={{ backgroundColor: "rgba(124, 58, 237, 0.08)" }}
-                        >
-                            <View className="flex-row items-center gap-3">
-                                <View
-                                    className="w-12 h-12 rounded-xl items-center justify-center"
-                                    style={{ backgroundColor: "rgba(139, 92, 246, 0.3)" }}
-                                >
-                                    <Sparkles size={24} color={COLORS.violetLight} />
-                                </View>
-                                <View>
-                                    <Text className="text-sm text-slate-400">Insight da IA</Text>
-                                    <Text className="text-lg font-semibold text-emerald-400">
-                                        +15% vs mês passado
-                                    </Text>
-                                </View>
-                            </View>
-                        </View>
-
-                        {/* Distribuição de Estudo */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                            <Text className="text-lg font-semibold text-slate-200 mb-4">
-                                Distribuição de Estudo
-                            </Text>
-                            <View className="gap-3">
-                                {analyticsData.distribuicao.length > 0 ? analyticsData.distribuicao.map((item) => (
-                                    <View key={item.subject}>
-                                        <View className="flex-row items-center justify-between mb-1">
-                                            <Text className="text-sm text-slate-300">{item.subject}</Text>
-                                            <Text className="text-sm text-slate-400">{item.hours}h</Text>
-                                        </View>
-                                        <ProgressBar
-                                            progress={item.hours / analyticsData.maxHours}
-                                            color={item.color}
-                                            height={8}
-                                            trackClassName="bg-slate-800"
-                                        />
-                                    </View>
-                                )) : (
-                                    <Text className="text-sm text-slate-500 text-center py-2">Sem registros nesta semana</Text>
-                                )}
-                            </View>
-                        </View>
-
-                        {/* Resumo Semanal */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                            <View className="flex-row items-center justify-between mb-4">
-                                <Text className="text-lg font-semibold text-slate-200">
-                                    Esta Semana
-                                </Text>
-                                <TouchableOpacity onPress={() => setShowComparison(prev => !prev)} activeOpacity={0.7}>
-                                    <Text className={`text-xs ${showComparison ? 'text-violet-400' : 'text-slate-500'}`}>
-                                        {showComparison ? 'ver atual' : 'comparar com semana passada'}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
-                            <View className="flex-row gap-3">
-                                {(() => {
-                                    if (!showComparison) {
-                                        return (
-                                            <>
-                                                <StatCard value={analyticsData.horasEstaSemana} label="Horas" />
-                                                <StatCard value={analyticsData.sequencia} label="Sequência" valueColor={COLORS.emeraldLight} />
-                                                <StatCard value={analyticsData.questoesEstaSemana} label="Questões" valueColor={COLORS.violetLight} />
-                                            </>
-                                        );
+                        {/*
+                            <TouchableOpacity
+                                onPress={() => router.push({
+                                    pathname: "/(modals)/ShareWeeklyProgress",
+                                    params: {
+                                        hours: `${analyticsData.horasEstaSemana}h`,
+                                        streak: `${analyticsData.sequencia} dias`,
+                                        totalMinutes: String(analyticsData.horasEstaSemanaMinutos),
+                                        sequencia: String(analyticsData.sequencia),
+                                        diasEstaSemana: String(analyticsData.diasEstaSemana),
+                                        distribuicao: JSON.stringify(analyticsData.distribuicao),
                                     }
-                                    const diffMinutos = analyticsData.horasEstaSemanaMinutos - analyticsData.horasSemanaPasadaMinutos;
-                                    const absMinutos = Math.abs(diffMinutos);
-                                    const sign = diffMinutos > 0 ? "+" : diffMinutos < 0 ? "-" : "";
-                                    const diffHorasStr = `${sign}${Math.floor(absMinutos / 60)}h${String(absMinutos % 60).padStart(2, '0')}`;
+                                })}
+                                activeOpacity={0.8}
+                                className="bg-violet-600 py-4 rounded-3xl flex-row items-center justify-center gap-2 shadow-lg shadow-violet-500/20"
+                            >
+                                <Share2 size={20} color="white" />
+                                <Text className="text-white font-bold text-lg">Compartilhar Progresso</Text>
+                            </TouchableOpacity>
+                        */}
 
-                                    const diffDias = analyticsData.diasEstaSemana - analyticsData.diasSemanaPasada;
-                                    const diffQuestoes = analyticsData.questoesEstaSemana - analyticsData.questoesSemanaPasada;
-                                    const fmt = (n: number) => n > 0 ? `+${n}` : `${n}`;
-                                    const diffColor = (n: number) => n > 0 ? COLORS.emeraldLight : n < 0 ? '#fb7185' : '#e2e8f0';
-                                    const colorH = diffColor(diffMinutos);
-                                    const colorD = diffColor(diffDias);
-                                    const colorQ = diffColor(diffQuestoes);
-                                    return (
-                                        <>
-                                            <StatCard value={diffHorasStr} label="Horas" valueColor={colorH} />
-                                            <StatCard value={fmt(diffDias)} label="Dias" valueColor={colorD} />
-                                            <StatCard value={fmt(diffQuestoes)} label="Questões" valueColor={colorQ} />
-                                        </>
-                                    );
-                                })()}
-                            </View>
+                        {/* Seletor Pessoal / Grupo */}
+                        <View className="gap-3">
+                            <SeletorEscopo valor={escopoAnalise} aoAlterar={setEscopoAnalise} />
+                            <SeletorPeriodo valor={periodoAnalise} aoAlterar={setPeriodoAnalise} />
                         </View>
 
-                        {/* Configuração: Início da Semana */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-4">
-                            <Text className="text-lg font-semibold text-slate-200 mb-4">
-                                A semana começa em:
-                            </Text>
-                            <View className="flex-row gap-3">
-                                <TouchableOpacity
-                                    onPress={() => changeWeekStart('sunday')}
-                                    activeOpacity={0.8}
-                                    className={`flex-1 flex-row items-center justify-center py-3 rounded-xl border ${weekStartsOn === 'sunday' ? 'bg-violet-600/20 border-violet-500' : 'bg-slate-800 border-slate-700'}`}
-                                >
-                                    <View className={`w-4 h-4 rounded-full border mr-2 items-center justify-center ${weekStartsOn === 'sunday' ? 'border-violet-400' : 'border-slate-500'}`}>
-                                        {weekStartsOn === 'sunday' && <View className="w-2 h-2 rounded-full bg-violet-400" />}
-                                    </View>
-                                    <Text className={`font-medium ${weekStartsOn === 'sunday' ? 'text-violet-300' : 'text-slate-400'}`}>Domingo</Text>
-                                </TouchableOpacity>
+                        {escopoAnalise === "grupo" ? (
+                            <View className="gap-5">
+                                <CabecalhoGrupo cor={COLORS.primary} />
+                                <MetaSemanalGrupo />
+                                <RankingHorasGrupo cor={COLORS.primary} />
 
-                                <TouchableOpacity
-                                    onPress={() => changeWeekStart('monday')}
-                                    activeOpacity={0.8}
-                                    className={`flex-1 flex-row items-center justify-center py-3 rounded-xl border ${weekStartsOn === 'monday' ? 'bg-violet-600/20 border-violet-500' : 'bg-slate-800 border-slate-700'}`}
-                                >
-                                    <View className={`w-4 h-4 rounded-full border mr-2 items-center justify-center ${weekStartsOn === 'monday' ? 'border-violet-400' : 'border-slate-500'}`}>
-                                        {weekStartsOn === 'monday' && <View className="w-2 h-2 rounded-full bg-violet-400" />}
-                                    </View>
-                                    <Text className={`font-medium ${weekStartsOn === 'monday' ? 'text-violet-300' : 'text-slate-400'}`}>Segunda-feira</Text>
-                                </TouchableOpacity>
+                                <View className="flex-row gap-[10px]">
+                                    <MateriaMaisEstudadaGrupo />
+                                    <MembrosAtivosGrupo cor={COLORS.primary} />
+                                </View>
+
+                                <EvolucaoGrupo cor={COLORS.primary} />
+                                <QuestoesPorMembroGrupo />
                             </View>
-                        </View>
+                        ) : (
+                            <View className="gap-5">
+                                <GraficoArea cor={COLORS.primary} />
+
+                                <View className="flex-row gap-[10px]">
+                                    <CartaoMetrica icone={Timer} rotulo="SESSÃO MÉDIA" valor="1h 42m" legenda="por sessão" />
+                                    <CartaoMetrica icone={Layers} rotulo="Nº SESSÕES" valor="17" legenda="esta semana" />
+                                </View>
+
+                                <GraficoComparativoSemanal cor={COLORS.primary} />
+                                <GraficoDonutMaterias />
+                                <BarraTaxaAcerto />
+                                <GraficoDiaSemana cor={COLORS.primary} />
+                                <GraficoOfensiva />
+                            </View>
+                        )}
                     </View>
                 )}
             </ScrollView>
