@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import {
     View,
     Text,
@@ -67,6 +68,15 @@ export default function FocusScreen() {
     const { materias, recarregarMaterias } = useMaterias(userId);
     const params = useLocalSearchParams();
     const router = useRouter();
+    const navigation = useNavigation();
+
+    // Recarrega matérias sempre que a tela ganha foco (ex: ao voltar do modal de criar matéria)
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            recarregarMaterias();
+        });
+        return unsubscribe;
+    }, [navigation, recarregarMaterias]);
 
     // Carrega o grupo atual a partir dos parâmetros da rota ou do último grupo salvo localmente.
     useEffect(() => {
