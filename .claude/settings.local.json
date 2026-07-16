@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flatpak-spawn --host bash -c \"cd /home/aalps/Documents/TCC/StudoCore-App && npx tsc --noEmit\")",
+      "Bash(flatpak-spawn --host bash -c \"npx tsc --noEmit; echo EXIT:\\\\$?\")",
+      "Bash(flatpak-spawn --host bash -c \"curl -s http://localhost:8081/status\")",
+      "Bash(flatpak-spawn --host bash -c \"pgrep -af 'expo start|metro' \")",
+      "Bash(flatpak-spawn --host bash -c \"which watchman && watchman watch-del-all\")"
+    ]
+  }
+}

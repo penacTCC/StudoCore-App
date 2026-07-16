@@ -55,7 +55,26 @@ export const HADES = {
     // Cores de matéria usadas no design
     blue: "#3b82f6",
     violet: "#7c5cfc",
+
+    // Perfil
+    modalBg: "#141519",
+    tintAccent: "#261700", // accent a 15% sobre preto
+    subjectBlue: "#4d94ff",
+    groupViolet: "#a274ff",
+    groupVioletTint: "rgba(124,92,252,0.14)",
 } as const;
+
+/**
+ * Escala do heatmap, do dia vazio ao mais intenso.
+ * O design usa `color-mix()` sobre a cor de marca; como o React Native não
+ * suporta essa função, os valores já vêm resolvidos aqui.
+ */
+export const HEATMAP_ESCALA = [
+    "#16171c", // 0h
+    "#54360a", // até 2h   (accent 30%)
+    "#a26405", // 2h–5h    (accent 62%)
+    "#ff9a00", // +5h
+] as const;
 
 /** Paleta de cores atribuíveis a um plano ou matéria. */
 export const CORES_PLANO = [

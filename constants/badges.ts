@@ -99,7 +99,7 @@ export const BADGE_LEVEL_LABELS: Record<BadgeLevel, string> = {
 };
 
 export const BADGE_LEVEL_COLORS: Record<BadgeLevel, string> = {
-    basico: '#64748b',
+    basico: '#9aa7b8',
     intermediario: '#3b82f6',
     avancado: '#8b5cf6',
     elite: '#f59e0b',
