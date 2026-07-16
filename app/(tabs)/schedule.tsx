@@ -1,324 +1,126 @@
-import { useState, useCallback } from "react";
-import {
-    View,
-    Text,
-    ScrollView,
-    TouchableOpacity,
-} from "react-native";
+import { useState } from "react";
+import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Plus } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
-import { diasDaSemana } from "@/constants/mock-data";
-import ScheduleBlock from "@/components/schedule/ScheduleBlock";
-import AddBlockModal from "@/components/schedule/AddBlockModal";
-import { DayIndex, ScheduleBlockData, ScheduleState } from "@/types/schedule";
-import { useAuth } from "@/hooks/useAuth";
-import { useMaterias } from "@/hooks/useMaterias";
+import { useRouter } from "expo-router";
+import { Settings } from "lucide-react-native";
+import { HADES } from "@/constants/hades";
+import AbasCronograma from "@/components/cronograma/AbasCronograma";
+import AbaHoje from "@/components/cronograma/AbaHoje";
+import AbaSemana from "@/components/cronograma/AbaSemana";
+import AbaPlanos from "@/components/cronograma/AbaPlanos";
+import {
+    blocosDeHoje,
+    resumoHoje,
+    planosSalvos,
+    blocosDaSemana,
+    resumoSemana,
+} from "@/constants/cronograma-mock";
+import type { AbaCronograma, BlocoDoDia, Plano } from "@/types/cronograma";
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Tipos
-// ──────────────────────────────────────────────────────────────────────────────
+const DIAS_EXTENSO = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+const MESES = [
+    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Tela principal
-// ──────────────────────────────────────────────────────────────────────────────
+function dataPorExtenso(d: Date) {
+    return `${DIAS_EXTENSO[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]}`;
+}
+
 export default function ScheduleScreen() {
-    const [schedule, setSchedule] = useState<ScheduleState>({});
-    const [modalVisible, setModalVisible] = useState(false);
-    const [selectedDay, setSelectedDay] = useState<DayIndex>(0);
-    const [editingBlock, setEditingBlock] = useState<ScheduleBlockData | null>(null);
+    const router = useRouter();
+    const [aba, setAba] = useState<AbaCronograma>("hoje");
+    const [menuPlanoId, setMenuPlanoId] = useState<string | null>(null);
 
-    const { userId } = useAuth();
-    const { materiasComCores } = useMaterias(userId);
+    // Sem backend ainda: os dados vêm de constants/cronograma-mock.
+    const hoje = new Date();
 
-    // ── Abertura do modal para adicionar bloco ───────────────────────────────
-    const handleAddBlock = (dayIndex: DayIndex) => {
-        setSelectedDay(dayIndex);
-        setEditingBlock(null);
-        setModalVisible(true);
-    };
+    const subtitulo =
+        aba === "hoje"
+            ? dataPorExtenso(hoje)
+            : aba === "semana"
+                ? resumoSemana.intervalo
+                : `${planosSalvos.length} planos salvos`;
 
-    // ── Abertura do modal para editar bloco ─────────────────────────────────
-    const handleEditBlock = (dayIndex: DayIndex, block: ScheduleBlockData) => {
-        setSelectedDay(dayIndex);
-        setEditingBlock(block);
-        setModalVisible(true);
-    };
-
-    // ── Confirmação do modal ─────────────────────────────────────────────────
-    const handleConfirm = useCallback(
-        (data: Omit<ScheduleBlockData, "id">) => {
-            setSchedule((prev) => {
-                const dayBlocks = prev[selectedDay] ?? [];
-                if (editingBlock) {
-                    // Editar existente
-                    return {
-                        ...prev,
-                        [selectedDay]: dayBlocks.map((b) =>
-                            b.id === editingBlock.id ? { ...b, ...data } : b
-                        ),
-                    };
-                }
-                // Adicionar novo
-                const newBlock: ScheduleBlockData = { id: `${Date.now()}`, ...data };
-                return { ...prev, [selectedDay]: [...dayBlocks, newBlock] };
-            });
-            setModalVisible(false);
-        },
-        [selectedDay, editingBlock]
-    );
-
-    // ── Remoção de bloco via Modal ───────────────────────────────────────────
-    const handleRemove = useCallback(() => {
-        if (!editingBlock) return;
-        setSchedule((prev) => {
-            const dayBlocks = (prev[selectedDay] ?? []).filter(
-                (b) => b.id !== editingBlock.id
-            );
-            return { ...prev, [selectedDay]: dayBlocks };
+    const abrirEditor = (planoId?: string) =>
+        router.push({
+            pathname: "/(modals)/plano-editor",
+            params: planoId ? { planoId } : undefined,
         });
-        setModalVisible(false);
-    }, [selectedDay, editingBlock]);
 
-    // ── Remoção direta pelo Card ─────────────────────────────────────────────
-    const handleRemoveCard = useCallback((dayIndex: DayIndex, blockId: string) => {
-        setSchedule((prev) => {
-            const dayBlocks = (prev[dayIndex] ?? []).filter((b) => b.id !== blockId);
-            return { ...prev, [dayIndex]: dayBlocks };
+    const iniciarFoco = (bloco: BlocoDoDia) =>
+        router.push({
+            pathname: "/(tabs)/focus",
+            params: {
+                subject: bloco.materia ?? "",
+                content: bloco.topico ?? "",
+                blocoId: bloco.id,
+                duracaoMin: bloco.duracaoMin.toString(),
+                fimEm: resumoHoje.proximo.hora,
+            },
         });
-    }, []);
 
-    // ── Totais por disciplina (legenda do rodapé) ────────────────────────────
-    const totaisPorDisciplina = useCallback(() => {
-        const totais: Record<string, { horas: number; cor: string }> = {};
-        Object.values(schedule).forEach((blocks) => {
-            blocks.forEach((b) => {
-                if (!totais[b.disciplina]) {
-                    totais[b.disciplina] = { horas: 0, cor: b.cor };
-                }
-                totais[b.disciplina].horas += b.duracao;
-            });
-        });
-        return Object.entries(totais).map(([nome, data]) => ({ nome, ...data }));
-    }, [schedule]);
-
-    const resumo = totaisPorDisciplina();
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Render
-    // ──────────────────────────────────────────────────────────────────────────
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#0f172a" }} edges={["top"]}>
-            {/* ── Header ──────────────────────────────────────────────────── */}
-            <View
-                style={{
-                    backgroundColor: "#0f172a",
-                    borderBottomWidth: 1,
-                    borderBottomColor: "#1e293b",
-                    paddingHorizontal: 20,
-                    paddingVertical: 14,
-                }}
-            >
-                <Text style={{ color: "#e2e8f0", fontSize: 22, fontWeight: "800" }}>
-                    Cronograma
-                </Text>
-                <Text style={{ color: COLORS.textMuted, fontSize: 13, marginTop: 2 }}>
-                    Monte sua semana de estudos
-                </Text>
-            </View>
-
-            {/* ── Grade semanal ────────────────────────────────────────────── */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 16, paddingBottom: 8 }}
-                style={{ flexGrow: 0 }}
-            >
-                {diasDaSemana.map((dia, index) => {
-                    const dayBlocks = schedule[index] ?? [];
-                    return (
-                        <View
-                            key={dia}
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+            {/* Header */}
+            <View style={{ paddingTop: 6, paddingHorizontal: 20, paddingBottom: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
+                    <View>
+                        <Text
                             style={{
-                                width: 140,
-                                marginHorizontal: 5,
+                                fontSize: 23,
+                                fontWeight: "700",
+                                color: HADES.text,
+                                letterSpacing: -0.3,
                             }}
                         >
-                            {/* Cabeçalho do dia */}
-                            <View
-                                style={{
-                                    backgroundColor: "#1e293b",
-                                    borderRadius: 12,
-                                    paddingVertical: 8,
-                                    alignItems: "center",
-                                    marginBottom: 10,
-                                }}
-                            >
-                                <Text
-                                    style={{
-                                        color: "#94a3b8",
-                                        fontSize: 11,
-                                        fontWeight: "700",
-                                        textTransform: "uppercase",
-                                        letterSpacing: 1,
-                                    }}
-                                >
-                                    {dia}
-                                </Text>
-                            </View>
+                            Cronograma
+                        </Text>
+                        <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 2 }}>{subtitulo}</Text>
+                    </View>
 
-                            {/* Blocos do dia */}
-                            <ScrollView
-                                showsVerticalScrollIndicator={false}
-                                nestedScrollEnabled
-                                style={{ maxHeight: 520 }} // aumentada ligeiramente para os novos blocos
-                            >
-                                {dayBlocks.map((block) => (
-                                    <ScheduleBlock
-                                        key={block.id}
-                                        block={block}
-                                        onPress={(b) => handleEditBlock(index as DayIndex, b)}
-                                        onRemove={(b) => handleRemoveCard(index as DayIndex, b.id)}
-                                    />
-                                ))}
-
-                                {/* Slots vazios para completar 4 botões iniciais */}
-                                {Array.from({ length: Math.max(0, 4 - dayBlocks.length) }).map((_, i) => (
-                                    <TouchableOpacity
-                                        key={`empty-${index}-${i}`}
-                                        onPress={() => handleAddBlock(index as DayIndex)}
-                                        activeOpacity={0.7}
-                                        style={{
-                                            borderWidth: 1.5,
-                                            borderStyle: "dashed",
-                                            borderColor: "#334155",
-                                            borderRadius: 14,
-                                            height: 100, // mesmo minHeight do ScheduleBlock
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            marginBottom: 8,
-                                        }}
-                                    >
-                                        <Plus size={22} color="#475569" />
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                        </View>
-                    );
-                })}
-            </ScrollView>
-
-            {/* ── Legenda de horas por disciplina ──────────────────────────── */}
-            {resumo.length > 0 && (
-                <View
-                    style={{
-                        borderTopWidth: 1,
-                        borderTopColor: "#1e293b",
-                        paddingHorizontal: 16,
-                        paddingVertical: 14,
-                        backgroundColor: "#0f172a",
-                    }}
-                >
-                    <Text
+                    <TouchableOpacity
+                        onPress={() => router.push("/(modals)/cronograma-config")}
+                        activeOpacity={0.8}
                         style={{
-                            color: "#64748b",
-                            fontSize: 11,
-                            fontWeight: "700",
-                            textTransform: "uppercase",
-                            letterSpacing: 0.8,
-                            marginBottom: 10,
+                            width: 38,
+                            height: 38,
+                            borderRadius: 19,
+                            backgroundColor: HADES.surfaceRaised,
+                            alignItems: "center",
+                            justifyContent: "center",
                         }}
                     >
-                        Total semanal
-                    </Text>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ gap: 8 }}
-                    >
-                        {resumo.map((item) => (
-                            <View
-                                key={item.nome}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    backgroundColor: "rgba(255,255,255,0.05)",
-                                    borderRadius: 20,
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 7,
-                                    borderWidth: 1,
-                                    borderColor: item.cor + "55",
-                                }}
-                            >
-                                <View
-                                    style={{
-                                        width: 8,
-                                        height: 8,
-                                        borderRadius: 4,
-                                        backgroundColor: item.cor,
-                                    }}
-                                />
-                                <Text style={{ color: "#cbd5e1", fontSize: 13, fontWeight: "600" }}>
-                                    {item.nome}
-                                </Text>
-                                <Text
-                                    style={{
-                                        color: item.cor,
-                                        fontSize: 13,
-                                        fontWeight: "800",
-                                    }}
-                                >
-                                    {item.horas}h
-                                </Text>
-                            </View>
-                        ))}
-                    </ScrollView>
+                        <Settings size={18} color={HADES.textSecondary} />
+                    </TouchableOpacity>
                 </View>
+            </View>
+
+            <AbasCronograma ativa={aba} onChange={setAba} />
+
+            {aba === "hoje" && (
+                <AbaHoje
+                    blocos={blocosDeHoje}
+                    resumo={resumoHoje}
+                    onIniciarFoco={iniciarFoco}
+                    onMontarDia={() => abrirEditor()}
+                    onAplicarPlano={() => setAba("planos")}
+                />
             )}
 
-            {/* ── Instrução quando cronograma vazio ────────────────────────── */}
-            {resumo.length === 0 && (
-                <View
-                    style={{
-                        flex: 1,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        paddingHorizontal: 32,
-                    }}
-                >
-                    <Text style={{ fontSize: 36, marginBottom: 12 }}>📅</Text>
-                    <Text
-                        style={{
-                            color: "#e2e8f0",
-                            fontSize: 17,
-                            fontWeight: "700",
-                            textAlign: "center",
-                            marginBottom: 6,
-                        }}
-                    >
-                        Seu cronograma está vazio
-                    </Text>
-                    <Text
-                        style={{ color: "#64748b", fontSize: 13, textAlign: "center", lineHeight: 20 }}
-                    >
-                        Toque no{" "}
-                        <Text style={{ color: "#94a3b8", fontWeight: "600" }}>+</Text> em qualquer
-                        dia para adicionar um bloco de estudos.
-                    </Text>
-                </View>
+            {aba === "semana" && (
+                <AbaSemana blocos={blocosDaSemana} resumo={resumoSemana} diaAtual={2} />
             )}
 
-            {/* ── Modal ────────────────────────────────────────────────────── */}
-            <AddBlockModal
-                visible={modalVisible}
-                diaNome={`${diasDaSemana[selectedDay]}-feira`}
-                existingBlock={editingBlock}
-                materias={materiasComCores}
-                onClose={() => setModalVisible(false)}
-                onConfirm={handleConfirm}
-                onRemove={handleRemove}
-            />
+            {aba === "planos" && (
+                <AbaPlanos
+                    planos={planosSalvos}
+                    menuAbertoId={menuPlanoId}
+                    onAbrirMenu={setMenuPlanoId}
+                    onNovoPlano={() => abrirEditor()}
+                    onEditarPlano={(p: Plano) => abrirEditor(p.id)}
+                />
+            )}
         </SafeAreaView>
     );
 }

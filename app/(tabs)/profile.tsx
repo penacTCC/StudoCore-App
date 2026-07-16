@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, Image, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-    CalendarDays, ChevronRight, Star, LogOut, Settings, X, Edit2,
+    ChevronRight, Star, LogOut, Settings, X, Edit2,
     Search, Flame, Users,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
@@ -519,26 +519,6 @@ export default function ProfileScreen() {
                         <View className="flex-1">
                             <Text className="font-medium text-slate-200">Meus Grupos</Text>
                             <Text className="text-xs text-slate-400">Gerencie seus grupos</Text>
-                        </View>
-                        <ChevronRight size={20} color={COLORS.textMuted} />
-                    </TouchableOpacity>
-                </View>
-
-                {/* Cronogram CTA */}
-                <View className="px-4 mb-4">
-                    <TouchableOpacity
-                        onPress={() => router.push("/schedule")}
-                        className="bg-slate-900 border border-slate-800 rounded-3xl p-4 flex-row items-center gap-4"
-                    >
-                        <View
-                            className="w-12 h-12 rounded-xl items-center justify-center"
-                            style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
-                        >
-                            <CalendarDays size={24} color={COLORS.violetLight} />
-                        </View>
-                        <View className="flex-1">
-                            <Text className="font-medium text-slate-200">Cronograma de Estudo</Text>
-                            <Text className="text-xs text-slate-400">Planeje e organize seu cronograma</Text>
                         </View>
                         <ChevronRight size={20} color={COLORS.textMuted} />
                     </TouchableOpacity>

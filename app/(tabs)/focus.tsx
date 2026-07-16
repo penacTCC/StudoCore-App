@@ -1,38 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    ScrollView,
-    Alert,
-    AppState,
-} from "react-native";
+import { View, Text, TouchableOpacity, Alert, AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Play } from "lucide-react-native";
+import * as Notifications from "expo-notifications";
 
-//Componentes do Lucide Native
-import {
-    Play,
-    Pause,
-    Square,
-    ToggleLeft,
-    ToggleRight,
-    Plus,
-} from "lucide-react-native";
-
-//Constantes
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
+import { CONFIG_POMODORO_PADRAO } from "@/constants/foco";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { useMaterias } from "@/hooks/useMaterias";
 import { useArchives } from "@/hooks/useArchives";
 import { carregarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
+import ConfigSessao, { SeletorModo } from "@/components/focus/ConfigSessao";
+import BloqueioFeedback from "@/components/focus/BloqueioFeedback";
+import SheetVault from "@/components/focus/SheetVault";
+import SessaoAtiva from "@/components/focus/SessaoAtiva";
+import { FaixaBlocoCronograma, FaixaSessaoRestaurada } from "@/components/focus/PecasFoco";
+import type { ArquivoDetalhe } from "@/types/archives";
+import type { SessaoFocoRow } from "@/types/sessions";
+import type { ConfigPomodoro, ContextoBloco, EstadoFoco, FaseFoco, ModoFoco } from "@/types/foco";
 
-
-import * as Notifications from 'expo-notifications';
 // Configurar o comportamento das notificações (necessário para mostrar enquanto o app está aberto)
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -44,23 +34,61 @@ Notifications.setNotificationHandler({
     }),
 });
 
-
 const STORAGE_KEY_START_TIME = "@focus_session_start_time";
 const STORAGE_KEY_SESSION_DATA = "@focus_session_data";
 
-type FocusState = "config" | "active";
+/** Remove acentos e caixa para comparar nomes de matéria com o Vault. */
+function normalizar(texto: string) {
+    return texto
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "");
+}
+
+function formatarHMS(segundos: number) {
+    const h = Math.floor(segundos / 3600);
+    const m = Math.floor((segundos % 3600) / 60);
+    const s = segundos % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s
+        .toString()
+        .padStart(2, "0")}`;
+}
+
+function formatarMS(segundos: number) {
+    const m = Math.floor(Math.max(0, segundos) / 60);
+    const s = Math.max(0, segundos) % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+function formatarHora(timestamp: number) {
+    const d = new Date(timestamp);
+    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+}
 
 export default function FocusScreen() {
-    const [focusState, setFocusState] = useState<FocusState>("config");
+    const [focusState, setFocusState] = useState<EstadoFoco>("config");
+    const [modo, setModo] = useState<ModoFoco>("cronometro");
     const [isPublicSession, setIsPublicSession] = useState(true);
     const [selectedSubject, setSelectedSubject] = useState("");
     const [specificContent, setSpecificContent] = useState("");
     const [timerSeconds, setTimerSeconds] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
     const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
+    const [configPomodoro, setConfigPomodoro] = useState<ConfigPomodoro>(CONFIG_POMODORO_PADRAO);
+    const [fase, setFase] = useState<FaseFoco>("foco");
+    const [ciclo, setCiclo] = useState(1);
+    const [restanteFase, setRestanteFase] = useState(0);
+    const [contexto, setContexto] = useState<ContextoBloco | null>(null);
+    const [restaurada, setRestaurada] = useState(false);
+    const [arquivosVault, setArquivosVault] = useState<ArquivoDetalhe[] | null>(null);
+
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const startTimeRef = useRef<number | null>(null);
     const pausedSecondsRef = useRef<number>(0);
+    // Pomodoro: início da fase atual e foco já acumulado nos ciclos anteriores.
+    const faseInicioRef = useRef<number | null>(null);
+    const focoAcumuladoRef = useRef<number>(0);
+    const faseDuracaoRef = useRef<number>(0);
 
     const { userId, user } = useAuth();
     const { pendingSessions } = useSessoesUsuario(userId);
@@ -77,6 +105,8 @@ export default function FocusScreen() {
         });
         return unsubscribe;
     }, [navigation, recarregarMaterias]);
+
+    const bloqueadoPorFeedback = pendingSessions.length > 0 && !params.reviewSessionId;
 
     // Carrega o grupo atual a partir dos parâmetros da rota ou do último grupo salvo localmente.
     useEffect(() => {
@@ -109,8 +139,11 @@ export default function FocusScreen() {
                     setSpecificContent(sessionData.content || "");
                     setIsPublicSession(sessionData.isPublic ?? true);
                     setCurrentGroupId(sessionData.groupId || null);
+                    // Sessões salvas antes do pomodoro não têm modo: caem no cronômetro.
+                    setModo(sessionData.modo === "pomodoro" ? "pomodoro" : "cronometro");
                     setTimerSeconds(elapsed);
-                    setFocusState("active");
+                    setFocusState("ativo");
+                    setRestaurada(true);
                 }
             } catch (e) {
                 console.warn("Erro ao restaurar sessão:", e);
@@ -122,199 +155,232 @@ export default function FocusScreen() {
     // Solicitar permissão para notificações ao montar o componente
     useEffect(() => {
         const requestPermissions = async () => {
-            const { status } = await Notifications.getPermissionsAsync() as any;
-            if (status !== 'granted') {
+            const { status } = (await Notifications.getPermissionsAsync()) as any;
+            if (status !== "granted") {
                 await Notifications.requestPermissionsAsync();
             }
         };
         requestPermissions();
     }, []);
 
+    // Sessão iniciada a partir de um bloco do cronograma.
+    useEffect(() => {
+        if (params.blocoId && params.subject) {
+            setContexto({
+                blocoId: params.blocoId as string,
+                materia: params.subject as string,
+                topico: (params.content as string) || "",
+                fimEm: (params.fimEm as string) || "",
+            });
+            setSelectedSubject(params.subject as string);
+            setSpecificContent((params.content as string) || "");
+            setModo("pomodoro");
+            const duracao = params.duracaoMin ? parseInt(params.duracaoMin as string, 10) : null;
+            if (duracao) {
+                setConfigPomodoro((c) => ({ ...c, focoMin: duracao }));
+            }
+        }
+    }, [params.blocoId, params.subject, params.content, params.fimEm, params.duracaoMin]);
+
     // Auto-start for review sessions
     useEffect(() => {
-        if (params.autoStart === 'true' && params.reviewSessionId) {
+        if (params.autoStart === "true" && params.reviewSessionId) {
             setSelectedSubject(params.subject as string);
             setSpecificContent(params.content as string);
-            setFocusState("active");
+            setFocusState("ativo");
             setTimerSeconds(0);
         }
     }, [params.autoStart, params.reviewSessionId, params.subject, params.content]);
 
-    // Recalcula o tempo quando o app volta do background
-    useEffect(() => {
-        const subscription = AppState.addEventListener("change", (nextAppState) => {
-            if (nextAppState === "active" && startTimeRef.current && !isPaused) {
-                const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-                setTimerSeconds(elapsed);
-            }
-        });
-        return () => subscription.remove();
-    }, [isPaused]);
-
     // Timer com setInterval (atualiza a cada segundo enquanto em foreground)
     useEffect(() => {
-        if (focusState === "active" && !isPaused) {
+        if (focusState === "ativo" && !isPaused) {
             intervalRef.current = setInterval(() => {
-                if (startTimeRef.current) {
-                    const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-                    setTimerSeconds(elapsed);
+                if (modo === "cronometro") {
+                    if (startTimeRef.current) {
+                        setTimerSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+                    }
+                    return;
+                }
+
+                if (faseInicioRef.current) {
+                    const decorrido = Math.floor((Date.now() - faseInicioRef.current) / 1000);
+                    setRestanteFase(faseDuracaoRef.current - decorrido);
                 }
             }, 1000);
         }
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
         };
-    }, [focusState, isPaused]);
+    }, [focusState, isPaused, modo]);
 
-    const formatTime = (seconds: number) => {
-        const hrs = Math.floor(seconds / 3600);
-        const mins = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-        return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    // Recalcula o tempo quando o app volta do background
+    useEffect(() => {
+        const subscription = AppState.addEventListener("change", (nextAppState) => {
+            if (nextAppState !== "active" || isPaused) return;
+
+            if (modo === "cronometro" && startTimeRef.current) {
+                setTimerSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+                return;
+            }
+
+            if (modo === "pomodoro" && faseInicioRef.current) {
+                const decorrido = Math.floor((Date.now() - faseInicioRef.current) / 1000);
+                setRestanteFase(faseDuracaoRef.current - decorrido);
+            }
+        });
+        return () => subscription.remove();
+    }, [isPaused, modo]);
+
+    const duracaoDaFase = useCallback(
+        (f: FaseFoco) => {
+            if (f === "foco") return configPomodoro.focoMin * 60;
+            if (f === "descansoCurto") return configPomodoro.descansoCurtoMin * 60;
+            return configPomodoro.descansoLongoMin * 60;
+        },
+        [configPomodoro]
+    );
+
+    const iniciarFase = useCallback(
+        (novaFase: FaseFoco) => {
+            const duracao = duracaoDaFase(novaFase);
+            faseDuracaoRef.current = duracao;
+            faseInicioRef.current = Date.now();
+            setFase(novaFase);
+            setRestanteFase(duracao);
+        },
+        [duracaoDaFase]
+    );
+
+    // Avanço automático de fase quando o tempo acaba.
+    useEffect(() => {
+        if (focusState !== "ativo" || modo !== "pomodoro" || isPaused) return;
+        if (restanteFase > 0) return;
+
+        if (fase === "foco") {
+            focoAcumuladoRef.current += faseDuracaoRef.current;
+            const fechaCiclo = ciclo % configPomodoro.ciclosAteLongo === 0;
+            iniciarFase(fechaCiclo ? "descansoLongo" : "descansoCurto");
+        } else {
+            setCiclo((c) => c + 1);
+            iniciarFase("foco");
+        }
+    }, [restanteFase, fase, focusState, modo, isPaused, ciclo, configPomodoro.ciclosAteLongo, iniciarFase]);
+
+    const persistirSessao = async (inicio: number, grupoId: string | null) => {
+        try {
+            await AsyncStorage.setItem(STORAGE_KEY_START_TIME, inicio.toString());
+            await AsyncStorage.setItem(
+                STORAGE_KEY_SESSION_DATA,
+                JSON.stringify({
+                    subject: selectedSubject,
+                    content: specificContent,
+                    isPublic: isPublicSession,
+                    groupId: grupoId,
+                    modo,
+                })
+            );
+        } catch (e) {
+            console.warn("Erro ao salvar sessão:", e);
+        }
+    };
+
+    const realmenteIniciar = async (grupoId: string | null) => {
+        const now = Date.now();
+        startTimeRef.current = now;
+        focoAcumuladoRef.current = 0;
+        setCiclo(1);
+        await persistirSessao(now, grupoId);
+        setFocusState("ativo");
+        setTimerSeconds(0);
+        setRestaurada(false);
+        if (modo === "pomodoro") iniciarFase("foco");
     };
 
     const startSession = async () => {
         if (!selectedSubject || !specificContent.trim()) {
-            Alert.alert("Incompleto", "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar.");
+            Alert.alert(
+                "Incompleto",
+                "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar."
+            );
             return;
         }
 
-        if (pendingSessions.length > 0 && !params.reviewSessionId) {
-            Alert.alert("Aviso", "Responda os formulários pendentes!");
-            return;
-        }
+        if (bloqueadoPorFeedback) return;
 
         try {
-            // Já temos o usuário carregado no corpo do componente
             if (!user) return;
 
             // Garante o grupo ativo mesmo se o estado ainda não tiver terminado de carregar do AsyncStorage.
-            const activeGroupId = currentGroupId || await carregarUltimoGrupoLocalmente();
+            const activeGroupId = currentGroupId || (await carregarUltimoGrupoLocalmente());
             setCurrentGroupId(activeGroupId);
 
-            // Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)
-            const disciplinaBusca = selectedSubject
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, ""); // Remove acentos
-            console.log("Disciplina: ", disciplinaBusca);
+            const disciplinaBusca = normalizar(selectedSubject);
+            const doVault = archives.filter(
+                (f) => f.disciplina && normalizar(f.disciplina) === disciplinaBusca
+            );
 
-            // Conta quantos arquivos existem para essa matéria no Vault do usuário e nos grupos
-            const count = archives.filter(f => {
-                if (!f.disciplina) return false;
-                const fileSubject = f.disciplina.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                return fileSubject === disciplinaBusca;
-            }).length;
-            console.log("Count: ", count);
-
-            if (count && count > 0) {
+            if (doVault.length > 0) {
                 /*
-                
                 a biblioteca Expo Go removeu o suporte a notificações push remotas a partir do SDK 53
                 A biblioteca expo-notifications continua funcionando, porém não dentro do Expo Go.
                 */
-
-
-                // Dispara a notificação de sistema imediatamente
                 await Notifications.scheduleNotificationAsync({
                     content: {
                         title: "📚 Materiais Disponíveis",
-                        body: `Você tem ${count} ${count === 1 ? "arquivo" : "arquivos"} de ${selectedSubject} no seu Vault!`,
+                        body: `Você tem ${doVault.length} ${doVault.length === 1 ? "arquivo" : "arquivos"} de ${selectedSubject} no seu Vault!`,
                     },
-                    trigger: null, // null envia imediatamente
+                    trigger: null,
                 });
 
-                Alert.alert(
-                    "Materiais Disponíveis",
-                    `Você tem ${count} ${count === 1 ? "arquivo" : "arquivos"} de ${selectedSubject} no seu Vault. Deseja revisar antes de focar?`,
-                    [
-                        {
-                            text: "Agora não", onPress: async () => {
-                                // Salva o timestamp de início e dados da sessão no AsyncStorage
-                                const now = Date.now();
-                                startTimeRef.current = now;
-                                try {
-                                    await AsyncStorage.setItem(STORAGE_KEY_START_TIME, now.toString());
-                                    await AsyncStorage.setItem(STORAGE_KEY_SESSION_DATA, JSON.stringify({
-                                        subject: selectedSubject,
-                                        content: specificContent,
-                                        isPublic: isPublicSession,
-                                        groupId: activeGroupId,
-                                    }));
-                                } catch (e) {
-                                    console.warn("Erro ao salvar sessão:", e);
-                                }
-                                setFocusState("active");
-                                setTimerSeconds(0);
-                            }
-                        },
-                        {
-                            text: "Ver Materiais", onPress: () => {
-                                //Navegar para o Vault filtrado, 
-                                router.push("/(tabs)/vault");
-                            }
-                        }
-                    ]
-                );
-            } else {
-                // Salva o timestamp de início e dados da sessão no AsyncStorage
-                const now = Date.now();
-                startTimeRef.current = now;
-                try {
-                    await AsyncStorage.setItem(STORAGE_KEY_START_TIME, now.toString());
-                    await AsyncStorage.setItem(STORAGE_KEY_SESSION_DATA, JSON.stringify({
-                        subject: selectedSubject,
-                        content: specificContent,
-                        isPublic: isPublicSession,
-                        groupId: activeGroupId,
-                    }));
-                } catch (e) {
-                    console.warn("Erro ao salvar sessão:", e);
-                }
-                setFocusState("active");
-                setTimerSeconds(0);
+                setArquivosVault(doVault);
+                return;
             }
+
+            await realmenteIniciar(activeGroupId);
         } catch (error) {
             console.error("Erro ao verificar vault:", error);
             // Inicia mesmo se houver erro na busca
-            const now = Date.now();
-            startTimeRef.current = now;
-            const fallbackGroupId = currentGroupId || await carregarUltimoGrupoLocalmente();
+            const fallbackGroupId = currentGroupId || (await carregarUltimoGrupoLocalmente());
             setCurrentGroupId(fallbackGroupId);
-            try {
-                await AsyncStorage.setItem(STORAGE_KEY_START_TIME, now.toString());
-                await AsyncStorage.setItem(STORAGE_KEY_SESSION_DATA, JSON.stringify({
-                    subject: selectedSubject,
-                    content: specificContent,
-                    isPublic: isPublicSession,
-                    groupId: fallbackGroupId,
-                }));
-            } catch (e) {
-                console.warn("Erro ao salvar sessão:", e);
-            }
-            setFocusState("active");
-            setTimerSeconds(0);
+            await realmenteIniciar(fallbackGroupId);
         }
     };
 
     const togglePause = async () => {
         if (isPaused) {
-            // Retomar: cria um novo startTime baseado nos segundos acumulados
             const now = Date.now();
-            const newStartTime = now - (pausedSecondsRef.current * 1000);
-            startTimeRef.current = newStartTime;
-            try {
-                await AsyncStorage.setItem(STORAGE_KEY_START_TIME, newStartTime.toString());
-            } catch (e) {
-                console.warn("Erro ao salvar sessão:", e);
+
+            if (modo === "cronometro") {
+                const newStartTime = now - pausedSecondsRef.current * 1000;
+                startTimeRef.current = newStartTime;
+                try {
+                    await AsyncStorage.setItem(STORAGE_KEY_START_TIME, newStartTime.toString());
+                } catch (e) {
+                    console.warn("Erro ao salvar sessão:", e);
+                }
+            } else {
+                // Retoma a fase de onde parou.
+                faseInicioRef.current = now - (faseDuracaoRef.current - pausedSecondsRef.current) * 1000;
             }
+
             setIsPaused(false);
-        } else {
-            // Pausar: salva os segundos acumulados e para o interval
-            pausedSecondsRef.current = timerSeconds;
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            setIsPaused(true);
+            return;
         }
+
+        pausedSecondsRef.current = modo === "cronometro" ? timerSeconds : restanteFase;
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setIsPaused(true);
+    };
+
+    /** Tempo de foco que vira sessão. Descanso nunca entra na conta. */
+    const segundosDeFoco = () => {
+        if (modo === "cronometro") return timerSeconds;
+        const naFase =
+            fase === "foco" && faseInicioRef.current
+                ? Math.min(faseDuracaoRef.current, Math.floor((Date.now() - faseInicioRef.current) / 1000))
+                : 0;
+        return focoAcumuladoRef.current + naFase;
     };
 
     const stopSession = async () => {
@@ -323,16 +389,22 @@ export default function FocusScreen() {
         // Salva uma cópia dos valores antes de resetar
         const finalSubject = selectedSubject;
         const finalContent = specificContent;
-        const finalDuration = timerSeconds;
+        const finalDuration = segundosDeFoco();
         const finalIsPublic = isPublicSession;
-        const finalGroupId = currentGroupId || await carregarUltimoGrupoLocalmente();
+        const finalGroupId = currentGroupId || (await carregarUltimoGrupoLocalmente());
 
         setTimerSeconds(0);
         setSelectedSubject("");
         setSpecificContent("");
         startTimeRef.current = null;
         pausedSecondsRef.current = 0;
+        faseInicioRef.current = null;
+        focoAcumuladoRef.current = 0;
         setIsPaused(false);
+        setFase("foco");
+        setCiclo(1);
+        setContexto(null);
+        setRestaurada(false);
 
         if (intervalRef.current) clearInterval(intervalRef.current);
 
@@ -354,191 +426,155 @@ export default function FocusScreen() {
                 groupId: finalGroupId || undefined,
                 sessionId: params.reviewSessionId || undefined,
                 oldDuration: params.oldDuration || undefined,
-            }
+            },
         });
     };
 
+    /**
+     * Abre o formulário de uma sessão pendente.
+     * Usa o mesmo contrato de params do brain.tsx: `oldDuration` em minutos e
+     * `duration` zerado, já que o tempo da sessão já foi contabilizado.
+     */
+    const abrirFormulario = (sessao: SessaoFocoRow) =>
+        router.push({
+            pathname: "/(modals)/focus-feedback",
+            params: {
+                sessionId: sessao.id,
+                subject: sessao.disciplina,
+                content: sessao.conteudo_especifico || "",
+                oldDuration: sessao.tempo_minutos.toString(),
+                duration: "0",
+                isPublic: sessao.is_public.toString(),
+                groupId: sessao.grupo_id ?? undefined,
+            },
+        });
+
+    const pularDescanso = () => {
+        setCiclo((c) => c + 1);
+        iniciarFase("foco");
+    };
+
+    const estenderFoco = () => {
+        faseDuracaoRef.current += 5 * 60;
+        setRestanteFase((r) => r + 5 * 60);
+    };
+
+    const textoRelogio =
+        modo === "cronometro" ? formatarHMS(timerSeconds) : formatarMS(restanteFase);
+
+    const progressoFase =
+        faseDuracaoRef.current > 0 ? 1 - restanteFase / faseDuracaoRef.current : 0;
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
-            {/* Header */}
-            <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">Modo de Foco</Text>
-                <Text className="text-xs text-slate-500">{specificContent || "Sessão Livre"}</Text>
-            </View>
-
-            <ScrollView
-                className="flex-1"
-                contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 16, paddingVertical: 32 }}
-            >
-                {focusState === "config" && (
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
-                        <Text className="text-lg font-semibold text-slate-200 mb-6 text-center">
-                            Configurar Sessão de Estudos
-                        </Text>
-
-                        {/* Subject Picker */}
-                        <View className="mb-4">
-                            <Text className="text-sm text-slate-400 mb-2">Matérias</Text>
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ gap: 8 }}
-                            >
-                                {materias.map((materia) => (
-                                    <TouchableOpacity
-                                        key={materia.nomeNormalizado}
-                                        onPress={() => setSelectedSubject(materia.nomeExibicao === selectedSubject ? "" : materia.nomeExibicao)}
-                                        className={`px-4 py-2.5 rounded-xl border ${selectedSubject === materia.nomeExibicao
-                                            ? "bg-violet-600 border-violet-500"
-                                            : "bg-slate-800 border-slate-700"
-                                            }`}
-                                    >
-                                        <Text
-                                            className={`text-sm font-medium ${selectedSubject === materia.nomeExibicao ? "text-white" : "text-slate-300"
-                                                }`}
-                                        >
-                                            {materia.nomeExibicao}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                            {/* Botão para criar nova matéria (abaixo do carrossel) */}
-                            <TouchableOpacity
-                                onPress={() => router.push("/(modals)/criar-materia")}
-                                className="mt-2 px-4 py-2 rounded-xl border border-dashed border-violet-500/50 flex-row items-center justify-center gap-1.5 self-start"
-                            >
-                                <Plus size={14} color={COLORS.violetLight} />
-                                <Text className="text-sm font-medium text-violet-400">Nova matéria</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Specific Content */}
-                        <View className="mb-4">
-                            <Text className="text-sm text-slate-400 mb-2">Conteúdo Específico</Text>
-                            <TextInput
-                                value={specificContent}
-                                onChangeText={setSpecificContent}
-                                placeholder="ex.: Capítulo 5: Derivadas"
-                                placeholderTextColor={COLORS.textMuted}
-                                className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-base"
-                            />
-                        </View>
-
-                        {/* Session Visibility Toggle */}
-                        <View className="flex-row items-center justify-between bg-slate-800/50 p-4 rounded-xl mb-6">
-                            <View>
-                                <Text className="text-sm font-medium text-slate-200">Visibilidade da Sessão</Text>
-                                <Text className="text-xs text-slate-400">
-                                    {isPublicSession ? "Outros podem entrar" : "Sessão privada"}
-                                </Text>
-                            </View>
-                            <TouchableOpacity onPress={() => setIsPublicSession(!isPublicSession)}>
-                                {isPublicSession ? (
-                                    <ToggleRight size={32} color={COLORS.violetLight} />
-                                ) : (
-                                    <ToggleLeft size={32} color={COLORS.textMuted} />
-                                )}
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Start Button */}
-                        <TouchableOpacity
-                            onPress={startSession}
-                            className="bg-violet-600 py-4 rounded-2xl flex-row items-center justify-center gap-2"
-                            style={{
-                                shadowColor: COLORS.violet,
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 12,
-                                elevation: 8,
-                            }}
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+            {focusState === "config" ? (
+                <>
+                    <View style={{ paddingTop: 6, paddingHorizontal: 20, paddingBottom: 14 }}>
+                        <Text
+                            style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}
                         >
-                            <Play size={20} color={COLORS.white} />
-                            <Text className="text-white font-semibold text-lg">Iniciar Sessão</Text>
-                        </TouchableOpacity>
+                            Foco
+                        </Text>
                     </View>
-                )}
 
-                {focusState === "active" && (
-                    <View className="items-center justify-center">
-                        {/* Subject info */}
-                        <View className="mb-8 items-center">
-                            <Text className="text-sm text-violet-400 font-medium mb-1">
-                                {selectedSubject || "Estudo Geral"}
-                            </Text>
-                            <Text className="text-xs text-slate-500">
-                                {specificContent || "Sessão Livre"}
-                            </Text>
-                        </View>
-
-                        {/* Big Neon Clock */}
-                        <View className="items-center justify-center mb-10">
-                            <View
-                                className="w-64 h-64 rounded-full items-center justify-center"
-                                style={{
-                                    backgroundColor: "rgba(15, 23, 42, 0.8)",
-                                    borderWidth: 4,
-                                    borderColor: "rgba(139, 92, 246, 0.5)",
-                                    shadowColor: COLORS.violet,
-                                    shadowOffset: { width: 0, height: 0 },
-                                    shadowOpacity: 0.6,
-                                    shadowRadius: 30,
-                                    elevation: 15,
-                                }}
-                            >
-                                <Text
-                                    className="font-bold text-violet-400"
-                                    style={{ fontSize: 42, letterSpacing: 2 }}
-                                >
-                                    {formatTime(timerSeconds)}
-                                </Text>
-                                <Text className="text-xs text-slate-500 mt-2 uppercase tracking-widest">
-                                    {isPaused ? "Pausado" : "Elapsed"}
-                                </Text>
+                    {bloqueadoPorFeedback ? (
+                        <BloqueioFeedback
+                            sessoes={pendingSessions}
+                            onResponder={abrirFormulario}
+                            onResponderTodos={() => {
+                                const primeira = pendingSessions[0];
+                                if (primeira) abrirFormulario(primeira);
+                            }}
+                        />
+                    ) : (
+                        <>
+                            <View style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
+                                <SeletorModo modo={modo} onChange={setModo} />
                             </View>
-                        </View>
 
-                        {/* Visibility Badge */}
-                        <View className="flex-row items-center gap-2 mb-8">
-                            <View
-                                className={`w-2 h-2 rounded-full ${isPublicSession ? "bg-emerald-400" : "bg-slate-500"
-                                    }`}
+                            <ConfigSessao
+                                modo={modo}
+                                materias={materias}
+                                materiaSelecionada={selectedSubject}
+                                onSelecionarMateria={setSelectedSubject}
+                                onNovaMateria={() => router.push("/(modals)/criar-materia")}
+                                conteudo={specificContent}
+                                onChangeConteudo={setSpecificContent}
+                                publica={isPublicSession}
+                                onChangeVisibilidade={setIsPublicSession}
+                                config={configPomodoro}
+                                onChangeConfig={setConfigPomodoro}
                             />
-                            <Text className="text-sm text-slate-400">
-                                {isPublicSession ? "Sessão Pública" : "Sessão Privada"}
-                            </Text>
-                        </View>
 
-                        {/* Pause & Stop Buttons */}
-                        <View className="flex-row items-center gap-4">
-                            <TouchableOpacity
-                                onPress={togglePause}
-                                className={`py-4 px-8 rounded-2xl flex-row items-center justify-center gap-2 ${isPaused ? "bg-violet-600" : "bg-amber-500/20 border border-amber-500"}`}
-                            >
-                                {isPaused ? (
-                                    <>
-                                        <Play size={20} color={COLORS.white} />
-                                        <Text className="text-white font-semibold text-lg">Retomar</Text>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Pause size={20} color="#f59e0b" />
-                                        <Text className="text-amber-500 font-semibold text-lg">Pausar</Text>
-                                    </>
-                                )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={stopSession}
-                                className="bg-rose-500/20 border border-rose-500 py-4 px-8 rounded-2xl flex-row items-center justify-center gap-2"
-                            >
-                                <Square size={20} color={COLORS.rose} />
-                                <Text className="text-rose-500 font-semibold text-lg">Parar</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-            </ScrollView>
+                            <View style={{ paddingTop: 12, paddingHorizontal: 20, paddingBottom: 12 }}>
+                                <TouchableOpacity
+                                    onPress={startSession}
+                                    activeOpacity={0.85}
+                                    style={{
+                                        height: 54,
+                                        borderRadius: 15,
+                                        backgroundColor: HADES.accentSolid,
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: 9,
+                                    }}
+                                >
+                                    <Play size={19} color="#000" fill="#000" />
+                                    <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>
+                                        Iniciar foco
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    )}
+                </>
+            ) : (
+                <>
+                    {contexto && (
+                        <FaixaBlocoCronograma contexto={contexto} onTrocar={() => setContexto(null)} />
+                    )}
+                    {restaurada && !contexto && <FaixaSessaoRestaurada />}
+
+                    <SessaoAtiva
+                        modo={modo}
+                        fase={fase}
+                        pausado={isPaused}
+                        materia={selectedSubject}
+                        conteudo={specificContent}
+                        publica={isPublicSession}
+                        textoRelogio={textoRelogio}
+                        progressoFase={progressoFase}
+                        ciclo={ciclo}
+                        totalCiclos={configPomodoro.ciclosAteLongo}
+                        contexto={contexto}
+                        autoFoco
+                        colegas={null}
+                        iniciadaEm={
+                            restaurada && startTimeRef.current ? formatarHora(startTimeRef.current) : null
+                        }
+                        onPausar={togglePause}
+                        onEncerrar={stopSession}
+                        onEstender={estenderFoco}
+                        onPularDescanso={pularDescanso}
+                        onConcluirBloco={stopSession}
+                    />
+                </>
+            )}
+
+            <SheetVault
+                visivel={arquivosVault !== null}
+                materia={selectedSubject}
+                arquivos={arquivosVault ?? []}
+                onVerMateriais={() => {
+                    setArquivosVault(null);
+                    router.push("/(tabs)/vault");
+                }}
+                onAgoraNao={async () => {
+                    setArquivosVault(null);
+                    await realmenteIniciar(currentGroupId);
+                }}
+            />
         </SafeAreaView>
     );
 }

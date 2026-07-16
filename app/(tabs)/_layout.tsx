@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Users, Timer, Brain, FolderArchive, User, CalendarDays } from "lucide-react-native";
+import { Users, Timer, Brain, User, CalendarDays } from "lucide-react-native";
 import { COLORS } from "@/constants/colors";
 
 export default function TabLayout() {
@@ -33,6 +33,15 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
+                name="schedule"
+                options={{
+                    title: "Cronograma",
+                    tabBarIcon: ({ color, size }) => (
+                        <CalendarDays size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
                 name="focus"
                 options={{
                     title: "Foco",
@@ -50,15 +59,9 @@ export default function TabLayout() {
                     ),
                 }}
             />
-            <Tabs.Screen
-                name="vault"
-                options={{
-                    title: "Arquivos",
-                    tabBarIcon: ({ color, size }) => (
-                        <FolderArchive size={size} color={color} />
-                    ),
-                }}
-            />
+            {/* O Vault saiu da tab bar, mas a rota continua: é alcançado pelo header
+                da Home e pelo aviso de materiais antes de iniciar o foco. */}
+            <Tabs.Screen name="vault" options={{ href: null }} />
             <Tabs.Screen
                 name="profile"
                 options={{

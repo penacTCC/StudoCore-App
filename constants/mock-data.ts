@@ -39,16 +39,6 @@ export const mockFailedQuestions: { id: number; subject: string; question: strin
     },
 ];
 
-export const mockStudySchedule = [
-    { id: 1, day: 0, time: "09:00", subject: "Matemática", duration: 90 },
-    { id: 2, day: 0, time: "14:00", subject: "Física", duration: 60 },
-    { id: 3, day: 1, time: "10:00", subject: "Química", duration: 75 },
-    { id: 4, day: 2, time: "09:00", subject: "Biologia", duration: 60 },
-    { id: 5, day: 3, time: "11:00", subject: "História", duration: 45 },
-];
-
-export const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-
 export const diasDaSemana = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 export const disciplinasComCores: { name: string; color: string }[] = [

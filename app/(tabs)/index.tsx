@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 //Componentes de Native
 import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Crown, Flame, Plus, ChevronRight, ChevronDown, Compass, Users, Settings, SlidersHorizontal } from "lucide-react-native";
+import { Crown, Flame, Plus, ChevronRight, ChevronDown, Compass, Users, Settings, SlidersHorizontal, FolderArchive } from "lucide-react-native";
 
 //Componentes de Expo
 import { LinearGradient } from "expo-linear-gradient";
@@ -195,22 +195,32 @@ export default function GroupScreen() {
                             </View>
                         </View>
 
-                        {isAdmin && (
+                        <View className="flex-row items-center gap-2">
                             <TouchableOpacity
-                                onPress={() =>
-                                    router.push({
-                                        pathname: "/(groups)/settings",
-                                        params: {
-                                            groupId
-                                        }
-                                    })
-                                }
+                                onPress={() => router.push("/(tabs)/vault")}
                                 className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 items-center justify-center"
                                 activeOpacity={0.75}
                             >
-                                <Settings size={20} color={COLORS.textMuted} />
+                                <FolderArchive size={20} color={COLORS.textMuted} />
                             </TouchableOpacity>
-                        )}
+
+                            {isAdmin && (
+                                <TouchableOpacity
+                                    onPress={() =>
+                                        router.push({
+                                            pathname: "/(groups)/settings",
+                                            params: {
+                                                groupId
+                                            }
+                                        })
+                                    }
+                                    className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 items-center justify-center"
+                                    activeOpacity={0.75}
+                                >
+                                    <Settings size={20} color={COLORS.textMuted} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     </View>
                 </View>
 
