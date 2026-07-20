@@ -1,16 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 //Componentes do React Native
-import {
-    View,
-    Text,
-    TextInput,
-    KeyboardAvoidingView,
-    Platform,
-    Alert,
-    StatusBar,
-    Dimensions,
-} from "react-native";
+import { View, Text, TextInput, KeyboardAvoidingView, Platform, Alert, StatusBar, Dimensions } from "react-native";
 
 //Componentes do Expo
 import { router, useLocalSearchParams } from "expo-router";
@@ -18,7 +9,7 @@ import * as Linking from "expo-linking";
 import * as QueryParams from "expo-auth-session/build/QueryParams";
 
 import { Mail, CheckCircle, LockKeyhole } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 //Componentes da Aplicação
 import { DotPattern, LogoMark, BackButton, DragHandle } from "@/components/auth";
@@ -32,7 +23,6 @@ import {
     validarSessaoPorCodigo,
     validarSessaoPorTokens,
 } from "@/services/auth";
-
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -129,15 +119,15 @@ export default function ForgotPasswordScreen() {
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ flex: 1, backgroundColor: "#ffffff" }}
+            style={{ flex: 1, backgroundColor: HADES.bg }}
         >
-            <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
-            {/* ── TOP: white + dot pattern + logo ── */}
+            {/* ── TOP: preto + dot pattern + logo ── */}
             <View
                 style={{
                     height: SCREEN_HEIGHT * 0.36,
-                    backgroundColor: "#ffffff",
+                    backgroundColor: HADES.bg,
                     alignItems: "center",
                     justifyContent: "center",
                     overflow: "hidden",
@@ -148,24 +138,8 @@ export default function ForgotPasswordScreen() {
                 <LogoMark size={88} borderRadius={24} />
 
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text
-                        style={{
-                            fontSize: 30,
-                            fontWeight: "800",
-                            color: COLORS.bgPrimary,
-                            letterSpacing: -0.5,
-                        }}
-                    >
-                        Studo
-                    </Text>
-                    <Text
-                        style={{
-                            fontSize: 30,
-                            fontWeight: "800",
-                            color: COLORS.primary,
-                            letterSpacing: -0.5,
-                        }}
-                    >
+                    <Text style={{ fontSize: 30, fontWeight: "800", color: HADES.text, letterSpacing: -0.5 }}>Studo</Text>
+                    <Text style={{ fontSize: 30, fontWeight: "800", color: HADES.accentSolid, letterSpacing: -0.5 }}>
                         Core
                     </Text>
                 </View>
@@ -175,7 +149,9 @@ export default function ForgotPasswordScreen() {
             <View
                 style={{
                     flex: 1,
-                    backgroundColor: COLORS.bgPrimary,
+                    backgroundColor: HADES.surface,
+                    borderTopWidth: 1,
+                    borderColor: HADES.border,
                     borderTopLeftRadius: 36,
                     borderTopRightRadius: 36,
                     paddingHorizontal: 26,
@@ -192,7 +168,7 @@ export default function ForgotPasswordScreen() {
                             style={{
                                 fontSize: 22,
                                 fontWeight: "800",
-                                color: "#ffffff",
+                                color: HADES.text,
                                 textAlign: "center",
                                 marginBottom: 10,
                                 letterSpacing: -0.3,
@@ -203,7 +179,7 @@ export default function ForgotPasswordScreen() {
                         <Text
                             style={{
                                 fontSize: 14,
-                                color: "rgba(255,255,255,0.55)",
+                                color: HADES.textMuted,
                                 textAlign: "center",
                                 lineHeight: 22,
                                 marginBottom: 28,
@@ -214,25 +190,10 @@ export default function ForgotPasswordScreen() {
                     </View>
                 ) : canResetPassword ? (
                     <>
-                        <Text
-                            style={{
-                                fontSize: 22,
-                                fontWeight: "800",
-                                color: "#ffffff",
-                                marginBottom: 8,
-                                letterSpacing: -0.3,
-                            }}
-                        >
+                        <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, marginBottom: 8, letterSpacing: -0.3 }}>
                             Nova senha
                         </Text>
-                        <Text
-                            style={{
-                                fontSize: 14,
-                                color: "rgba(255,255,255,0.50)",
-                                marginBottom: 28,
-                                lineHeight: 22,
-                            }}
-                        >
+                        <Text style={{ fontSize: 14, color: HADES.textMuted, marginBottom: 28, lineHeight: 22 }}>
                             Digite e confirme sua nova senha para voltar a acessar sua conta.
                         </Text>
 
@@ -241,30 +202,12 @@ export default function ForgotPasswordScreen() {
                                 value={password}
                                 onChangeText={setPassword}
                                 placeholder="Nova senha"
-                                placeholderTextColor="#94a3b8"
+                                placeholderTextColor={HADES.textFaint}
                                 secureTextEntry
-                                style={{
-                                    backgroundColor: "#ffffff",
-                                    borderRadius: 14,
-                                    paddingHorizontal: 18,
-                                    paddingRight: 52,
-                                    paddingVertical: 15,
-                                    fontSize: 15,
-                                    color: "#0f172a",
-                                    fontWeight: "500",
-                                }}
+                                style={estilos.campo}
                             />
-                            <View
-                                style={{
-                                    position: "absolute",
-                                    right: 16,
-                                    top: 0,
-                                    bottom: 0,
-                                    justifyContent: "center",
-                                }}
-                                pointerEvents="none"
-                            >
-                                <LockKeyhole size={20} color="#94a3b8" />
+                            <View style={estilos.iconeDireita} pointerEvents="none">
+                                <LockKeyhole size={20} color={HADES.textFaint} />
                             </View>
                         </View>
 
@@ -273,30 +216,12 @@ export default function ForgotPasswordScreen() {
                                 value={confirmPassword}
                                 onChangeText={setConfirmPassword}
                                 placeholder="Confirmar senha"
-                                placeholderTextColor="#94a3b8"
+                                placeholderTextColor={HADES.textFaint}
                                 secureTextEntry
-                                style={{
-                                    backgroundColor: "#ffffff",
-                                    borderRadius: 14,
-                                    paddingHorizontal: 18,
-                                    paddingRight: 52,
-                                    paddingVertical: 15,
-                                    fontSize: 15,
-                                    color: "#0f172a",
-                                    fontWeight: "500",
-                                }}
+                                style={estilos.campo}
                             />
-                            <View
-                                style={{
-                                    position: "absolute",
-                                    right: 16,
-                                    top: 0,
-                                    bottom: 0,
-                                    justifyContent: "center",
-                                }}
-                                pointerEvents="none"
-                            >
-                                <LockKeyhole size={20} color="#94a3b8" />
+                            <View style={estilos.iconeDireita} pointerEvents="none">
+                                <LockKeyhole size={20} color={HADES.textFaint} />
                             </View>
                         </View>
 
@@ -304,6 +229,7 @@ export default function ForgotPasswordScreen() {
                             label="SALVAR SENHA"
                             onPress={handleUpdatePassword}
                             isLoading={isLoading}
+                            hades
                             style={{ marginBottom: 22 }}
                         />
                     </>
@@ -315,20 +241,20 @@ export default function ForgotPasswordScreen() {
                                 width: 72,
                                 height: 72,
                                 borderRadius: 36,
-                                backgroundColor: "rgba(16,185,129,0.15)",
+                                backgroundColor: HADES.greenTint,
                                 alignItems: "center",
                                 justifyContent: "center",
                                 marginBottom: 20,
                             }}
                         >
-                            <CheckCircle size={36} color={COLORS.emeraldLight} />
+                            <CheckCircle size={36} color={HADES.green} />
                         </View>
 
                         <Text
                             style={{
                                 fontSize: 22,
                                 fontWeight: "800",
-                                color: "#ffffff",
+                                color: HADES.text,
                                 textAlign: "center",
                                 marginBottom: 10,
                                 letterSpacing: -0.3,
@@ -339,47 +265,26 @@ export default function ForgotPasswordScreen() {
                         <Text
                             style={{
                                 fontSize: 14,
-                                color: "rgba(255,255,255,0.55)",
+                                color: HADES.textMuted,
                                 textAlign: "center",
                                 lineHeight: 22,
                                 marginBottom: 36,
                             }}
                         >
                             Verifique sua caixa de entrada em{"\n"}
-                            <Text style={{ color: COLORS.primaryLight, fontWeight: "700" }}>
-                                {email}
-                            </Text>
+                            <Text style={{ color: HADES.accentSolid, fontWeight: "700" }}>{email}</Text>
                             {"\n"}e siga as instruções para redefinir sua senha.
                         </Text>
 
-                        <PrimaryButton
-                            label="VOLTAR AO LOGIN"
-                            onPress={() => router.back()}
-                            style={{ width: "100%" }}
-                        />
+                        <PrimaryButton label="VOLTAR AO LOGIN" onPress={() => router.back()} hades style={{ width: "100%" }} />
                     </View>
                 ) : (
                     /* ── Form state ── */
                     <>
-                        <Text
-                            style={{
-                                fontSize: 22,
-                                fontWeight: "800",
-                                color: "#ffffff",
-                                marginBottom: 8,
-                                letterSpacing: -0.3,
-                            }}
-                        >
+                        <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, marginBottom: 8, letterSpacing: -0.3 }}>
                             Esqueceu a senha?
                         </Text>
-                        <Text
-                            style={{
-                                fontSize: 14,
-                                color: "rgba(255,255,255,0.50)",
-                                marginBottom: 28,
-                                lineHeight: 22,
-                            }}
-                        >
+                        <Text style={{ fontSize: 14, color: HADES.textMuted, marginBottom: 28, lineHeight: 22 }}>
                             Informe seu e-mail e enviaremos um link para redefinir sua senha.
                         </Text>
 
@@ -389,32 +294,14 @@ export default function ForgotPasswordScreen() {
                                 value={email}
                                 onChangeText={setEmail}
                                 placeholder="E-mail"
-                                placeholderTextColor="#94a3b8"
+                                placeholderTextColor={HADES.textFaint}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoComplete="email"
-                                style={{
-                                    backgroundColor: "#ffffff",
-                                    borderRadius: 14,
-                                    paddingHorizontal: 18,
-                                    paddingRight: 52,
-                                    paddingVertical: 15,
-                                    fontSize: 15,
-                                    color: "#0f172a",
-                                    fontWeight: "500",
-                                }}
+                                style={estilos.campo}
                             />
-                            <View
-                                style={{
-                                    position: "absolute",
-                                    right: 16,
-                                    top: 0,
-                                    bottom: 0,
-                                    justifyContent: "center",
-                                }}
-                                pointerEvents="none"
-                            >
-                                <Mail size={20} color="#94a3b8" />
+                            <View style={estilos.iconeDireita} pointerEvents="none">
+                                <Mail size={20} color={HADES.textFaint} />
                             </View>
                         </View>
 
@@ -422,17 +309,16 @@ export default function ForgotPasswordScreen() {
                             label="ENVIAR LINK"
                             onPress={handleSendReset}
                             isLoading={isLoading}
+                            hades
                             style={{ marginBottom: 22 }}
                         />
 
                         {/* Back to login */}
                         <View style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}>
-                            <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.38)" }}>
-                                Lembrou a senha?
-                            </Text>
+                            <Text style={{ fontSize: 14, color: HADES.textFaint }}>Lembrou a senha?</Text>
                             <Text
                                 onPress={() => router.back()}
-                                style={{ fontSize: 14, color: COLORS.primary, fontWeight: "700" }}
+                                style={{ fontSize: 14, color: HADES.accentSolid, fontWeight: "700" }}
                             >
                                 Voltar ao login
                             </Text>
@@ -443,3 +329,25 @@ export default function ForgotPasswordScreen() {
         </KeyboardAvoidingView>
     );
 }
+
+const estilos = {
+    campo: {
+        backgroundColor: HADES.surfaceRaised,
+        borderWidth: 1,
+        borderColor: HADES.border,
+        borderRadius: 14,
+        paddingHorizontal: 18,
+        paddingRight: 52,
+        paddingVertical: 15,
+        fontSize: 15,
+        color: HADES.text,
+        fontWeight: "500" as const,
+    },
+    iconeDireita: {
+        position: "absolute" as const,
+        right: 16,
+        top: 0,
+        bottom: 0,
+        justifyContent: "center" as const,
+    },
+};

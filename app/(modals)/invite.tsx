@@ -8,11 +8,11 @@ import { Ionicons } from "@expo/vector-icons";
 
 //Componentes do expo router
 import { router, useLocalSearchParams } from "expo-router";
-import * as Linking from 'expo-linking';
-import * as Contacts from 'expo-contacts';
+import * as Linking from "expo-linking";
+import * as Contacts from "expo-contacts";
 
 //Constantes
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 //Componentes do projeto
 import ShareLink from "@/components/ShareLink";
@@ -49,7 +49,7 @@ export default function InviteScreen() {
     useEffect(() => {
         (async () => {
             const { status } = await Contacts.requestPermissionsAsync();
-            if (status !== 'granted') {
+            if (status !== "granted") {
                 setPermissaoNegada(true);
                 setCarregandoContatos(false);
                 return;
@@ -81,7 +81,7 @@ export default function InviteScreen() {
     //Formata o número de telefone
     const formatPhoneNumber = (value: string) => {
         // Remove todos os caracteres não numéricos
-        const cleaned = value.replace(/\D/g, '');
+        const cleaned = value.replace(/\D/g, "");
         return cleaned;
     };
 
@@ -92,7 +92,7 @@ export default function InviteScreen() {
         } else {
             Alert.alert("Número de telefone inválido");
         }
-    }
+    };
 
     //Abre o WhatsApp com a mensagem de convite já preenchida para o número informado.
     //Remove o DDI 55 caso já esteja presente no número do contato, para não duplicar.
@@ -110,110 +110,188 @@ export default function InviteScreen() {
         const mensagem = `Venha estudar comigo no *StudoCore*!\n\n${inviteLink}`;
         const url = `https://wa.me/55${digitos}?text=${encodeURIComponent(mensagem)}`;
         Linking.openURL(url);
-    }
+    };
 
     return (
-        <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
             {/* Header */}
-            <View className="px-4 py-3 flex-row items-center justify-between border-b border-navy-800">
-                <Text className="text-xl font-bold text-slate-200">Convites</Text>
+            <View
+                style={{
+                    paddingTop: 6,
+                    paddingHorizontal: 20,
+                    paddingBottom: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                }}
+            >
+                <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text }}>Convites</Text>
                 <TouchableOpacity
                     onPress={() => router.back()}
-                    className="w-8 h-8 rounded-full bg-slate-800 items-center justify-center"
+                    style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: HADES.surfaceRaised,
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
                 >
-                    <X size={18} color={COLORS.textSecondary} />
+                    <X size={18} color={HADES.textSecondary} />
                 </TouchableOpacity>
             </View>
 
-            <ScrollView className="flex-1 px-4 py-4" showsVerticalScrollIndicator={false}>
-
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 16 }}
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Invite Link Section */}
                 <ShareLink inviteLink={inviteLink} />
 
-                {/* Email Invite Section */}
-                <View className="mb-6">
-                    <Text className="text-sm text-slate-400 mb-3">Ou convide pelo WhatsApp</Text>
-                    <View className="flex-row items-center gap-2">
+                {/* WhatsApp Invite Section */}
+                <View style={{ marginBottom: 24 }}>
+                    <Text style={{ fontSize: 14, color: HADES.textMuted, marginBottom: 12 }}>Ou convide pelo WhatsApp</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                         <TextInput
                             value={zapNumber}
                             onChangeText={(value) => setZapNumber(formatPhoneNumber(value))}
                             maxLength={11}
                             placeholder="(15) 99123-4567"
-                            placeholderTextColor={COLORS.textMuted}
+                            placeholderTextColor={HADES.textFaint}
                             autoCapitalize="none"
                             keyboardType="phone-pad"
-                            className="flex-1 bg-navy-900 border border-navy-800 rounded-xl px-4 py-3 text-slate-200 text-base"
+                            style={{
+                                flex: 1,
+                                backgroundColor: HADES.surfaceRaised,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                borderRadius: 13,
+                                paddingHorizontal: 16,
+                                paddingVertical: 13,
+                                color: HADES.text,
+                                fontSize: 15,
+                            }}
                         />
                         <TouchableOpacity
                             onPress={handleSendInvite}
-                            className={`px-4 py-3 rounded-xl ${zapNumber.trim() ? "bg-brand-500" : "bg-navy-800"}`}
+                            activeOpacity={0.85}
+                            style={{
+                                paddingHorizontal: 16,
+                                paddingVertical: 13,
+                                borderRadius: 13,
+                                backgroundColor: zapNumber.trim() ? HADES.accentSolid : HADES.surfaceOverlay,
+                            }}
                         >
-                            <Ionicons name="logo-whatsapp" size={18} color={zapNumber.trim() ? COLORS.white : COLORS.textMuted} />
+                            <Ionicons name="logo-whatsapp" size={18} color={zapNumber.trim() ? "#000" : HADES.textFaint} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* Contatos do telefone */}
-                <View className="border-t border-navy-800 pt-6">
-                    <Text className="text-sm font-medium text-slate-400 mb-4">Seus Contatos</Text>
+                <View style={{ borderTopWidth: 1, borderTopColor: HADES.border, paddingTop: 20 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "500", color: HADES.textMuted, marginBottom: 16 }}>
+                        Seus Contatos
+                    </Text>
 
-                    {carregandoContatos && (
-                        <ActivityIndicator color={COLORS.textMuted} />
-                    )}
+                    {carregandoContatos && <ActivityIndicator color={HADES.textMuted} />}
 
                     {!carregandoContatos && permissaoNegada && (
-                        <Text className="text-sm text-slate-500">
+                        <Text style={{ fontSize: 14, color: HADES.textDim }}>
                             Permita o acesso aos contatos nas configurações do app para convidar seus amigos.
                         </Text>
                     )}
 
                     {!carregandoContatos && !permissaoNegada && contatos.length > 0 && (
-                        <View className="flex-row items-center bg-navy-900 border border-navy-800 rounded-xl px-3 mb-4">
-                            <Ionicons name="search" size={16} color={COLORS.textMuted} />
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                backgroundColor: HADES.surfaceRaised,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                borderRadius: 13,
+                                paddingHorizontal: 12,
+                                marginBottom: 16,
+                            }}
+                        >
+                            <Ionicons name="search" size={16} color={HADES.textFaint} />
                             <TextInput
                                 value={buscaContato}
                                 onChangeText={setBuscaContato}
                                 placeholder="Buscar contato"
-                                placeholderTextColor={COLORS.textMuted}
+                                placeholderTextColor={HADES.textFaint}
                                 autoCapitalize="none"
-                                className="flex-1 px-2 py-3 text-slate-200 text-sm"
+                                style={{ flex: 1, paddingHorizontal: 8, paddingVertical: 12, color: HADES.text, fontSize: 14 }}
                             />
                         </View>
                     )}
 
                     {!carregandoContatos && !permissaoNegada && contatos.length === 0 && (
-                        <Text className="text-sm text-slate-500">Nenhum contato com telefone encontrado.</Text>
+                        <Text style={{ fontSize: 14, color: HADES.textDim }}>Nenhum contato com telefone encontrado.</Text>
                     )}
 
                     {!carregandoContatos && !permissaoNegada && contatos.length > 0 && contatosFiltrados.length === 0 && (
-                        <Text className="text-sm text-slate-500">Nenhum contato encontrado para "{buscaContato}".</Text>
+                        <Text style={{ fontSize: 14, color: HADES.textDim }}>
+                            Nenhum contato encontrado para "{buscaContato}".
+                        </Text>
                     )}
 
-                    <View className="gap-2">
+                    <View style={{ gap: 8 }}>
                         {contatosFiltrados.map((contato) => (
                             <View
                                 key={contato.id}
-                                className="flex-row items-center justify-between bg-navy-900 border border-navy-800 p-4 rounded-xl"
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    backgroundColor: HADES.surface,
+                                    borderWidth: 1,
+                                    borderColor: HADES.border,
+                                    padding: 12,
+                                    borderRadius: 14,
+                                }}
                             >
-                                <View className="flex-row items-center flex-1 pr-2">
+                                <View style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 8 }}>
                                     {contato.foto ? (
-                                        <Image source={{ uri: contato.foto }} className="w-9 h-9 rounded-full mr-3" />
+                                        <Image
+                                            source={{ uri: contato.foto }}
+                                            style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }}
+                                        />
                                     ) : (
-                                        <View className="w-9 h-9 rounded-full bg-navy-800 items-center justify-center mr-3">
-                                            <Text className="text-xs font-semibold text-slate-400">
+                                        <View
+                                            style={{
+                                                width: 36,
+                                                height: 36,
+                                                borderRadius: 18,
+                                                backgroundColor: HADES.surfaceOverlay,
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                marginRight: 12,
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: 12, fontWeight: "600", color: HADES.textMuted }}>
                                                 {contato.nome.charAt(0).toUpperCase()}
                                             </Text>
                                         </View>
                                     )}
-                                    <Text className="text-sm text-slate-300 flex-1" numberOfLines={1}>
+                                    <Text style={{ fontSize: 14, color: HADES.textSecondary, flex: 1 }} numberOfLines={1}>
                                         {contato.nome}
                                     </Text>
                                 </View>
                                 <TouchableOpacity
                                     onPress={() => enviarConviteWhatsapp(contato.telefone)}
-                                    className="w-8 h-8 rounded-full bg-brand-500 items-center justify-center"
+                                    activeOpacity={0.85}
+                                    style={{
+                                        width: 34,
+                                        height: 34,
+                                        borderRadius: 17,
+                                        backgroundColor: HADES.accentSolid,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
                                 >
-                                    <Ionicons name="logo-whatsapp" size={16} color={COLORS.white} />
+                                    <Ionicons name="logo-whatsapp" size={16} color="#000" />
                                 </TouchableOpacity>
                             </View>
                         ))}

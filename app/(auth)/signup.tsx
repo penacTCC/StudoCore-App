@@ -5,7 +5,6 @@ import {
     View,
     Text,
     TouchableOpacity,
-    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -21,7 +20,7 @@ import { router } from "expo-router";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react-native";
 
 //Constantes
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 //Componentes do Projeto
 import { BackButton, DragHandle } from "@/components/auth";
@@ -73,17 +72,17 @@ export default function SignUpScreen() {
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ flex: 1, backgroundColor: "#ffffff" }}
+            style={{ flex: 1, backgroundColor: HADES.bg }}
         >
-            <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
-            {/* ── TOP white header ── */}
+            {/* ── TOP header ── */}
             <View
                 style={{
                     paddingTop: 56,
                     paddingHorizontal: 24,
                     paddingBottom: 28,
-                    backgroundColor: "#ffffff",
+                    backgroundColor: HADES.bg,
                     alignItems: "center",
                 }}
             >
@@ -98,37 +97,23 @@ export default function SignUpScreen() {
                         backgroundColor: "#fff",
                         alignItems: "center",
                         justifyContent: "center",
-                        shadowColor: COLORS.bgPrimary,
+                        shadowColor: "#000",
                         shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.14,
+                        shadowOpacity: 0.3,
                         shadowRadius: 16,
                         elevation: 10,
-                        borderWidth: 1.5,
-                        borderColor: "rgba(16,24,43,0.07)",
                         marginBottom: 14,
                     }}
                 >
-                    <Image
-                        source={require("../../assets/LogoStudoCore.png")}
-                        style={{ width: 47, height: 47 }}
-                    />
+                    <Image source={require("../../assets/LogoStudoCore.png")} style={{ width: 47, height: 47 }} />
                 </View>
-                <Text
-                    style={{
-                        fontSize: 22,
-                        fontWeight: "800",
-                        color: COLORS.bgPrimary,
-                        letterSpacing: -0.5,
-                    }}
-                >
+                <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, letterSpacing: -0.5 }}>
                     Criar conta
                 </Text>
-                <Text style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 4 }}>
-                    Etapa 1 de 2 — Credenciais
-                </Text>
+                <Text style={{ fontSize: 14, color: HADES.textMuted, marginTop: 4 }}>Etapa 1 de 2 — Credenciais</Text>
             </View>
 
-            {/* ── BOTTOM dark sheet ── */}
+            {/* ── BOTTOM sheet ── */}
             <ScrollView
                 contentContainerStyle={{ flexGrow: 1 }}
                 keyboardShouldPersistTaps="handled"
@@ -137,7 +122,9 @@ export default function SignUpScreen() {
                 <View
                     style={{
                         flex: 1,
-                        backgroundColor: COLORS.bgPrimary,
+                        backgroundColor: HADES.surface,
+                        borderTopWidth: 1,
+                        borderColor: HADES.border,
                         borderTopLeftRadius: 36,
                         borderTopRightRadius: 36,
                         paddingHorizontal: 26,
@@ -150,27 +137,29 @@ export default function SignUpScreen() {
 
                     {/* Email */}
                     <InputField
-                        icon={<Mail size={18} color={COLORS.primary} />}
+                        icon={<Mail size={18} color={HADES.accentSolid} />}
                         value={email}
                         onChangeText={setEmail}
                         placeholder="E-mail"
                         keyboardType="email-address"
+                        hades
                     />
 
                     {/* Password */}
                     <View>
                         <InputField
-                            icon={<Lock size={18} color={COLORS.primary} />}
+                            icon={<Lock size={18} color={HADES.accentSolid} />}
                             value={password}
                             onChangeText={setPassword}
                             placeholder="Senha"
                             secureTextEntry={!showPassword}
+                            hades
                             rightElement={
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                     {showPassword ? (
-                                        <EyeOff size={20} color={COLORS.textMuted} />
+                                        <EyeOff size={20} color={HADES.textFaint} />
                                     ) : (
-                                        <Eye size={20} color={COLORS.textMuted} />
+                                        <Eye size={20} color={HADES.textFaint} />
                                     )}
                                 </TouchableOpacity>
                             }
@@ -180,17 +169,18 @@ export default function SignUpScreen() {
 
                     {/* Confirm Password */}
                     <InputField
-                        icon={<Lock size={18} color={COLORS.violet} />}
+                        icon={<Lock size={18} color={HADES.violet} />}
                         value={confirmPassword}
                         onChangeText={setConfirmPassword}
                         placeholder="Confirmar senha"
                         secureTextEntry={!showConfirm}
+                        hades
                         rightElement={
                             <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
                                 {showConfirm ? (
-                                    <EyeOff size={20} color={COLORS.textMuted} />
+                                    <EyeOff size={20} color={HADES.textFaint} />
                                 ) : (
-                                    <Eye size={20} color={COLORS.textMuted} />
+                                    <Eye size={20} color={HADES.textFaint} />
                                 )}
                             </TouchableOpacity>
                         }
@@ -202,15 +192,12 @@ export default function SignUpScreen() {
                             style={{
                                 fontSize: 11.5,
                                 fontWeight: "600",
-                                color:
-                                    password === confirmPassword ? COLORS.emerald : COLORS.rose,
+                                color: password === confirmPassword ? HADES.green : HADES.red,
                                 marginTop: -4,
                                 paddingHorizontal: 2,
                             }}
                         >
-                            {password === confirmPassword
-                                ? "✓ Senhas coincidem"
-                                : "✗ Senhas não coincidem"}
+                            {password === confirmPassword ? "✓ Senhas coincidem" : "✗ Senhas não coincidem"}
                         </Text>
                     )}
 
@@ -219,27 +206,15 @@ export default function SignUpScreen() {
                         label="CONTINUAR"
                         onPress={handleSignUp}
                         isLoading={isLoading}
+                        hades
                         style={{ marginTop: 8, letterSpacing: 2 } as any}
                     />
 
                     {/* Back to login */}
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            justifyContent: "center",
-                            gap: 4,
-                            marginTop: 8,
-                        }}
-                    >
-                        <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.38)" }}>
-                            Já tem uma conta?
-                        </Text>
+                    <View style={{ flexDirection: "row", justifyContent: "center", gap: 4, marginTop: 8 }}>
+                        <Text style={{ fontSize: 14, color: HADES.textFaint }}>Já tem uma conta?</Text>
                         <TouchableOpacity onPress={() => router.back()}>
-                            <Text
-                                style={{ fontSize: 14, color: COLORS.primary, fontWeight: "700" }}
-                            >
-                                Entrar
-                            </Text>
+                            <Text style={{ fontSize: 14, color: HADES.accentSolid, fontWeight: "700" }}>Entrar</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

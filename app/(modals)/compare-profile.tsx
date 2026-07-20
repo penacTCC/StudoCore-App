@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Sha
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ChevronLeft, Share2, Crown, Clock, ListChecks, Trophy, Medal, Flame, BookOpen, Swords } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import Avatar from "@/components/ui/Avatar";
 import { buscarPerfil } from "@/services/auth";
@@ -26,7 +26,7 @@ const corDoUsuario = (nome?: string | null) => getAvatarColor(nome ? nome.charCo
 type Lado = "eu" | "ele" | "empate";
 const decidirLado = (meu: number, dele: number): Lado => (meu > dele ? "eu" : dele > meu ? "ele" : "empate");
 
-const formatarNumero = (valor: number) => valor.toLocaleString('pt-BR');
+const formatarNumero = (valor: number) => valor.toLocaleString("pt-BR");
 
 export default function CompareProfileScreen() {
     const router = useRouter();
@@ -52,8 +52,10 @@ export default function CompareProfileScreen() {
 
     if (!eu || !ele) {
         return (
-            <SafeAreaView className="flex-1 bg-slate-950 items-center justify-center">
-                <ActivityIndicator color={COLORS.primary} />
+            <SafeAreaView
+                style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}
+            >
+                <ActivityIndicator color={HADES.accentSolid} />
             </SafeAreaView>
         );
     }
@@ -61,8 +63,8 @@ export default function CompareProfileScreen() {
     const corEu = corDoUsuario(eu.profile.nome_usuario);
     const corEle = corDoUsuario(ele.profile.nome_usuario);
 
-    const minhasMedalhas = APP_BADGES.filter(b => eu.profile.medalhas_desbloqueadas?.includes(b.id)).length;
-    const medalhasDele = APP_BADGES.filter(b => ele.profile.medalhas_desbloqueadas?.includes(b.id)).length;
+    const minhasMedalhas = APP_BADGES.filter((b) => eu.profile.medalhas_desbloqueadas?.includes(b.id)).length;
+    const medalhasDele = APP_BADGES.filter((b) => ele.profile.medalhas_desbloqueadas?.includes(b.id)).length;
 
     const metricas: { label: string; icon: LucideIcon; meu: number; dele: number; sufixo?: string }[] = [
         { label: "Horas Totais", icon: Clock, meu: eu.profile.horas_totais ?? 0, dele: ele.profile.horas_totais ?? 0, sufixo: "h" },
@@ -72,8 +74,8 @@ export default function CompareProfileScreen() {
         { label: "Ofensiva Atual", icon: Flame, meu: eu.gamificacao?.ofensiva ?? 0, dele: ele.gamificacao?.ofensiva ?? 0, sufixo: " dias" },
     ];
 
-    const vitoriasEu = metricas.filter(m => decidirLado(m.meu, m.dele) === "eu").length;
-    const vitoriasEle = metricas.filter(m => decidirLado(m.meu, m.dele) === "ele").length;
+    const vitoriasEu = metricas.filter((m) => decidirLado(m.meu, m.dele) === "eu").length;
+    const vitoriasEle = metricas.filter((m) => decidirLado(m.meu, m.dele) === "ele").length;
     const liderante: Lado = vitoriasEu > vitoriasEle ? "eu" : vitoriasEle > vitoriasEu ? "ele" : "empate";
 
     const compartilhar = () => {
@@ -87,71 +89,90 @@ export default function CompareProfileScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={['top', 'bottom']}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top", "bottom"]}>
             {/* Header */}
-            <View className="flex-row items-center justify-between px-4 py-3">
-                <TouchableOpacity onPress={() => router.back()} className="w-9 h-9 rounded-full bg-slate-800 items-center justify-center">
-                    <ChevronLeft size={20} color="#c9ccd2" />
+            <View
+                style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 20,
+                    paddingTop: 6,
+                    paddingBottom: 12,
+                }}
+            >
+                <TouchableOpacity onPress={() => router.back()} style={estilos.botaoCircular}>
+                    <ChevronLeft size={20} color={HADES.textSecondary} />
                 </TouchableOpacity>
-                <Text className="text-base font-semibold text-white">Duelo</Text>
-                <TouchableOpacity onPress={compartilhar} className="w-9 h-9 rounded-full bg-slate-800 items-center justify-center">
-                    <Share2 size={16} color="#c9ccd2" />
+                <Text style={{ fontSize: 16, fontWeight: "600", color: HADES.text }}>Duelo</Text>
+                <TouchableOpacity onPress={compartilhar} style={estilos.botaoCircular}>
+                    <Share2 size={16} color={HADES.textSecondary} />
                 </TouchableOpacity>
             </View>
 
-            <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+            <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
+            >
                 {/* VS hero */}
-                <View className="flex-row items-start justify-between py-6">
+                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingVertical: 24 }}>
                     {/* Eu */}
-                    <View style={{ width: 110 }} className="items-center gap-2.5">
+                    <View style={{ width: 110, alignItems: "center", gap: 10 }}>
                         <View>
                             {liderante === "eu" && (
-                                <Crown size={18} color={COLORS.amber} style={{ position: 'absolute', top: -16, left: 0, right: 0, alignSelf: 'center' }} />
+                                <Crown size={18} color={HADES.amber} style={{ position: "absolute", top: -16, left: 0, right: 0, alignSelf: "center" }} />
                             )}
-                            <View className="rounded-full p-[3px]" style={{ backgroundColor: corEu }}>
-                                <View style={{ borderWidth: 3, borderColor: '#000' }} className="rounded-full">
+                            <View style={{ borderRadius: 999, padding: 3, backgroundColor: corEu }}>
+                                <View style={{ borderWidth: 3, borderColor: HADES.bg, borderRadius: 999 }}>
                                     <Avatar foto={eu.profile.foto_usuario} nome={eu.profile.nome_usuario} size={78} />
                                 </View>
                             </View>
                         </View>
-                        <View className="items-center">
-                            <Text className="text-base font-bold text-white" numberOfLines={1}>{eu.profile.nome_usuario}</Text>
-                            <Text className="text-xs font-semibold mt-0.5" style={{ color: corEu }}>Você</Text>
+                        <View style={{ alignItems: "center" }}>
+                            <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }} numberOfLines={1}>
+                                {eu.profile.nome_usuario}
+                            </Text>
+                            <Text style={{ fontSize: 12, fontWeight: "600", marginTop: 1, color: corEu }}>Você</Text>
                         </View>
                     </View>
 
                     {/* Placar central */}
-                    <View className="flex-1 items-center pt-5">
-                        <View className="flex-row items-center gap-3">
-                            <Text className="text-4xl font-extrabold" style={{ color: corEu }}>{vitoriasEu}</Text>
-                            <Text className="text-sm font-bold text-slate-500">VS</Text>
-                            <Text className="text-4xl font-extrabold" style={{ color: corEle }}>{vitoriasEle}</Text>
+                    <View style={{ flex: 1, alignItems: "center", paddingTop: 20 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                            <Text style={{ fontSize: 36, fontWeight: "800", color: corEu }}>{vitoriasEu}</Text>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: HADES.textFaint }}>VS</Text>
+                            <Text style={{ fontSize: 36, fontWeight: "800", color: corEle }}>{vitoriasEle}</Text>
                         </View>
-                        <Text className="text-[11px] font-semibold text-slate-500 tracking-widest mt-2">VITÓRIAS</Text>
+                        <Text style={{ fontSize: 11, fontWeight: "600", color: HADES.textFaint, letterSpacing: 2, marginTop: 8 }}>
+                            VITÓRIAS
+                        </Text>
                     </View>
 
                     {/* Ele */}
-                    <View style={{ width: 110 }} className="items-center gap-2.5">
+                    <View style={{ width: 110, alignItems: "center", gap: 10 }}>
                         <View>
                             {liderante === "ele" && (
-                                <Crown size={18} color={COLORS.amber} style={{ position: 'absolute', top: -16, left: 0, right: 0, alignSelf: 'center' }} />
+                                <Crown size={18} color={HADES.amber} style={{ position: "absolute", top: -16, left: 0, right: 0, alignSelf: "center" }} />
                             )}
-                            <View className="rounded-full p-[3px]" style={{ backgroundColor: corEle }}>
-                                <View style={{ borderWidth: 3, borderColor: '#000' }} className="rounded-full">
+                            <View style={{ borderRadius: 999, padding: 3, backgroundColor: corEle }}>
+                                <View style={{ borderWidth: 3, borderColor: HADES.bg, borderRadius: 999 }}>
                                     <Avatar foto={ele.profile.foto_usuario} nome={ele.profile.nome_usuario} size={78} />
                                 </View>
                             </View>
                         </View>
-                        <View className="items-center">
-                            <Text className="text-base font-bold text-white" numberOfLines={1}>{ele.profile.nome_usuario}</Text>
-                            <Text className="text-xs font-semibold mt-0.5" style={{ color: corEle }}>Rival</Text>
+                        <View style={{ alignItems: "center" }}>
+                            <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }} numberOfLines={1}>
+                                {ele.profile.nome_usuario}
+                            </Text>
+                            <Text style={{ fontSize: 12, fontWeight: "600", marginTop: 1, color: corEle }}>Rival</Text>
                         </View>
                     </View>
                 </View>
 
                 {/* Linhas de comparação, uma barra por métrica */}
-                <View className="gap-5 pt-1">
-                    {metricas.map(m => {
+                <View style={{ gap: 20, paddingTop: 4 }}>
+                    {metricas.map((m) => {
                         const lado = decidirLado(m.meu, m.dele);
                         const Icon = m.icon;
                         const total = Math.max(m.meu + m.dele, 0.0001);
@@ -159,35 +180,31 @@ export default function CompareProfileScreen() {
                         const pctEle = 100 - pctEu;
                         return (
                             <View key={m.label}>
-                                <View className="flex-row items-center justify-between mb-2">
-                                    <View className="flex-1 flex-row items-center gap-1.5">
-                                        {m.label === "Ofensiva Atual" && lado === "eu" && <Flame size={14} color={COLORS.amber} />}
-                                        <Text
-                                            className="text-lg font-bold"
-                                            style={{ color: lado === "eu" ? corEu : COLORS.textMuted }}
-                                        >
-                                            {formatarNumero(m.meu)}{m.sufixo || ""}
+                                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                                    <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                        {m.label === "Ofensiva Atual" && lado === "eu" && <Flame size={14} color={HADES.amber} />}
+                                        <Text style={{ fontSize: 18, fontWeight: "700", color: lado === "eu" ? corEu : HADES.textMuted }}>
+                                            {formatarNumero(m.meu)}
+                                            {m.sufixo || ""}
                                         </Text>
                                     </View>
-                                    <View className="flex-row items-center gap-1.5 px-2">
-                                        <Icon size={13} color={COLORS.textMuted} />
-                                        <Text className="text-[10px] font-semibold text-slate-500 tracking-wider" numberOfLines={1}>
+                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8 }}>
+                                        <Icon size={13} color={HADES.textFaint} />
+                                        <Text style={{ fontSize: 10, fontWeight: "600", color: HADES.textFaint, letterSpacing: 0.8 }} numberOfLines={1}>
                                             {m.label.toUpperCase()}
                                         </Text>
                                     </View>
-                                    <View className="flex-1 flex-row items-center justify-end gap-1.5">
-                                        <Text
-                                            className="text-lg font-bold"
-                                            style={{ color: lado === "ele" ? corEle : COLORS.textMuted }}
-                                        >
-                                            {formatarNumero(m.dele)}{m.sufixo || ""}
+                                    <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+                                        <Text style={{ fontSize: 18, fontWeight: "700", color: lado === "ele" ? corEle : HADES.textMuted }}>
+                                            {formatarNumero(m.dele)}
+                                            {m.sufixo || ""}
                                         </Text>
-                                        {m.label === "Ofensiva Atual" && lado === "ele" && <Flame size={14} color={COLORS.amber} />}
+                                        {m.label === "Ofensiva Atual" && lado === "ele" && <Flame size={14} color={HADES.amber} />}
                                     </View>
                                 </View>
-                                <View className="flex-row gap-1" style={{ height: 8 }}>
-                                    <View style={{ height: '100%', width: `${pctEu}%`, backgroundColor: corEu, opacity: lado === "ele" ? 0.3 : 1, borderRadius: 4 }} />
-                                    <View style={{ height: '100%', width: `${pctEle}%`, backgroundColor: corEle, opacity: lado === "eu" ? 0.3 : 1, borderRadius: 4 }} />
+                                <View style={{ flexDirection: "row", gap: 4, height: 8 }}>
+                                    <View style={{ height: "100%", width: `${pctEu}%`, backgroundColor: corEu, opacity: lado === "ele" ? 0.3 : 1, borderRadius: 4 }} />
+                                    <View style={{ height: "100%", width: `${pctEle}%`, backgroundColor: corEle, opacity: lado === "eu" ? 0.3 : 1, borderRadius: 4 }} />
                                 </View>
                             </View>
                         );
@@ -195,19 +212,21 @@ export default function CompareProfileScreen() {
                 </View>
 
                 {/* Matéria favorita (neutro, cor de cada lado) */}
-                <View className="mt-5 pt-4 border-t border-slate-800">
-                    <View className="flex-row items-center justify-center gap-1.5 mb-3">
-                        <BookOpen size={13} color={COLORS.textMuted} />
-                        <Text className="text-[10px] font-semibold text-slate-500 tracking-wider">MATÉRIA FAVORITA</Text>
+                <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: HADES.border }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 12 }}>
+                        <BookOpen size={13} color={HADES.textFaint} />
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: HADES.textFaint, letterSpacing: 0.8 }}>
+                            MATÉRIA FAVORITA
+                        </Text>
                     </View>
-                    <View className="flex-row gap-2.5">
-                        <View className="flex-1 py-3 rounded-xl items-center" style={{ backgroundColor: `${corEu}1a`, borderWidth: 1, borderColor: `${corEu}40` }}>
-                            <Text className="text-sm font-semibold" style={{ color: corEu }} numberOfLines={1}>
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                        <View style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center", backgroundColor: `${corEu}1a`, borderWidth: 1, borderColor: `${corEu}40` }}>
+                            <Text style={{ fontSize: 14, fontWeight: "600", color: corEu }} numberOfLines={1}>
                                 {eu.profile.materia_favorita || "—"}
                             </Text>
                         </View>
-                        <View className="flex-1 py-3 rounded-xl items-center" style={{ backgroundColor: `${corEle}1a`, borderWidth: 1, borderColor: `${corEle}40` }}>
-                            <Text className="text-sm font-semibold" style={{ color: corEle }} numberOfLines={1}>
+                        <View style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: "center", backgroundColor: `${corEle}1a`, borderWidth: 1, borderColor: `${corEle}40` }}>
+                            <Text style={{ fontSize: 14, fontWeight: "600", color: corEle }} numberOfLines={1}>
                                 {ele.profile.materia_favorita || "—"}
                             </Text>
                         </View>
@@ -218,16 +237,27 @@ export default function CompareProfileScreen() {
             </ScrollView>
 
             {/* CTA */}
-            <View className="px-5 pb-2 pt-3 border-t border-slate-800">
+            <View style={{ paddingHorizontal: 20, paddingBottom: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: HADES.border }}>
                 <TouchableOpacity
                     onPress={desafiar}
-                    className="h-[52px] rounded-2xl items-center justify-center flex-row gap-2"
-                    style={{ backgroundColor: corEu }}
+                    activeOpacity={0.85}
+                    style={{ height: 54, borderRadius: 15, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 9, backgroundColor: corEu }}
                 >
                     <Swords size={18} color="#fff" />
-                    <Text className="text-white font-bold text-base">Desafiar {ele.profile.nome_usuario}</Text>
+                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Desafiar {ele.profile.nome_usuario}</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
     );
 }
+
+const estilos = {
+    botaoCircular: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: HADES.surfaceRaised,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+    },
+};

@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity } from "react-native";
+import { HADES } from "@/constants/hades";
 
 interface Tab {
     key: string;
@@ -14,33 +15,35 @@ interface TabSelectorProps {
 }
 
 /**
- * Barra de abas estilo pill com destaque na aba ativa.
- * Reutilizado em: index.tsx (Leaderboard), brain.tsx, vault.tsx (modal Upload)
+ * Barra de abas estilo pill com destaque na aba ativa, no visual HADES.
+ * Reutilizado em: vault.tsx (modal Upload)
  */
-export default function TabSelector({
-    tabs,
-    active,
-    onSelect,
-    activeColor = "brand",
-}: TabSelectorProps) {
-    const activeBg = activeColor === "brand" ? "bg-brand-500" : "bg-violet-600";
-    const activeText = "text-white";
-    const inactiveText = "text-slate-400";
+export default function TabSelector({ tabs, active, onSelect, activeColor = "brand" }: TabSelectorProps) {
+    const activeBg = activeColor === "brand" ? HADES.accentSolid : HADES.violet;
+    const activeTextColor = activeColor === "brand" ? "#000" : "#fff";
 
     return (
-        <View className="flex-row gap-1">
+        <View style={{ flexDirection: "row", gap: 6 }}>
             {tabs.map((tab) => {
                 const isActive = tab.key === active;
                 return (
                     <TouchableOpacity
                         key={tab.key}
                         onPress={() => onSelect(tab.key)}
-                        className={`px-3 py-1 rounded-lg ${isActive ? activeBg : "bg-slate-800"}`}
+                        activeOpacity={0.8}
+                        style={{
+                            paddingHorizontal: 14,
+                            paddingVertical: 7,
+                            borderRadius: 9,
+                            backgroundColor: isActive ? activeBg : HADES.surfaceOverlay,
+                        }}
                     >
                         <Text
-                            className={`text-xs font-medium ${
-                                isActive ? activeText : inactiveText
-                            }`}
+                            style={{
+                                fontSize: 12.5,
+                                fontWeight: "600",
+                                color: isActive ? activeTextColor : HADES.textFaint,
+                            }}
                         >
                             {tab.label}
                         </Text>

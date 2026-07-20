@@ -1,5 +1,5 @@
 import { View, Text } from "react-native";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 interface PasswordStrengthProps {
     password: string;
@@ -23,9 +23,9 @@ export default function PasswordStrength({ password }: PasswordStrengthProps) {
     if (!password) return null;
 
     const labels = ["Fraca", "Razoável", "Boa", "Forte"];
-    const barColors = [COLORS.rose, COLORS.amber, COLORS.primary, COLORS.emerald];
+    const barColors = [HADES.red, HADES.amber, HADES.accentSolid, HADES.green];
     const label = labels[score - 1] ?? "Fraca";
-    const color = barColors[score - 1] ?? COLORS.rose;
+    const color = barColors[score - 1] ?? HADES.red;
 
     return (
         <View style={{ marginTop: 8, gap: 6 }}>

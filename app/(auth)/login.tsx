@@ -18,7 +18,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 
 import { Eye, EyeOff, Github } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 //Componentes da Aplicação
 import { DotPattern, LogoMark, BackButton, DragHandle } from "@/components/auth";
@@ -164,15 +164,15 @@ export default function LoginScreen() {
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ flex: 1, backgroundColor: "#ffffff" }}
+            style={{ flex: 1, backgroundColor: HADES.bg }}
         >
-            <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
-            {/* ── TOP: white + dot pattern + logo ── */}
+            {/* ── TOP: preto + dot pattern + logo ── */}
             <View
                 style={{
                     height: SCREEN_HEIGHT * 0.36,
-                    backgroundColor: "#ffffff",
+                    backgroundColor: HADES.bg,
                     alignItems: "center",
                     justifyContent: "center",
                     overflow: "hidden",
@@ -187,7 +187,7 @@ export default function LoginScreen() {
                         style={{
                             fontSize: 30,
                             fontWeight: "800",
-                            color: COLORS.bgPrimary,
+                            color: HADES.text,
                             letterSpacing: -0.5,
                         }}
                     >
@@ -197,7 +197,7 @@ export default function LoginScreen() {
                         style={{
                             fontSize: 30,
                             fontWeight: "800",
-                            color: COLORS.primary,
+                            color: HADES.accentSolid,
                             letterSpacing: -0.5,
                         }}
                     >
@@ -210,7 +210,9 @@ export default function LoginScreen() {
             <View
                 style={{
                     flex: 1,
-                    backgroundColor: COLORS.bgPrimary,
+                    backgroundColor: HADES.surface,
+                    borderTopWidth: 1,
+                    borderColor: HADES.border,
                     borderTopLeftRadius: 36,
                     borderTopRightRadius: 36,
                     paddingHorizontal: 26,
@@ -227,18 +229,10 @@ export default function LoginScreen() {
                         value={email}
                         onChangeText={setEmail}
                         placeholder="E-mail"
-                        placeholderTextColor="#94a3b8"
+                        placeholderTextColor={HADES.textFaint}
                         keyboardType="email-address"
                         autoCapitalize="none"
-                        style={{
-                            backgroundColor: "#ffffff",
-                            borderRadius: 14,
-                            paddingHorizontal: 18,
-                            paddingVertical: 15,
-                            fontSize: 15,
-                            color: "#0f172a",
-                            fontWeight: "500",
-                        }}
+                        style={estilos.campo}
                     />
                 </View>
 
@@ -248,27 +242,18 @@ export default function LoginScreen() {
                         value={password}
                         onChangeText={setPassword}
                         placeholder="Senha"
-                        placeholderTextColor="#94a3b8"
+                        placeholderTextColor={HADES.textFaint}
                         secureTextEntry={!showPassword}
-                        style={{
-                            backgroundColor: "#ffffff",
-                            borderRadius: 14,
-                            paddingHorizontal: 18,
-                            paddingRight: 52,
-                            paddingVertical: 15,
-                            fontSize: 15,
-                            color: "#0f172a",
-                            fontWeight: "500",
-                        }}
+                        style={[estilos.campo, { paddingRight: 52 }]}
                     />
                     <TouchableOpacity
                         onPress={() => setShowPassword(!showPassword)}
                         style={{ position: "absolute", right: 16, top: 0, bottom: 0, justifyContent: "center" }}
                     >
                         {showPassword ? (
-                            <EyeOff size={20} color="#64748b" />
+                            <EyeOff size={20} color={HADES.textFaint} />
                         ) : (
-                            <Eye size={20} color="#64748b" />
+                            <Eye size={20} color={HADES.textFaint} />
                         )}
                     </TouchableOpacity>
                 </View>
@@ -278,7 +263,7 @@ export default function LoginScreen() {
                     onPress={() => router.push("/(auth)/forgot-password")}
                     style={{ alignSelf: "flex-end", marginBottom: 22 }}
                 >
-                    <Text style={{ fontSize: 13, color: COLORS.violetLight, fontWeight: "500" }}>
+                    <Text style={{ fontSize: 13, color: HADES.textMuted, fontWeight: "500" }}>
                         Esqueceu a senha?
                     </Text>
                 </TouchableOpacity>
@@ -288,6 +273,7 @@ export default function LoginScreen() {
                     label="ENTRAR"
                     onPress={handleLogin}
                     isLoading={isLoading}
+                    hades
                     style={{ marginBottom: 22 }}
                 />
 
@@ -305,7 +291,7 @@ export default function LoginScreen() {
                         }}
                     >
                         OU{" "}
-                        <Text style={{ color: COLORS.violetLight }}>CONTINUAR COM</Text>
+                        <Text style={{ color: HADES.accentText }}>CONTINUAR COM</Text>
                     </Text>
                     <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.1)" }} />
                 </View>
@@ -356,7 +342,7 @@ export default function LoginScreen() {
                         Não tem uma conta?
                     </Text>
                     <TouchableOpacity onPress={() => router.push("/signup")}>
-                        <Text style={{ fontSize: 14, color: COLORS.primary, fontWeight: "700" }}>
+                        <Text style={{ fontSize: 14, color: HADES.accentSolid, fontWeight: "700" }}>
                             Cadastre-se
                         </Text>
                     </TouchableOpacity>
@@ -365,3 +351,17 @@ export default function LoginScreen() {
         </KeyboardAvoidingView>
     );
 }
+
+const estilos = {
+    campo: {
+        backgroundColor: HADES.surfaceRaised,
+        borderWidth: 1,
+        borderColor: HADES.border,
+        borderRadius: 14,
+        paddingHorizontal: 18,
+        paddingVertical: 15,
+        fontSize: 15,
+        color: HADES.text,
+        fontWeight: "500" as const,
+    },
+};

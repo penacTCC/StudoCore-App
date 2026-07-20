@@ -1,5 +1,6 @@
 import { TouchableOpacity, Text, ActivityIndicator, StyleProp, ViewStyle } from "react-native";
 import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 interface PrimaryButtonProps {
     label: string;
@@ -7,10 +8,12 @@ interface PrimaryButtonProps {
     isLoading?: boolean;
     disabled?: boolean;
     style?: StyleProp<ViewStyle>;
+    /** Aplica o visual HADES (laranja sólido, texto preto). Padrão: false (tema legado, usado no onboarding). */
+    hades?: boolean;
 }
 
 /**
- * Botão primário azul com sombra, suporte a estado de loading e disabled.
+ * Botão primário com sombra, suporte a estado de loading e disabled.
  * Padrão visual de todas as telas de auth e modals.
  */
 export default function PrimaryButton({
@@ -19,21 +22,25 @@ export default function PrimaryButton({
     isLoading = false,
     disabled = false,
     style,
+    hades = false,
 }: PrimaryButtonProps) {
+    const bg = hades ? HADES.accentSolid : COLORS.primary;
+    const fg = hades ? "#000000" : "#ffffff";
+
     return (
         <TouchableOpacity
             onPress={onPress}
             disabled={isLoading || disabled}
             style={[
                 {
-                    backgroundColor: COLORS.primary,
+                    backgroundColor: bg,
                     borderRadius: 14,
                     paddingVertical: 16,
                     alignItems: "center",
                     justifyContent: "center",
-                    shadowColor: COLORS.primary,
+                    shadowColor: bg,
                     shadowOffset: { width: 0, height: 6 },
-                    shadowOpacity: 0.4,
+                    shadowOpacity: hades ? 0.25 : 0.4,
                     shadowRadius: 14,
                     elevation: 10,
                     opacity: isLoading || disabled ? 0.8 : 1,
@@ -42,11 +49,11 @@ export default function PrimaryButton({
             ]}
         >
             {isLoading ? (
-                <ActivityIndicator size="small" color="#ffffff" />
+                <ActivityIndicator size="small" color={fg} />
             ) : (
                 <Text
                     style={{
-                        color: "#ffffff",
+                        color: fg,
                         fontWeight: "800",
                         fontSize: 15,
                         letterSpacing: 2.5,

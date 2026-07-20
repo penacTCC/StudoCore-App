@@ -8,13 +8,14 @@ import { ArrowLeft, Link as LinkIcon } from "lucide-react-native";
 import { router } from "expo-router";
 
 //Constantes
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 //Componentes do projeto
 import { useState } from "react";
 
 export default function JoinByCodeScreen() {
     const [code, setCode] = useState("");
+    const ativo = code.trim().length > 0;
 
     const handleJoin = () => {
         // Implement join logic here
@@ -25,53 +26,85 @@ export default function JoinByCodeScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>
-            <View className="px-4 py-3 flex-row items-center gap-3">
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    className="w-8 h-8 rounded-full bg-slate-800 items-center justify-center"
-                >
-                    <ArrowLeft size={18} color={COLORS.textSecondary} />
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+            <View
+                style={{
+                    paddingTop: 6,
+                    paddingHorizontal: 20,
+                    paddingBottom: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                }}
+            >
+                <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <ArrowLeft size={22} color={HADES.textSecondary} />
                 </TouchableOpacity>
-                <Text className="text-xl font-bold text-slate-200">Entrar com Código</Text>
+                <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text }}>Entrar com Código</Text>
             </View>
 
-            <View className="flex-1 px-6 pt-10">
-                <View className="items-center mb-8">
-                    <View className="w-16 h-16 bg-navy-900 rounded-full items-center justify-center mb-4 border border-brand-500/20">
-                        <LinkIcon size={28} color={COLORS.primary} />
+            <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 40 }}>
+                <View style={{ alignItems: "center", marginBottom: 32 }}>
+                    <View
+                        style={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: 32,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: 16,
+                            backgroundColor: HADES.accentTint,
+                            borderWidth: 1,
+                            borderColor: HADES.accentTintBorder,
+                        }}
+                    >
+                        <LinkIcon size={28} color={HADES.accentSolid} />
                     </View>
-                    <Text className="text-2xl font-bold text-slate-200 text-center mb-2">
+                    <Text style={{ fontSize: 22, fontWeight: "700", color: HADES.text, textAlign: "center", marginBottom: 8 }}>
                         Possui um código ou link?
                     </Text>
-                    <Text className="text-slate-400 text-center text-base">
+                    <Text style={{ fontSize: 15, color: HADES.textMuted, textAlign: "center" }}>
                         Insira abaixo para entrar em um grupo privado.
                     </Text>
                 </View>
 
-                <View className="mb-6">
-                    <Text className="text-slate-300 font-medium mb-2 ml-1">Código do Grupo ou Link</Text>
+                <View style={{ marginBottom: 24 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "500", color: HADES.textSecondary, marginBottom: 8, marginLeft: 4 }}>
+                        Código do Grupo ou Link
+                    </Text>
                     <TextInput
                         value={code}
                         onChangeText={setCode}
                         placeholder="Ex: abc-defg-hij ou https://..."
-                        placeholderTextColor={COLORS.textMuted}
-                        className="bg-navy-900 border border-navy-800 rounded-xl px-4 py-4 text-slate-200 text-base"
+                        placeholderTextColor={HADES.textFaint}
                         autoCapitalize="none"
                         autoCorrect={false}
+                        style={{
+                            backgroundColor: HADES.surfaceRaised,
+                            borderWidth: 1,
+                            borderColor: HADES.border,
+                            borderRadius: 13,
+                            paddingHorizontal: 16,
+                            paddingVertical: 15,
+                            color: HADES.text,
+                            fontSize: 15,
+                        }}
                     />
                 </View>
 
                 <TouchableOpacity
                     onPress={handleJoin}
-                    className={`w-full py-4 rounded-xl items-center justify-center ${code.trim().length > 0 ? "bg-brand-500" : "bg-navy-800"
-                        }`}
-                    disabled={code.trim().length === 0}
+                    disabled={!ativo}
+                    activeOpacity={0.85}
+                    style={{
+                        height: 54,
+                        borderRadius: 15,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: ativo ? HADES.accentSolid : HADES.surfaceOverlay,
+                    }}
                 >
-                    <Text
-                        className={`font-semibold text-lg ${code.trim().length > 0 ? "text-white" : "text-slate-500"
-                            }`}
-                    >
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: ativo ? "#000" : HADES.textFaint }}>
                         Entrar no Grupo
                     </Text>
                 </TouchableOpacity>

@@ -1,7 +1,7 @@
 import { View, Text, ActivityIndicator, TouchableOpacity, Image } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { FileUp, FileText, Image as ImageIcon } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 interface SelectedFileInfo {
     uri: string;
@@ -11,7 +11,6 @@ interface SelectedFileInfo {
 }
 
 interface DocumentPickerVaultProps {
-
     category?: string; /** Tipo de arquivo esperado ("pdf" | "image" | "all") */
 
     onFileSelected: (file: SelectedFileInfo) => void; /** Chamado quando um arquivo é selecionado para enviar os dados ao pai */
@@ -22,7 +21,7 @@ interface DocumentPickerVaultProps {
 }
 
 /**
- * Componente que renderiza a zona de seleção (Dashed Box).
+ * Componente que renderiza a zona de seleção (Dashed Box), no visual HADES.
  * Ele apenas abre o seletor de arquivos e retorna os dados para o componente pai.
  */
 export default function DocumentPickerVault({
@@ -31,13 +30,12 @@ export default function DocumentPickerVault({
     selectedFile,
     isUploading = false,
 }: DocumentPickerVaultProps) {
-
     /**  Função que abre o seletor de documentos do celular*/
     const selectFile = async () => {
         try {
             // 1. Define quais tipos de arquivos podem ser selecionados
-            const allowedTypes = category === "pdf" ? ["application/pdf"] :
-                category === "image" ? ["image/*"] : ["*/*"];
+            const allowedTypes =
+                category === "pdf" ? ["application/pdf"] : category === "image" ? ["image/*"] : ["*/*"];
 
             // 2. Abre a interface do sistema para escolher o arquivo
             const result = await DocumentPicker.getDocumentAsync({
@@ -56,7 +54,6 @@ export default function DocumentPickerVault({
                 mimeType: file.mimeType || "application/octet-stream",
                 size: file.size || 0, // Pega o tamanho real em bytes
             });
-
         } catch (error: any) {
             console.error("Erro ao selecionar arquivo:", error);
         }
@@ -66,41 +63,58 @@ export default function DocumentPickerVault({
         <TouchableOpacity
             onPress={selectFile}
             disabled={isUploading}
-            className="rounded-2xl p-8 items-center mb-4 border-2 border-dashed border-slate-700 bg-slate-900/50"
+            activeOpacity={0.8}
+            style={{
+                borderRadius: 16,
+                padding: 28,
+                alignItems: "center",
+                marginBottom: 16,
+                borderWidth: 2,
+                borderStyle: "dashed",
+                borderColor: HADES.borderDashed,
+                backgroundColor: HADES.surface,
+            }}
         >
             {isUploading ? (
                 // Exibe carregamento enquanto o upload para o Supabase está em curso
-                <View className="items-center py-4">
-                    <ActivityIndicator color={COLORS.primary} size="large" />
-                    <Text className="text-slate-400 mt-2">Enviando arquivo...</Text>
+                <View style={{ alignItems: "center", paddingVertical: 16 }}>
+                    <ActivityIndicator color={HADES.accentSolid} size="large" />
+                    <Text style={{ color: HADES.textMuted, marginTop: 8 }}>Enviando arquivo...</Text>
                 </View>
             ) : selectedFile ? (
                 // Exibe informações do arquivo após ele ser selecionado
-                <View className="items-center">
+                <View style={{ alignItems: "center" }}>
                     {/* Verifica se o arquivo selecionado é uma imagem para exibir o preview */}
                     {selectedFile.mimeType.startsWith("image/") ? (
-                        <Image 
-                            source={{ uri: selectedFile.uri }} 
-                            className="w-32 h-32 rounded-xl mb-4" 
-                            resizeMode="cover" 
+                        <Image
+                            source={{ uri: selectedFile.uri }}
+                            style={{ width: 128, height: 128, borderRadius: 14, marginBottom: 16 }}
+                            resizeMode="cover"
                         />
                     ) : (
                         // Caso não seja imagem (ex: PDF ou outros), renderiza apenas o ícone
                         <View
-                            className="w-16 h-16 rounded-full items-center justify-center mb-4"
-                            style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
+                            style={{
+                                width: 64,
+                                height: 64,
+                                borderRadius: 32,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                marginBottom: 16,
+                                backgroundColor: HADES.accentTint,
+                            }}
                         >
                             {selectedFile.mimeType.includes("pdf") ? (
-                                <FileText size={28} color={COLORS.primary} />
+                                <FileText size={28} color={HADES.accentSolid} />
                             ) : (
-                                <ImageIcon size={28} color={COLORS.primary} />
+                                <ImageIcon size={28} color={HADES.accentSolid} />
                             )}
                         </View>
                     )}
-                    <Text className="text-slate-200 font-medium text-center" numberOfLines={1}>
+                    <Text style={{ color: HADES.text, fontWeight: "500", textAlign: "center" }} numberOfLines={1}>
                         {selectedFile.name}
                     </Text>
-                    <Text className="text-xs text-slate-500 mt-1">
+                    <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 4 }}>
                         Arquivo selecionado • Toque para trocar
                     </Text>
                 </View>
@@ -108,14 +122,25 @@ export default function DocumentPickerVault({
                 // Estado inicial: convite para selecionar um arquivo
                 <>
                     <View
-                        className="w-16 h-16 rounded-full items-center justify-center mb-4"
-                        style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
+                        style={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: 32,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: 16,
+                            backgroundColor: HADES.accentTint,
+                        }}
                     >
-                        <FileUp size={28} color={COLORS.primary} />
+                        <FileUp size={28} color={HADES.accentSolid} />
                     </View>
-                    <Text className="text-slate-200 font-medium mb-1 text-center">Selecionar arquivo</Text>
-                    <Text className="text-sm text-slate-500 text-center">ou toque para navegar</Text>
-                    <Text className="text-xs text-slate-600 mt-2">
+                    <Text style={{ color: HADES.text, fontWeight: "500", marginBottom: 4, textAlign: "center" }}>
+                        Selecionar arquivo
+                    </Text>
+                    <Text style={{ fontSize: 13, color: HADES.textDim, textAlign: "center" }}>
+                        ou toque para navegar
+                    </Text>
+                    <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 8 }}>
                         {category === "pdf" ? "Somente PDF" : category === "image" ? "Imagens" : "Qualquer arquivo"} até 10MB
                     </Text>
                 </>

@@ -1,16 +1,16 @@
 import { TouchableOpacity } from "react-native";
 import { ArrowLeft } from "lucide-react-native";
 import { router } from "expo-router";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 interface BackButtonProps {
     /** Distância do topo. Padrão: 52 */
     top?: number;
     /** Chamado ao pressionar. Se não passado, chama router.back() */
     onPress?: () => void;
-    /** Cor do ícone. Padrão: COLORS.bgPrimary */
+    /** Cor do ícone. Padrão: HADES.textSecondary */
     iconColor?: string;
-    /** Cor de fundo. Padrão: rgba(16,24,43,0.06) */
+    /** Cor de fundo. Padrão: superfície elevada do HADES */
     backgroundColor?: string;
 }
 
@@ -20,8 +20,8 @@ interface BackButtonProps {
 export default function BackButton({
     top = 52,
     onPress,
-    iconColor = COLORS.bgPrimary,
-    backgroundColor = "rgba(16,24,43,0.06)",
+    iconColor = HADES.textSecondary,
+    backgroundColor = "rgba(255,255,255,0.06)",
 }: BackButtonProps) {
     return (
         <TouchableOpacity

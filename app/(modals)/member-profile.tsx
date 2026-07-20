@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { ChevronLeft, Flame, Clock, Scale, Trophy, Star, Globe, CheckCircle2 } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 import Avatar from "@/components/ui/Avatar";
 import { buscarPerfil } from "@/services/auth";
 import { buscarGamificacao } from "@/services/gamificacao";
@@ -46,221 +46,319 @@ export default function MemberProfileScreen() {
     }, [userId]);
 
     const joinDate = profile?.created_at
-        ? new Intl.DateTimeFormat('pt-BR').format(new Date(profile.created_at))
+        ? new Intl.DateTimeFormat("pt-BR").format(new Date(profile.created_at))
         : "...";
 
-    const unlockedBadges = APP_BADGES.filter(b => profile?.medalhas_desbloqueadas?.includes(b.id));
+    const unlockedBadges = APP_BADGES.filter((b) => profile?.medalhas_desbloqueadas?.includes(b.id));
 
     // Progresso da meta semanal a partir das sessões públicas já carregadas (RLS filtra as privadas de outro usuário).
     const inicioDaSemana = getInicioDaSemana();
     const minutosEstaSemana = savedSessions
-        .filter(s => new Date(s.created_at || s.data_sessao) >= inicioDaSemana)
+        .filter((s) => new Date(s.created_at || s.data_sessao) >= inicioDaSemana)
         .reduce((total, s) => total + (s.tempo_minutos || 0), 0);
     const metaSemanaMinutos = profile?.minutos_semana ?? 720;
     const progressoSemanal = Math.min(Math.round((minutosEstaSemana / metaSemanaMinutos) * 100), 100);
 
     if (!profile) {
         return (
-            <SafeAreaView className="flex-1 bg-slate-950 items-center justify-center">
-                <ActivityIndicator color={COLORS.primary} />
+            <SafeAreaView
+                style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}
+            >
+                <ActivityIndicator color={HADES.accentSolid} />
             </SafeAreaView>
         );
     }
 
     return (
-        <View className="flex-1 bg-slate-950">
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
             {/* Banner + avatar sobreposto */}
             <View>
                 <LinearGradient
-                    colors={[COLORS.violetDarker, COLORS.bgPrimary]}
+                    colors={["#241a44", HADES.bg]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={{ height: 150 }}
                 />
-                <SafeAreaView edges={['top']} style={{ position: 'absolute', top: 0, left: 0, right: 0 }}>
-                    <View className="flex-row justify-between px-4 pt-2">
-                        <TouchableOpacity onPress={() => router.back()} className="w-9 h-9 rounded-full bg-black/30 items-center justify-center">
+                <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 8 }}>
+                        <TouchableOpacity
+                            onPress={() => router.back()}
+                            style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 19,
+                                backgroundColor: "rgba(0,0,0,0.3)",
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}
+                        >
                             <ChevronLeft size={22} color="#fff" />
                         </TouchableOpacity>
                     </View>
                 </SafeAreaView>
-                <View className="absolute bottom-[-44px] left-0 right-0 items-center">
-                    <View className="rounded-full" style={{ borderWidth: 3, borderColor: COLORS.bgPrimary }}>
+                <View style={{ position: "absolute", bottom: -44, left: 0, right: 0, alignItems: "center" }}>
+                    <View style={{ borderRadius: 999, borderWidth: 3, borderColor: HADES.bg }}>
                         <Avatar foto={profile.foto_usuario} nome={profile.nome_usuario} size={88} />
                     </View>
                 </View>
             </View>
 
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 52, paddingBottom: 32 }}>
+            <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingTop: 52, paddingBottom: 32, paddingHorizontal: 20 }}
+            >
                 {/* Nome & handle */}
-                <View className="items-center px-4 mb-4">
-                    <Text className="text-xl font-bold text-slate-200 mt-2">
+                <View style={{ alignItems: "center", marginBottom: 16 }}>
+                    <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text, marginTop: 8 }}>
                         {profile.nome_real || profile.nome_usuario}
                     </Text>
-                    <Text className="text-sm text-slate-400">@{profile.nome_usuario}</Text>
-                    <Text className="text-xs text-slate-500 mt-1">Desde {joinDate}</Text>
+                    <Text style={{ fontSize: 14, color: HADES.textMuted }}>@{profile.nome_usuario}</Text>
+                    <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 2 }}>Desde {joinDate}</Text>
                     {administrador === "true" && (
-                        <View className="bg-amber-500/10 px-3 py-1 rounded-full mt-2 border border-amber-500/20">
-                            <Text className="text-amber-400 text-xs font-bold">ADMINISTRADOR</Text>
+                        <View
+                            style={{
+                                backgroundColor: HADES.amberTint,
+                                paddingHorizontal: 12,
+                                paddingVertical: 4,
+                                borderRadius: 999,
+                                marginTop: 8,
+                                borderWidth: 1,
+                                borderColor: "rgba(242,176,61,0.25)",
+                            }}
+                        >
+                            <Text style={{ color: HADES.amber, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 }}>
+                                ADMINISTRADOR
+                            </Text>
                         </View>
                     )}
                 </View>
 
                 {/* Stats leves */}
-                <View className="px-4 mb-4 flex-row gap-3">
-                    <View className="flex-1 p-3 rounded-xl flex-row items-center gap-2" style={{ backgroundColor: COLORS.primaryFaint }}>
-                        <Clock size={20} color={COLORS.primaryLight} />
+                <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
+                    <View style={estilos.statChip}>
+                        <Clock size={20} color={HADES.accentSolid} />
                         <View>
-                            <Text className="text-xl font-bold text-slate-200">{profile.horas_totais ?? 0}h</Text>
-                            <Text className="text-xs text-slate-400">Horas Totais</Text>
+                            <Text style={estilos.statValor}>{profile.horas_totais ?? 0}h</Text>
+                            <Text style={estilos.statRotulo}>Horas Totais</Text>
                         </View>
                     </View>
-                    <View className="flex-1 p-3 rounded-xl flex-row items-center gap-2" style={{ backgroundColor: COLORS.primaryFaint }}>
-                        <Flame size={20} color={COLORS.emeraldLight} />
+                    <View style={estilos.statChip}>
+                        <Flame size={20} color={HADES.green} />
                         <View>
-                            <Text className="text-xl font-bold text-slate-200">{gamificacao?.melhor_ofensiva ?? 0}</Text>
-                            <Text className="text-xs text-slate-400">Melhor Ofensiva</Text>
+                            <Text style={estilos.statValor}>{gamificacao?.melhor_ofensiva ?? 0}</Text>
+                            <Text style={estilos.statRotulo}>Melhor Ofensiva</Text>
                         </View>
                     </View>
                 </View>
 
                 {/* Botão comparar */}
-                <View className="px-4 mb-4">
-                    <TouchableOpacity
-                        onPress={() => router.push({ pathname: "/(modals)/compare-profile", params: { userId } })}
-                        className="bg-violet-600 py-3.5 rounded-2xl items-center flex-row justify-center gap-2"
-                    >
-                        <Scale size={18} color={COLORS.white} />
-                        <Text className="text-white font-bold">Comparar Perfil</Text>
-                    </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                    onPress={() => router.push({ pathname: "/(modals)/compare-profile", params: { userId } })}
+                    activeOpacity={0.85}
+                    style={{
+                        backgroundColor: HADES.violet,
+                        height: 50,
+                        borderRadius: 15,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "row",
+                        gap: 8,
+                        marginBottom: 16,
+                    }}
+                >
+                    <Scale size={18} color="#fff" />
+                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Comparar Perfil</Text>
+                </TouchableOpacity>
 
                 {/* Ranking + meta semanal */}
-                <View className="px-4 mb-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-xs font-medium text-slate-400 uppercase tracking-wider">Ranking no Grupo</Text>
-                            <View className="flex-row items-center gap-1 opacity-50">
-                                <Trophy size={12} color={COLORS.textMuted} />
-                                <Text className="text-[10px] text-slate-500">Elo em breve</Text>
-                            </View>
-                        </View>
-
-                        <Text className="text-3xl font-black text-slate-200 mb-3">
-                            {rank ? `#${rank}` : "—"}
+                <View style={[estilos.card, { marginBottom: 16 }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                        <Text style={{ fontSize: 11, fontWeight: "600", color: HADES.textMuted, letterSpacing: 0.8, textTransform: "uppercase" }}>
+                            Ranking no Grupo
                         </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, opacity: 0.5 }}>
+                            <Trophy size={12} color={HADES.textMuted} />
+                            <Text style={{ fontSize: 10, color: HADES.textDim }}>Elo em breve</Text>
+                        </View>
+                    </View>
 
-                        <View className="flex-row items-center justify-between mb-1">
-                            <Text className="text-xs text-slate-400">Meta semanal</Text>
-                            <Text className="text-xs text-slate-400">{progressoSemanal}%</Text>
-                        </View>
-                        <View className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
-                            <View
-                                className="h-full bg-emerald-500 rounded-full"
-                                style={{ width: `${progressoSemanal}%` }}
-                            />
-                        </View>
+                    <Text style={{ fontSize: 30, fontWeight: "800", color: HADES.text, marginBottom: 12 }}>
+                        {rank ? `#${rank}` : "—"}
+                    </Text>
+
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                        <Text style={{ fontSize: 12, color: HADES.textMuted }}>Meta semanal</Text>
+                        <Text style={{ fontSize: 12, color: HADES.textMuted }}>{progressoSemanal}%</Text>
+                    </View>
+                    <View style={{ height: 10, backgroundColor: HADES.surfaceOverlay, borderRadius: 5, overflow: "hidden" }}>
+                        <View style={{ height: "100%", backgroundColor: HADES.green, borderRadius: 5, width: `${progressoSemanal}%` }} />
                     </View>
                 </View>
 
                 {/* Medalhas */}
-                <View className="px-4 mb-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-sm font-semibold text-slate-200">Medalhas</Text>
-                            <Text className="text-xs text-slate-500">{unlockedBadges.length}/{APP_BADGES.length}</Text>
-                        </View>
-                        {unlockedBadges.length === 0 ? (
-                            <Text className="text-xs text-slate-500 text-center py-4">Nenhuma medalha conquistada ainda.</Text>
-                        ) : (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
-                                {unlockedBadges.map(badge => {
-                                    const BadgeIcon = BADGE_ICON_MAP[badge.icon] || Star;
-                                    const levelColor = BADGE_LEVEL_COLORS[badge.level];
-                                    return (
-                                        <View key={badge.id} className="items-center gap-1.5 w-16">
-                                            <View
-                                                className="w-14 h-14 rounded-full items-center justify-center"
-                                                style={{ backgroundColor: `${levelColor}25`, borderWidth: 2, borderColor: levelColor }}
-                                            >
-                                                <BadgeIcon size={22} color={levelColor} />
-                                            </View>
-                                            <Text className="text-[10px] text-center text-slate-400" numberOfLines={2}>
-                                                {badge.name}
-                                            </Text>
-                                        </View>
-                                    );
-                                })}
-                            </ScrollView>
-                        )}
+                <View style={[estilos.card, { marginBottom: 16 }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>Medalhas</Text>
+                        <Text style={{ fontSize: 12, color: HADES.textDim }}>
+                            {unlockedBadges.length}/{APP_BADGES.length}
+                        </Text>
                     </View>
-                </View>
-
-                {/* Sessões públicas anteriores, estilo "post" */}
-                <View className="px-4 mb-4">
-                    <Text className="text-sm font-medium text-slate-400 mb-3">Sessões Públicas Anteriores</Text>
-                    {loadingSessions ? (
-                        <Text className="text-xs text-slate-500 text-center py-4">Carregando...</Text>
-                    ) : savedSessions.length === 0 ? (
-                        <View className="bg-slate-900 border border-slate-800 rounded-2xl p-6 items-center">
-                            <Text className="text-xs text-slate-500 text-center">
-                                Nenhuma sessão pública para mostrar.
-                            </Text>
-                        </View>
+                    {unlockedBadges.length === 0 ? (
+                        <Text style={{ fontSize: 12, color: HADES.textDim, textAlign: "center", paddingVertical: 16 }}>
+                            Nenhuma medalha conquistada ainda.
+                        </Text>
                     ) : (
-                        <View className="gap-3">
-                            {savedSessions.slice(0, 10).map(session => {
-                                const subjectColors = getSubjectColor(session.disciplina);
-                                const hours = Math.floor(session.tempo_minutos / 60);
-                                const minutes = session.tempo_minutos % 60;
-                                const verificada = session.questoes_acertadas > 7;
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
+                            {unlockedBadges.map((badge) => {
+                                const BadgeIcon = BADGE_ICON_MAP[badge.icon] || Star;
+                                const levelColor = BADGE_LEVEL_COLORS[badge.level];
                                 return (
-                                    <View key={session.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                                        {/* Header do post */}
-                                        <View className="flex-row items-center gap-2 mb-3">
-                                            <Avatar foto={profile.foto_usuario} nome={profile.nome_usuario} size={32} />
-                                            <View className="flex-1">
-                                                <View className="flex-row items-center gap-1">
-                                                    <Text className="text-sm font-medium text-slate-200">{profile.nome_usuario}</Text>
-                                                    {verificada && <CheckCircle2 size={12} color={COLORS.emeraldLight} />}
-                                                </View>
-                                                <Text className="text-xs text-slate-500">{getTimeAgo(session.created_at)}</Text>
-                                            </View>
-                                            <Globe size={12} color={COLORS.textMuted} />
+                                    <View key={badge.id} style={{ alignItems: "center", gap: 6, width: 64 }}>
+                                        <View
+                                            style={{
+                                                width: 56,
+                                                height: 56,
+                                                borderRadius: 28,
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                backgroundColor: `${levelColor}25`,
+                                                borderWidth: 2,
+                                                borderColor: levelColor,
+                                            }}
+                                        >
+                                            <BadgeIcon size={22} color={levelColor} />
                                         </View>
-
-                                        {/* Conteúdo do post */}
-                                        <Text className="text-sm font-bold text-slate-200 mb-1" numberOfLines={1}>
-                                            {session.conteudo_especifico || `Sessão de ${session.disciplina}`}
+                                        <Text style={{ fontSize: 10, textAlign: "center", color: HADES.textMuted }} numberOfLines={2}>
+                                            {badge.name}
                                         </Text>
-                                        <View className="self-start px-2 py-0.5 rounded-md mb-3" style={{ backgroundColor: subjectColors.bg }}>
-                                            <Text className="text-[11px] font-medium" style={{ color: subjectColors.text }}>
-                                                {session.disciplina}
-                                            </Text>
-                                        </View>
-
-                                        {/* Stats em 3 colunas */}
-                                        <View className="flex-row border-t border-slate-800 pt-3">
-                                            <View className="flex-1 items-center">
-                                                <Text className="text-sm font-bold text-slate-200">{formatDuration(hours, minutes)}</Text>
-                                                <Text className="text-[10px] text-slate-500 uppercase">Tempo</Text>
-                                            </View>
-                                            <View className="flex-1 items-center border-l border-slate-800">
-                                                <Text className="text-sm font-bold text-slate-200">{session.questoes_respondidas}</Text>
-                                                <Text className="text-[10px] text-slate-500 uppercase">Questões</Text>
-                                            </View>
-                                            <View className="flex-1 items-center border-l border-slate-800">
-                                                <Text className="text-sm font-bold text-slate-200">{session.questoes_acertadas}</Text>
-                                                <Text className="text-[10px] text-slate-500 uppercase">Acertos</Text>
-                                            </View>
-                                        </View>
                                     </View>
                                 );
                             })}
-                        </View>
+                        </ScrollView>
                     )}
                 </View>
+
+                {/* Sessões públicas anteriores, estilo "post" */}
+                <Text style={{ fontSize: 14, fontWeight: "500", color: HADES.textMuted, marginBottom: 12 }}>
+                    Sessões Públicas Anteriores
+                </Text>
+                {loadingSessions ? (
+                    <Text style={{ fontSize: 12, color: HADES.textDim, textAlign: "center", paddingVertical: 16 }}>
+                        Carregando...
+                    </Text>
+                ) : savedSessions.length === 0 ? (
+                    <View style={[estilos.card, { alignItems: "center", paddingVertical: 24 }]}>
+                        <Text style={{ fontSize: 12, color: HADES.textDim, textAlign: "center" }}>
+                            Nenhuma sessão pública para mostrar.
+                        </Text>
+                    </View>
+                ) : (
+                    <View style={{ gap: 12 }}>
+                        {savedSessions.slice(0, 10).map((session) => {
+                            const subjectColors = getSubjectColor(session.disciplina);
+                            const hours = Math.floor(session.tempo_minutos / 60);
+                            const minutes = session.tempo_minutos % 60;
+                            const verificada = session.questoes_acertadas > 7;
+                            return (
+                                <View key={session.id} style={estilos.card}>
+                                    {/* Header do post */}
+                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                                        <Avatar foto={profile.foto_usuario} nome={profile.nome_usuario} size={32} />
+                                        <View style={{ flex: 1 }}>
+                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                                                <Text style={{ fontSize: 14, fontWeight: "500", color: HADES.text }}>
+                                                    {profile.nome_usuario}
+                                                </Text>
+                                                {verificada && <CheckCircle2 size={12} color={HADES.green} />}
+                                            </View>
+                                            <Text style={{ fontSize: 12, color: HADES.textDim }}>
+                                                {getTimeAgo(session.created_at)}
+                                            </Text>
+                                        </View>
+                                        <Globe size={12} color={HADES.textFaint} />
+                                    </View>
+
+                                    {/* Conteúdo do post */}
+                                    <Text style={{ fontSize: 14, fontWeight: "700", color: HADES.text, marginBottom: 6 }} numberOfLines={1}>
+                                        {session.conteudo_especifico || `Sessão de ${session.disciplina}`}
+                                    </Text>
+                                    <View
+                                        style={{
+                                            alignSelf: "flex-start",
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 2,
+                                            borderRadius: 6,
+                                            marginBottom: 12,
+                                            backgroundColor: subjectColors.bg,
+                                        }}
+                                    >
+                                        <Text style={{ fontSize: 11, fontWeight: "500", color: subjectColors.text }}>
+                                            {session.disciplina}
+                                        </Text>
+                                    </View>
+
+                                    {/* Stats em 3 colunas */}
+                                    <View style={{ flexDirection: "row", borderTopWidth: 1, borderTopColor: HADES.border, paddingTop: 12 }}>
+                                        <View style={{ flex: 1, alignItems: "center" }}>
+                                            <Text style={estilos.postStatValor}>{formatDuration(hours, minutes)}</Text>
+                                            <Text style={estilos.postStatRotulo}>Tempo</Text>
+                                        </View>
+                                        <View style={{ flex: 1, alignItems: "center", borderLeftWidth: 1, borderLeftColor: HADES.border }}>
+                                            <Text style={estilos.postStatValor}>{session.questoes_respondidas}</Text>
+                                            <Text style={estilos.postStatRotulo}>Questões</Text>
+                                        </View>
+                                        <View style={{ flex: 1, alignItems: "center", borderLeftWidth: 1, borderLeftColor: HADES.border }}>
+                                            <Text style={estilos.postStatValor}>{session.questoes_acertadas}</Text>
+                                            <Text style={estilos.postStatRotulo}>Acertos</Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            );
+                        })}
+                    </View>
+                )}
             </ScrollView>
         </View>
     );
 }
+
+const estilos = {
+    card: {
+        backgroundColor: HADES.surface,
+        borderWidth: 1,
+        borderColor: HADES.border,
+        borderRadius: 16,
+        padding: 16,
+    },
+    statChip: {
+        flex: 1,
+        padding: 12,
+        borderRadius: 14,
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 10,
+        backgroundColor: HADES.surface,
+        borderWidth: 1,
+        borderColor: HADES.border,
+    },
+    statValor: {
+        fontSize: 19,
+        fontWeight: "700" as const,
+        color: HADES.text,
+    },
+    statRotulo: {
+        fontSize: 12,
+        color: HADES.textMuted,
+    },
+    postStatValor: {
+        fontSize: 14,
+        fontWeight: "700" as const,
+        color: HADES.text,
+    },
+    postStatRotulo: {
+        fontSize: 10,
+        color: HADES.textDim,
+        textTransform: "uppercase" as const,
+    },
+};

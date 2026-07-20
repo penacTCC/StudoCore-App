@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View, Text, TextInput, TextInputProps } from "react-native";
 import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 interface InputFieldProps {
     /** Ícone exibido à esquerda */
@@ -20,6 +21,8 @@ interface InputFieldProps {
     keyboardType?: TextInputProps["keyboardType"];
     autoCapitalize?: TextInputProps["autoCapitalize"];
     maxLength?: number;
+    /** Aplica o visual HADES (escuro). Padrão: false (tema legado, usado no onboarding). */
+    hades?: boolean;
 }
 
 /**
@@ -39,17 +42,37 @@ export default function InputField({
     keyboardType = "default",
     autoCapitalize = "none",
     maxLength,
+    hades = false,
 }: InputFieldProps) {
     const [focused, setFocused] = useState(false);
 
+    const focusBorder = hades ? HADES.accentTintBorder : COLORS.primary + "80";
+    const labelFocusColor = hades ? HADES.accentSolid : COLORS.primary;
+    const textColor = hades ? HADES.text : COLORS.textPrimary;
+    const placeholderColor = hades ? HADES.textFaint : COLORS.textFaint;
+    const prefixColor = hades ? HADES.textSecondary : COLORS.textSecondary;
+    const helperColor = hades ? HADES.textMuted : COLORS.textMuted;
+
     const containerStyle = label
         ? {
-              backgroundColor: focused ? COLORS.bgTertiary : COLORS.bgSecondary,
-              borderColor: focused ? COLORS.primary + "80" : "rgba(255,255,255,0.07)",
+              backgroundColor: hades
+                  ? focused
+                      ? HADES.surfaceOverlay
+                      : HADES.surfaceRaised
+                  : focused
+                      ? COLORS.bgTertiary
+                      : COLORS.bgSecondary,
+              borderColor: focused ? focusBorder : hades ? HADES.border : "rgba(255,255,255,0.07)",
           }
         : {
-              backgroundColor: focused ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.04)",
-              borderColor: focused ? COLORS.primary + "80" : "rgba(255,255,255,0.07)",
+              backgroundColor: hades
+                  ? focused
+                      ? HADES.surfaceOverlay
+                      : HADES.surfaceRaised
+                  : focused
+                      ? "rgba(255,255,255,0.07)"
+                      : "rgba(255,255,255,0.04)",
+              borderColor: focused ? focusBorder : hades ? HADES.border : "rgba(255,255,255,0.07)",
           };
 
     return (
@@ -59,7 +82,7 @@ export default function InputField({
                     style={{
                         fontSize: 12,
                         fontWeight: "700",
-                        color: focused ? COLORS.primary : "rgba(255,255,255,0.45)",
+                        color: focused ? labelFocusColor : hades ? HADES.textMuted : "rgba(255,255,255,0.45)",
                         letterSpacing: 0.8,
                         marginBottom: 8,
                         textTransform: "uppercase",
@@ -82,7 +105,7 @@ export default function InputField({
             >
                 <View style={{ opacity: focused ? 1 : label ? 0.4 : 0.45 }}>{icon}</View>
                 {prefix && (
-                    <Text style={{ color: COLORS.textSecondary, fontSize: 15, fontWeight: "600" }}>
+                    <Text style={{ color: prefixColor, fontSize: 15, fontWeight: "600" }}>
                         {prefix}
                     </Text>
                 )}
@@ -90,7 +113,7 @@ export default function InputField({
                     value={value}
                     onChangeText={onChangeText}
                     placeholder={placeholder}
-                    placeholderTextColor={COLORS.textFaint}
+                    placeholderTextColor={placeholderColor}
                     secureTextEntry={secureTextEntry}
                     keyboardType={keyboardType}
                     autoCapitalize={autoCapitalize}
@@ -100,7 +123,7 @@ export default function InputField({
                     style={{
                         flex: 1,
                         fontSize: 15,
-                        color: COLORS.textPrimary,
+                        color: textColor,
                         fontWeight: "500",
                     }}
                 />
@@ -110,7 +133,7 @@ export default function InputField({
                 <Text
                     style={{
                         fontSize: 11.5,
-                        color: COLORS.textMuted,
+                        color: helperColor,
                         marginTop: 6,
                         lineHeight: 16,
                         paddingHorizontal: 2,

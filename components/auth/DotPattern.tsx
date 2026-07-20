@@ -32,7 +32,7 @@ export default function DotPattern() {
                         width: DOT_R * 2,
                         height: DOT_R * 2,
                         borderRadius: DOT_R,
-                        backgroundColor: "rgba(16,24,43,0.10)",
+                        backgroundColor: "rgba(255,255,255,0.05)",
                     }}
                 />
             ))}

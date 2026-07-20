@@ -10,7 +10,7 @@ import DocumentPickerVault from "@/components/ui/DocumentPickerVault";
 import TabSelector from "@/components/ui/TabSelector";
 
 //Componentes do Projeto
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 //Funções do Projeto
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
@@ -35,9 +35,7 @@ const disciplinas = ["matematica", "portugues", "historia", "geografia", "biolog
  * @param onRefresh - Função para atualizar os dados.
  * @returns Modal de upload de arquivos.
  */
-
-export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () => void, onRefresh?: () => void }) {
-
+export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () => void; onRefresh?: () => void }) {
     //upload de arquivo
     const [uploadFileType, setUploadFileType] = useState<FileCategory>("pdf"); //Controla o tipo de arquivo que você vai escolher
     const [selectedFile, setSelectedFile] = useState<selectedFile | null>(null); //Guarda o arquivo que você vai escolher
@@ -55,33 +53,30 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
     const { grupos } = useMeusGrupos();
     const [gruposSelecionados, setGruposSelecionados] = useState<string[]>([]);
 
-
     /**
      * função adiciona o grupo se ele não estiver na lista ou remove se já estiver.
      * @param groupId id do grupo
      */
     const alternarGrupo = (grupoId: string) => {
         setGruposSelecionados((prev) =>
-            prev.includes(grupoId)
-                ? prev.filter((g) => g !== grupoId)
-                : [...prev, grupoId]
+            prev.includes(grupoId) ? prev.filter((g) => g !== grupoId) : [...prev, grupoId]
         );
     };
 
     /**
      * Função que faz o upload do arquivo para o Backblaze
      */
-   const handleUpload = async () => {
+    const handleUpload = async () => {
         if (!selectedFile || !user) return;
 
         setIsUploading(true);
 
         try {
             await uploadArquivo({
-            userId: user.id,
-            arquivo: selectedFile,
-            disciplina: selectedDiscipline,
-            gruposIds: gruposSelecionados,
+                userId: user.id,
+                arquivo: selectedFile,
+                disciplina: selectedDiscipline,
+                gruposIds: gruposSelecionados,
             });
 
             Alert.alert("Sucesso", "Arquivo enviado com sucesso!");
@@ -98,15 +93,23 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
         }
     };
 
-
     return (
-        <View className="flex-1 items-center justify-center px-4" style={{ backgroundColor: "rgba(0,0,0,0.8)" }}>
-            <View className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-6">
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, backgroundColor: "rgba(0,0,0,0.8)" }}>
+            <View
+                style={{
+                    width: "100%",
+                    backgroundColor: HADES.modalBg,
+                    borderWidth: 1,
+                    borderColor: HADES.border,
+                    borderRadius: 24,
+                    padding: 22,
+                }}
+            >
                 {/* Header */}
-                <View className="flex-row items-center justify-between mb-6">
-                    <Text className="text-lg font-semibold text-slate-200">Envio de arquivos</Text>
-                    <TouchableOpacity onPress={onClose}>
-                        <X size={20} color={COLORS.textMuted} />
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                    <Text style={{ fontSize: 17, fontWeight: "600", color: HADES.text }}>Envio de arquivos</Text>
+                    <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <X size={20} color={HADES.textMuted} />
                     </TouchableOpacity>
                 </View>
 
@@ -119,8 +122,8 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                 />
 
                 {/* File Type Selector */}
-                <View className="mb-4">
-                    <Text className="text-xs text-slate-400 mb-2">Categoria do arquivo</Text>
+                <View style={{ marginBottom: 16 }}>
+                    <Text style={{ fontSize: 12, color: HADES.textMuted, marginBottom: 8 }}>Categoria do arquivo</Text>
                     <TabSelector
                         tabs={FILE_TYPE_TABS}
                         active={uploadFileType}
@@ -130,30 +133,42 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                 </View>
 
                 {/* Discipline Selector */}
-                <View className="mb-6">
-                    <Text className="text-xs text-slate-400 mb-2">Escolha a disciplina</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-                        {disciplinas.map((discipline) => (
-                            <TouchableOpacity
-                                key={discipline}
-                                onPress={() => setSelectedDiscipline(discipline)}
-                                className={`px-4 py-2 rounded-full mr-2 border ${selectedDiscipline === discipline ? 'bg-brand-500 border-brand-500' : 'bg-slate-800 border-slate-700'}`}
-                            >
-                                <Text className={`text-xs font-medium ${selectedDiscipline === discipline ? 'text-white' : 'text-slate-400'}`}>
-                                    {discipline}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={{ fontSize: 12, color: HADES.textMuted, marginBottom: 8 }}>Escolha a disciplina</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        {disciplinas.map((discipline) => {
+                            const isSelected = selectedDiscipline === discipline;
+                            return (
+                                <TouchableOpacity
+                                    key={discipline}
+                                    onPress={() => setSelectedDiscipline(discipline)}
+                                    activeOpacity={0.8}
+                                    style={{
+                                        paddingHorizontal: 16,
+                                        paddingVertical: 8,
+                                        borderRadius: 999,
+                                        marginRight: 8,
+                                        borderWidth: 1,
+                                        backgroundColor: isSelected ? HADES.accentSolid : HADES.surfaceOverlay,
+                                        borderColor: isSelected ? HADES.accentSolid : HADES.border,
+                                    }}
+                                >
+                                    <Text style={{ fontSize: 12, fontWeight: "600", color: isSelected ? "#000" : HADES.textMuted }}>
+                                        {discipline}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </ScrollView>
                 </View>
 
                 {/* Group Selector */}
-                <View className="mb-6">
-                    <Text className="text-xs text-slate-400 mb-2">
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={{ fontSize: 12, color: HADES.textMuted, marginBottom: 8 }}>
                         Escolha o grupo com quem deseja compartilhar
                     </Text>
 
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         {grupos.map((group) => {
                             const isSelected = gruposSelecionados.includes(group.id);
 
@@ -161,15 +176,18 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                                 <TouchableOpacity
                                     key={group.id}
                                     onPress={() => alternarGrupo(group.id)}
-                                    className={`px-4 py-2 rounded-full mr-2 border ${isSelected
-                                        ? 'bg-brand-500 border-brand-500'
-                                        : 'bg-slate-800 border-slate-700'
-                                        }`}
+                                    activeOpacity={0.8}
+                                    style={{
+                                        paddingHorizontal: 16,
+                                        paddingVertical: 8,
+                                        borderRadius: 999,
+                                        marginRight: 8,
+                                        borderWidth: 1,
+                                        backgroundColor: isSelected ? HADES.accentSolid : HADES.surfaceOverlay,
+                                        borderColor: isSelected ? HADES.accentSolid : HADES.border,
+                                    }}
                                 >
-                                    <Text
-                                        className={`text-xs font-medium ${isSelected ? 'text-white' : 'text-slate-400'
-                                            }`}
-                                    >
+                                    <Text style={{ fontSize: 12, fontWeight: "600", color: isSelected ? "#000" : HADES.textMuted }}>
                                         {group.nome_grupo}
                                     </Text>
                                 </TouchableOpacity>
@@ -183,14 +201,24 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                     <TouchableOpacity
                         onPress={handleUpload}
                         disabled={isUploading}
-                        className={`py-4 rounded-2xl flex-row items-center justify-center gap-2 ${isUploading ? 'bg-brand-600 opacity-70' : 'bg-brand-500'}`}
+                        activeOpacity={0.85}
+                        style={{
+                            height: 54,
+                            borderRadius: 15,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 9,
+                            backgroundColor: HADES.accentSolid,
+                            opacity: isUploading ? 0.7 : 1,
+                        }}
                     >
                         {isUploading ? (
-                            <ActivityIndicator color={COLORS.white} size="small" />
+                            <ActivityIndicator color="#000" size="small" />
                         ) : (
-                            <FileUp size={20} color={COLORS.white} />
+                            <FileUp size={20} color="#000" />
                         )}
-                        <Text className="text-white font-semibold text-lg">
+                        <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>
                             {isUploading ? "Enviando..." : "Confirmar envio"}
                         </Text>
                     </TouchableOpacity>

@@ -15,7 +15,7 @@ import { router } from "expo-router";
 import { ArrowLeft, Mail, RefreshCw, CheckCircle } from "lucide-react-native";
 
 //Constantes
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 //Componentes do Projeto
 import { useState } from "react";
@@ -31,7 +31,7 @@ export default function VerifyEmailScreen() {
         setIsChecking(true);
 
         //Chama a função de email verificado
-        const {data, error, emailVerificado} = await verificaEmailConfirmado()
+        const { data, error, emailVerificado } = await verificaEmailConfirmado();
 
         //Se der erro, dá um alerta
         if (error || !data.session || !emailVerificado) {
@@ -52,7 +52,7 @@ export default function VerifyEmailScreen() {
         setIsResending(true);
 
         //Obtém o email do usuário
-        const {email} = await obtemEmailUsuario()
+        const { email } = await obtemEmailUsuario();
 
         if (!email) {
             Alert.alert("Erro", "Não foi possível obter o e-mail. Volte e tente novamente.");
@@ -72,16 +72,16 @@ export default function VerifyEmailScreen() {
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
-            <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
+            <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
-            {/* ── TOP white header ── */}
+            {/* ── TOP header ── */}
             <View
                 style={{
                     paddingTop: 56,
                     paddingHorizontal: 24,
                     paddingBottom: 28,
-                    backgroundColor: "#ffffff",
+                    backgroundColor: HADES.bg,
                     alignItems: "center",
                 }}
             >
@@ -95,12 +95,12 @@ export default function VerifyEmailScreen() {
                         width: 40,
                         height: 40,
                         borderRadius: 12,
-                        backgroundColor: "rgba(16,24,43,0.06)",
+                        backgroundColor: "rgba(255,255,255,0.06)",
                         alignItems: "center",
                         justifyContent: "center",
                     }}
                 >
-                    <ArrowLeft size={20} color={COLORS.bgPrimary} />
+                    <ArrowLeft size={20} color={HADES.textSecondary} />
                 </TouchableOpacity>
 
                 {/* Logo */}
@@ -112,32 +112,30 @@ export default function VerifyEmailScreen() {
                         backgroundColor: "#fff",
                         alignItems: "center",
                         justifyContent: "center",
-                        shadowColor: COLORS.bgPrimary,
+                        shadowColor: "#000",
                         shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.14,
+                        shadowOpacity: 0.3,
                         shadowRadius: 16,
                         elevation: 10,
-                        borderWidth: 1.5,
-                        borderColor: "rgba(16,24,43,0.07)",
                         marginBottom: 14,
                     }}
                 >
                     <Image source={require("../../assets/LogoStudoCore.png")} style={{ width: 47, height: 47 }} />
                 </View>
 
-                <Text style={{ fontSize: 22, fontWeight: "800", color: COLORS.bgPrimary, letterSpacing: -0.5 }}>
+                <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, letterSpacing: -0.5 }}>
                     Verifique seu e-mail
                 </Text>
-                <Text style={{ fontSize: 14, color: COLORS.textMuted, marginTop: 4 }}>
-                    Etapa 2 de 2 — Confirmação
-                </Text>
+                <Text style={{ fontSize: 14, color: HADES.textMuted, marginTop: 4 }}>Etapa 2 de 2 — Confirmação</Text>
             </View>
 
-            {/* ── BOTTOM dark sheet ── */}
+            {/* ── BOTTOM sheet ── */}
             <View
                 style={{
                     flex: 1,
-                    backgroundColor: COLORS.bgPrimary,
+                    backgroundColor: HADES.surface,
+                    borderTopWidth: 1,
+                    borderColor: HADES.border,
                     borderTopLeftRadius: 36,
                     borderTopRightRadius: 36,
                     paddingHorizontal: 26,
@@ -165,14 +163,14 @@ export default function VerifyEmailScreen() {
                             width: 88,
                             height: 88,
                             borderRadius: 28,
-                            backgroundColor: COLORS.primaryFaint,
+                            backgroundColor: HADES.accentTint,
                             alignItems: "center",
                             justifyContent: "center",
                             borderWidth: 1.5,
-                            borderColor: COLORS.primary + "40",
+                            borderColor: HADES.accentTintBorder,
                         }}
                     >
-                        <Mail size={40} color={COLORS.primary} />
+                        <Mail size={40} color={HADES.accentSolid} />
                     </View>
 
                     {/* Main copy */}
@@ -181,21 +179,14 @@ export default function VerifyEmailScreen() {
                             style={{
                                 fontSize: 20,
                                 fontWeight: "800",
-                                color: COLORS.textPrimary,
+                                color: HADES.text,
                                 letterSpacing: -0.3,
                                 textAlign: "center",
                             }}
                         >
                             Enviamos um link de{"\n"}confirmação
                         </Text>
-                        <Text
-                            style={{
-                                fontSize: 14,
-                                color: COLORS.textSecondary,
-                                textAlign: "center",
-                                lineHeight: 21,
-                            }}
-                        >
+                        <Text style={{ fontSize: 14, color: HADES.textSecondary, textAlign: "center", lineHeight: 21 }}>
                             Acesse sua caixa de entrada e clique no link que enviamos para ativar sua conta.
                         </Text>
                     </View>
@@ -206,17 +197,17 @@ export default function VerifyEmailScreen() {
                             flexDirection: "row",
                             alignItems: "center",
                             gap: 8,
-                            backgroundColor: "rgba(255,255,255,0.05)",
+                            backgroundColor: HADES.surfaceOverlay,
                             borderRadius: 12,
                             paddingHorizontal: 16,
                             paddingVertical: 12,
                             borderWidth: 1,
-                            borderColor: "rgba(255,255,255,0.07)",
+                            borderColor: HADES.border,
                             alignSelf: "stretch",
                         }}
                     >
-                        <CheckCircle size={16} color={COLORS.emerald} />
-                        <Text style={{ fontSize: 13, color: COLORS.textSecondary, flex: 1 }}>
+                        <CheckCircle size={16} color={HADES.green} />
+                        <Text style={{ fontSize: 13, color: HADES.textSecondary, flex: 1 }}>
                             Verifique também sua pasta de spam caso não encontre o e-mail.
                         </Text>
                     </View>
@@ -229,23 +220,18 @@ export default function VerifyEmailScreen() {
                         onPress={handleConfirmed}
                         disabled={isChecking}
                         style={{
-                            backgroundColor: COLORS.primary,
+                            backgroundColor: HADES.accentSolid,
                             borderRadius: 14,
                             paddingVertical: 16,
                             alignItems: "center",
                             justifyContent: "center",
-                            shadowColor: COLORS.primary,
-                            shadowOffset: { width: 0, height: 6 },
-                            shadowOpacity: 0.4,
-                            shadowRadius: 14,
-                            elevation: 10,
                             opacity: isChecking ? 0.8 : 1,
                         }}
                     >
                         {isChecking ? (
-                            <ActivityIndicator size="small" color="#ffffff" />
+                            <ActivityIndicator size="small" color="#000000" />
                         ) : (
-                            <Text style={{ color: "#ffffff", fontWeight: "800", fontSize: 15, letterSpacing: 2 }}>
+                            <Text style={{ color: "#000000", fontWeight: "800", fontSize: 15, letterSpacing: 2 }}>
                                 JÁ CONFIRMEI O EMAIL
                             </Text>
                         )}
@@ -265,11 +251,11 @@ export default function VerifyEmailScreen() {
                         }}
                     >
                         {isResending ? (
-                            <ActivityIndicator size="small" color={COLORS.textMuted} />
+                            <ActivityIndicator size="small" color={HADES.textMuted} />
                         ) : (
-                            <RefreshCw size={15} color={COLORS.textMuted} />
+                            <RefreshCw size={15} color={HADES.textMuted} />
                         )}
-                        <Text style={{ fontSize: 14, color: COLORS.textMuted, fontWeight: "600" }}>
+                        <Text style={{ fontSize: 14, color: HADES.textMuted, fontWeight: "600" }}>
                             {isResending ? "Reenviando..." : "Reenviar e-mail"}
                         </Text>
                     </TouchableOpacity>
