@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Share2, Timer, Layers } from "lucide-react-native";
@@ -6,10 +6,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 import { HADES } from "@/constants/hades";
-import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
+import { useAnalisePessoal } from "@/hooks/useAnalisePessoal";
 import { useAuth } from "@/hooks/useAuth";
 import { SessaoFocoRow } from "@/types/sessions";
-import { buscarGamificacao } from "@/services/gamificacao";
 import {
     SeletorEscopo,
     SeletorPeriodo,
@@ -38,132 +37,30 @@ const BRAIN_TABS = [
     { key: "analytics", label: "Análises" },
 ];
 
-const COLORS_PALETTE = ["#8b5cf6", "#10b981", "#fbbf24", "#f43f5e", "#3b82f6", "#ec4899", "#14b8a6", "#f97316"];
-
 export default function BrainScreen() {
     const [brainTab, setBrainTab] = useState<BrainTab>("database");
-    const [weekStartsOn, setWeekStartsOn] = useState<'sunday' | 'monday'>('sunday');
+    const [comecoSemana, setComecoSemana] = useState<'domingo' | 'segunda'>('domingo');
     const [escopoAnalise, setEscopoAnalise] = useState<EscopoAnalise>("pessoal");
     const [periodoAnalise, setPeriodoAnalise] = useState<PeriodoAnalise>("7d");
 
+    //Busca para ver a preferência do início da semana do usuário (ex: Domingo ou Segunda)
     useEffect(() => {
         const loadPref = async () => {
             const pref = await AsyncStorage.getItem('@app_week_starts_on');
-            if (pref === 'monday') {
-                setWeekStartsOn('monday');
+            if (pref === 'segunda') {
+                setComecoSemana('segunda');
             }
         };
         loadPref();
     }, []);
 
     const { userId } = useAuth();
-    const { savedSessions, pendingSessions, loading } = useSessoesUsuario(userId);
     const [selectedForm, setSelectedForm] = useState<SessaoFocoRow | null>(null);
     const router = useRouter();
 
-    // Ofensiva é calculada e persistida no backend (tabela gamificacoes) ao concluir uma sessão,
-    // então aqui só buscamos o valor já pronto em vez de recalcular a partir do histórico de sessões.
-    const [ofensivaReal, setOfensivaReal] = useState(0);
-    useEffect(() => {
-        if (!userId) return;
-        buscarGamificacao(userId).then((gamificacao) => {
-            setOfensivaReal(gamificacao?.ofensiva ?? 0);
-        });
-    }, [userId]);
-
-    const analyticsData = useMemo(() => {
-        const allSessions = [...savedSessions, ...pendingSessions];
-
-        if (allSessions.length === 0) {
-            return {
-                horasEstaSemana: "0h",
-                questoesEstaSemana: 0,
-                sequencia: ofensivaReal,
-                horasSemanaPasada: "0h",
-                questoesSemanaPasada: 0,
-                diasSemanaPasada: 0,
-                diasEstaSemana: 0,
-                distribuicao: [],
-                maxHours: 1,
-                horasEstaSemanaMinutos: 0,
-                horasSemanaPasadaMinutos: 0
-            };
-        }
-
-        // Helpers
-        const getStartOfWeek = (d: Date, start: 'sunday' | 'monday') => {
-            const date = new Date(d);
-            const day = date.getDay();
-            let diff = date.getDate() - day;
-            if (start === 'monday') {
-                const offset = day === 0 ? -6 : 1;
-                diff = date.getDate() - day + offset;
-            }
-            return new Date(date.setDate(diff)).setHours(0, 0, 0, 0);
-        };
-
-        const today = new Date();
-        const startOfThisWeek = getStartOfWeek(today, weekStartsOn);
-        // Semana passada: 7 dias antes do início desta semana
-        const startOfLastWeek = startOfThisWeek - 7 * 24 * 60 * 60 * 1000;
-        const endOfLastWeek = startOfThisWeek - 1;
-
-        let horasTotaisMinutos = 0;
-        let questoesTotais = 0;
-        let horasSemanaPasadaMinutos = 0;
-        let questoesSemanaPasada = 0;
-        const diasEstaSemana = new Set<string>();
-        const diasSemanaPasada = new Set<string>();
-        const distMap: Record<string, number> = {};
-
-        allSessions.forEach(session => {
-            const sessionDate = new Date(session.created_at || session.data_sessao);
-            const sessionTime = sessionDate.getTime();
-
-            // Para "Esta Semana"
-            if (getStartOfWeek(sessionDate, weekStartsOn) === startOfThisWeek) {
-                horasTotaisMinutos += session.tempo_minutos || 0;
-                questoesTotais += session.questoes_respondidas || 0;
-                diasEstaSemana.add(sessionDate.toISOString().split('T')[0]);
-
-                const subject = session.disciplina || "Outros";
-                if (!distMap[subject]) distMap[subject] = 0;
-                distMap[subject] += session.tempo_minutos || 0;
-            }
-
-            // Para "Semana Passada"
-            if (sessionTime >= startOfLastWeek && sessionTime <= endOfLastWeek) {
-                horasSemanaPasadaMinutos += session.tempo_minutos || 0;
-                questoesSemanaPasada += session.questoes_respondidas || 0;
-                diasSemanaPasada.add(sessionDate.toISOString().split('T')[0]);
-            }
-        });
-
-        // Distribuição de matérias (ordenado, da semana em horas)
-        const distribuicao = Object.keys(distMap).map((subject, index) => ({
-            subject,
-            hours: Math.round((distMap[subject] / 60) * 10) / 10,
-            color: COLORS_PALETTE[index % COLORS_PALETTE.length]
-        })).sort((a, b) => b.hours - a.hours);
-
-        horasTotaisMinutos = 30;
-        horasSemanaPasadaMinutos = 70;
-
-        return {
-            horasEstaSemana: `${Math.floor(horasTotaisMinutos / 60)}h${String(horasTotaisMinutos % 60).padStart(2, '0')}`,
-            questoesEstaSemana: questoesTotais,
-            sequencia: ofensivaReal,
-            diasEstaSemana: diasEstaSemana.size,
-            // Semana passada
-            horasSemanaPasada: `${Math.floor(horasSemanaPasadaMinutos / 60)}h${String(horasSemanaPasadaMinutos % 60).padStart(2, '0')}`,
-            questoesSemanaPasada,
-            diasSemanaPasada: diasSemanaPasada.size,
-            distribuicao,
-            maxHours: distribuicao.length > 0 ? Math.max(...distribuicao.map(d => d.hours)) : 1,
-            horasEstaSemanaMinutos: horasTotaisMinutos,
-            horasSemanaPasadaMinutos: horasSemanaPasadaMinutos
-        };
-    }, [savedSessions, pendingSessions, weekStartsOn, ofensivaReal]);
+    // Uma única leitura alimenta as duas abas: `analise` (números da aba Análise,
+    // escopo pessoal) e as sessões cruas (aba Banco de dados).
+    const { analise, savedSessions, pendingSessions, loading } = useAnalisePessoal(userId, comecoSemana);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -208,6 +105,7 @@ export default function BrainScreen() {
             </View>
 
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+                
                 {/* ── DATABASE ─────────────────────────────────── */}
                 {brainTab === "database" && (
                     <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 16 }}>

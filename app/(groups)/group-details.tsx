@@ -1,12 +1,10 @@
 import { View, Text, TouchableOpacity, ScrollView, Image, Alert, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Globe, Users } from "lucide-react-native";
+import { ArrowLeft, Globe, Lock, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 import { getAvatarColor } from "@/constants/helpers";
 import Avatar from "@/components/ui/Avatar";
-import ProgressBar from "@/components/ui/ProgressBar";
-import StatCard from "@/components/ui/StatCard";
 import { buscarGrupoPorId, entrarEmGrupoPublico, horasSemanaisGrupo } from "@/services/grupos";
 import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import { useEffect, useState } from "react";
@@ -15,9 +13,34 @@ import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useAuth } from "@/hooks/useAuth";
 import { GrupoComTotalMembros } from "@/types/grupos";
 
+/** Bloco de estatística no visual HADES (substitui o antigo StatCard). */
+function StatBox({ value, label, valueColor }: { value: string | number; label: string; valueColor: string }) {
+    return (
+        <View
+            style={{
+                flex: 1,
+                backgroundColor: HADES.surface,
+                borderWidth: 1,
+                borderColor: HADES.border,
+                borderRadius: 14,
+                paddingVertical: 14,
+                paddingHorizontal: 12,
+                alignItems: "center",
+            }}
+        >
+            <Text style={{ fontSize: 20, fontWeight: "700", color: valueColor, letterSpacing: -0.3 }}>
+                {value}
+            </Text>
+            <Text style={{ fontSize: 11, color: HADES.textMuted, marginTop: 3, textAlign: "center" }}>
+                {label}
+            </Text>
+        </View>
+    );
+}
+
 export default function GroupDetailsScreen() {
     const { groupId } = useLocalSearchParams<{ groupId: string }>();
-    const [group, setGroup] = useState<GrupoComTotalMembros | null >(null);
+    const [group, setGroup] = useState<GrupoComTotalMembros | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [weeklyGroupHours, setWeeklyGroupHours] = useState(0);
 
@@ -52,17 +75,21 @@ export default function GroupDetailsScreen() {
 
     //Pega usuários online no App (A Lista Global)
     const { onlineUsers } = useOnlineUsers(groupId);
-    
+
     // Pega as IDs de todos os membros DESTE grupo específico
     const memberIds = membros.map((m) => m.user_id);
 
     // Filtra a lista global para mostrar APENAS quem tá logado, é membro daqui E não é você
-    const activeGroupMembers = onlineUsers.filter(id => id !== userId && memberIds.includes(id));
+    const activeGroupMembers = onlineUsers.filter((id) => id !== userId && memberIds.includes(id));
 
     if (isLoading || !group) {
         return (
-            <SafeAreaView className="flex-1 bg-navy-950 items-center justify-center">
-                <Text className="text-slate-400">{isLoading ? "Carregando detalhes..." : "Grupo não encontrado"}</Text>
+            <SafeAreaView
+                style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}
+            >
+                <Text style={{ color: HADES.textMuted }}>
+                    {isLoading ? "Carregando detalhes..." : "Grupo não encontrado"}
+                </Text>
             </SafeAreaView>
         );
     }
@@ -70,139 +97,257 @@ export default function GroupDetailsScreen() {
     const totalWeeklyGoal = (group.meta_horas || 0) * (group.members || membros.length || 1);
     const weeklyProgress = totalWeeklyGoal > 0 ? Math.min(weeklyGroupHours / totalWeeklyGoal, 1) : 0;
     const initials = group.nome_grupo ? group.nome_grupo.substring(0, 2).toUpperCase() : "GR";
+    const temAtivos = activeGroupMembers.length > 0;
 
     return (
-        <SafeAreaView className="flex-1 bg-navy-950" edges={["top"]}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
             {/* Header */}
-            <View className="bg-navy-950 border-b border-navy-800 px-4 py-3">
-                <View className="flex-row items-center gap-3">
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        className="w-8 h-8 rounded-full bg-slate-800 items-center justify-center"
+            <View
+                style={{
+                    paddingTop: 6,
+                    paddingHorizontal: 20,
+                    paddingBottom: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                }}
+            >
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <ArrowLeft size={22} color={HADES.textSecondary} />
+                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                    <Text
+                        style={{ fontSize: 20, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}
+                        numberOfLines={1}
                     >
-                        <ArrowLeft size={18} color={COLORS.textSecondary} />
-                    </TouchableOpacity>
-                    <View className="flex-1">
-                        <Text className="text-xl font-bold text-slate-200">{group.nome_grupo}</Text>
-                        <Text className="text-sm text-slate-400">{group.members} membros</Text>
-                    </View>
+                        {group.nome_grupo}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 2 }}>
+                        {group.members} membros
+                    </Text>
                 </View>
             </View>
 
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-                {/* Group Banner */}
-                <View className="px-4 py-4">
-                    <View
-                        className="border border-navy-800 rounded-3xl p-6 overflow-hidden"
-                        style={{ backgroundColor: "rgba(247, 152, 44, 0.08)" }}
-                    >
-                        <View className="flex-row items-center gap-4">
-                            <View className="relative">
-                                <View
-                                    className="w-20 h-20 rounded-2xl items-center justify-center"
-                                    style={{
-                                        backgroundColor: getAvatarColor(group.nome_grupo ? group.nome_grupo.charCodeAt(0) % 5 : 0),
-                                        borderWidth: 2,
-                                        borderColor: "rgba(247, 152, 44, 0.4)",
-                                    }}
-                                >
-                                    {group.foto_grupo ? (
-                                        <Image
-                                            source={{ uri: group.foto_grupo }}
-                                            className="w-full h-full rounded-2xl"
-                                        />
-                                    ) : (
-                                        <Text className="text-white text-2xl font-bold">
-                                            {initials}
-                                        </Text>
-                                    )}
-                                </View>
-                                {activeGroupMembers.length > 0 && (
-                                    <View className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-2 border-slate-900 rounded-full items-center justify-center">
-                                        <View className="w-2 h-2 bg-white rounded-full" />
-                                    </View>
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Banner do grupo */}
+                <View
+                    style={{
+                        backgroundColor: HADES.groupVioletTint,
+                        borderWidth: 1,
+                        borderColor: "rgba(124,92,252,0.22)",
+                        borderRadius: 20,
+                        padding: 18,
+                        marginBottom: 16,
+                    }}
+                >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                        <View style={{ position: "relative" }}>
+                            <View
+                                style={{
+                                    width: 72,
+                                    height: 72,
+                                    borderRadius: 18,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    overflow: "hidden",
+                                    backgroundColor: getAvatarColor(
+                                        group.nome_grupo ? group.nome_grupo.charCodeAt(0) % 5 : 0
+                                    ),
+                                    borderWidth: 2,
+                                    borderColor: "rgba(124,92,252,0.4)",
+                                }}
+                            >
+                                {group.foto_grupo ? (
+                                    <Image
+                                        source={{ uri: group.foto_grupo }}
+                                        style={{ width: "100%", height: "100%" }}
+                                        resizeMode="cover"
+                                    />
+                                ) : (
+                                    <Text style={{ color: "#fff", fontSize: 24, fontWeight: "700" }}>{initials}</Text>
                                 )}
                             </View>
-                            <View className="flex-1">
-                                <View className="flex-row items-center gap-2 mb-1">
-                                    <Globe size={14} color={COLORS.emeraldLight} />
-                                    <Text className="text-xs text-emerald-400 font-medium">
-                                        {group.publico ? "Grupo público" : "Grupo privado"}
-                                    </Text>
-                                </View>
-                                <Text className="text-sm text-slate-300 leading-5">
-                                    {group.descricao || "Sem decrição."}
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Stats Grid */}
-                <View className="px-4 mb-4">
-                    <View className="flex-row gap-3">
-                        <StatCard value={group.members} label="Membros" valueColor={COLORS.violetLight} />
-                        <StatCard value={activeGroupMembers.length} label="Ativos agora" valueColor={COLORS.emeraldLight} />
-                        <StatCard value={`${group.meta_horas || 0}h`} label="Meta semanal" valueColor={COLORS.amber} />
-                    </View>
-                </View>
-
-                {/* Active Members */}
-                <View className="px-4 mb-4">
-                    <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4">
-                        <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-sm font-medium text-slate-200">Membros ativos</Text>
-                            <View
-                                className="flex-row items-center gap-1 px-2 py-1 rounded-full"
-                                style={activeGroupMembers.length > 0 ? { backgroundColor: "rgba(16, 185, 129, 0.2)" } : { backgroundColor: "rgba(255, 0, 0, 0.2)" }}
-                            >
-                                <View className={`w-1.5 h-1.5 ${activeGroupMembers.length > 0 ? "bg-emerald-400" : "bg-rose-400"} rounded-full`} />
-                                <Text className={`text-xs ${activeGroupMembers.length > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                                    {activeGroupMembers.length > 0 ? activeGroupMembers.length + " estudando" : "Ninguém estudando"}
-                                </Text>
-                            </View>
-                        </View>
-                        <View className="flex-row flex-wrap gap-2">
-                            {membros.map((member) => (
+                            {temAtivos && (
                                 <View
-                                    key={member.id}
-                                    className="flex-row items-center gap-2 px-3 py-2 rounded-xl bg-slate-800"
+                                    style={{
+                                        position: "absolute",
+                                        bottom: -2,
+                                        right: -2,
+                                        width: 18,
+                                        height: 18,
+                                        borderRadius: 9,
+                                        backgroundColor: HADES.green,
+                                        borderWidth: 2,
+                                        borderColor: HADES.bg,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
                                 >
-                                    <Avatar
-                                        foto={member.userData?.foto_usuario}
-                                        size={32}
-                                        showOnlineDot={activeGroupMembers.includes(member.user_id)}
-                                    />
-                                    <Text className="text-sm text-slate-200">{member.userData?.nome_usuario || "Membro"}</Text>
+                                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" }} />
                                 </View>
-                            ))}
+                            )}
                         </View>
-                    </View>
-                </View>
-
-                {/* Weekly Progress */}
-                <View className="px-4 mb-4">
-                    <View className="bg-navy-900 border border-navy-800 rounded-3xl p-4">
-                        <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-sm font-medium text-slate-200">Progresso semanal</Text>
-                            <Text className="text-xs text-emerald-400">
-                                {Math.round(weeklyProgress * 100)}% atingido
+                        <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                                {group.publico ? (
+                                    <Globe size={13} color={HADES.groupViolet} />
+                                ) : (
+                                    <Lock size={13} color={HADES.groupViolet} />
+                                )}
+                                <Text style={{ fontSize: 12, color: HADES.groupViolet, fontWeight: "600" }}>
+                                    {group.publico ? "Grupo público" : "Grupo privado"}
+                                </Text>
+                            </View>
+                            <Text style={{ fontSize: 13, color: HADES.textSecondary, lineHeight: 19 }}>
+                                {group.descricao || "Sem descrição."}
                             </Text>
                         </View>
-                        <ProgressBar progress={weeklyProgress} color={COLORS.emerald} height={12} />
-                        <Text className="text-xs text-slate-500 mt-2">
-                            {Math.round(weeklyGroupHours)}h / {totalWeeklyGoal}h nesta semana
-                        </Text>
                     </View>
                 </View>
 
-                <View className="h-20" />
+                {/* Grade de estatísticas */}
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+                    <StatBox value={group.members} label="Membros" valueColor={HADES.groupViolet} />
+                    <StatBox value={activeGroupMembers.length} label="Ativos agora" valueColor={HADES.green} />
+                    <StatBox value={`${group.meta_horas || 0}h`} label="Meta semanal" valueColor={HADES.accentSolid} />
+                </View>
+
+                {/* Membros ativos */}
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        padding: 14,
+                        marginBottom: 16,
+                    }}
+                >
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: 12,
+                        }}
+                    >
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>Membros ativos</Text>
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 5,
+                                paddingHorizontal: 8,
+                                paddingVertical: 4,
+                                borderRadius: 999,
+                                backgroundColor: temAtivos ? HADES.greenTint : "rgba(240,85,107,0.12)",
+                            }}
+                        >
+                            <View
+                                style={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: 3,
+                                    backgroundColor: temAtivos ? HADES.green : HADES.red,
+                                }}
+                            />
+                            <Text style={{ fontSize: 11.5, color: temAtivos ? HADES.green : HADES.red }}>
+                                {temAtivos ? `${activeGroupMembers.length} estudando` : "Ninguém estudando"}
+                            </Text>
+                        </View>
+                    </View>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                        {membros.map((member) => (
+                            <View
+                                key={member.id}
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 7,
+                                    borderRadius: 12,
+                                    backgroundColor: HADES.surfaceOverlay,
+                                }}
+                            >
+                                <Avatar
+                                    foto={member.userData?.foto_usuario}
+                                    size={30}
+                                    showOnlineDot={activeGroupMembers.includes(member.user_id)}
+                                />
+                                <Text style={{ fontSize: 13, color: HADES.textSecondary }}>
+                                    {member.userData?.nome_usuario || "Membro"}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Progresso semanal */}
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        padding: 14,
+                    }}
+                >
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: 12,
+                        }}
+                    >
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>Progresso semanal</Text>
+                        <Text style={{ fontSize: 12, color: HADES.green }}>
+                            {Math.round(weeklyProgress * 100)}% atingido
+                        </Text>
+                    </View>
+                    <View
+                        style={{
+                            height: 10,
+                            borderRadius: 5,
+                            backgroundColor: HADES.surfaceOverlay,
+                            overflow: "hidden",
+                        }}
+                    >
+                        <View
+                            style={{
+                                width: `${weeklyProgress * 100}%`,
+                                height: "100%",
+                                borderRadius: 5,
+                                backgroundColor: HADES.green,
+                            }}
+                        />
+                    </View>
+                    <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 8 }}>
+                        {Math.round(weeklyGroupHours)}h / {totalWeeklyGoal}h nesta semana
+                    </Text>
+                </View>
             </ScrollView>
 
-            {/* Join Button */}
+            {/* Botão Entrar */}
             <View
-                className="absolute bottom-0 left-0 right-0 px-4 pb-6 pt-2"
-                style={{ backgroundColor: COLORS.bgPrimary }}
+                style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    paddingHorizontal: 20,
+                    paddingBottom: 24,
+                    paddingTop: 8,
+                    backgroundColor: HADES.bg,
+                }}
             >
                 <TouchableOpacity
                     onPress={async () => {
@@ -213,7 +358,7 @@ export default function GroupDetailsScreen() {
                         }
 
                         await salvarUltimoGrupoLocalmente(group.id);
-                        DeviceEventEmitter.emit('groupMembershipChanged');
+                        DeviceEventEmitter.emit("groupMembershipChanged");
                         router.replace({
                             pathname: "/(tabs)",
                             params: {
@@ -221,21 +366,23 @@ export default function GroupDetailsScreen() {
                                 groupName: group.nome_grupo,
                                 groupPhoto: group.foto_grupo,
                                 groupGoal: group.meta_horas,
-                                groupCode: group.codigo_convite
-                            }
-                        })
+                                groupCode: group.codigo_convite,
+                            },
+                        });
                     }}
-                    className="bg-brand-500 py-4 rounded-2xl flex-row items-center justify-center gap-2"
+                    activeOpacity={0.85}
                     style={{
-                        shadowColor: COLORS.primary,
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.3,
-                        shadowRadius: 12,
-                        elevation: 8,
+                        height: 54,
+                        borderRadius: 15,
+                        backgroundColor: HADES.accentSolid,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 9,
                     }}
                 >
-                    <Users size={20} color={COLORS.white} />
-                    <Text className="text-white font-semibold text-lg">Entrar neste grupo</Text>
+                    <Users size={20} color="#000" />
+                    <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>Entrar neste grupo</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>

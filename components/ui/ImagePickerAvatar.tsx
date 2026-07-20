@@ -3,6 +3,7 @@ import { View, Text, Image, TouchableOpacity, Alert } from "react-native";
 import { Plus, Users } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 import { uploadArquivoBucket } from "@/services/supabaseStorage";
 
 type ImagePickerAvatarProps = {
@@ -14,19 +15,22 @@ type ImagePickerAvatarProps = {
     circle?: boolean;
     /** Imagem para carregar previamente */
     defaultImage?: string;
-}
+    /** Aplica o visual HADES (escuro). Padrão: false (mantém o tema legado do onboarding). */
+    hades?: boolean;
+};
 
 /**
  * Avatar circular clicável com botão "+". Ao tocar, abre a galeria,
  * faz upload para o Supabase Storage e retorna a URL pública via callback.
  *
- * Reutilizado em: onboarding-profile.tsx, create-group.tsx
+ * Reutilizado em: onboarding-profile.tsx (legado), create-group.tsx, settings.
  */
 export default function ImagePickerAvatar({
     bucket = "images",
     onImageUploaded,
     circle,
     defaultImage,
+    hades = false,
 }: ImagePickerAvatarProps) {
     const [imagePreview, setImagePreview] = useState<string | null>(defaultImage || null);
 
@@ -60,9 +64,9 @@ export default function ImagePickerAvatar({
 
             const fileExt = imageUri.split(".").pop() || "jpg";
             const fileName = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`;
-            
+
             //Faz upload da imagem no bucket do Supabase
-            const {publicUrl, error} = await uploadArquivoBucket({fileName, base64, fileExt, bucket})
+            const { publicUrl, error } = await uploadArquivoBucket({ fileName, base64, fileExt, bucket });
 
             if (error || !publicUrl) {
                 Alert.alert("Erro ao enviar imagem", JSON.stringify(error));
@@ -80,8 +84,10 @@ export default function ImagePickerAvatar({
             <View className="relative">
                 <TouchableOpacity
                     onPress={selectImage}
-                    className={`w-32 h-32 ${circle ? "rounded-full" : "rounded-xl"} bg-navy-800 border-[3px] border-navy-700 items-center justify-center overflow-hidden`}
+                    className={`w-32 h-32 ${circle ? "rounded-full" : "rounded-xl"} border-[3px] items-center justify-center overflow-hidden`}
                     style={{
+                        backgroundColor: hades ? HADES.surfaceRaised : "#1e293b",
+                        borderColor: hades ? HADES.borderStrong : "#334155",
                         shadowColor: "#000",
                         shadowOpacity: 0.2,
                         shadowRadius: 8,
@@ -93,20 +99,26 @@ export default function ImagePickerAvatar({
                         <Image className="h-full w-full" source={{ uri: imagePreview }} />
                     ) : (
                         <View className="items-center">
-                            <Users size={46} color={COLORS.textMuted} />
-                            <Text className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                            <Users size={46} color={hades ? HADES.textFaint : COLORS.textMuted} />
+                            <Text
+                                className="text-[10px] font-bold mt-1 uppercase tracking-wider"
+                                style={{ color: hades ? HADES.textFaint : "#94a3b8" }}
+                            >
                                 Foto
                             </Text>
                         </View>
                     )}
-
                 </TouchableOpacity>
 
                 <TouchableOpacity
                     onPress={selectImage}
-                    className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-brand-500 items-center justify-center border-[3px] border-navy-950"
+                    className="absolute bottom-0 right-0 w-9 h-9 rounded-full items-center justify-center border-[3px]"
+                    style={{
+                        backgroundColor: hades ? HADES.accentSolid : "#f7982c",
+                        borderColor: hades ? HADES.settingsBg : "#020617",
+                    }}
                 >
-                    <Plus size={18} color="#ffffff" strokeWidth={3} />
+                    <Plus size={18} color={hades ? "#000" : "#ffffff"} strokeWidth={3} />
                 </TouchableOpacity>
             </View>
         </View>

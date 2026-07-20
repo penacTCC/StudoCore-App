@@ -5,7 +5,7 @@ import { router } from "expo-router";
 
 //Serviços do Projeto
 import GroupCard from "@/components/GroupCard";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 
@@ -16,42 +16,59 @@ export default function MyGroupsScreen() {
     const { grupos, carregando, atualizando, atualizar } = useMeusGrupos();
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950 edges={['top']}">
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
             {/* Header */}
-            <View className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex-row items-center gap-3 justify-between">
-                <View className="flex-row gap-3">
-                    <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: COLORS.primaryFaint }}>
-                        <Users size={20} color={COLORS.primary} />
-                    </View>
-                    <View>
-                        <Text className="text-2xl font-bold text-slate-200">Meus Grupos</Text>
-                        <Text className="text-sm text-slate-400">Escolha um grupo</Text>
-                    </View>
+            <View
+                style={{
+                    paddingTop: 6,
+                    paddingHorizontal: 20,
+                    paddingBottom: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                }}
+            >
+                <View>
+                    <Text style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
+                        Meus Grupos
+                    </Text>
+                    <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 2 }}>Escolha um grupo</Text>
                 </View>
                 <TouchableOpacity
                     onPress={() => router.push("/(modals)/create-group")}
-                    className="flex-row items-center gap-1 bg-brand-500 px-3 py-1.5 rounded-lg"
+                    style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: HADES.surfaceRaised,
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
                 >
-                    <Plus size={16} color={COLORS.white} />
+                    <Plus size={18} color={HADES.textSecondary} />
                 </TouchableOpacity>
             </View>
 
             {carregando ? (
-                <View className="flex-1 items-center justify-center">
-                    <ActivityIndicator size="large" color={COLORS.primary} />
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <ActivityIndicator size="large" color={HADES.accentSolid} />
                 </View>
             ) : (
                 <FlatList
+                    style={{ flex: 1 }}
                     data={grupos}
                     keyExtractor={(item) => item.id.toString()}
-                    contentContainerStyle={{ padding: 24, paddingBottom: 100 }}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
-                        <RefreshControl refreshing={atualizando} onRefresh={atualizar} tintColor={COLORS.primary} />
+                        <RefreshControl refreshing={atualizando} onRefresh={atualizar} tintColor={HADES.accentSolid} />
                     }
                     ListEmptyComponent={
-                        <View className="items-center justify-center py-20">
-                            <Text className="text-slate-400 text-center">Você ainda não está em nenhum grupo.</Text>
+                        <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 80 }}>
+                            <Users size={30} color={HADES.dot} />
+                            <Text style={{ color: HADES.textMuted, textAlign: "center", marginTop: 12 }}>
+                                Você ainda não está em nenhum grupo.
+                            </Text>
                         </View>
                     }
                     renderItem={({ item }) => (
@@ -67,23 +84,34 @@ export default function MyGroupsScreen() {
                                         groupName: item.nome_grupo,
                                         groupPhoto: item.foto_grupo,
                                         groupCode: item.codigo_convite,
-                                        groupGoal: item.meta_horas   
-                                    }
+                                        groupGoal: item.meta_horas,
+                                    },
                                 });
                             }}
                         />
                     )}
                 />
             )}
-            <TouchableOpacity
-                onPress={() => router.push("/(modals)/create-group")}
-                className="w-full flex-row items-center justify-center gap-2 bg-brand-500 py-4 rounded-xl"
-            >
-                <Plus size={20} color={COLORS.white} />
-                <Text className="text-white font-semibold text-lg">
-                    Criar um grupo
-                </Text>
-            </TouchableOpacity>
+
+            {/* CTA fixo no rodapé */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
+                <TouchableOpacity
+                    onPress={() => router.push("/(modals)/create-group")}
+                    activeOpacity={0.85}
+                    style={{
+                        height: 54,
+                        borderRadius: 15,
+                        backgroundColor: HADES.accentSolid,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 9,
+                    }}
+                >
+                    <Plus size={20} color="#000" />
+                    <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>Criar um grupo</Text>
+                </TouchableOpacity>
+            </View>
         </SafeAreaView>
     );
 }

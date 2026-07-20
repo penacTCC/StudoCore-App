@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { FileText, Image as ImageIcon, ChevronRight, ChevronDown, FileUp, Folder } from "lucide-react-native";
 
 //Componentes do Projeto
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 
 //Componentes gráficos
@@ -18,11 +18,9 @@ import FileDetailModal from "@/app/(modals)/archive-details";
 import { useArchives } from "@/hooks/useArchives";
 import { useAuth } from "@/hooks/useAuth";
 
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-
 
 export default function VaultScreen() {
     //componentes graficos
@@ -51,7 +49,7 @@ export default function VaultScreen() {
      */
     const toggleSection = (id: string) => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setExpandedSections(prev => ({ ...prev, [id]: !prev[id] }));
+        setExpandedSections((prev) => ({ ...prev, [id]: !prev[id] }));
     };
 
     // Filter files across all sections
@@ -60,16 +58,15 @@ export default function VaultScreen() {
     );
 
     // Get files for a specific group
-    
     const getGroupFiles = (groupId: string) => {
-        return filteredFiles.filter(file =>
-            file.arquivos_grupos?.some((ag: any) => ag.grupo_id === groupId) && file.user_id !== userId //todos os arquivos do grupo - os arquivos do próprio usuário
+        return filteredFiles.filter(
+            (file) =>
+                file.arquivos_grupos?.some((ag: any) => ag.grupo_id === groupId) && file.user_id !== userId //todos os arquivos do grupo - os arquivos do próprio usuário
         );
     };
 
     // My files: especificamente aqueles enviados pelo usuário atual
-    const myFiles = filteredFiles.filter(file => file.user_id === userId);
-
+    const myFiles = filteredFiles.filter((file) => file.user_id === userId);
 
     /**
      * Componente responsável por exibir um card de arquivo.
@@ -77,51 +74,56 @@ export default function VaultScreen() {
      * @returns Card de arquivo.
      */
     const FileCard = ({ file }: { file: any }) => {
-        const type = file.storage_path?.split('.').pop()?.toLowerCase();
+        const type = file.storage_path?.split(".").pop()?.toLowerCase();
+        const isPdf = file.storage_path?.endsWith(".pdf");
         return (
             <TouchableOpacity
                 onPress={() => setSelectedFileForDetail(file)}
-                className="bg-slate-900/50 border border-slate-800/50 rounded-2xl p-4 flex-row items-center gap-4 mb-3"
+                activeOpacity={0.7}
+                style={{
+                    backgroundColor: HADES.surfaceRaised,
+                    borderWidth: 1,
+                    borderColor: HADES.border,
+                    borderRadius: 14,
+                    padding: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    marginBottom: 10,
+                }}
             >
                 <View
-                    className="w-12 h-12 rounded-xl items-center justify-center"
                     style={{
-                        backgroundColor:
-                            file.storage_path?.endsWith('.pdf')
-                                ? "rgba(244, 63, 94, 0.2)"
-                                : "rgba(247, 152, 44, 0.15)",
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: isPdf ? "rgba(240,85,107,0.14)" : HADES.groupVioletTint,
                     }}
                 >
                     {type === "pdf" ? (
-                        <FileText size={24} color={COLORS.rose} />
+                        <FileText size={22} color={HADES.red} />
                     ) : (
-                        <ImageIcon size={24} color={COLORS.violetLight} />
+                        <ImageIcon size={22} color={HADES.groupViolet} />
                     )}
                 </View>
 
-                <View className="flex-1">
-                    <Text className="text-sm font-medium text-slate-200" numberOfLines={1}>
+                <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }} numberOfLines={1}>
                         {file.titulo}
                     </Text>
-                    <Text className="text-xs text-slate-500">
+                    <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 2 }}>
                         {file.profiles?.nome_usuario || "Você"} • {new Date(file.created_at).toLocaleDateString()}
                     </Text>
                 </View>
-                <ChevronRight size={20} color={COLORS.textMuted} />
+                <ChevronRight size={18} color={HADES.textFaint} />
             </TouchableOpacity>
         );
     };
 
-
     /**
      * Componente responsável por exibir uma seção do accordion.
-     * @param id - ID da seção.
-     * @param title - Título da seção.
-     * @param subtitle - Subtítulo da seção.
-     * @param files - Arquivos da seção.
-     * @param icon - Ícone da seção.
-     * @param emptyText - Texto exibido quando não há arquivos.
-     * @returns Seção do accordion.
      */
     const AccordionSection = ({
         id,
@@ -129,47 +131,83 @@ export default function VaultScreen() {
         subtitle,
         files,
         icon: SectionIcon = Folder,
-        emptyText = "Nenhum arquivo enviado"
+        emptyText = "Nenhum arquivo enviado",
     }: {
-        id: string,
-        title: string,
-        subtitle?: string,
-        files: any[],
-        icon?: any,
-        emptyText?: string
+        id: string;
+        title: string;
+        subtitle?: string;
+        files: any[];
+        icon?: any;
+        emptyText?: string;
     }) => {
         const isExpanded = expandedSections[id];
 
         return (
-            <View className="mb-4">
+            <View style={{ marginBottom: 12 }}>
                 <TouchableOpacity
                     onPress={() => toggleSection(id)}
                     activeOpacity={0.7}
-                    className={`flex-row items-center justify-between p-4 bg-slate-900 border border-slate-800 rounded-2xl ${isExpanded ? 'rounded-b-none border-b-0' : ''}`}
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: 14,
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        borderBottomLeftRadius: isExpanded ? 0 : 16,
+                        borderBottomRightRadius: isExpanded ? 0 : 16,
+                        borderBottomWidth: isExpanded ? 0 : 1,
+                    }}
                 >
-                    <View className="flex-row items-center gap-3">
-                        <View className="w-10 h-10 rounded-full bg-brand-500/10 items-center justify-center">
-                            <SectionIcon size={20} color={COLORS.primary} />
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                        <View
+                            style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 12,
+                                backgroundColor: HADES.accentTint,
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}
+                        >
+                            <SectionIcon size={20} color={HADES.accentSolid} />
                         </View>
-                        <View>
-                            <Text className="text-base font-semibold text-slate-200">{title}</Text>
-                            {subtitle && <Text className="text-xs text-slate-500">{subtitle}</Text>}
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.text }} numberOfLines={1}>
+                                {title}
+                            </Text>
+                            {subtitle && (
+                                <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 1 }}>{subtitle}</Text>
+                            )}
                         </View>
                     </View>
                     {isExpanded ? (
-                        <ChevronDown size={20} color={COLORS.textMuted} />
+                        <ChevronDown size={20} color={HADES.textFaint} />
                     ) : (
-                        <ChevronRight size={20} color={COLORS.textMuted} />
+                        <ChevronRight size={20} color={HADES.textFaint} />
                     )}
                 </TouchableOpacity>
 
                 {isExpanded && (
-                    <View className="p-4 bg-slate-900 border-x border-b border-slate-800 rounded-b-2xl">
+                    <View
+                        style={{
+                            padding: 14,
+                            backgroundColor: HADES.surface,
+                            borderLeftWidth: 1,
+                            borderRightWidth: 1,
+                            borderBottomWidth: 1,
+                            borderColor: HADES.border,
+                            borderBottomLeftRadius: 16,
+                            borderBottomRightRadius: 16,
+                        }}
+                    >
                         {files.length > 0 ? (
-                            files.map(file => <FileCard key={file.id} file={file} />)
+                            files.map((file) => <FileCard key={file.id} file={file} />)
                         ) : (
-                            <View className="py-4 items-center">
-                                <Text className="text-sm text-slate-500">{emptyText}</Text>
+                            <View style={{ paddingVertical: 14, alignItems: "center" }}>
+                                <Text style={{ fontSize: 13, color: HADES.textDim }}>{emptyText}</Text>
                             </View>
                         )}
                     </View>
@@ -178,80 +216,88 @@ export default function VaultScreen() {
         );
     };
 
-
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
             {/* Header */}
-            <View className="bg-slate-950 border-b border-slate-800 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">Meus Arquivos</Text>
-                <Text className="text-sm text-slate-400">Seus materiais de estudo</Text>
+            <View style={{ paddingTop: 6, paddingHorizontal: 20, paddingBottom: 12 }}>
+                <Text style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
+                    Meus Arquivos
+                </Text>
+                <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 2 }}>
+                    Seus materiais de estudo
+                </Text>
             </View>
 
             {/* Search */}
-            <View className="px-4 py-3">
-                <SearchBar
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder="Buscar arquivos..."
-                    variant="light"
-                />
+            <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Buscar arquivos..." />
             </View>
 
-            {/* Files Sections */}
-            <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-                <View className="pb-24">
-                    {/* Groups Sections */}
-                    {grupos.map((group: any) => (
-                        <AccordionSection
-                            key={group.id}
-                            id={group.id}
-                            title={group.nome_grupo}
-                            subtitle="Arquivos compartilhados no grupo"
-                            files={getGroupFiles(group.id)}
-                            emptyText={`Nenhum arquivo enviado no ${group.nome_grupo}`}
-                        />
-                    ))}
-
-                    {/* My Archives Section */}
+            {/* Seções de arquivos */}
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Seções dos grupos */}
+                {grupos.map((group: any) => (
                     <AccordionSection
-                        id="meus_arquivos"
-                        title="Meus arquivos"
-                        subtitle="Arquivos que eu enviei"
-                        files={myFiles}
-                        icon={FileUp}
-                        emptyText="Você ainda não enviou nenhum arquivo"
+                        key={group.id}
+                        id={group.id}
+                        title={group.nome_grupo}
+                        subtitle="Arquivos compartilhados no grupo"
+                        files={getGroupFiles(group.id)}
+                        emptyText={`Nenhum arquivo enviado no ${group.nome_grupo}`}
                     />
+                ))}
 
-                    {filteredFiles.length === 0 && (
-                        <View className="items-center py-8">
-                            <Text className="text-slate-400 font-medium mt-3">Nenhum arquivo encontrado</Text>
-                            <Text className="text-sm text-slate-500">Tente buscar por outro nome</Text>
-                        </View>
-                    )}
-                </View>
+                {/* Meus arquivos */}
+                <AccordionSection
+                    id="meus_arquivos"
+                    title="Meus arquivos"
+                    subtitle="Arquivos que eu enviei"
+                    files={myFiles}
+                    icon={FileUp}
+                    emptyText="Você ainda não enviou nenhum arquivo"
+                />
+
+                {filteredFiles.length === 0 && (
+                    <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                        <Text style={{ color: HADES.textMuted, fontWeight: "600" }}>Nenhum arquivo encontrado</Text>
+                        <Text style={{ fontSize: 13, color: HADES.textDim, marginTop: 4 }}>
+                            Tente buscar por outro nome
+                        </Text>
+                    </View>
+                )}
             </ScrollView>
 
             {/* FAB */}
             <TouchableOpacity
                 onPress={() => setShowUploadModal(true)}
-                className="absolute bottom-24 right-4 w-14 h-14 bg-brand-500 rounded-full items-center justify-center"
+                activeOpacity={0.85}
                 style={{
-                    shadowColor: COLORS.primary,
+                    position: "absolute",
+                    bottom: 96,
+                    right: 20,
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    backgroundColor: HADES.accentSolid,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    shadowColor: "#000",
                     shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.3,
+                    shadowOpacity: 0.35,
                     shadowRadius: 8,
                     elevation: 8,
                 }}
             >
-                <FileUp size={24} color={COLORS.white} />
+                <FileUp size={24} color="#000" />
             </TouchableOpacity>
 
             {/* Upload Modal */}
             <Modal visible={showUploadModal} transparent animationType="fade">
-                <UploadVaultModal
-                    onClose={() => setShowUploadModal(false)}
-                    onRefresh={refresh}
-                />
+                <UploadVaultModal onClose={() => setShowUploadModal(false)} onRefresh={refresh} />
             </Modal>
 
             {/* Detail Modal */}
@@ -262,7 +308,6 @@ export default function VaultScreen() {
                     onRefresh={refresh}
                     currentUser={user}
                 />
-
             </Modal>
         </SafeAreaView>
     );

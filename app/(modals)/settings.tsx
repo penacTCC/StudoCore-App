@@ -1,19 +1,30 @@
 import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Switch } from "react-native";
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    ScrollView,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ActivityIndicator,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ChevronLeft, User, Save, Trash2, Smartphone, LogOut, Bell } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
+import { ChevronLeft, Save, Trash2 } from "lucide-react-native";
+import { HADES } from "@/constants/hades";
 import { buscarPerfil, buscarUsuarioLogado, salvarDadosPerfil, verificarNomeUsuario } from "@/services/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ImagePickerAvatar } from "@/components/ui";
+import { SecaoConfig, LinhaSwitch, LinhaPerigo } from "@/components/cronograma/LinhasConfig";
 import { Profile } from "@/types/profile";
 
 export default function SettingsScreen() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    
+
     const [userId, setUserId] = useState<string>("");
     const [username, setUsername] = useState("");
     const [vibrationEnabled, setVibrationEnabled] = useState(true);
@@ -38,13 +49,13 @@ export default function SettingsScreen() {
             setLoading(false);
         };
         const fetchPreferences = async () => {
-            const pref = await AsyncStorage.getItem('@app_preferences_vibration');
+            const pref = await AsyncStorage.getItem("@app_preferences_vibration");
             if (pref !== null) {
-                setVibrationEnabled(pref === 'true');
+                setVibrationEnabled(pref === "true");
             }
-            const testPref = await AsyncStorage.getItem('@app_test_mode');
+            const testPref = await AsyncStorage.getItem("@app_test_mode");
             if (testPref !== null) {
-                setTestModeEnabled(testPref === 'true');
+                setTestModeEnabled(testPref === "true");
             }
         };
         fetchUser();
@@ -78,7 +89,7 @@ export default function SettingsScreen() {
                 userId,
                 realName,
                 username,
-                profileData?.data_nascimento || new Date().toISOString(), 
+                profileData?.data_nascimento || new Date().toISOString(),
                 imageUrl
             );
 
@@ -98,12 +109,12 @@ export default function SettingsScreen() {
 
     const toggleVibration = async (val: boolean) => {
         setVibrationEnabled(val);
-        await AsyncStorage.setItem('@app_preferences_vibration', String(val));
+        await AsyncStorage.setItem("@app_preferences_vibration", String(val));
     };
 
     const toggleTestMode = async (val: boolean) => {
         setTestModeEnabled(val);
-        await AsyncStorage.setItem('@app_test_mode', String(val));
+        await AsyncStorage.setItem("@app_test_mode", String(val));
     };
 
     const handleClearCache = () => {
@@ -116,177 +127,180 @@ export default function SettingsScreen() {
                     text: "Limpar",
                     style: "destructive",
                     onPress: async () => {
-                        await AsyncStorage.multiRemove([
-                            '@app_preferences_vibration',
-                            '@app_test_mode'
-                        ]);
+                        await AsyncStorage.multiRemove(["@app_preferences_vibration", "@app_test_mode"]);
                         setVibrationEnabled(true);
                         setTestModeEnabled(false);
                         Alert.alert("Sucesso", "Cache limpo. Reinicie o aplicativo para ver o efeito completamente.");
-                    }
-                }
+                    },
+                },
             ]
         );
     };
 
     if (loading) {
         return (
-            <SafeAreaView className="flex-1 bg-slate-950 items-center justify-center">
-                <ActivityIndicator size="large" color={COLORS.violetLight} />
+            <SafeAreaView
+                style={{ flex: 1, backgroundColor: HADES.settingsBg, alignItems: "center", justifyContent: "center" }}
+            >
+                <ActivityIndicator size="large" color={HADES.accentSolid} />
             </SafeAreaView>
         );
     }
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950">
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.settingsBg }} edges={["top"]}>
             {/* Header */}
-            <View className="bg-slate-950 border-b border-slate-800 px-4 py-3 flex-row items-center justify-between">
-                <View className="flex-row items-center gap-3">
-                    <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-                        <ChevronLeft size={24} color="#cbd5e1" />
+            <View
+                style={{
+                    paddingTop: 6,
+                    paddingHorizontal: 20,
+                    paddingBottom: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                }}
+            >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <TouchableOpacity
+                        onPress={() => router.back()}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <ChevronLeft size={22} color={HADES.textSecondary} />
                     </TouchableOpacity>
-                    <Text className="text-xl font-bold text-slate-200">Configurações</Text>
+                    <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text }}>Configurações</Text>
                 </View>
-                <TouchableOpacity onPress={handleSave} disabled={saving}>
+                <TouchableOpacity onPress={handleSave} disabled={saving} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     {saving ? (
-                        <ActivityIndicator size="small" color={COLORS.emerald} />
+                        <ActivityIndicator size="small" color={HADES.accentSolid} />
                     ) : (
-                        <Save size={20} color={COLORS.emerald} />
+                        <Save size={20} color={HADES.accentSolid} />
                     )}
                 </TouchableOpacity>
             </View>
 
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
             >
-                <ScrollView className="flex-1 px-4 py-6" showsVerticalScrollIndicator={false}>
-                    
-                    {/* Public Profile Form */}
-                    <Text className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider">
-                        Perfil Público
-                    </Text>
-                    
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Avatar */}
                     <ImagePickerAvatar
                         bucket="images"
                         onImageUploaded={(url) => setImageUrl(url)}
-                        circle={true}
+                        circle
                         defaultImage={imageUrl || undefined}
+                        hades
                     />
-                    
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-6 mt-4">
-                        <View className="mb-4">
-                            <Text className="text-xs text-slate-400 mb-2 ml-1">Nome Completo / Apelido</Text>
-                            <View className="flex-row items-center bg-slate-950/50 border border-slate-800 rounded-2xl px-4 py-3">
-                                <User size={20} color="#94a3b8" className="mr-3" />
-                                <TextInput
-                                    className="flex-1 text-slate-200"
-                                    placeholder="Seu nome"
-                                    placeholderTextColor="#64748b"
-                                    value={realName}
-                                    onChangeText={setRealName}
-                                />
-                            </View>
+
+                    {/* Perfil Público */}
+                    <Text
+                        style={{
+                            fontSize: 12,
+                            color: HADES.settingsTextMuted,
+                            fontWeight: "700",
+                            letterSpacing: 0.8,
+                            marginBottom: 10,
+                            marginLeft: 4,
+                        }}
+                    >
+                        PERFIL PÚBLICO
+                    </Text>
+
+                    <View style={{ gap: 16, marginBottom: 4 }}>
+                        <View>
+                            <Text style={{ fontSize: 12, color: HADES.settingsTextMuted, marginBottom: 8, marginLeft: 4 }}>
+                                Nome completo / Apelido
+                            </Text>
+                            <TextInput
+                                value={realName}
+                                onChangeText={setRealName}
+                                placeholder="Seu nome"
+                                placeholderTextColor={HADES.textFaint}
+                                style={{
+                                    backgroundColor: HADES.settingsInset,
+                                    borderWidth: 1,
+                                    borderColor: HADES.borderSettings,
+                                    borderRadius: 12,
+                                    paddingHorizontal: 16,
+                                    paddingVertical: 14,
+                                    color: HADES.text,
+                                    fontSize: 15,
+                                }}
+                            />
                         </View>
 
                         <View>
-                            <Text className="text-xs text-slate-400 mb-2 ml-1">Nome de usuário</Text>
-                            <View className="flex-row items-center bg-slate-950/50 border border-slate-800 rounded-2xl px-4 py-3">
-                                <Text className="text-slate-500 mr-1">@</Text>
+                            <Text style={{ fontSize: 12, color: HADES.settingsTextMuted, marginBottom: 8, marginLeft: 4 }}>
+                                Nome de usuário
+                            </Text>
+                            <View
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    backgroundColor: HADES.settingsInset,
+                                    borderWidth: 1,
+                                    borderColor: HADES.borderSettings,
+                                    borderRadius: 12,
+                                    paddingHorizontal: 16,
+                                }}
+                            >
+                                <Text style={{ color: HADES.settingsTextMuted, fontSize: 15, marginRight: 2 }}>@</Text>
                                 <TextInput
-                                    className="flex-1 text-slate-200"
-                                    placeholder="nome_de_usuario"
-                                    placeholderTextColor="#64748b"
                                     value={username}
                                     onChangeText={setUsername}
+                                    placeholder="nome_de_usuario"
+                                    placeholderTextColor={HADES.textFaint}
                                     autoCapitalize="none"
+                                    style={{ flex: 1, paddingVertical: 14, color: HADES.text, fontSize: 15 }}
                                 />
                             </View>
-                            <Text className="text-xs text-slate-500 mt-2 ml-1">Este nome será único para convidar pessoas para grupos.</Text>
+                            <Text style={{ fontSize: 12, color: HADES.settingsTextMuted, marginTop: 8, marginLeft: 4 }}>
+                                Este nome será único para convidar pessoas para grupos.
+                            </Text>
                         </View>
                     </View>
 
-                    {/* Preferences */}
-                    <Text className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider mt-4">
-                        Preferências
-                    </Text>
+                    {/* Preferências */}
+                    <SecaoConfig titulo="PREFERÊNCIAS">
+                        <LinhaSwitch
+                            rotulo="Vibração em alertas"
+                            descricao="Vibrar ao desbloquear medalhas"
+                            ligado={vibrationEnabled}
+                            onToggle={() => toggleVibration(!vibrationEnabled)}
+                            ultima
+                        />
+                    </SecaoConfig>
 
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-2">
-                        <View className="flex-row items-center justify-between py-2">
-                            <View className="flex-row items-center gap-3">
-                                <View className="w-10 h-10 rounded-full bg-slate-800 items-center justify-center">
-                                    <Bell size={20} color="#cbd5e1" />
-                                </View>
-                                <View>
-                                    <Text className="text-sm font-medium text-slate-200">Vibração em Alertas</Text>
-                                    <Text className="text-xs text-slate-400">Vibrar ao desbloquear medalhas</Text>
-                                </View>
-                            </View>
-                            <Switch
-                                value={vibrationEnabled}
-                                onValueChange={toggleVibration}
-                                trackColor={{ false: "#334155", true: COLORS.emerald }}
-                                thumbColor="#ffffff"
-                            />
-                        </View>
-                    </View>
-
-                    {/* App Prefs */}
-                    <Text className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider mt-4">
-                        Sistema e Testes
-                    </Text>
-
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-2">
-                        <View className="flex-row items-center justify-between py-2">
-                            <View className="flex-row items-center gap-3">
-                                <View className="w-10 h-10 rounded-full bg-slate-800 items-center justify-center">
-                                    <Smartphone size={20} color="#cbd5e1" />
-                                </View>
-                                <View>
-                                    <Text className="text-sm font-medium text-slate-200">Modo de Testes Rápido</Text>
-                                    <Text className="text-xs text-slate-400">Transformar 10s reais em 1h no banco de dados</Text>
-                                </View>
-                            </View>
-                            <Switch
-                                value={testModeEnabled}
-                                onValueChange={toggleTestMode}
-                                trackColor={{ false: "#334155", true: COLORS.violetLight }}
-                                thumbColor="#ffffff"
-                            />
-                        </View>
-                    </View>
-
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <TouchableOpacity 
+                    {/* Sistema e Testes */}
+                    <SecaoConfig titulo="SISTEMA E TESTES">
+                        <LinhaSwitch
+                            rotulo="Modo de testes rápido"
+                            descricao="Transformar 10s reais em 1h no banco de dados"
+                            ligado={testModeEnabled}
+                            onToggle={() => toggleTestMode(!testModeEnabled)}
+                        />
+                        <LinhaPerigo
+                            rotulo="Limpar cache local"
+                            descricao="Restaurar matéria favorita e estatísticas"
+                            icone={<Trash2 size={16} color={HADES.red} />}
                             onPress={handleClearCache}
-                            className="flex-row items-center justify-between py-2"
+                        />
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: 14,
+                            }}
                         >
-                            <View className="flex-row items-center gap-3">
-                                <View className="w-10 h-10 rounded-full bg-rose-500/20 items-center justify-center">
-                                    <Trash2 size={20} color={COLORS.rose} />
-                                </View>
-                                <View>
-                                    <Text className="text-sm font-bold text-rose-500">Limpar Cache Local</Text>
-                                    <Text className="text-xs text-slate-400">Restaurar matéria favorita e estatísticas</Text>
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                        
-                        <View className="h-[1px] bg-slate-800 my-3" />
-
-                        <View className="flex-row items-center justify-between py-2">
-                            <View className="flex-row items-center gap-3">
-                                <View className="w-10 h-10 rounded-full bg-slate-800 items-center justify-center">
-                                    <Smartphone size={20} color="#cbd5e1" />
-                                </View>
-                                <View>
-                                    <Text className="text-sm font-medium text-slate-200">Versão do aplicativo</Text>
-                                    <Text className="text-xs text-slate-400">1.0.0 (Beta)</Text>
-                                </View>
-                            </View>
+                            <Text style={{ fontSize: 14, color: HADES.text }}>Versão do aplicativo</Text>
+                            <Text style={{ fontSize: 14, color: HADES.settingsTextSecondary }}>1.0.0 (Beta)</Text>
                         </View>
-                    </View>
-
+                    </SecaoConfig>
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>

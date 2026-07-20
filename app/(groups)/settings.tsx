@@ -1,633 +1,708 @@
 import { useEffect, useState } from "react";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, ScrollView, Switch, Alert, Modal, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, TextInput, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 
 //Componentes Lucide Native
-import {
-  ArrowLeft,
-  Check,
-  Pencil,
-  Globe,
-  Lock,
-  Target,
-  Link as LinkIcon,
-  LogOut,
-  Trash2,
-  ChevronRight,
-} from "lucide-react-native";
+import { ChevronLeft, Check, LogOut, Trash2 } from "lucide-react-native";
 
 //Componente do expo-router
 import { router, useLocalSearchParams } from "expo-router";
 
 //Componentes do Projeto
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 import Avatar from "@/components/ui/Avatar";
 import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
+import { SecaoConfig, LinhaSwitch, LinhaEscolha, LinhaPerigo } from "@/components/cronograma/LinhasConfig";
 import { useAuth } from "@/hooks/useAuth";
-import { atualizarDadosGrupo, buscarGrupoPorId, buscarMembrosGrupo, contarMembrosGrupo, excluirGrupoAtual } from "@/services/grupos";
+import {
+    atualizarDadosGrupo,
+    buscarGrupoPorId,
+    buscarMembrosGrupo,
+    contarMembrosGrupo,
+    excluirGrupoAtual,
+} from "@/services/grupos";
 import type { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 
 type ModalEdicao = "dados" | "meta" | "convite" | null;
 
 export default function GroupSettingsScreen() {
-  const { groupId } = useLocalSearchParams()
-  const { userId } = useAuth();
-  const [grupo, setGrupo] = useState<Grupo | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [salvando, setSalvando] = useState(false)
-  const [isPublic, setIsPublic] = useState(true);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [modalEdicao, setModalEdicao] = useState<ModalEdicao>(null);
-  const [nomeGrupo, setNomeGrupo] = useState("");
-  const [descricaoGrupo, setDescricaoGrupo] = useState("");
-  const [metaHoras, setMetaHoras] = useState(10);
-  const [qtdMembros, setQtdMembros] = useState<number | null>(0)
-  const [membros, setMembros] = useState<MembroGrupoComPerfil[]>([]);
-  const [modalTransferenciaAdmin, setModalTransferenciaAdmin] = useState(false);
-  const [novoAdminId, setNovoAdminId] = useState<string | null>(null);
+    const { groupId } = useLocalSearchParams();
+    const { userId } = useAuth();
+    const [grupo, setGrupo] = useState<Grupo | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [salvando, setSalvando] = useState(false);
+    const [isPublic, setIsPublic] = useState(true);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [modalEdicao, setModalEdicao] = useState<ModalEdicao>(null);
+    const [nomeGrupo, setNomeGrupo] = useState("");
+    const [descricaoGrupo, setDescricaoGrupo] = useState("");
+    const [metaHoras, setMetaHoras] = useState(10);
+    const [qtdMembros, setQtdMembros] = useState<number | null>(0);
+    const [membros, setMembros] = useState<MembroGrupoComPerfil[]>([]);
+    const [modalTransferenciaAdmin, setModalTransferenciaAdmin] = useState(false);
+    const [novoAdminId, setNovoAdminId] = useState<string | null>(null);
 
-  //useEffect para buscar todas as informações do grupo
-  useEffect(() => {
-    if (!groupId) return
+    //useEffect para buscar todas as informações do grupo
+    useEffect(() => {
+        if (!groupId) return;
 
-    //Carrega os dados do grupo
-    const carregarDados = async () => {
-      setLoading(true)
+        //Carrega os dados do grupo
+        const carregarDados = async () => {
+            setLoading(true);
 
-      //Aqui a gente utiliza o Promise all para realizar duas funções, e retornar em duas variáveis
-      const [grupoEncontrado, qtdMembros, membrosGrupo] = await Promise.all([
-        buscarGrupoPorId(groupId as string),
-        contarMembrosGrupo(groupId as string),
-        buscarMembrosGrupo(groupId as string)
-      ])
+            //Aqui a gente utiliza o Promise all para realizar duas funções, e retornar em duas variáveis
+            const [grupoEncontrado, qtdMembros, membrosGrupo] = await Promise.all([
+                buscarGrupoPorId(groupId as string),
+                contarMembrosGrupo(groupId as string),
+                buscarMembrosGrupo(groupId as string),
+            ]);
 
-      //Damos valor aos states, com a data retornada das funções
-      setGrupo(grupoEncontrado)
-      setQtdMembros(qtdMembros)
-      setMembros(membrosGrupo)
+            //Damos valor aos states, com a data retornada das funções
+            setGrupo(grupoEncontrado);
+            setQtdMembros(qtdMembros);
+            setMembros(membrosGrupo);
 
-      setLoading(false)
-    }
+            setLoading(false);
+        };
 
-    //roda a função
-    carregarDados()
-  }, [groupId])
+        //roda a função
+        carregarDados();
+    }, [groupId]);
 
-  useEffect(() => {
-    if (!grupo) return;
+    useEffect(() => {
+        if (!grupo) return;
 
-    setNomeGrupo(grupo.nome_grupo ?? "");
-    setDescricaoGrupo(grupo.descricao ?? "");
-    setMetaHoras(grupo.meta_horas ?? 10);
-    setImageUrl(grupo.foto_grupo);
-    setIsPublic(grupo.publico);
-  }, [grupo?.id])
+        setNomeGrupo(grupo.nome_grupo ?? "");
+        setDescricaoGrupo(grupo.descricao ?? "");
+        setMetaHoras(grupo.meta_horas ?? 10);
+        setImageUrl(grupo.foto_grupo);
+        setIsPublic(grupo.publico);
+    }, [grupo?.id]);
 
-  //Quando abre o modal, os dados locais ficam vazios, para que possam ser editados
-  const abrirModal = (modal: Exclude<ModalEdicao, null>) => {
-    if (!grupo) return;
-    setNomeGrupo(grupo.nome_grupo ?? "");
-    setDescricaoGrupo(grupo.descricao ?? "");
-    setMetaHoras(grupo.meta_horas ?? 10);
-    setModalEdicao(modal);
-  };
+    //Quando abre o modal, os dados locais ficam vazios, para que possam ser editados
+    const abrirModal = (modal: Exclude<ModalEdicao, null>) => {
+        if (!grupo) return;
+        setNomeGrupo(grupo.nome_grupo ?? "");
+        setDescricaoGrupo(grupo.descricao ?? "");
+        setMetaHoras(grupo.meta_horas ?? 10);
+        setModalEdicao(modal);
+    };
 
-  //fecha o modal
-  const fecharModal = () => {
-    setModalEdicao(null);
-  };
+    //fecha o modal
+    const fecharModal = () => {
+        setModalEdicao(null);
+    };
 
-  const salvarGrupo = async (grupoAtualizado: Grupo) => {
-    setSalvando(true);
+    const salvarGrupo = async (grupoAtualizado: Grupo) => {
+        setSalvando(true);
 
-    const { data, error } = await atualizarDadosGrupo(grupoAtualizado);
+        const { data, error } = await atualizarDadosGrupo(grupoAtualizado);
 
-    setSalvando(false);
+        setSalvando(false);
 
-    if (error) {
-      Alert.alert("Erro ao salvar", error.message);
-      return false;
-    }
-
-    setGrupo(data);
-    return true;
-  };
-
-  //salva alteração realizadas
-  const salvarDadosLocais = async () => {
-    if (!grupo) return;
-
-    const salvo = await salvarGrupo({
-      ...grupo,
-      nome_grupo: nomeGrupo.trim() || grupo.nome_grupo,
-      descricao: descricaoGrupo.trim() || null,
-      foto_grupo: imageUrl,
-    });
-
-    if (salvo) fecharModal();
-  };
-
-  //Salva a meta local
-  const salvarMetaLocal = async () => {
-    if (!grupo) return;
-
-    const salvo = await salvarGrupo({
-      ...grupo,
-      meta_horas: metaHoras,
-      foto_grupo: imageUrl,
-    });
-
-    if (salvo) fecharModal();
-  };
-
-  const excluirGrupo = async () => {
-    if (!groupId) return;
-    const { error } = await excluirGrupoAtual(groupId as string);
-
-    if (error) {
-      Alert.alert("Erro ao excluir grupo", error.message);
-      return;
-    }
-  }
-
-  const alternarPrivacidadeLocal = (valor: boolean) => {
-    setIsPublic(valor);
-    setGrupo((grupoAtual) => grupoAtual ? {
-      ...grupoAtual,
-      publico: valor,
-    } : grupoAtual);
-  };
-
-  const salvarAlterações = (salvar: () => void | Promise<void>) => {
-    Alert.alert(
-      "Salvar alterações",
-      `Tem certeza que deseja salvar as alterações?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Salvar", style: "default", onPress: salvar }
-      ]
-    );
-  }
-
-  const handleLeaveGroup = () => {
-    if ((qtdMembros ?? 0) > 1) {
-      setNovoAdminId(null);
-      setModalTransferenciaAdmin(true);
-      return;
-    }
-
-    Alert.alert(
-      "Sair do Grupo",
-      `Tem certeza que deseja sair do ${grupo?.nome_grupo}? O grupo será apagado após esta ação.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Sair", style: "destructive", onPress: () => router.push("/(groups)") }
-      ]
-    );
-  };
-
-  const confirmarSaidaComTransferencia = () => {
-    if (!novoAdminId) {
-      Alert.alert("Escolha um novo admin", "Selecione uma pessoa para assumir a administração do grupo.");
-      return;
-    }
-
-    const novoAdmin = membros.find((membro) => membro.user_id === novoAdminId);
-
-    Alert.alert(
-      "Transferir administração",
-      `${novoAdmin?.userData?.nome_usuario ?? "Este membro"} será o novo admin antes de você sair do grupo.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Confirmar",
-          style: "destructive",
-          onPress: () => {
-            setModalTransferenciaAdmin(false);
-            // TODO: chamar backend para transferir admin e remover o usuário atual do grupo.
-            router.replace("/(groups)");
-          }
+        if (error) {
+            Alert.alert("Erro ao salvar", error.message);
+            return false;
         }
-      ]
-    );
-  };
 
-  const handleDeleteGroup = () => {
-    Alert.alert(
-      "Excluir Grupo",
-      "Esta ação é irreversível. Todos os dados, arquivos e histórico do grupo serão apagados.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            await excluirGrupo();
-            router.push("/(groups)");
-          }
+        setGrupo(data);
+        return true;
+    };
+
+    //salva alteração realizadas
+    const salvarDadosLocais = async () => {
+        if (!grupo) return;
+
+        const salvo = await salvarGrupo({
+            ...grupo,
+            nome_grupo: nomeGrupo.trim() || grupo.nome_grupo,
+            descricao: descricaoGrupo.trim() || null,
+            foto_grupo: imageUrl,
+        });
+
+        if (salvo) fecharModal();
+    };
+
+    //Salva a meta local
+    const salvarMetaLocal = async () => {
+        if (!grupo) return;
+
+        const salvo = await salvarGrupo({
+            ...grupo,
+            meta_horas: metaHoras,
+            foto_grupo: imageUrl,
+        });
+
+        if (salvo) fecharModal();
+    };
+
+    const excluirGrupo = async () => {
+        if (!groupId) return;
+        const { error } = await excluirGrupoAtual(groupId as string);
+
+        if (error) {
+            Alert.alert("Erro ao excluir grupo", error.message);
+            return;
         }
-      ]
-    );
-  };
+    };
 
-  // Example output: "2026-06-10"
-  const formatarData = (data: string) => {
-    return new Date(data).toLocaleDateString("pt-BR", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-  };
+    const alternarPrivacidadeLocal = (valor: boolean) => {
+        setIsPublic(valor);
+        setGrupo((grupoAtual) =>
+            grupoAtual
+                ? {
+                      ...grupoAtual,
+                      publico: valor,
+                  }
+                : grupoAtual
+        );
+    };
 
-  const copiarConvite = async () => {
-    if (!grupo?.codigo_convite) return;
+    const salvarAlterações = (salvar: () => void | Promise<void>) => {
+        Alert.alert("Salvar alterações", `Tem certeza que deseja salvar as alterações?`, [
+            { text: "Cancelar", style: "cancel" },
+            { text: "Salvar", style: "default", onPress: salvar },
+        ]);
+    };
 
-    await Clipboard.setStringAsync(grupo.codigo_convite);
-    Alert.alert("Código copiado", "O código de convite foi copiado para a área de transferência.");
-  };
+    const handleLeaveGroup = () => {
+        if ((qtdMembros ?? 0) > 1) {
+            setNovoAdminId(null);
+            setModalTransferenciaAdmin(true);
+            return;
+        }
 
-  //Como é tudo o mesmo modal, aqui a gente verifica de qual campo é, para mudar os textos
-  const renderModal = () => {
-    const titulo =
-      modalEdicao === "dados" ? "Editar grupo" :
-        modalEdicao === "meta" ? "Meta semanal" :
-          "Convite do grupo";
+        Alert.alert(
+            "Sair do Grupo",
+            `Tem certeza que deseja sair do ${grupo?.nome_grupo}? O grupo será apagado após esta ação.`,
+            [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Sair", style: "destructive", onPress: () => router.push("/(groups)") },
+            ]
+        );
+    };
 
-    const descricao =
-      modalEdicao === "dados" ? "Atualize o nome e a descrição que aparecem para os membros." :
-        modalEdicao === "meta" ? "Defina a quantidade de horas que o grupo quer bater por semana." :
-          "Este código é gerado pelo StudoCore e pode ser compartilhado com novos membros.";
+    const confirmarSaidaComTransferencia = () => {
+        if (!novoAdminId) {
+            Alert.alert("Escolha um novo admin", "Selecione uma pessoa para assumir a administração do grupo.");
+            return;
+        }
 
-    const salvar =
-      modalEdicao === "dados" ? salvarDadosLocais :
-        modalEdicao === "meta" ? salvarMetaLocal :
-          copiarConvite;
+        const novoAdmin = membros.find((membro) => membro.user_id === novoAdminId);
 
-    return (
-      <Modal
-        visible={modalEdicao !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={fecharModal}
-      >
-        <View className="flex-1 bg-black/70 justify-end">
-          <TouchableOpacity className="flex-1" activeOpacity={1} onPress={fecharModal} />
+        Alert.alert(
+            "Transferir administração",
+            `${novoAdmin?.userData?.nome_usuario ?? "Este membro"} será o novo admin antes de você sair do grupo.`,
+            [
+                { text: "Cancelar", style: "cancel" },
+                {
+                    text: "Confirmar",
+                    style: "destructive",
+                    onPress: () => {
+                        setModalTransferenciaAdmin(false);
+                        // TODO: chamar backend para transferir admin e remover o usuário atual do grupo.
+                        router.replace("/(groups)");
+                    },
+                },
+            ]
+        );
+    };
 
-          <View className="bg-slate-950 border border-slate-800 rounded-t-[28px] px-5 pt-5 pb-7">
-            <View className="w-12 h-1.5 rounded-full bg-slate-700 self-center mb-5" />
+    const handleDeleteGroup = () => {
+        Alert.alert(
+            "Excluir Grupo",
+            "Esta ação é irreversível. Todos os dados, arquivos e histórico do grupo serão apagados.",
+            [
+                { text: "Cancelar", style: "cancel" },
+                {
+                    text: "Excluir",
+                    style: "destructive",
+                    onPress: async () => {
+                        await excluirGrupo();
+                        router.push("/(groups)");
+                    },
+                },
+            ]
+        );
+    };
 
-            <Text className="text-xl font-bold text-slate-100">{titulo}</Text>
-            <Text className="text-sm text-slate-400 mt-2 mb-5 leading-5">{descricao}</Text>
+    // Example output: "2026-06-10"
+    const formatarData = (data: string) => {
+        return new Date(data).toLocaleDateString("pt-BR", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        });
+    };
 
-            {modalEdicao === "dados" && (
-              <View className="gap-4">
-                <View>
-                  <Text className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Nome</Text>
-                  <TextInput
-                    value={nomeGrupo}
-                    onChangeText={setNomeGrupo}
-                    placeholder="Nome do grupo"
-                    placeholderTextColor="#64748b"
-                    className="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-slate-100"
-                  />
-                </View>
+    const copiarConvite = async () => {
+        if (!grupo?.codigo_convite) return;
 
-                <View>
-                  <Text className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Descrição</Text>
-                  <TextInput
-                    value={descricaoGrupo}
-                    onChangeText={setDescricaoGrupo}
-                    placeholder="Explique o objetivo do grupo"
-                    placeholderTextColor="#64748b"
-                    multiline
-                    textAlignVertical="top"
-                    className="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-slate-100 min-h-28"
-                  />
-                </View>
-              </View>
-            )}
+        await Clipboard.setStringAsync(grupo.codigo_convite);
+        Alert.alert("Código copiado", "O código de convite foi copiado para a área de transferência.");
+    };
 
-            {modalEdicao === "meta" && (
-              <View>
-                <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-xs font-bold uppercase tracking-wider text-slate-500">Horas por semana</Text>
-                  <Text className="text-lg font-bold text-brand-500">{metaHoras}h</Text>
-                </View>
+    //Como é tudo o mesmo modal, aqui a gente verifica de qual campo é, para mudar os textos
+    const renderModal = () => {
+        const titulo =
+            modalEdicao === "dados" ? "Editar grupo" : modalEdicao === "meta" ? "Meta semanal" : "Convite do grupo";
 
-                <View className="flex-row items-center gap-2 mt-2">
-                  <Text className="text-xs text-slate-500 w-8">1h</Text>
-                  <View className="flex-1 flex-row gap-1 h-2">
-                    {[...Array(20)].map((_, i) => {
-                      const valor = (i + 1) * 2;
+        const descricao =
+            modalEdicao === "dados"
+                ? "Atualize o nome e a descrição que aparecem para os membros."
+                : modalEdicao === "meta"
+                    ? "Defina a quantidade de horas que o grupo quer bater por semana."
+                    : "Este código é gerado pelo StudoCore e pode ser compartilhado com novos membros.";
 
-                      return (
-                        <TouchableOpacity
-                          key={valor}
-                          onPress={() => setMetaHoras(valor)}
-                          className="h-full flex-1 rounded-full"
-                          style={{ backgroundColor: valor <= metaHoras ? COLORS.primary : COLORS.bgQuaternary }}
-                        />
-                      );
-                    })}
-                  </View>
-                  <Text className="text-xs text-slate-500 w-8 text-right">40h</Text>
-                </View>
+        const salvar =
+            modalEdicao === "dados" ? salvarDadosLocais : modalEdicao === "meta" ? salvarMetaLocal : copiarConvite;
 
-                <View className="mt-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
-                  <Text className="text-emerald-300 text-sm font-semibold">
-                    Prévia: meta de {metaHoras || "0"}h por semana
-                  </Text>
-                </View>
-              </View>
-            )}
+        return (
+            <Modal visible={modalEdicao !== null} transparent animationType="fade" onRequestClose={fecharModal}>
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}>
+                    <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={fecharModal} />
 
-            {modalEdicao === "convite" && (
-              <View>
-                <Text className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Código de convite</Text>
-                <View className="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4">
-                  <Text className="text-slate-100 text-lg font-bold">
-                    {grupo?.codigo_convite || "Nenhum código gerado"}
-                  </Text>
-                </View>
-                <Text className="text-xs text-slate-500 mt-3">
-                  O código é criado automaticamente pelo aplicativo.
-                </Text>
-              </View>
-            )}
-
-            <View className="flex-row gap-3 mt-6">
-              <TouchableOpacity
-                onPress={fecharModal}
-                className="flex-1 bg-slate-900 border border-slate-800 py-4 rounded-2xl items-center"
-              >
-                <Text className="text-slate-200 font-semibold">Cancelar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => salvarAlterações(salvar)}
-                disabled={salvando}
-                className={`flex-1 py-4 rounded-2xl items-center ${salvando ? "bg-slate-800" : "bg-brand-500"}`}
-              >
-                <Text className="text-white font-bold">
-                  {salvando ? "Salvando..." : modalEdicao === "convite" ? "Copiar" : "Salvar"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
-
-  const renderModalTransferenciaAdmin = () => {
-    const candidatosAdmin = membros.filter((membro) => membro.user_id !== userId);
-
-    return (
-      <Modal
-        visible={modalTransferenciaAdmin}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalTransferenciaAdmin(false)}
-      >
-        <View className="flex-1 bg-black/70 justify-end">
-          <TouchableOpacity
-            className="flex-1"
-            activeOpacity={1}
-            onPress={() => setModalTransferenciaAdmin(false)}
-          />
-
-          <View className="bg-slate-950 border border-slate-800 rounded-t-[28px] px-5 pt-5 pb-7 max-h-[78%]">
-            <View className="w-12 h-1.5 rounded-full bg-slate-700 self-center mb-5" />
-
-            <Text className="text-xl font-bold text-slate-100">Escolher novo admin</Text>
-            <Text className="text-sm text-slate-400 mt-2 mb-5 leading-5">
-              Antes de sair, escolha quem vai assumir a administração do grupo.
-            </Text>
-
-            {candidatosAdmin.length === 0 ? (
-              <View className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                <Text className="text-slate-300 font-semibold">Nenhum membro disponível</Text>
-                <Text className="text-slate-500 text-sm mt-1">
-                  Se não houver outro membro, o grupo poderá ser apagado ao sair.
-                </Text>
-              </View>
-            ) : (
-              <ScrollView className="max-h-80" showsVerticalScrollIndicator={false}>
-                <View className="gap-3">
-                  {candidatosAdmin.map((membro) => {
-                    const selecionado = novoAdminId === membro.user_id;
-
-                    return (
-                      <TouchableOpacity
-                        key={membro.id}
-                        onPress={() => setNovoAdminId(membro.user_id)}
-                        className={`flex-row items-center gap-3 rounded-2xl border p-3 ${
-                          selecionado
-                            ? "bg-brand-500/10 border-brand-500/60"
-                            : "bg-slate-900 border-slate-800"
-                        }`}
-                        activeOpacity={0.82}
-                      >
-                        <Avatar
-                          foto={membro.userData?.foto_usuario}
-                          nome={membro.userData?.nome_usuario}
-                          size={42}
-                        />
-
-                        <View className="flex-1">
-                          <Text className="text-slate-100 font-semibold">
-                            {membro.userData?.nome_usuario ?? "Membro sem nome"}
-                          </Text>
-                          <Text className="text-slate-500 text-xs mt-1">
-                            {membro.administrador ? "Já é admin do grupo" : "Vai receber as permissões de admin"}
-                          </Text>
-                        </View>
-
+                    <View
+                        style={{
+                            backgroundColor: HADES.modalBg,
+                            borderWidth: 1,
+                            borderColor: HADES.border,
+                            borderTopLeftRadius: 28,
+                            borderTopRightRadius: 28,
+                            paddingHorizontal: 20,
+                            paddingTop: 12,
+                            paddingBottom: 28,
+                        }}
+                    >
                         <View
-                          className={`w-7 h-7 rounded-full items-center justify-center border ${
-                            selecionado
-                              ? "bg-brand-500 border-brand-500"
-                              : "border-slate-700"
-                          }`}
-                        >
-                          {selecionado && <Check size={16} color="#ffffff" strokeWidth={3} />}
+                            style={{
+                                width: 44,
+                                height: 4,
+                                borderRadius: 2,
+                                backgroundColor: HADES.grip,
+                                alignSelf: "center",
+                                marginBottom: 20,
+                            }}
+                        />
+
+                        <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text }}>{titulo}</Text>
+                        <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 6, marginBottom: 20, lineHeight: 19 }}>
+                            {descricao}
+                        </Text>
+
+                        {modalEdicao === "dados" && (
+                            <View style={{ gap: 16 }}>
+                                <View>
+                                    <Text style={estilos.rotuloCampo}>NOME</Text>
+                                    <TextInput
+                                        value={nomeGrupo}
+                                        onChangeText={setNomeGrupo}
+                                        placeholder="Nome do grupo"
+                                        placeholderTextColor={HADES.textFaint}
+                                        style={estilos.campo}
+                                    />
+                                </View>
+
+                                <View>
+                                    <Text style={estilos.rotuloCampo}>DESCRIÇÃO</Text>
+                                    <TextInput
+                                        value={descricaoGrupo}
+                                        onChangeText={setDescricaoGrupo}
+                                        placeholder="Explique o objetivo do grupo"
+                                        placeholderTextColor={HADES.textFaint}
+                                        multiline
+                                        textAlignVertical="top"
+                                        style={[estilos.campo, { minHeight: 100 }]}
+                                    />
+                                </View>
+                            </View>
+                        )}
+
+                        {modalEdicao === "meta" && (
+                            <View>
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        marginBottom: 12,
+                                    }}
+                                >
+                                    <Text style={estilos.rotuloCampo}>HORAS POR SEMANA</Text>
+                                    <Text style={{ fontSize: 17, fontWeight: "700", color: HADES.accentSolid }}>
+                                        {metaHoras}h
+                                    </Text>
+                                </View>
+
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                    <Text style={{ fontSize: 12, color: HADES.textDim, width: 28 }}>1h</Text>
+                                    <View style={{ flex: 1, flexDirection: "row", gap: 4, height: 8 }}>
+                                        {[...Array(20)].map((_, i) => {
+                                            const valor = (i + 1) * 2;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={valor}
+                                                    onPress={() => setMetaHoras(valor)}
+                                                    style={{
+                                                        flex: 1,
+                                                        height: "100%",
+                                                        borderRadius: 999,
+                                                        backgroundColor:
+                                                            valor <= metaHoras ? HADES.accentSolid : HADES.surfaceOverlay,
+                                                    }}
+                                                />
+                                            );
+                                        })}
+                                    </View>
+                                    <Text style={{ fontSize: 12, color: HADES.textDim, width: 28, textAlign: "right" }}>
+                                        40h
+                                    </Text>
+                                </View>
+
+                                <View
+                                    style={{
+                                        marginTop: 16,
+                                        borderRadius: 14,
+                                        backgroundColor: HADES.accentTint,
+                                        borderWidth: 1,
+                                        borderColor: HADES.accentTintBorder,
+                                        padding: 14,
+                                    }}
+                                >
+                                    <Text style={{ color: HADES.accentText, fontSize: 13.5, fontWeight: "600" }}>
+                                        Prévia: meta de {metaHoras || "0"}h por semana
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
+                        {modalEdicao === "convite" && (
+                            <View>
+                                <Text style={estilos.rotuloCampo}>CÓDIGO DE CONVITE</Text>
+                                <View
+                                    style={{
+                                        backgroundColor: HADES.settingsInset,
+                                        borderWidth: 1,
+                                        borderColor: HADES.borderSettings,
+                                        borderRadius: 14,
+                                        paddingHorizontal: 16,
+                                        paddingVertical: 16,
+                                    }}
+                                >
+                                    <Text style={{ color: HADES.text, fontSize: 17, fontWeight: "700" }}>
+                                        {grupo?.codigo_convite || "Nenhum código gerado"}
+                                    </Text>
+                                </View>
+                                <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 10 }}>
+                                    O código é criado automaticamente pelo aplicativo.
+                                </Text>
+                            </View>
+                        )}
+
+                        <View style={{ flexDirection: "row", gap: 10, marginTop: 24 }}>
+                            <TouchableOpacity onPress={fecharModal} activeOpacity={0.8} style={estilos.botaoSecundario}>
+                                <Text style={{ color: HADES.textSecondary, fontWeight: "600" }}>Cancelar</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={() => salvarAlterações(salvar)}
+                                disabled={salvando}
+                                activeOpacity={0.85}
+                                style={[estilos.botaoPrimario, { opacity: salvando ? 0.6 : 1 }]}
+                            >
+                                <Text style={{ color: "#000", fontWeight: "700" }}>
+                                    {salvando ? "Salvando..." : modalEdicao === "convite" ? "Copiar" : "Salvar"}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
-                      </TouchableOpacity>
-                    );
-                  })}
+                    </View>
                 </View>
-              </ScrollView>
-            )}
+            </Modal>
+        );
+    };
 
-            <View className="flex-row gap-3 mt-6">
-              <TouchableOpacity
-                onPress={() => setModalTransferenciaAdmin(false)}
-                className="flex-1 bg-slate-900 border border-slate-800 py-4 rounded-2xl items-center"
-              >
-                <Text className="text-slate-200 font-semibold">Cancelar</Text>
-              </TouchableOpacity>
+    const renderModalTransferenciaAdmin = () => {
+        const candidatosAdmin = membros.filter((membro) => membro.user_id !== userId);
 
-              <TouchableOpacity
-                onPress={confirmarSaidaComTransferencia}
-                disabled={!novoAdminId}
-                className={`flex-1 py-4 rounded-2xl items-center ${
-                  novoAdminId ? "bg-red-500" : "bg-slate-800"
-                }`}
-              >
-                <Text className="text-white font-bold">Continuar</Text>
-              </TouchableOpacity>
+        return (
+            <Modal
+                visible={modalTransferenciaAdmin}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setModalTransferenciaAdmin(false)}
+            >
+                <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}>
+                    <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setModalTransferenciaAdmin(false)} />
+
+                    <View
+                        style={{
+                            backgroundColor: HADES.modalBg,
+                            borderWidth: 1,
+                            borderColor: HADES.border,
+                            borderTopLeftRadius: 28,
+                            borderTopRightRadius: 28,
+                            paddingHorizontal: 20,
+                            paddingTop: 12,
+                            paddingBottom: 28,
+                            maxHeight: "78%",
+                        }}
+                    >
+                        <View
+                            style={{
+                                width: 44,
+                                height: 4,
+                                borderRadius: 2,
+                                backgroundColor: HADES.grip,
+                                alignSelf: "center",
+                                marginBottom: 20,
+                            }}
+                        />
+
+                        <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text }}>Escolher novo admin</Text>
+                        <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 6, marginBottom: 20, lineHeight: 19 }}>
+                            Antes de sair, escolha quem vai assumir a administração do grupo.
+                        </Text>
+
+                        {candidatosAdmin.length === 0 ? (
+                            <View
+                                style={{
+                                    backgroundColor: HADES.surface,
+                                    borderWidth: 1,
+                                    borderColor: HADES.border,
+                                    borderRadius: 16,
+                                    padding: 14,
+                                }}
+                            >
+                                <Text style={{ color: HADES.textSecondary, fontWeight: "600" }}>
+                                    Nenhum membro disponível
+                                </Text>
+                                <Text style={{ color: HADES.textDim, fontSize: 13, marginTop: 4 }}>
+                                    Se não houver outro membro, o grupo poderá ser apagado ao sair.
+                                </Text>
+                            </View>
+                        ) : (
+                            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                                <View style={{ gap: 10 }}>
+                                    {candidatosAdmin.map((membro) => {
+                                        const selecionado = novoAdminId === membro.user_id;
+
+                                        return (
+                                            <TouchableOpacity
+                                                key={membro.id}
+                                                onPress={() => setNovoAdminId(membro.user_id)}
+                                                activeOpacity={0.82}
+                                                style={{
+                                                    flexDirection: "row",
+                                                    alignItems: "center",
+                                                    gap: 12,
+                                                    borderRadius: 16,
+                                                    borderWidth: 1,
+                                                    padding: 12,
+                                                    backgroundColor: selecionado ? HADES.accentTint : HADES.surface,
+                                                    borderColor: selecionado ? HADES.accentTintBorder : HADES.border,
+                                                }}
+                                            >
+                                                <Avatar
+                                                    foto={membro.userData?.foto_usuario}
+                                                    nome={membro.userData?.nome_usuario}
+                                                    size={42}
+                                                />
+
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ color: HADES.text, fontWeight: "600" }}>
+                                                        {membro.userData?.nome_usuario ?? "Membro sem nome"}
+                                                    </Text>
+                                                    <Text style={{ color: HADES.textDim, fontSize: 12, marginTop: 2 }}>
+                                                        {membro.administrador
+                                                            ? "Já é admin do grupo"
+                                                            : "Vai receber as permissões de admin"}
+                                                    </Text>
+                                                </View>
+
+                                                <View
+                                                    style={{
+                                                        width: 26,
+                                                        height: 26,
+                                                        borderRadius: 13,
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        borderWidth: selecionado ? 0 : 1.5,
+                                                        borderColor: HADES.grip,
+                                                        backgroundColor: selecionado ? HADES.accentSolid : "transparent",
+                                                    }}
+                                                >
+                                                    {selecionado && <Check size={16} color="#000" strokeWidth={3} />}
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </ScrollView>
+                        )}
+
+                        <View style={{ flexDirection: "row", gap: 10, marginTop: 24 }}>
+                            <TouchableOpacity
+                                onPress={() => setModalTransferenciaAdmin(false)}
+                                activeOpacity={0.8}
+                                style={estilos.botaoSecundario}
+                            >
+                                <Text style={{ color: HADES.textSecondary, fontWeight: "600" }}>Cancelar</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={confirmarSaidaComTransferencia}
+                                disabled={!novoAdminId}
+                                activeOpacity={0.85}
+                                style={[estilos.botaoPrimario, { opacity: novoAdminId ? 1 : 0.5 }]}
+                            >
+                                <Text style={{ color: "#000", fontWeight: "700" }}>Continuar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+        );
+    };
+
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.settingsBg }} edges={["top"]}>
+            {/* Header */}
+            <View
+                style={{
+                    paddingTop: 6,
+                    paddingHorizontal: 20,
+                    paddingBottom: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                }}
+            >
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <ChevronLeft size={22} color={HADES.textSecondary} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text }}>Configurações do Grupo</Text>
             </View>
-          </View>
-        </View>
-      </Modal>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+                showsVerticalScrollIndicator={false}
+            >
+                {loading ? (
+                    <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 80 }}>
+                        <ActivityIndicator size="large" color={HADES.accentSolid} />
+                        <Text style={{ color: HADES.textMuted, marginTop: 16 }}>Carregando configurações...</Text>
+                    </View>
+                ) : (
+                    <>
+                        {/* Identidade do grupo */}
+                        <View style={{ alignItems: "center", marginBottom: 8, marginTop: 2 }}>
+                            <ImagePickerAvatar
+                                bucket="images"
+                                defaultImage={imageUrl ?? undefined}
+                                onImageUploaded={(url) => setImageUrl(url)}
+                                hades
+                            />
+                            <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text }}>
+                                {grupo?.nome_grupo ?? "Grupo"}
+                            </Text>
+                            <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 2 }}>
+                                Criado por você em {grupo?.created_at ? formatarData(grupo.created_at) : "-"}
+                            </Text>
+                        </View>
+
+                        <SecaoConfig titulo="GERAL">
+                            <LinhaEscolha
+                                rotulo="Nome e descrição"
+                                valor={grupo?.nome_grupo ?? "—"}
+                                onPress={() => abrirModal("dados")}
+                            />
+                            <LinhaEscolha
+                                rotulo="Meta semanal"
+                                valor={`${grupo?.meta_horas ?? 0}h`}
+                                onPress={() => abrirModal("meta")}
+                                ultima
+                            />
+                        </SecaoConfig>
+
+                        <SecaoConfig titulo="PRIVACIDADE E ACESSO">
+                            <LinhaSwitch
+                                rotulo="Grupo público"
+                                descricao="Qualquer pessoa pode encontrar"
+                                ligado={isPublic}
+                                onToggle={() => alternarPrivacidadeLocal(!isPublic)}
+                            />
+                            <LinhaEscolha
+                                rotulo="Link de convite"
+                                valor={grupo?.codigo_convite || "Nenhum código"}
+                                onPress={() => abrirModal("convite")}
+                                ultima
+                            />
+                        </SecaoConfig>
+
+                        <SecaoConfig titulo="ZONA DE PERIGO">
+                            <LinhaPerigo
+                                rotulo="Sair do grupo"
+                                icone={<LogOut size={16} color={HADES.red} />}
+                                onPress={handleLeaveGroup}
+                            />
+                            <LinhaPerigo
+                                rotulo="Excluir grupo"
+                                icone={<Trash2 size={16} color={HADES.red} />}
+                                onPress={handleDeleteGroup}
+                                ultima
+                            />
+                        </SecaoConfig>
+                    </>
+                )}
+            </ScrollView>
+
+            {renderModal()}
+            {renderModalTransferenciaAdmin()}
+        </SafeAreaView>
     );
-  };
-
-  return (
-    <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
-      <View className="px-4 py-3 flex-row items-center justify-between border-b border-slate-900 mb-4">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="w-10 h-10 rounded-full bg-slate-900 items-center justify-center"
-        >
-          <ArrowLeft size={20} color={COLORS.textSecondary || "#94a3b8"} />
-        </TouchableOpacity>
-        <Text className="text-lg font-bold text-slate-200">Configurações do Grupo</Text>
-        <View className="w-10" />
-      </View>
-
-      <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-        {loading ? (
-          <View className="items-center justify-center py-20">
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text className="text-slate-400 mt-4">Carregando configurações...</Text>
-          </View>
-        ) : (
-          <>
-        <View className="items-center mb-8 mt-2">
-          <ImagePickerAvatar
-            bucket="images"
-            defaultImage={imageUrl ?? undefined}
-            onImageUploaded={(url) => setImageUrl(url)}
-          />
-          <Text className="text-xl font-bold text-slate-200">{grupo?.nome_grupo ?? "Grupo"}</Text>
-          <Text className="text-sm text-slate-400 mt-1">Criado por você em {grupo?.created_at ? formatarData(grupo.created_at) : "-"}</Text>
-        </View>
-
-        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-2 mb-6">
-          <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-4 mt-2 mb-2">Geral</Text>
-
-          <TouchableOpacity
-            onPress={() => abrirModal("dados")}
-            className="flex-row items-center justify-between p-3 border-b border-slate-800/50"
-          >
-            <View className="flex-row items-center gap-3 flex-1 pr-3">
-              <View className="w-10 h-10 rounded-xl bg-slate-800 items-center justify-center">
-                <Pencil size={18} color={"#cbd5e1"} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-medium text-slate-200">Editar Nome e Descrição</Text>
-                <Text className="text-xs text-slate-400" numberOfLines={1}>
-                  {grupo?.descricao || "Adicione uma descrição para o grupo"}
-                </Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={COLORS.textMuted || "#64748b"} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => abrirModal("meta")}
-            className="flex-row items-center justify-between p-3"
-          >
-            <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-xl bg-slate-800 items-center justify-center">
-                <Target size={18} color={COLORS.emeraldLight || "#34d399"} />
-              </View>
-              <View>
-                <Text className="text-base font-medium text-slate-200">Meta Semanal</Text>
-                <Text className="text-xs text-slate-400">Atualmente: {grupo?.meta_horas} horas</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={COLORS.textMuted || "#64748b"} />
-          </TouchableOpacity>
-        </View>
-
-        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-2 mb-6">
-          <Text className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-4 mt-2 mb-2">Privacidade e Acesso</Text>
-
-          <View className="flex-row items-center justify-between p-3 border-b border-slate-800/50">
-            <View className="flex-row items-center gap-3 flex-1 pr-4">
-              <View className="w-10 h-10 rounded-xl bg-slate-800 items-center justify-center">
-                {isPublic ? <Globe size={18} color={COLORS.violetLight || "#a78bfa"} /> : <Lock size={18} color={COLORS.violetLight || "#a78bfa"} />}
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-medium text-slate-200">Grupo Público</Text>
-                <Text className="text-xs text-slate-400">Qualquer pessoa pode encontrar</Text>
-              </View>
-            </View>
-            <Switch
-              value={isPublic}
-              onValueChange={alternarPrivacidadeLocal}
-              trackColor={{ false: "#1e293b", true: COLORS.primary || "#f59e0b" }}
-              thumbColor={"#ffffff"}
-            />
-          </View>
-
-          <TouchableOpacity
-            onPress={() => abrirModal("convite")}
-            className="flex-row items-center justify-between p-3"
-          >
-            <View className="flex-row items-center gap-3 flex-1 pr-3">
-              <View className="w-10 h-10 rounded-xl bg-slate-800 items-center justify-center">
-                <LinkIcon size={18} color={"#cbd5e1"} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-medium text-slate-200">Link de Convite</Text>
-                <Text className="text-xs text-slate-400" numberOfLines={1}>
-                  {grupo?.codigo_convite ? `${grupo.codigo_convite}` : "Nenhum código configurado"}
-                </Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={COLORS.textMuted || "#64748b"} />
-          </TouchableOpacity>
-        </View>
-
-        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-2 mb-10">
-          <Text className="text-xs font-bold text-red-500/70 uppercase tracking-wider ml-4 mt-2 mb-2">Zona de Perigo</Text>
-
-          <TouchableOpacity
-            onPress={handleLeaveGroup}
-            className="flex-row items-center justify-between p-3 border-b border-slate-800/50"
-          >
-            <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-xl bg-red-500/10 items-center justify-center">
-                <LogOut size={18} color="#ef4444" />
-              </View>
-              <Text className="text-base font-medium text-red-400">Sair do Grupo</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleDeleteGroup}
-            className="flex-row items-center justify-between p-3"
-          >
-            <View className="flex-row items-center gap-3">
-              <View className="w-10 h-10 rounded-xl bg-red-500/10 items-center justify-center">
-                <Trash2 size={18} color="#ef4444" />
-              </View>
-              <Text className="text-base font-medium text-red-400">Excluir Grupo</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-        </>
-        )}
-      </ScrollView>
-
-      {renderModal()}
-      {renderModalTransferenciaAdmin()}
-    </SafeAreaView>
-  );
 }
+
+const estilos = {
+    rotuloCampo: {
+        fontSize: 12,
+        color: HADES.settingsTextMuted,
+        fontWeight: "700" as const,
+        letterSpacing: 0.8,
+        marginBottom: 8,
+    },
+    campo: {
+        backgroundColor: HADES.settingsInset,
+        borderWidth: 1,
+        borderColor: HADES.borderSettings,
+        borderRadius: 14,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        color: HADES.text,
+        fontSize: 15,
+    },
+    botaoSecundario: {
+        flex: 1,
+        height: 52,
+        borderRadius: 14,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        backgroundColor: HADES.surfaceOverlay,
+        borderWidth: 1,
+        borderColor: HADES.border,
+    },
+    botaoPrimario: {
+        flex: 1,
+        height: 52,
+        borderRadius: 14,
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        backgroundColor: HADES.accentSolid,
+    },
+};

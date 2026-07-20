@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { ChevronRight, Lock } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 
@@ -204,10 +204,79 @@ export function LinhaEscolha({
             }}
         >
             <Text style={{ flex: 1, fontSize: 14, color: HADES.text }}>{rotulo}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={{ fontSize: 14, color: HADES.settingsTextSecondary }}>{valor}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, maxWidth: "55%" }}>
+                <Text
+                    style={{ fontSize: 14, color: HADES.settingsTextSecondary }}
+                    numberOfLines={1}
+                >
+                    {valor}
+                </Text>
                 <ChevronRight size={16} color={HADES.settingsChevron} />
             </View>
+        </TouchableOpacity>
+    );
+}
+
+/** Linha de ação destrutiva (sair, excluir, limpar). Rótulo/ícone em vermelho. */
+export function LinhaPerigo({
+    rotulo,
+    descricao,
+    icone,
+    onPress,
+    carregando,
+    ultima,
+}: {
+    rotulo: string;
+    descricao?: string;
+    icone?: ReactNode;
+    onPress?: () => void;
+    carregando?: boolean;
+    ultima?: boolean;
+}) {
+    return (
+        <TouchableOpacity
+            onPress={onPress}
+            disabled={carregando}
+            activeOpacity={0.7}
+            style={{
+                flexDirection: "row",
+                alignItems: descricao ? "flex-start" : "center",
+                gap: 12,
+                padding: 14,
+                borderBottomWidth: ultima ? 0 : 1,
+                borderBottomColor: HADES.borderSettings,
+            }}
+        >
+            {icone && (
+                <View
+                    style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 10,
+                        backgroundColor: "rgba(240,85,107,0.10)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    {icone}
+                </View>
+            )}
+            <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, color: HADES.red, fontWeight: "600" }}>{rotulo}</Text>
+                {descricao && (
+                    <Text
+                        style={{
+                            fontSize: 12,
+                            color: HADES.settingsTextMuted,
+                            marginTop: 3,
+                            lineHeight: 17,
+                        }}
+                    >
+                        {descricao}
+                    </Text>
+                )}
+            </View>
+            {carregando && <ActivityIndicator size="small" color={HADES.red} />}
         </TouchableOpacity>
     );
 }

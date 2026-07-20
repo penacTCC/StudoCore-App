@@ -8,31 +8,27 @@ import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";
 
 //Componentes do Projeto
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 import { deleteFileFromB2, getAuthenticatedDownloadUrl } from "@/services/backblaze";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { deletaRegistro } from "@/services/archives";
 import { detalheArquivoProps } from "@/types/archives";
 
 /**
- * Modal responsável por exibir os detalhes de um arquivo.
+ * Modal (bottom sheet) responsável por exibir os detalhes de um arquivo.
  * @param detalheArquivo - Arquivo selecionado para visualização.
  * @param onClose - Função para fechar o modal.
  * @param onRefresh - Função para atualizar os dados.
  * @param currentUser - Usuário logado.
- * @returns Modal de detalhes do arquivo.
  */
-
 export default function FileDetailModal({
     detalheArquivo,
     onClose,
     onRefresh,
-    currentUser
+    currentUser,
 }: detalheArquivoProps) {
-
     //seleção da disciplina
     const [isOpening, setIsOpening] = useState(false);
-    console.log(detalheArquivo);
 
     //grupos
     const { grupos } = useMeusGrupos();
@@ -40,9 +36,12 @@ export default function FileDetailModal({
     if (!detalheArquivo) return null;
 
     const sentGroupsIds = detalheArquivo.arquivos_grupos?.map((ag) => ag.grupo_id) || [];
-    const sentGroupsNames = grupos.filter((g: any) => sentGroupsIds.includes(g.id)).map((g: any) => g.nome_grupo);
+    const sentGroupsNames = grupos
+        .filter((g: any) => sentGroupsIds.includes(g.id))
+        .map((g: any) => g.nome_grupo);
 
-    const fileType = detalheArquivo?.storage_path?.split('.').pop()?.toLowerCase();
+    const fileType = detalheArquivo?.storage_path?.split(".").pop()?.toLowerCase();
+    const isPdf = detalheArquivo?.storage_path?.endsWith(".pdf");
 
     /**
      * Função responsável por deletar o arquivo do banco de dados.
@@ -70,7 +69,7 @@ export default function FileDetailModal({
                             }
 
                             // Deleta o registro referente a este arquivo na tabela 'arquivos' do Supabase
-                            const {error} = await deletaRegistro({arquivoId: detalheArquivo.id});
+                            const { error } = await deletaRegistro({ arquivoId: detalheArquivo.id });
                             if (error) throw error; // Se a API retornar erro, cai no catch abaixo
 
                             // Mostra alerta de sucesso
@@ -84,12 +83,11 @@ export default function FileDetailModal({
                             console.error(error);
                             Alert.alert("Erro", "Não foi possível deletar o arquivo.");
                         }
-                    }
-                }
+                    },
+                },
             ]
         );
     };
-
 
     /**
      * Função responsável por baixar o arquivo temporariamente no cache e abrir o menu nativo.
@@ -113,7 +111,7 @@ export default function FileDetailModal({
             const authenticatedUrl = await getAuthenticatedDownloadUrl(filePath);
 
             // Prepara o arquivo temporário no cache do celular
-            const fileName = filePath.split('/').pop() || "arquivo";
+            const fileName = filePath.split("/").pop() || "arquivo";
             const localFile = new File(Paths.cache, fileName);
 
             // Baixa o arquivo (a URL já contém o token de acesso)
@@ -129,20 +127,21 @@ export default function FileDetailModal({
 
             // Determina o tipo do arquivo (mimeType) baseado na extensão
             // Isso permite que o sistema saiba qual app usar para abrir
-            const extension = fileName.split('.').pop()?.toLowerCase();
-            const mimeType = extension === 'pdf'
-                ? 'application/pdf'
-                : extension === 'png'
-                    ? 'image/png'
-                    : extension === 'jpg' || extension === 'jpeg'
-                        ? 'image/jpeg'
-                        : 'application/octet-stream'; // Tipo genérico para arquivos desconhecidos
+            const extension = fileName.split(".").pop()?.toLowerCase();
+            const mimeType =
+                extension === "pdf"
+                    ? "application/pdf"
+                    : extension === "png"
+                        ? "image/png"
+                        : extension === "jpg" || extension === "jpeg"
+                            ? "image/jpeg"
+                            : "application/octet-stream"; // Tipo genérico para arquivos desconhecidos
 
             // Abre o arquivo com o visualizador nativo do sistema
-            if (Platform.OS === 'android') {
+            if (Platform.OS === "android") {
                 // No Android, usa o IntentLauncher para disparar o menu "Abrir com..."
                 // Usa a contentUri do arquivo (necessária para permissões no Android)
-                await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+                await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
                     data: downloadedFile.contentUri, // Content URI gerada automaticamente pelo expo-file-system
                     flags: 1, // FLAG_GRANT_READ_URI_PERMISSION — permite que o app externo leia o arquivo
                     type: mimeType,
@@ -151,7 +150,6 @@ export default function FileDetailModal({
                 // No iOS, usa o Sharing como fallback (abre o menu de compartilhamento/visualização)
                 await Sharing.shareAsync(downloadedFile.uri);
             }
-
         } catch (error: any) {
             console.error("Erro ao abrir arquivo:", error);
             Alert.alert("Erro", "Não foi possível abrir o documento no momento.");
@@ -161,7 +159,7 @@ export default function FileDetailModal({
             // Garante que o arquivo seja removido do cache logo após o uso
             // Isso evita que o celular do usuário acumule arquivos temporários
             try {
-                const fileName = filePath?.split('/').pop();
+                const fileName = filePath?.split("/").pop();
                 if (fileName) {
                     const localFile = new File(Paths.cache, fileName);
                     if (localFile.exists) {
@@ -174,91 +172,126 @@ export default function FileDetailModal({
         }
     };
 
-
     return (
-        <View className="flex-1 justify-end" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
-            <View className="w-full bg-slate-900 border-t border-slate-800 rounded-t-[40px] p-8 pb-12">
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.7)" }}>
+            <View
+                style={{
+                    width: "100%",
+                    backgroundColor: HADES.modalBg,
+                    borderTopWidth: 1,
+                    borderColor: HADES.border,
+                    borderTopLeftRadius: 32,
+                    borderTopRightRadius: 32,
+                    paddingHorizontal: 24,
+                    paddingTop: 12,
+                    paddingBottom: 40,
+                }}
+            >
                 {/* Header com Ícone */}
-                <View className="items-center mb-6">
-                    <View className="w-16 h-1 bg-slate-700 rounded-full mb-6" />
+                <View style={{ alignItems: "center", marginBottom: 24 }}>
                     <View
-                        className="w-20 h-20 rounded-3xl items-center justify-center mb-4"
-                        style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
+                        style={{
+                            width: 44,
+                            height: 4,
+                            borderRadius: 2,
+                            backgroundColor: HADES.grip,
+                            marginBottom: 24,
+                        }}
+                    />
+                    <View
+                        style={{
+                            width: 72,
+                            height: 72,
+                            borderRadius: 20,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: 16,
+                            backgroundColor: HADES.accentTint,
+                        }}
                     >
-                        {detalheArquivo?.storage_path?.endsWith(".pdf") ? (
-                            <FileText size={40} color={COLORS.primary} />
+                        {isPdf ? (
+                            <FileText size={38} color={HADES.accentSolid} />
                         ) : (
-                            <ImageIcon size={40} color={COLORS.primary} />
+                            <ImageIcon size={38} color={HADES.accentSolid} />
                         )}
                     </View>
-                    <Text className="text-xl font-bold text-slate-200 text-center">
+                    <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text, textAlign: "center" }}>
                         {detalheArquivo?.titulo}
                     </Text>
-                    <Text className="text-brand-500 font-medium mt-1 text-center">
+                    <Text style={{ fontSize: 14, color: HADES.accentSolid, fontWeight: "600", marginTop: 4, textAlign: "center" }}>
                         {detalheArquivo?.disciplina}
                     </Text>
                 </View>
 
                 {/* Info List */}
-                <View className="bg-slate-800/50 rounded-3xl p-6 gap-4 mb-8">
-                    <View className="flex-row justify-between items-center">
-                        <Text className="text-slate-400">Enviado por</Text>
-                        <Text className="text-slate-200 font-medium">
-                            {detalheArquivo?.profiles?.nome_usuario || "Você"}
-                        </Text>
-                    </View>
-                    <View className="flex-row justify-between items-center border-t border-slate-700 pt-4">
-                        <Text className="text-slate-400">Data de envio</Text>
-                        <Text className="text-slate-200 font-medium">
-                            {detalheArquivo && new Date(detalheArquivo.created_at).toLocaleDateString()}
-                        </Text>
-                    </View>
-                    <View className="flex-row justify-between items-center">
-                        <Text className="text-slate-400">Tipo de Arquivo</Text>
-                        <Text className="text-slate-200 font-medium uppercase">
-                            {fileType}
-                        </Text>
-                    </View>
-                    <View className="flex-row justify-between items-center border-t border-slate-700 pt-4">
-                        <Text className="text-slate-400">ID do Documento</Text>
-                        <Text className="text-slate-200 text-xs font-mono" numberOfLines={1}>
-                            {detalheArquivo?.id?.substring(0, 18)}...
-                        </Text>
-                    </View>
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 20,
+                        padding: 18,
+                        marginBottom: 24,
+                    }}
+                >
+                    <InfoRow label="Enviado por" value={detalheArquivo?.profiles?.nome_usuario || "Você"} />
+                    <InfoRow
+                        label="Data de envio"
+                        value={detalheArquivo ? new Date(detalheArquivo.created_at).toLocaleDateString() : ""}
+                        divider
+                    />
+                    <InfoRow label="Tipo de Arquivo" value={(fileType || "").toUpperCase()} divider />
+                    <InfoRow label="ID do Documento" value={`${detalheArquivo?.id?.substring(0, 18)}...`} divider mono />
 
                     {/* Exibe os grupos se o arquivo foi enviado pelo usuário atual e estiver em algum grupo */}
                     {currentUser?.id === detalheArquivo?.user_id && sentGroupsNames.length > 0 && (
-                        <View className="flex-row justify-between items-center border-t border-slate-700 pt-4">
-                            <Text className="text-slate-400">Enviado para</Text>
-                            <Text className="flex-1 text-right ml-4 text-slate-200 font-medium" numberOfLines={2}>
-                                {sentGroupsNames.join(", ")}
-                            </Text>
-                        </View>
+                        <InfoRow label="Enviado para" value={sentGroupsNames.join(", ")} divider />
                     )}
                 </View>
 
                 {/* Actions */}
-                <View className="flex-row gap-3 mt-2">
+                <View style={{ flexDirection: "row", gap: 10 }}>
                     {/* Botão de Fechar */}
                     <TouchableOpacity
                         onPress={onClose}
-                        className="flex-[1] py-4 bg-slate-800 rounded-2xl items-center border border-slate-700"
+                        activeOpacity={0.8}
+                        style={{
+                            flex: 1,
+                            height: 52,
+                            borderRadius: 14,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: HADES.surfaceOverlay,
+                            borderWidth: 1,
+                            borderColor: HADES.border,
+                        }}
                     >
-                        <Text className="text-slate-200 font-semibold">Fechar</Text>
+                        <Text style={{ color: HADES.textSecondary, fontWeight: "600" }}>Fechar</Text>
                     </TouchableOpacity>
 
                     {/* Botão de Abrir Documento */}
                     <TouchableOpacity
                         onPress={handleOpen}
                         disabled={isOpening}
-                        className={`flex-[2] py-4 rounded-2xl flex-row items-center justify-center gap-2 ${isOpening ? 'bg-brand-400' : 'bg-brand-500'}`}
+                        activeOpacity={0.85}
+                        style={{
+                            flex: 2,
+                            height: 52,
+                            borderRadius: 14,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                            backgroundColor: HADES.accentSolid,
+                            opacity: isOpening ? 0.7 : 1,
+                        }}
                     >
                         {isOpening ? (
-                            <ActivityIndicator color={COLORS.white} size="small" />
+                            <ActivityIndicator color="#000" size="small" />
                         ) : (
                             <>
-                                <FileUp size={20} color={COLORS.white} />
-                                <Text className="text-white font-semibold">Abrir</Text>
+                                <FileUp size={20} color="#000" />
+                                <Text style={{ color: "#000", fontWeight: "700" }}>Abrir</Text>
                             </>
                         )}
                     </TouchableOpacity>
@@ -266,10 +299,20 @@ export default function FileDetailModal({
                     {/* Botão de Deletar condicionalmente exibido */}
                     {currentUser?.id === detalheArquivo?.user_id && (
                         <TouchableOpacity
-                            onPress={handleDelete} // Chama a função que criamos para deletar
-                            className="flex-[1] py-4 bg-red-500/10 rounded-2xl items-center justify-center border border-red-500/20"
+                            onPress={handleDelete}
+                            activeOpacity={0.8}
+                            style={{
+                                flex: 1,
+                                height: 52,
+                                borderRadius: 14,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "rgba(240,85,107,0.10)",
+                                borderWidth: 1,
+                                borderColor: "rgba(240,85,107,0.30)",
+                            }}
                         >
-                            <Trash2 size={24} color={COLORS.rose} />
+                            <Trash2 size={22} color={HADES.red} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -278,3 +321,45 @@ export default function FileDetailModal({
     );
 }
 
+/** Linha de informação (rótulo à esquerda, valor à direita) do sheet de detalhes. */
+function InfoRow({
+    label,
+    value,
+    divider,
+    mono,
+}: {
+    label: string;
+    value: string;
+    divider?: boolean;
+    mono?: boolean;
+}) {
+    return (
+        <View
+            style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                paddingTop: divider ? 14 : 0,
+                marginTop: divider ? 14 : 0,
+                borderTopWidth: divider ? 1 : 0,
+                borderTopColor: HADES.border,
+            }}
+        >
+            <Text style={{ fontSize: 14, color: HADES.textMuted }}>{label}</Text>
+            <Text
+                style={{
+                    flex: 1,
+                    textAlign: "right",
+                    marginLeft: 16,
+                    fontSize: mono ? 12 : 14,
+                    color: HADES.textSecondary,
+                    fontWeight: "500",
+                    fontFamily: mono ? (Platform.OS === "ios" ? "Menlo" : "monospace") : undefined,
+                }}
+                numberOfLines={2}
+            >
+                {value}
+            </Text>
+        </View>
+    );
+}

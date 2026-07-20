@@ -123,7 +123,7 @@ function AvatarMembro({ inicial, cor }: { inicial: string | null; cor: string })
 // ── 1. Horas estudadas — gráfico de área ─────────────────────────────────
 const DIAS_SEMANA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
-export function GraficoArea({ cor }: { cor: string }) {
+ export function GraficoArea({ cor }: { cor: string }) {
     return (
         <View>
             <View className="mb-3.5 flex-row items-end justify-between">
