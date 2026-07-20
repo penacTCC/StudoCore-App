@@ -3,18 +3,20 @@ import { useCallback, useEffect, useState } from "react";
 //Componentes de Native
 import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Crown, Flame, Plus, ChevronRight, ChevronDown, Compass, Users, Settings, SlidersHorizontal, FolderArchive } from "lucide-react-native";
+import { ChevronDown, Users, Settings, FolderArchive } from "lucide-react-native";
 
 //Componentes de Expo
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 
 //Constantes
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 //Componentes
-import { Avatar } from "@/components/ui";
-import SessionCard from "@/components/groups/SessionCard";
+import MetaGrupo from "@/components/grupo/MetaGrupo";
+import RankingGrupo, { LinhaRanking } from "@/components/grupo/RankingGrupo";
+import CardSessaoGrupo, { FeedVazio } from "@/components/grupo/CardSessaoGrupo";
+import MembrosGrupo, { ConviteDestaque, CtaGruposPublicos, MembroCarrossel } from "@/components/grupo/MembrosGrupo";
 
 //Hooks
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
@@ -30,27 +32,13 @@ type LeaderboardFilter = "total" | "semanal" | "mensal" | "anual"
 
 const LEADERBOARD_TABS = [
     // Filtro principal atual, baseado nas horas de estudo do membro.
-    { key: "total", label: "total" },
+    { key: "total", label: "Total" },
 
     // Filtros de período mantidos no layout para a evolução do ranking.
     { key: "semanal", label: "Semana" },
     { key: "mensal", label: "Mês" },
     { key: "anual", label: "Ano" },
 ];
-
-const getRankColor = (rank: number) => {
-    // Primeiro lugar usa dourado para combinar com a borda especial do campeão.
-    if (rank === 1) return COLORS.amber;
-
-    // Segundo lugar usa prata para manter a hierarquia visual clássica do pódio.
-    if (rank === 2) return "#cbd5e1";
-
-    // Terceiro lugar usa bronze para fechar o destaque dos três primeiros colocados.
-    if (rank === 3) return "#fb923c";
-
-    // Demais posições ficam neutras para não competir com o top 3.
-    return COLORS.textMuted;
-};
 
 const formatarMinutos = (totalMinutos: number) => {
     const horas = Math.floor(totalMinutos / 60);
@@ -65,13 +53,14 @@ const formatarMinutos = (totalMinutos: number) => {
 export default function GroupScreen() {
     const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
     const [showLeaderboardFilters, setShowLeaderboardFilters] = useState(false);
+    const [rankingExpandido, setRankingExpandido] = useState(false);
     const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
     const [rankingMembros, setRankingMembros] = useState<RankingMembroComPerfil[]>([])
     const [grupo, setGroup] = useState<Grupo | null>(null)
 
     // Captura os parâmetros recebidos da tela anterior
     const {groupId,} = useLocalSearchParams(); //<- os parametros
-    
+
     useEffect(() => {
         if(!groupId) return
         const loadGroup = async () => {
@@ -161,359 +150,230 @@ export default function GroupScreen() {
     const progressoPercentual = Math.min(Math.round(progressoGrupo * 100), 100)
     const activeLeaderboardFilter = LEADERBOARD_TABS.find((tab) => tab.key === leaderboardFilter);
 
+    // Grupo recém-criado: a tela convida a chamar gente em vez de mostrar um ranking de um.
+    const grupoSozinho = totalMembros <= 1;
+
+    const linhasRanking: LinhaRanking[] = rankingMembros
+        .filter((item) => item.membro)
+        .map((item) => ({
+            userId: item.user_id,
+            nome: item.membro!.userData?.nome_usuario || "Sem nome",
+            foto: item.membro!.userData?.foto_usuario,
+            minutos: item.total_minutos,
+            ofensiva: item.membro!.ofensiva ?? 0,
+            admin: !!item.membro!.administrador,
+            online: onlineUsers.includes(item.user_id),
+            ehVoce: item.user_id === userId,
+        }));
+
+    const membrosCarrossel: MembroCarrossel[] = membros.map((membro) => ({
+        id: membro.id,
+        userId: membro.user_id,
+        nome: membro.userData?.nome_usuario || "Sem nome",
+        foto: membro.userData?.foto_usuario,
+        admin: !!membro.administrador,
+        ofensiva: membro.ofensiva ?? 0,
+        online: onlineUsers.includes(membro.user_id),
+    }));
+
+    const abrirConvite = () =>
+        router.push({
+            pathname: "/invite",
+            params: {
+                grupoId: groupId as string,
+                grupoCode: grupo?.codigo_convite,
+            }
+        });
+
+    const abrirMembro = (userIdMembro: string, administrador: boolean, rank?: number) =>
+        router.push({
+            pathname: "/(modals)/member-profile",
+            params: {
+                userId: userIdMembro,
+                administrador: String(administrador),
+                ...(rank ? { rank: String(rank) } : {}),
+            },
+        });
+
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-                {/* Header */}
-                <View className="bg-slate-950 px-4 pt-4 pb-2">
-                    <View className="flex-row items-center justify-between">
-                        <View className="flex-row items-center gap-4 flex-1 pr-4">
-                            <View className="w-12 h-12 rounded-xl bg-slate-800 items-center justify-center border border-slate-700">
-                                {grupo?.foto_grupo ? (
-                                    <Image source={{ uri: Array.isArray(grupo?.foto_grupo) ? grupo?.foto_grupo[0] : grupo?.foto_grupo }} className="w-full h-full rounded-xl" resizeMode="cover" />
-                                ) : (
-                                    <Users size={28} color={COLORS.textMuted} />
-                                )}
-                            </View>
-                            <View className="flex-1">
-                                <TouchableOpacity
-                                    onPress={() => router.push("/(groups)")}
-                                    className="flex-row items-center"
-                                    activeOpacity={0.7}
-                                >
-                                    <Text
-                                        className="text-2xl font-bold text-slate-200"
-                                        numberOfLines={1}
-                                        style={{ maxWidth: 200 }}
-                                    >
-                                        {grupo?.nome_grupo || "Nome não encontrado"}
-                                    </Text>
-                                    <View className="p-1.5 rounded-full ml-1">
-                                        <ChevronDown size={22} color={COLORS.textMuted} />
-                                    </View>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        <View className="flex-row items-center gap-2">
-                            <TouchableOpacity
-                                onPress={() => router.push("/(tabs)/vault")}
-                                className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 items-center justify-center"
-                                activeOpacity={0.75}
-                            >
-                                <FolderArchive size={20} color={COLORS.textMuted} />
-                            </TouchableOpacity>
-
-                            {isAdmin && (
-                                <TouchableOpacity
-                                    onPress={() =>
-                                        router.push({
-                                            pathname: "/(groups)/settings",
-                                            params: {
-                                                groupId
-                                            }
-                                        })
-                                    }
-                                    className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 items-center justify-center"
-                                    activeOpacity={0.75}
-                                >
-                                    <Settings size={20} color={COLORS.textMuted} />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    </View>
-                </View>
-
-                {/* Gradient Progress Bar */}
-                <View className="px-4 pb-4 border-b border-slate-800 bg-slate-950 mt-5">
-                    <View className="flex-row justify-between items-center mb-2">
-                        <Text className="text-sm text-slate-400 font-medium">Meta do Grupo</Text>
-                        <Text className="text-sm text-emerald-400 font-bold">{progressoPercentual}% Atingida</Text>
-                    </View>
-                    <View className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                        <LinearGradient
-                            colors={["#8b5cf6", "#10b981"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={{ height: "100%", width: `${progressoPercentual}%`, borderRadius: 999 }}
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+            {/* Header */}
+            <View
+                style={{
+                    paddingTop: 4,
+                    paddingHorizontal: 18,
+                    paddingBottom: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                }}
+            >
+                <View
+                    style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        overflow: "hidden",
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    {grupo?.foto_grupo ? (
+                        <Image
+                            source={{ uri: Array.isArray(grupo?.foto_grupo) ? grupo?.foto_grupo[0] : grupo?.foto_grupo }}
+                            style={{ width: "100%", height: "100%" }}
+                            resizeMode="cover"
                         />
-                    </View>
-                </View>
-
-                {/* Leaderboard */}
-                <View className="px-4 mt-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <View className="mb-4">
-                            <View className="flex-row items-center justify-between mb-3">
-                                <View className="flex-1 pr-3">
-                                    <Text className="text-lg font-semibold text-slate-200">Ranking</Text> 
-                                    <Text className="text-xs font-semibold text-slate-400">top 5</Text>                              
-                                </View>
-                                <TouchableOpacity
-                                    onPress={() => setShowLeaderboardFilters((current) => !current)}
-                                    activeOpacity={0.75}
-                                    className="self-start flex-row items-center gap-2 mt-2 px-3 py-2 rounded-full bg-slate-800/70 border border-slate-700"
-                                >
-                                    <SlidersHorizontal size={14} color={COLORS.textSecondary} />
-                                    <Text className="text-xs font-semibold text-slate-300">
-                                        {activeLeaderboardFilter?.label ?? "Filtro"}
-                                    </Text>
-                                    <ChevronDown size={14} color={COLORS.textMuted} />
-                                </TouchableOpacity>
-                            </View>
-
-                            {showLeaderboardFilters && (
-                                <ScrollView
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={{ gap: 8, paddingRight: 4 }}
-                                >
-                                    {LEADERBOARD_TABS.map((tab) => {
-                                        // Identifica o filtro ativo para aplicar destaque visual no chip.
-                                        const isActiveFilter = tab.key === leaderboardFilter;
-
-                                        return (
-                                            <TouchableOpacity
-                                                key={tab.key}
-                                                onPress={() => setLeaderboardFilter(tab.key as LeaderboardFilter)}
-                                                activeOpacity={0.75}
-                                                className={`px-3 py-2 rounded-full border ${isActiveFilter
-                                                    ? "bg-brand-500 border-brand-400"
-                                                    : "bg-slate-800/60 border-slate-700"
-                                                    }`}
-                                            >
-                                                {/* Nome do filtro em formato de chip para suportar muitos critérios. */}
-                                                <Text
-                                                    className={`text-xs font-semibold ${isActiveFilter ? "text-white" : "text-slate-300"
-                                                        }`}
-                                                >
-                                                    {tab.label}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </ScrollView>
-                            )}
-                        </View>
-
-                        <ScrollView
-                            nestedScrollEnabled
-                            showsVerticalScrollIndicator={rankingMembros.length > 5}
-                            style={{ maxHeight: 350 }}
+                    ) : (
+                        <LinearGradient
+                            colors={["#1c2a4a", "#0e1730"]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={{ width: "100%", height: "100%", alignItems: "center", justifyContent: "center" }}
                         >
-                            {rankingMembros.map((item, index) => {
-                                const member = item.membro;
-
-                                if (!member) return null;
-
-                                // Usa a posição da lista já ordenada pela RPC para definir o rank.
-                                const memberRank = index + 1;
-
-                                // Define se a linha recebe o destaque visual do primeiro colocado.
-                                const isFirstPlace = memberRank === 1;
-
-                                // Calcula a cor do número para diferenciar 1º, 2º e 3º lugar.
-                                const rankColor = getRankColor(memberRank);
-
-                                return (
-                                    <TouchableOpacity
-                                        key={item.user_id}
-                                        onPress={() => router.push({
-                                            pathname: "/(modals)/member-profile",
-                                            params: {
-                                                userId: member.user_id,
-                                                administrador: String(!!member.administrador),
-                                                rank: String(memberRank),
-                                            },
-                                        })}
-                                        className={`flex-row items-center gap-3 p-3 rounded-2xl mb-2 ${isFirstPlace ? "" : "bg-slate-800/30"}`}
-                                        style={
-                                            isFirstPlace
-                                                ? {
-                                                    backgroundColor: "rgba(245, 158, 11, 0.28)",
-                                                    borderWidth: 2,
-                                                    borderColor: COLORS.amber,
-                                                    shadowColor: COLORS.amber,
-                                                    shadowOffset: { width: 0, height: 0 },
-                                                    shadowOpacity: 0.4,
-                                                    shadowRadius: 10,
-                                                    elevation: 5,
-                                                }
-                                                : undefined
-                                        }
-                                    >
-                                        {/* Número do ranking posicionado à esquerda do avatar. */}
-                                        <View className="w-8 items-center justify-center">
-                                            {isFirstPlace && (
-                                                <View className="absolute -top-3 z-10">
-                                                    <Crown size={14} color={COLORS.amber} />
-                                                </View>
-                                            )}
-                                            <Text className="text-base font-bold" style={{ color: rankColor }}>
-                                                #{memberRank}
-                                            </Text>
-                                        </View>
-
-                                        {/* Avatar do membro com indicador online. */}
-                                        <Avatar
-                                            foto={member.userData?.foto_usuario}
-                                            nome={member.userData?.nome_usuario}
-                                            size={40}
-                                            showOnlineDot={onlineUsers.includes(member.user_id)}
-                                        />
-
-                                        {/* Informações principais do membro no ranking. */}
-                                        <View className="flex-1">
-                                            <Text
-                                                className={`font-medium ${isFirstPlace ? "text-amber-400" : "text-slate-200"
-                                                    }`}
-                                            >
-                                                {member.userData?.nome_usuario || "Sem nome"}
-                                            </Text>
-                                            <Text className="text-xs text-slate-400">
-                                                {formatarMinutos(item.total_minutos)}
-                                            </Text>
-                                        </View>
-
-                                        {/* Ofensiva e selo de administrador do membro. */}
-                                        <View className="flex-row items-center gap-1">
-                                            <Flame size={14} color={COLORS.emeraldLight} />
-                                            <Text className="text-sm font-bold text-emerald-400">
-                                                {member.ofensiva ?? 0}
-                                            </Text>
-                                            {member.administrador ? (
-                                                <Text className="text-xs font-bold text-amber-400">ADM</Text>
-                                            ) : null}
-                                        </View>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-                    </View>
+                            <Users size={22} color={HADES.subjectBlue} />
+                        </LinearGradient>
+                    )}
                 </View>
 
-                {/* Live Feed */}
-                <View className="px-4 mt-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-lg font-semibold text-slate-200">Atividades ao vivo</Text>
-                            <TouchableOpacity
-                                className="flex-row items-center gap-1"
-                                onPress={() => router.push({ pathname: "/detailing", params: { groupId: groupId as string } })}
-                            >
-                                <Text className="text-sm text-violet-400">Ver tudo</Text>
-                                <ChevronRight size={16} color={COLORS.violetLight} />
-                            </TouchableOpacity>
-                        </View>
-
-                        {loadingSessions ? (
-                            <Text className="text-sm text-slate-500 text-center py-4">Carregando...</Text>
-                        ) : sessions.length === 0 ? (
-                            <Text className="text-sm text-slate-500 text-center py-4">Nenhuma sessão registrada ainda.</Text>
-                        ) : (
-                            sessions.slice(0, 2).map((session, index) => (
-                                <SessionCard
-                                    key={session.id}
-                                    session={session}
-                                    colorIndex={index}
-                                />
-                            ))
-                        )}
-                    </View>
-                </View>
-
-                {/* Members */}
-                <View className="px-4 mt-4">
-                    <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                        <View className="flex-row items-center justify-between mb-3">
-                            <Text className="text-lg font-semibold text-slate-200">Membros</Text>
-                            <TouchableOpacity
-                                onPress={() => router.push({ 
-                                    pathname: "/invite", 
-                                    params: 
-                                    { 
-                                        grupoId: groupId as string, 
-                                        grupoCode: grupo?.codigo_convite,
-                                    } 
-                                })}
-                                className="flex-row items-center gap-1 bg-brand-500 px-3 py-1.5 rounded-lg"
-                            >
-                                <Plus size={16} color={COLORS.white} />
-                                <Text className="text-white text-xs font-medium">Convidar</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={{ gap: 14, paddingRight: 4, marginTop: 15 }}
-                        >
-                            {membros.map((member) => (
-                                <TouchableOpacity
-                                    key={member.id}
-                                    onPress={() => router.push({
-                                        pathname: "/(modals)/member-profile",
-                                        params: {
-                                            userId: member.user_id,
-                                            administrador: String(!!member.administrador),
-                                        },
-                                    })}
-                                    activeOpacity={0.75}
-                                    className="items-center w-20"
-                                >
-                                    {/* Foto circular do membro no carrossel horizontal. */}
-                                    <View className="relative mb-2">
-                                        <Avatar
-                                            foto={member.userData?.foto_usuario}
-                                            nome={member.userData?.nome_usuario}
-                                            size={56}
-                                            showOnlineDot={onlineUsers.includes(member.user_id)}
-                                        />
-
-                                        {/* Sinaliza administradores sem ocupar espaço no nome. */}
-                                        {member.administrador ? (
-                                            <View className="absolute -top-1 -right-1 bg-amber-500 rounded-full px-1.5 py-0.5 border border-slate-900">
-                                                <Text className="text-[9px] font-bold text-slate-950">ADM</Text>
-                                            </View>
-                                        ) : null}
-
-                                        {/* Destaca membros com ofensiva alta com o ícone de fogo. */}
-                                        {(member.ofensiva ?? 0) >= 10 && (
-                                            <View className="absolute -bottom-1 -right-1 bg-slate-900 rounded-full p-1 border border-slate-800">
-                                                <Flame size={12} color={COLORS.emeraldLight} />
-                                            </View>
-                                        )}
-                                    </View>
-
-                                    {/* Nome curto abaixo da bolinha para manter o carrossel limpo. */}
-                                    <Text className="text-xs text-slate-200 text-center" numberOfLines={1}>
-                                        {member.userData?.nome_usuario || "Sem nome"}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-                </View>
-
-                {/* Browse Groups CTA */}
-                <View className="px-4 mt-4 mb-6">
-                    <TouchableOpacity
-                        onPress={() => router.push("/browse-groups")}
-                        className="flex-row items-center gap-4 p-4 rounded-2xl border border-brand-500/30"
-                        style={{ backgroundColor: "rgba(247, 152, 44, 0.1)" }}
+                <TouchableOpacity
+                    onPress={() => router.push("/(groups)")}
+                    activeOpacity={0.7}
+                    style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                    <Text
+                        style={{ fontSize: 21, fontWeight: "700", color: HADES.text, letterSpacing: -0.3, flexShrink: 1 }}
+                        numberOfLines={1}
                     >
-                        <View
-                            className="w-12 h-12 rounded-xl items-center justify-center"
-                            style={{ backgroundColor: "rgba(247, 152, 44, 0.15)" }}
-                        >
-                            <Compass size={24} color={COLORS.violetLight} />
-                        </View>
-                        <View className="flex-1">
-                            <Text className="font-medium text-slate-200">Grupos Públicos</Text>
-                            <Text className="text-xs text-slate-400">Encontre e entre em grupos de estudo</Text>
-                        </View>
-                        <ChevronRight size={20} color={COLORS.violetLight} />
+                        {grupo?.nome_grupo || "Nome não encontrado"}
+                    </Text>
+                    <ChevronDown size={18} color={HADES.textMuted} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() => router.push("/(tabs)/vault")}
+                    activeOpacity={0.8}
+                    style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: HADES.surfaceRaised,
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    <FolderArchive size={18} color={HADES.textSecondary} />
+                </TouchableOpacity>
+
+                {isAdmin && (
+                    <TouchableOpacity
+                        onPress={() =>
+                            router.push({
+                                pathname: "/(groups)/settings",
+                                params: {
+                                    groupId
+                                }
+                            })
+                        }
+                        activeOpacity={0.8}
+                        style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 19,
+                            backgroundColor: HADES.surfaceRaised,
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <Settings size={18} color={HADES.textSecondary} />
                     </TouchableOpacity>
+                )}
+            </View>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20 }}
+                showsVerticalScrollIndicator={false}
+            >
+                {grupoSozinho && <ConviteDestaque onConvidar={abrirConvite} />}
+
+                <MetaGrupo
+                    percentual={progressoPercentual}
+                    horasFeitas={horasSemanaGrupo}
+                    metaTotal={metaTotalGrupo}
+                    metaPorMembro={metaPorMembro}
+                />
+
+                <RankingGrupo
+                    linhas={linhasRanking}
+                    filtros={LEADERBOARD_TABS}
+                    filtroAtivo={leaderboardFilter}
+                    filtrosAbertos={showLeaderboardFilters}
+                    rotuloFiltro={activeLeaderboardFilter?.label ?? "Filtro"}
+                    expandido={rankingExpandido}
+                    formatarMinutos={formatarMinutos}
+                    onToggleFiltros={() => setShowLeaderboardFilters((current) => !current)}
+                    onSelecionarFiltro={(key) => setLeaderboardFilter(key as LeaderboardFilter)}
+                    onToggleExpandir={() => setRankingExpandido((current) => !current)}
+                    onAbrirMembro={(linha, rank) => abrirMembro(linha.userId, linha.admin, rank)}
+                />
+
+                {/* Atividades ao vivo */}
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginTop: 22,
+                        marginBottom: 12,
+                    }}
+                >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <Text
+                            style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}
+                        >
+                            Atividades
+                        </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                            <View
+                                style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.green }}
+                            />
+                            <Text style={{ fontSize: 11, color: HADES.green, fontWeight: "600" }}>ao vivo</Text>
+                        </View>
+                    </View>
+
+                    {sessions.length > 0 && (
+                        <TouchableOpacity
+                            onPress={() => router.push({ pathname: "/detailing", params: { groupId: groupId as string } })}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>
+                                Ver tudo
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
+
+                <View style={{ gap: 10, marginBottom: 22 }}>
+                    {loadingSessions ? (
+                        <FeedVazio carregando />
+                    ) : sessions.length === 0 ? (
+                        <FeedVazio />
+                    ) : (
+                        sessions.slice(0, 2).map((session) => (
+                            <CardSessaoGrupo key={session.id} sessao={session} />
+                        ))
+                    )}
+                </View>
+
+                <MembrosGrupo
+                    membros={membrosCarrossel}
+                    onConvidar={abrirConvite}
+                    onAbrirMembro={(membro) => abrirMembro(membro.userId, membro.admin)}
+                />
+
+                <CtaGruposPublicos onPress={() => router.push("/browse-groups")} />
             </ScrollView>
         </SafeAreaView>
     );

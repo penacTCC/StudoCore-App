@@ -5,7 +5,7 @@ import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Sh
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { useAuth } from "@/hooks/useAuth";
 import { SessaoFocoRow } from "@/types/sessions";
@@ -166,51 +166,88 @@ export default function BrainScreen() {
     }, [savedSessions, pendingSessions, weekStartsOn, ofensivaReal]);
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={["top"]}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
             {/* Header */}
-            <View className="bg-slate-950 px-4 py-3">
-                <Text className="text-xl font-bold text-slate-200">
-                    {brainTab === "analytics" ? "Central de análises" : "Central de aprendizado"}
+            <View style={{ paddingTop: 6, paddingHorizontal: 20, paddingBottom: 14 }}>
+                <Text style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
+                    {brainTab === "analytics" ? "Análise" : "Central de aprendizado"}
                 </Text>
             </View>
 
             {/* Tabs */}
-            <View className="px-4 py-3">
-                <View className="flex-row w-full">
-                    {BRAIN_TABS.map((tab) => (
-                        <TouchableOpacity
-                            key={tab.key}
-                            onPress={() => setBrainTab(tab.key as BrainTab)}
-                            className={`flex-1 items-center pb-2 border-b-2 ${brainTab === tab.key ? "border-brand-500" : "border-transparent"}`}
-                        >
-                            <Text
-                                className={`text-sm font-medium ${brainTab === tab.key ? "text-white" : "text-slate-400"}`}
+            <View style={{ paddingHorizontal: 20, paddingBottom: 18 }}>
+                <View style={{ flexDirection: "row", width: "100%" }}>
+                    {BRAIN_TABS.map((tab) => {
+                        const ativa = brainTab === tab.key;
+                        return (
+                            <TouchableOpacity
+                                key={tab.key}
+                                onPress={() => setBrainTab(tab.key as BrainTab)}
+                                activeOpacity={0.7}
+                                style={{
+                                    flex: 1,
+                                    alignItems: "center",
+                                    paddingBottom: 8,
+                                    borderBottomWidth: 2,
+                                    borderBottomColor: ativa ? HADES.accentSolid : "transparent",
+                                }}
                             >
-                                {tab.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                                <Text
+                                    style={{
+                                        fontSize: 14,
+                                        fontWeight: "500",
+                                        color: ativa ? HADES.text : HADES.textFaint,
+                                    }}
+                                >
+                                    {tab.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
             </View>
 
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
                 {/* ── DATABASE ─────────────────────────────────── */}
                 {brainTab === "database" && (
-                    <View className="px-4 pb-4 gap-4">
+                    <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 16 }}>
                         {/* Formulários Pendentes */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                            <View className="flex-row items-center justify-between mb-4">
-                                <Text className="text-lg font-semibold text-slate-200">
-                                    Formulários Pendentes
-                                </Text>
-                                <View
-                                    className="px-2 py-1 rounded-lg"
-                                    style={{ backgroundColor: "rgba(244, 63, 94, 0.2)" }}
+                        <View
+                            style={{
+                                backgroundColor: HADES.surface,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                borderRadius: 16,
+                                padding: 16,
+                            }}
+                        >
+                            <View
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    marginBottom: 16,
+                                }}
+                            >
+                                <Text
+                                    style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}
                                 >
-                                    <Text className="text-xs font-medium text-rose-400">
-                                        {pendingSessions.length} para refazer
-                                    </Text>
-                                </View>
+                                    Formulários pendentes
+                                </Text>
+                                <Text
+                                    style={{
+                                        fontSize: 11,
+                                        fontWeight: "600",
+                                        color: HADES.red,
+                                        backgroundColor: "rgba(240,85,107,0.12)",
+                                        borderRadius: 7,
+                                        paddingVertical: 4,
+                                        paddingHorizontal: 8,
+                                        overflow: "hidden",
+                                    }}
+                                >
+                                    {pendingSessions.length} para refazer
+                                </Text>
                             </View>
 
                             {pendingSessions.length > 0 ? (
@@ -218,26 +255,53 @@ export default function BrainScreen() {
                                     <TouchableOpacity
                                         key={form.id}
                                         onPress={() => setSelectedForm(form)}
-                                        activeOpacity={0.7}
-                                        className="p-4 rounded-xl mb-3 flex-row items-center border"
-                                        style={{ backgroundColor: "rgba(30, 41, 59, 0.5)", borderColor: "rgba(244, 63, 94, 0.3)" }}
+                                        activeOpacity={0.75}
+                                        style={{
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            gap: 12,
+                                            padding: 14,
+                                            borderRadius: 13,
+                                            marginBottom: 10,
+                                            backgroundColor: HADES.bg,
+                                            borderWidth: 1,
+                                            borderColor: "rgba(240,85,107,0.3)",
+                                        }}
                                     >
-                                        <View className="w-10 h-10 rounded-full bg-rose-500/20 items-center justify-center mr-3">
-                                            <AlertCircle size={20} color={COLORS.rose} />
+                                        <View
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                borderRadius: 20,
+                                                backgroundColor: "rgba(240,85,107,0.12)",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                            }}
+                                        >
+                                            <AlertCircle size={20} color={HADES.red} />
                                         </View>
-                                        <View className="flex-1">
-                                            <Text className="text-sm font-semibold text-slate-200">{form.disciplina}</Text>
-                                            <Text className="text-xs text-slate-400 mt-1" numberOfLines={1}>{form.conteudo_especifico}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>
+                                                {form.disciplina}
+                                            </Text>
+                                            <Text
+                                                style={{ fontSize: 12, color: HADES.textFaint, marginTop: 2 }}
+                                                numberOfLines={1}
+                                            >
+                                                {form.conteudo_especifico}
+                                            </Text>
                                         </View>
-                                        <ChevronRight size={16} color={COLORS.textMuted} />
+                                        <ChevronRight size={16} color={HADES.textFaint} />
                                     </TouchableOpacity>
                                 ))
                             ) : (
-                                <View className="items-center py-6">
-                                    <Text className="text-sm font-medium text-emerald-400 mb-1">
+                                <View style={{ alignItems: "center", paddingVertical: 24 }}>
+                                    <Text
+                                        style={{ fontSize: 14, fontWeight: "600", color: HADES.green, marginBottom: 4 }}
+                                    >
                                         Nenhuma pendência 🎉
                                     </Text>
-                                    <Text className="text-xs text-slate-500 text-center">
+                                    <Text style={{ fontSize: 12, color: HADES.textDim, textAlign: "center" }}>
                                         Você está em dia com seus estudos!
                                     </Text>
                                 </View>
@@ -245,19 +309,42 @@ export default function BrainScreen() {
                         </View>
 
                         {/* Formulários Salvos */}
-                        <View className="bg-slate-900 border border-slate-800 rounded-3xl p-4">
-                            <View className="flex-row items-center justify-between mb-4">
-                                <Text className="text-lg font-semibold text-slate-200">
-                                    Formulários Salvos
-                                </Text>
-                                <View
-                                    className="px-2 py-1 rounded-lg"
-                                    style={{ backgroundColor: "rgba(16, 185, 129, 0.2)" }}
+                        <View
+                            style={{
+                                backgroundColor: HADES.surface,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                borderRadius: 16,
+                                padding: 16,
+                            }}
+                        >
+                            <View
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    marginBottom: 16,
+                                }}
+                            >
+                                <Text
+                                    style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}
                                 >
-                                    <Text className="text-xs font-medium text-emerald-400">
-                                        {savedSessions.length} salvos
-                                    </Text>
-                                </View>
+                                    Formulários salvos
+                                </Text>
+                                <Text
+                                    style={{
+                                        fontSize: 11,
+                                        fontWeight: "600",
+                                        color: HADES.green,
+                                        backgroundColor: "rgba(48,209,88,0.12)",
+                                        borderRadius: 7,
+                                        paddingVertical: 4,
+                                        paddingHorizontal: 8,
+                                        overflow: "hidden",
+                                    }}
+                                >
+                                    {savedSessions.length} salvos
+                                </Text>
                             </View>
 
                             {savedSessions.length > 0 ? (
@@ -265,22 +352,48 @@ export default function BrainScreen() {
                                     <TouchableOpacity
                                         key={form.id}
                                         onPress={() => setSelectedForm(form)}
-                                        activeOpacity={0.7}
-                                        className="p-4 rounded-xl mb-3 flex-row items-center border border-slate-800 bg-slate-800/50"
+                                        activeOpacity={0.75}
+                                        style={{
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            gap: 12,
+                                            padding: 14,
+                                            borderRadius: 13,
+                                            marginBottom: 10,
+                                            backgroundColor: HADES.bg,
+                                            borderWidth: 1,
+                                            borderColor: "rgba(255,255,255,0.07)",
+                                        }}
                                     >
-                                        <View className="w-10 h-10 rounded-full bg-emerald-500/20 items-center justify-center mr-3">
-                                            <BookOpen size={20} color={COLORS.emerald} />
+                                        <View
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                borderRadius: 20,
+                                                backgroundColor: "rgba(48,209,88,0.12)",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                            }}
+                                        >
+                                            <BookOpen size={20} color={HADES.green} />
                                         </View>
-                                        <View className="flex-1">
-                                            <Text className="text-sm font-semibold text-slate-200">{form.disciplina}</Text>
-                                            <Text className="text-xs text-slate-400 mt-1" numberOfLines={1}>{form.conteudo_especifico}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>
+                                                {form.disciplina}
+                                            </Text>
+                                            <Text
+                                                style={{ fontSize: 12, color: HADES.textFaint, marginTop: 2 }}
+                                                numberOfLines={1}
+                                            >
+                                                {form.conteudo_especifico}
+                                            </Text>
                                         </View>
-                                        <ChevronRight size={16} color={COLORS.textMuted} />
+                                        <ChevronRight size={16} color={HADES.textFaint} />
                                     </TouchableOpacity>
                                 ))
                             ) : (
-                                <View className="items-center py-6">
-                                    <Text className="text-xs text-slate-500 text-center">
+                                <View style={{ alignItems: "center", paddingVertical: 24 }}>
+                                    <Text style={{ fontSize: 12, color: HADES.textDim, textAlign: "center" }}>
                                         Nenhum formulário salvo ainda.
                                     </Text>
                                 </View>
@@ -322,31 +435,31 @@ export default function BrainScreen() {
 
                         {escopoAnalise === "grupo" ? (
                             <View className="gap-5">
-                                <CabecalhoGrupo cor={COLORS.primary} />
+                                <CabecalhoGrupo cor={HADES.accentSolid} />
                                 <MetaSemanalGrupo />
-                                <RankingHorasGrupo cor={COLORS.primary} />
+                                <RankingHorasGrupo cor={HADES.accentSolid} />
 
                                 <View className="flex-row gap-[10px]">
                                     <MateriaMaisEstudadaGrupo />
-                                    <MembrosAtivosGrupo cor={COLORS.primary} />
+                                    <MembrosAtivosGrupo cor={HADES.accentSolid} />
                                 </View>
 
-                                <EvolucaoGrupo cor={COLORS.primary} />
+                                <EvolucaoGrupo cor={HADES.accentSolid} />
                                 <QuestoesPorMembroGrupo />
                             </View>
                         ) : (
                             <View className="gap-5">
-                                <GraficoArea cor={COLORS.primary} />
+                                <GraficoArea cor={HADES.accentSolid} />
 
                                 <View className="flex-row gap-[10px]">
                                     <CartaoMetrica icone={Timer} rotulo="SESSÃO MÉDIA" valor="1h 42m" legenda="por sessão" />
                                     <CartaoMetrica icone={Layers} rotulo="Nº SESSÕES" valor="17" legenda="esta semana" />
                                 </View>
 
-                                <GraficoComparativoSemanal cor={COLORS.primary} />
+                                <GraficoComparativoSemanal cor={HADES.accentSolid} />
                                 <GraficoDonutMaterias />
                                 <BarraTaxaAcerto />
-                                <GraficoDiaSemana cor={COLORS.primary} />
+                                <GraficoDiaSemana cor={HADES.accentSolid} />
                                 <GraficoOfensiva />
                             </View>
                         )}
@@ -360,24 +473,70 @@ export default function BrainScreen() {
                     className="flex-1 justify-end"
                     style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
                 >
-                    <View className="w-full bg-slate-900 border-t border-slate-800 rounded-t-3xl p-6 pb-8">
+                    <View
+                        style={{
+                            width: "100%",
+                            backgroundColor: HADES.surface,
+                            borderTopWidth: 1,
+                            borderTopColor: "rgba(255,255,255,0.08)",
+                            borderTopLeftRadius: 24,
+                            borderTopRightRadius: 24,
+                            padding: 24,
+                            paddingBottom: 32,
+                        }}
+                    >
                         {/* Header */}
-                        <View className="flex-row items-center justify-between mb-6">
-                            <View className="flex-row items-center flex-1">
-                                <View className={`w-12 h-12 rounded-full items-center justify-center mr-4 ${selectedForm?.status === 'pendente' ? 'bg-rose-500/20' : 'bg-emerald-500/20'}`}>
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                marginBottom: 24,
+                            }}
+                        >
+                            <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 16 }}>
+                                <View
+                                    style={{
+                                        width: 48,
+                                        height: 48,
+                                        borderRadius: 24,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        backgroundColor:
+                                            selectedForm?.status === 'pendente'
+                                                ? "rgba(240,85,107,0.12)"
+                                                : "rgba(48,209,88,0.12)",
+                                    }}
+                                >
                                     {selectedForm?.status === 'pendente' ? (
-                                        <AlertCircle size={24} color={COLORS.rose} />
+                                        <AlertCircle size={24} color={HADES.red} />
                                     ) : (
-                                        <BookOpen size={24} color={COLORS.emerald} />
+                                        <BookOpen size={24} color={HADES.green} />
                                     )}
                                 </View>
-                                <View className="flex-1">
-                                    <Text className="text-xl font-bold text-slate-100 mb-1">{selectedForm?.disciplina}</Text>
-                                    <Text className="text-sm text-slate-400" numberOfLines={2}>{selectedForm?.conteudo_especifico}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text
+                                        style={{ fontSize: 19, fontWeight: "700", color: HADES.text, marginBottom: 3 }}
+                                    >
+                                        {selectedForm?.disciplina}
+                                    </Text>
+                                    <Text style={{ fontSize: 13, color: HADES.textMuted }} numberOfLines={2}>
+                                        {selectedForm?.conteudo_especifico}
+                                    </Text>
                                 </View>
                             </View>
-                            <TouchableOpacity onPress={() => setSelectedForm(null)} className="p-2 bg-slate-800 rounded-full">
-                                <X size={20} color={COLORS.textMuted} />
+                            <TouchableOpacity
+                                onPress={() => setSelectedForm(null)}
+                                style={{
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: 15,
+                                    backgroundColor: HADES.surfaceOverlay,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                <X size={16} color={HADES.textSecondary} />
                             </TouchableOpacity>
                         </View>
 
@@ -400,10 +559,21 @@ export default function BrainScreen() {
                                         }
                                     });
                                 }}
-                                className="flex-row items-center justify-center gap-2 py-4 rounded-xl bg-violet-600"
+                                activeOpacity={0.85}
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 8,
+                                    height: 52,
+                                    borderRadius: 14,
+                                    backgroundColor: HADES.accentSolid,
+                                }}
                             >
-                                <Clock size={20} color={COLORS.white} />
-                                <Text className="text-white font-semibold text-lg">Sessão de revisão</Text>
+                                <Clock size={20} color="#000" />
+                                <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>
+                                    Sessão de revisão
+                                </Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -423,18 +593,41 @@ export default function BrainScreen() {
                                         }
                                     });
                                 }}
-                                className="flex-row items-center justify-center gap-2 py-4 rounded-xl bg-slate-800 border border-slate-700"
+                                activeOpacity={0.85}
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 8,
+                                    height: 52,
+                                    borderRadius: 14,
+                                    backgroundColor: HADES.surfaceRaised,
+                                    borderWidth: 1,
+                                    borderColor: "rgba(255,255,255,0.10)",
+                                }}
                             >
-                                <RefreshCw size={20} color="#cbd5e1" />
-                                <Text className="font-semibold text-lg" style={{ color: "#cbd5e1" }}>Refazer agora</Text>
+                                <RefreshCw size={20} color={HADES.textSecondary} />
+                                <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.textSecondary }}>
+                                    Refazer agora
+                                </Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
                                 onPress={() => setSelectedForm(null)}
-                                className="flex-row items-center justify-center gap-2 py-4 mt-2"
+                                activeOpacity={0.7}
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 8,
+                                    paddingVertical: 14,
+                                    marginTop: 4,
+                                }}
                             >
-                                <ArrowLeft size={20} color={COLORS.textMuted} />
-                                <Text className="text-slate-400 font-medium text-base">Voltar</Text>
+                                <ArrowLeft size={20} color={HADES.textMuted} />
+                                <Text style={{ fontSize: 15, fontWeight: "500", color: HADES.textMuted }}>
+                                    Voltar
+                                </Text>
                             </TouchableOpacity>
                         </View>
                     </View>

@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import { Users, Timer, Brain, User, CalendarDays } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
+import { HADES } from "@/constants/hades";
 
 export default function TabLayout() {
     return (
@@ -8,18 +8,21 @@ export default function TabLayout() {
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {
-                    backgroundColor: "#0f172a", // slate-950
-                    borderTopColor: "#1e293b", // slate-800
+                    backgroundColor: HADES.bg,
+                    borderTopColor: HADES.border,
                     borderTopWidth: 1,
-                    height: 70,
-                    paddingBottom: 10,
-                    paddingTop: 8,
+                    height: 78,
+                    paddingTop: 11,
+                    paddingBottom: 12,
                 },
-                tabBarActiveTintColor: COLORS.primary,
-                tabBarInactiveTintColor: COLORS.textMuted,
+                tabBarActiveTintColor: HADES.accentSolid,
+                tabBarInactiveTintColor: HADES.textFaint,
                 tabBarLabelStyle: {
-                    fontSize: 11,
+                    fontSize: 10.5,
                     fontWeight: "600",
+                },
+                tabBarIconStyle: {
+                    marginBottom: 5,
                 },
             }}
         >
@@ -27,8 +30,8 @@ export default function TabLayout() {
                 name="index"
                 options={{
                     title: "Grupos",
-                    tabBarIcon: ({ color, size }) => (
-                        <Users size={size} color={color} />
+                    tabBarIcon: ({ color }) => (
+                        <Users size={22} color={color} />
                     ),
                 }}
             />
@@ -36,8 +39,8 @@ export default function TabLayout() {
                 name="schedule"
                 options={{
                     title: "Cronograma",
-                    tabBarIcon: ({ color, size }) => (
-                        <CalendarDays size={size} color={color} />
+                    tabBarIcon: ({ color }) => (
+                        <CalendarDays size={22} color={color} />
                     ),
                 }}
             />
@@ -45,8 +48,8 @@ export default function TabLayout() {
                 name="focus"
                 options={{
                     title: "Foco",
-                    tabBarIcon: ({ color, size }) => (
-                        <Timer size={size} color={color} />
+                    tabBarIcon: ({ color }) => (
+                        <Timer size={22} color={color} />
                     ),
                 }}
             />
@@ -54,8 +57,8 @@ export default function TabLayout() {
                 name="brain"
                 options={{
                     title: "Análise",
-                    tabBarIcon: ({ color, size }) => (
-                        <Brain size={size} color={color} />
+                    tabBarIcon: ({ color }) => (
+                        <Brain size={22} color={color} />
                     ),
                 }}
             />
@@ -66,8 +69,8 @@ export default function TabLayout() {
                 name="profile"
                 options={{
                     title: "Perfil",
-                    tabBarIcon: ({ color, size }) => (
-                        <User size={size} color={color} />
+                    tabBarIcon: ({ color }) => (
+                        <User size={22} color={color} />
                     ),
                 }}
             />

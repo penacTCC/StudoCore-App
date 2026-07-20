@@ -2,11 +2,12 @@ import { View, Text } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { useState } from 'react';
 import { SplashScreen } from 'expo-router';
+import { HADES } from '@/constants/hades';
 
 export function LoadingScreen() {
   const [isAnimationDone, setIsAnimationDone] = useState(false);
   return (
-    <View className="flex-1 bg-slate-950 items-center justify-center">
+    <View style={{ flex: 1, backgroundColor: HADES.bg, alignItems: 'center', justifyContent: 'center' }}>
       <LottieView
         source={require('../../assets/animations/Book Loader.json')}
         autoPlay

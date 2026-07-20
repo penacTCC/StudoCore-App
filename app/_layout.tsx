@@ -10,6 +10,7 @@ import { useAuthState } from "@/hooks/useAuthState";
 import { useStatusMembroGrupo } from "@/hooks/useStatusMembroGrupo";
 import { useRouteGuard } from "@/hooks/useRoutGuard";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { HADES } from "@/constants/hades";
 import MedalAlert from "@/components/MedalAlert";
 import { validarSessaoPorTokens } from "@/services/auth";
 
@@ -82,13 +83,13 @@ export default function RootLayout() {
     if (!isInitialized || processandoLinkAuth) return <LoadingScreen />
     return (
         <SafeAreaProvider>
-            <View className="flex-1 bg-slate-950">
+            <View style={{ flex: 1, backgroundColor: HADES.bg }}>
                 <StatusBar style="light" />
                 <MedalAlert />
                 <Stack
                     screenOptions={{
                         headerShown: false,
-                        contentStyle: { backgroundColor: "#020617" },
+                        contentStyle: { backgroundColor: HADES.bg },
                         animation: "fade",
                     }}
                 >
