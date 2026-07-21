@@ -5,293 +5,338 @@ import {
     View,
     Text,
     TouchableOpacity,
-    Dimensions,
     Animated,
     StatusBar,
-    Image
+    Image,
+    ActivityIndicator,
 } from "react-native";
+
+//Safe area
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+//SVG (glow radial)
+import Svg, { Defs, RadialGradient, Stop, Circle } from "react-native-svg";
 
 //Componentes do Expo Router
 import { router } from "expo-router";
 
-//Componentes do Lucide React Native
-import { Sparkles, Brain, Users } from "lucide-react-native";
+//Ícones
+import { BrainCircuit, Sparkles, Users } from "lucide-react-native";
 
-//Componentes da Aplicação
-import { COLORS } from "@/constants/colors";
+//Tokens do design system HADES
+import { HADES } from "@/constants/hades";
 
-const { width: W, height: H } = Dimensions.get("window");
+//Hooks da Aplicação
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 
-// ── Animated floating card ────────────────────────────────────────────────────
-function FloatingCard({
+// ── Card de pilar flutuante ───────────────────────────────────────────────────
+function FloatingPillar({
     icon,
-    label,
-    color,
+    title,
+    subtitle,
+    tint,
     delay,
+    duration,
+    drift,
     top,
     left,
+    right,
+    width,
 }: {
     icon: React.ReactNode;
-    label: string;
-    color: string;
+    title: string;
+    subtitle: string;
+    tint: string;
     delay: number;
+    duration: number;
+    drift: number;
     top: number;
-    left: number;
+    left?: number | string;
+    right?: number | string;
+    width: string;
 }) {
     const anim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        Animated.loop(
+        const loop = Animated.loop(
             Animated.sequence([
                 Animated.delay(delay),
                 Animated.timing(anim, {
-                    toValue: -10,
-                    duration: 1800,
+                    toValue: 1,
+                    duration,
                     useNativeDriver: true,
                 }),
                 Animated.timing(anim, {
                     toValue: 0,
-                    duration: 1800,
+                    duration,
                     useNativeDriver: true,
                 }),
             ])
-        ).start();
+        );
+        loop.start();
+        return () => loop.stop();
     }, []);
+
+    const translateY = anim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, drift],
+    });
 
     return (
         <Animated.View
             style={{
                 position: "absolute",
                 top,
-                left,
-                transform: [{ translateY: anim }],
-                backgroundColor: "rgba(255,255,255,0.06)",
-                borderRadius: 16,
+                left: left as any,
+                right: right as any,
+                width: width as any,
+                transform: [{ translateY }],
+                backgroundColor: HADES.surface,
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.1)",
-                padding: 12,
+                borderColor: HADES.border,
+                borderRadius: 16,
+                paddingVertical: 13,
+                paddingHorizontal: 14,
+                flexDirection: "row",
                 alignItems: "center",
-                gap: 6,
-                width: 90,
+                gap: 11,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 14 },
+                shadowOpacity: 0.4,
+                shadowRadius: 30,
+                elevation: 12,
             }}
         >
             <View
                 style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    backgroundColor: color + "22",
+                    width: 38,
+                    height: 38,
+                    borderRadius: 11,
+                    backgroundColor: tint,
                     alignItems: "center",
                     justifyContent: "center",
                 }}
             >
                 {icon}
             </View>
-            <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", fontWeight: "600", textAlign: "center" }}>
-                {label}
-            </Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: HADES.text }}>{title}</Text>
+                <Text style={{ fontSize: 11.5, color: HADES.textMuted, marginTop: 1 }}>{subtitle}</Text>
+            </View>
         </Animated.View>
     );
 }
 
-// ── Main dots progress indicator ──────────────────────────────────────────────
-function Dots({ active }: { active: number }) {
+// ── Logo do Google (mesma marca da tela de login) ──────────────────────────────
+function GoogleMark() {
     return (
-        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-            {[0, 1].map((i) => (
-                <View
-                    key={i}
-                    style={{
-                        width: i === active ? 24 : 8,
-                        height: 8,
-                        borderRadius: 4,
-                        backgroundColor: i === active ? COLORS.primary : "rgba(255,255,255,0.2)",
-                    }}
-                />
-            ))}
+        <View style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ fontSize: 15, fontWeight: "800", color: "#ffffff" }}>G</Text>
         </View>
     );
 }
 
 export default function OnboardingWelcome() {
+    const insets = useSafeAreaInsets();
+    const { isLoading: isGoogleLoading, handleGoogleSignIn } = useGoogleAuth();
     const fadeIn = useRef(new Animated.Value(0)).current;
-    const slideUp = useRef(new Animated.Value(40)).current;
+    const glowAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        Animated.parallel([
-            Animated.timing(fadeIn, {
-                toValue: 1,
-                duration: 700,
-                useNativeDriver: true,
-            }),
-            Animated.timing(slideUp, {
-                toValue: 0,
-                duration: 700,
-                useNativeDriver: true,
-            }),
-        ]).start();
+        Animated.timing(fadeIn, {
+            toValue: 1,
+            duration: 700,
+            useNativeDriver: true,
+        }).start();
+
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(glowAnim, { toValue: 1, duration: 2500, useNativeDriver: true }),
+                Animated.timing(glowAnim, { toValue: 0, duration: 2500, useNativeDriver: true }),
+            ])
+        ).start();
     }, []);
 
-    return (
-        <View style={{ flex: 1, backgroundColor: COLORS.bgPrimary }}>
-            <StatusBar barStyle="light-content" backgroundColor={COLORS.bgPrimary} />
+    const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.9] });
 
-            {/* ── Hero illustration area ── */}
-            <View
+    return (
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
+            <StatusBar barStyle="light-content" backgroundColor={HADES.bg} />
+
+            {/* ── Glow radial no topo ── */}
+            <Animated.View
+                pointerEvents="none"
                 style={{
-                    flex: 1,
+                    position: "absolute",
+                    top: -90,
+                    left: 0,
+                    right: 0,
                     alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "hidden",
+                    opacity: glowOpacity,
                 }}
             >
-                {/* Glow circle */}
-                <View
-                    style={{
-                        width: 240,
-                        height: 240,
-                        borderRadius: 120,
-                        backgroundColor: COLORS.primary + "18",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderWidth: 1.5,
-                        borderColor: COLORS.primary + "30",
-                    }}
-                >
-                    <View
-                        style={{
-                            width: 160,
-                            height: 160,
-                            borderRadius: 80,
-                            backgroundColor: COLORS.primary + "25",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            borderWidth: 1.5,
-                            borderColor: COLORS.primary + "40",
-                        }}
-                    >
-                        {/* Center logo */}
-                        <View
-                            style={{
-                                width: 88,
-                                height: 88,
-                                borderRadius: 24,
-                                backgroundColor: "#ffffff",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                shadowColor: COLORS.primary,
-                                shadowOffset: { width: 0, height: 8 },
-                                shadowOpacity: 0.38,
-                                shadowRadius: 20,
-                                elevation: 16,
-                            }}
-                        >
-                            <Image source={require("../../assets/LogoStudoCore.png")} style={{ width: 62, height: 62 }} />
-                        </View>
-                    </View>
-                </View>
+                <Svg width={340} height={340}>
+                    <Defs>
+                        <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
+                            <Stop offset="0%" stopColor={HADES.accentSolid} stopOpacity={0.22} />
+                            <Stop offset="70%" stopColor={HADES.accentSolid} stopOpacity={0} />
+                        </RadialGradient>
+                    </Defs>
+                    <Circle cx={170} cy={170} r={170} fill="url(#glow)" />
+                </Svg>
+            </Animated.View>
 
-                {/* Floating feature cards */}
-                <FloatingCard
-                    icon={<Brain size={18} color={COLORS.violet} />}
-                    label="IA Adaptativa"
-                    color={COLORS.violet}
-                    delay={0}
-                    top={H * 0.07}
-                    left={W * 0.04}
-                />
-                <FloatingCard
-                    icon={<Sparkles size={18} color={COLORS.primary} />}
-                    label="Quiz Inteligente"
-                    color={COLORS.primary}
-                    delay={400}
-                    top={H * 0.06}
-                    left={W * 0.66}
-                />
-                <FloatingCard
-                    icon={<Users size={18} color={COLORS.emerald} />}
-                    label="Grupos de Estudo"
-                    color={COLORS.emerald}
-                    delay={800}
-                    top={H * 0.3}
-                    left={W * 0.72}
-                />
-            </View>
-
-            {/* ── Bottom content panel ── */}
             <Animated.View
                 style={{
-                    paddingHorizontal: 28,
-                    paddingTop: 8,
-                    paddingBottom: 52,
+                    flex: 1,
+                    paddingTop: insets.top + 16,
+                    paddingHorizontal: 26,
+                    paddingBottom: insets.bottom + 22,
                     opacity: fadeIn,
-                    transform: [{ translateY: slideUp }],
                 }}
             >
-                {/* Brand name */}
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 0, }}>
-                    <Text style={{ fontSize: 36, fontWeight: "800", color: "#ffffff", letterSpacing: -1 }}>
-                        Bem-vindo ao{" "}
+                {/* ── Logo ── */}
+                <View style={{ alignItems: "center", gap: 12, paddingTop: 22 }}>
+                    <View
+                        style={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: 18,
+                            backgroundColor: "#ffffff",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            shadowColor: HADES.accentSolid,
+                            shadowOffset: { width: 0, height: 10 },
+                            shadowOpacity: 0.3,
+                            shadowRadius: 26,
+                            elevation: 12,
+                        }}
+                    >
+                        <Image
+                            source={require("../../assets/LogoStudoCore.png")}
+                            style={{ width: 46, height: 46 }}
+                        />
+                    </View>
+                    <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, letterSpacing: -0.3 }}>
+                        Studo<Text style={{ color: HADES.accentSolid }}>Core</Text>
                     </Text>
                 </View>
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
-                    <Text style={{ fontSize: 36, fontWeight: "800", color: "#ffffff", letterSpacing: -1 }}>
-                        Studo
+
+                {/* ── Headline ── */}
+                <View style={{ alignItems: "center", marginTop: 24 }}>
+                    <Text
+                        style={{
+                            fontSize: 27,
+                            fontWeight: "800",
+                            color: HADES.text,
+                            letterSpacing: -0.6,
+                            lineHeight: 31,
+                            textAlign: "center",
+                        }}
+                    >
+                        Estude no seu ritmo
                     </Text>
-                    <Text style={{ fontSize: 36, fontWeight: "800", color: COLORS.primary, letterSpacing: -1 }}>
-                        Core
+                    <Text style={{ fontSize: 14, color: HADES.textMuted, marginTop: 8, textAlign: "center" }}>
+                        IA, quiz e grupo de estudos em um só lugar
                     </Text>
-                    <Text style={{ fontSize: 30 }}> 🎉</Text>
                 </View>
 
-                <Text
-                    style={{
-                        fontSize: 16,
-                        color: "rgba(255,255,255,0.55)",
-                        lineHeight: 24,
-                        marginBottom: 30,
-                        fontWeight: "400",
-                    }}
-                >
-                    Sua plataforma de estudos com IA que se adapta ao{" "}
-                    <Text style={{ color: COLORS.primaryLight, fontWeight: "600" }}>seu ritmo</Text>.
-                    {"\n"}Crie sua conta grátis e comece agora.
-                </Text>
+                {/* ── Pilares flutuantes ── */}
+                <View style={{ flex: 1, marginTop: 8, minHeight: 180 }}>
+                    <FloatingPillar
+                        icon={<BrainCircuit size={19} color={HADES.accentSolid} />}
+                        title="IA Adaptativa"
+                        subtitle="Ajusta o plano a cada sessão"
+                        tint="rgba(255,154,0,0.12)"
+                        delay={0}
+                        duration={2750}
+                        drift={-10}
+                        top={2}
+                        left={0}
+                        width="66%"
+                    />
+                    <FloatingPillar
+                        icon={<Sparkles size={19} color={HADES.subjectBlue} />}
+                        title="Quiz Inteligente"
+                        subtitle="Revisão ativa dos seus erros"
+                        tint="rgba(77,148,255,0.12)"
+                        delay={400}
+                        duration={3100}
+                        drift={12}
+                        top={64}
+                        right={0}
+                        width="70%"
+                    />
+                    <FloatingPillar
+                        icon={<Users size={19} color={HADES.green} />}
+                        title="Grupos de Estudo"
+                        subtitle="Ranking e foco em equipe"
+                        tint="rgba(48,209,88,0.12)"
+                        delay={800}
+                        duration={2900}
+                        drift={12}
+                        top={128}
+                        left="6%"
+                        width="68%"
+                    />
+                </View>
 
-                {/* Dots + CTA */}
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                    <Dots active={0} />
-
+                {/* ── Ações ── */}
+                <View style={{ gap: 12, paddingTop: 8 }}>
                     <TouchableOpacity
                         onPress={() => router.push("/signup")}
+                        activeOpacity={0.9}
                         style={{
-                            backgroundColor: COLORS.primary,
-                            borderRadius: 16,
-                            paddingVertical: 16,
-                            paddingHorizontal: 32,
-                            shadowColor: COLORS.primary,
+                            height: 54,
+                            borderRadius: 15,
+                            backgroundColor: HADES.accentSolid,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            shadowColor: HADES.accentSolid,
                             shadowOffset: { width: 0, height: 6 },
-                            shadowOpacity: 0.45,
+                            shadowOpacity: 0.35,
                             shadowRadius: 14,
                             elevation: 10,
                         }}
                     >
-                        <Text style={{ color: "#ffffff", fontWeight: "800", fontSize: 15, letterSpacing: 1 }}>
-                            Vamos lá →
-                        </Text>
+                        <Text style={{ fontSize: 16, fontWeight: "700", color: "#000000" }}>Criar conta</Text>
                     </TouchableOpacity>
-                </View>
 
-                {/* Already have an account */}
-                <View style={{ flexDirection: "row", justifyContent: "center", gap: 4, marginTop: 48, marginBottom: 0 }}>
-                    <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.38)" }}>
-                        Já tem uma conta?
-                    </Text>
-                    <TouchableOpacity onPress={() => router.push("/login")}>
-                        <Text style={{ fontSize: 14, color: COLORS.primary, fontWeight: "700" }}>
-                            Entrar
-                        </Text>
+                    <TouchableOpacity
+                        onPress={handleGoogleSignIn}
+                        disabled={isGoogleLoading}
+                        activeOpacity={0.85}
+                        style={{
+                            height: 52,
+                            borderRadius: 15,
+                            backgroundColor: HADES.surfaceRaised,
+                            borderWidth: 1,
+                            borderColor: HADES.borderStrong,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 10,
+                            opacity: isGoogleLoading ? 0.6 : 1,
+                        }}
+                    >
+                        {isGoogleLoading ? (
+                            <ActivityIndicator size="small" color="#e8e9ec" />
+                        ) : (
+                            <>
+                                <GoogleMark />
+                                <Text style={{ fontSize: 14.5, fontWeight: "600", color: "#e8e9ec" }}>
+                                    Continuar com Google
+                                </Text>
+                            </>
+                        )}
                     </TouchableOpacity>
+
+                    <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 5, paddingTop: 2 }}>
+                        <Text style={{ fontSize: 13, color: HADES.textMuted }}>Já tenho conta</Text>
+                        <TouchableOpacity onPress={() => router.push("/login")}>
+                            <Text style={{ fontSize: 13, color: HADES.accentSolid, fontWeight: "700" }}>Entrar</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </Animated.View>
         </View>

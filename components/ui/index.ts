@@ -6,6 +6,7 @@ import ProgressBar from "./ProgressBar";
 import SearchBar from "./SearchBar";
 import StatCard from "./StatCard";
 import TabSelector from "./TabSelector";
+import WheelPicker from "./WheelPicker";
 
 export {
   ImagePickerAvatar,
@@ -16,4 +17,5 @@ export {
   SearchBar,
   StatCard,
   TabSelector,
+  WheelPicker,
 };

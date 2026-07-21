@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 //Componentes do React Native
 import {
@@ -17,7 +17,7 @@ import {
 import { router } from "expo-router";
 
 //Componentes do Lucide React Native
-import { Eye, EyeOff, Mail, Lock } from "lucide-react-native";
+import { Eye, EyeOff, Mail, Lock, User, AtSign } from "lucide-react-native";
 
 //Constantes
 import { HADES } from "@/constants/hades";
@@ -27,19 +27,55 @@ import { BackButton, DragHandle } from "@/components/auth";
 import { InputField, PasswordStrength, PrimaryButton } from "@/components/form";
 
 //Serviços
-import { cadastrarUsuario } from "@/services/auth";
+import { cadastrarUsuario, verificarNomeUsuario } from "@/services/auth";
 
 export default function SignUpScreen() {
+    const [realName, setRealName] = useState("");
+    const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+    const usernameCheckId = useRef(0);
+
+    useEffect(() => {
+        const trimmed = username.trim();
+        if (trimmed.length < 3) {
+            setUsernameStatus("idle");
+            return;
+        }
+        const currentCheck = ++usernameCheckId.current;
+        setUsernameStatus("checking");
+        const timeout = setTimeout(async () => {
+            const { data, error } = await verificarNomeUsuario(trimmed);
+            if (currentCheck !== usernameCheckId.current) return; // resposta desatualizada
+            if (error) {
+                setUsernameStatus("idle");
+                return;
+            }
+            setUsernameStatus(data && data.length > 0 ? "taken" : "available");
+        }, 500);
+        return () => clearTimeout(timeout);
+    }, [username]);
 
     const handleSignUp = async () => {
-        if (!email || !password || !confirmPassword) {
+        if (!realName.trim() || !username.trim() || !email || !password || !confirmPassword) {
             Alert.alert("Campos obrigatórios", "Preencha todos os campos.");
+            return;
+        }
+        if (username.trim().length < 3) {
+            Alert.alert("Nome de usuário curto", "O nome de usuário deve ter pelo menos 3 caracteres.");
+            return;
+        }
+        if (usernameStatus === "checking") {
+            Alert.alert("Aguarde", "Ainda estamos verificando a disponibilidade do nome de usuário.");
+            return;
+        }
+        if (usernameStatus === "taken") {
+            Alert.alert("Nome de usuário indisponível", "Escolha outro nome de usuário.");
             return;
         }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -58,8 +94,8 @@ export default function SignUpScreen() {
 
         setIsLoading(true);
 
-        //Cadastra o usuário
-        const { data, error } = await cadastrarUsuario(email, password);
+        //Cadastra o usuário (nome e @usuário viajam em user_metadata até a verificação)
+        const { data, error } = await cadastrarUsuario(email, password, realName, username);
         if (error) {
             Alert.alert("Erro no cadastro", error.message);
         } else {
@@ -110,7 +146,7 @@ export default function SignUpScreen() {
                 <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, letterSpacing: -0.5 }}>
                     Criar conta
                 </Text>
-                <Text style={{ fontSize: 14, color: HADES.textMuted, marginTop: 4 }}>Etapa 1 de 2 — Credenciais</Text>
+                <Text style={{ fontSize: 14, color: HADES.textMuted, marginTop: 4 }}>Etapa 1 de 2 — Seus dados</Text>
             </View>
 
             {/* ── BOTTOM sheet ── */}
@@ -134,6 +170,41 @@ export default function SignUpScreen() {
                     }}
                 >
                     <DragHandle marginBottom={8} />
+
+                    {/* Nome completo */}
+                    <InputField
+                        icon={<User size={18} color={HADES.accentSolid} />}
+                        value={realName}
+                        onChangeText={setRealName}
+                        placeholder="Nome completo"
+                        autoCapitalize="words"
+                        hades
+                    />
+
+                    {/* Nome de usuário */}
+                    <InputField
+                        icon={<AtSign size={18} color={HADES.violet} />}
+                        value={username}
+                        onChangeText={(v) => setUsername(v.replace(/[^a-zA-Z0-9_.]/g, ""))}
+                        placeholder="Nome de usuário"
+                        maxLength={30}
+                        hades
+                    />
+                    {usernameStatus === "checking" && (
+                        <Text style={{ fontSize: 11.5, color: HADES.textMuted, marginTop: -6, paddingHorizontal: 2 }}>
+                            Verificando disponibilidade...
+                        </Text>
+                    )}
+                    {usernameStatus === "taken" && (
+                        <Text style={{ fontSize: 11.5, color: HADES.red, marginTop: -6, paddingHorizontal: 2 }}>
+                            Esse nome de usuário já está em uso.
+                        </Text>
+                    )}
+                    {usernameStatus === "available" && (
+                        <Text style={{ fontSize: 11.5, color: HADES.green, marginTop: -6, paddingHorizontal: 2 }}>
+                            ✓ Nome de usuário disponível
+                        </Text>
+                    )}
 
                     {/* Email */}
                     <InputField

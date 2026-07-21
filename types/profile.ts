@@ -4,6 +4,11 @@ export type Profile = {
     nome_real: string | null;
     foto_usuario: string | null;
     data_nascimento?: string | null;
+    objetivo?: string | null;
+    nivel_ensino?: string | null;
+    areas_foco?: string[] | null;
+    ritmo_estudo?: string | null;
+    dificuldade?: string | null;
     materia_favorita?: string | null;
     minutos_semana?: number | null;
     questoes_feitas?: number | null;

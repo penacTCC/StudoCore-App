@@ -1,6 +1,7 @@
 import {
     View,
     Text,
+    TextInput,
     TouchableOpacity,
     StatusBar,
     Image,
@@ -18,32 +19,43 @@ import { ArrowLeft, Mail, RefreshCw, CheckCircle } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 
 //Componentes do Projeto
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 //Serviços
-import { obtemEmailUsuario, reenviarEmailConfirmacao, verificaEmailConfirmado } from "@/services/auth";
+import { confirmarCodigoCadastro, obtemEmailUsuario, reenviarEmailConfirmacao } from "@/services/auth";
 
 export default function VerifyEmailScreen() {
+    const [code, setCode] = useState("");
+    const [email, setEmail] = useState("");
     const [isChecking, setIsChecking] = useState(false);
     const [isResending, setIsResending] = useState(false);
 
+    useEffect(() => {
+        obtemEmailUsuario().then(({ email }) => setEmail(email));
+    }, []);
+
     const handleConfirmed = async () => {
+        if (code.trim().length !== 6) {
+            Alert.alert("Código incompleto", "Digite o código de 6 dígitos enviado para seu e-mail.");
+            return;
+        }
+        if (!email) {
+            Alert.alert("Erro", "Não foi possível obter o e-mail. Volte e tente novamente.");
+            return;
+        }
+
         setIsChecking(true);
 
-        //Chama a função de email verificado
-        const { data, error, emailVerificado } = await verificaEmailConfirmado();
+        //Verifica o código de 6 dígitos enviado por email
+        const { error } = await confirmarCodigoCadastro(email, code.trim());
 
-        //Se der erro, dá um alerta
-        if (error || !data.session || !emailVerificado) {
-            Alert.alert(
-                "E-mail não confirmado",
-                "Ainda não detectamos a confirmação. Verifique sua caixa de entrada e clique no link."
-            );
+        if (error) {
+            Alert.alert("Código inválido", "O código digitado está incorreto ou expirou. Tente reenviar.");
             setIsChecking(false);
             return;
         }
 
-        // Se o email está confirmado, o _layout.tsx routing guard vai
+        // Se o código está correto, o _layout.tsx routing guard vai
         // detectar a sessão e redirecionar para onboarding-profile automaticamente.
         setIsChecking(false);
     };
@@ -52,21 +64,22 @@ export default function VerifyEmailScreen() {
         setIsResending(true);
 
         //Obtém o email do usuário
-        const { email } = await obtemEmailUsuario();
+        const { email: currentEmail } = await obtemEmailUsuario();
 
-        if (!email) {
+        if (!currentEmail) {
             Alert.alert("Erro", "Não foi possível obter o e-mail. Volte e tente novamente.");
             setIsResending(false);
             return;
         }
 
-        //Reenvia o email de confirmação
-        const { error } = await reenviarEmailConfirmacao(email);
+        //Reenvia o email com o código de confirmação
+        const { error } = await reenviarEmailConfirmacao(currentEmail);
 
         if (error) {
             Alert.alert("Erro ao reenviar", error.message);
         } else {
-            Alert.alert("E-mail reenviado!", "Um novo link de confirmação foi enviado para " + email + ".");
+            setCode("");
+            Alert.alert("Código reenviado!", "Um novo código foi enviado para " + currentEmail + ".");
         }
         setIsResending(false);
     };
@@ -184,12 +197,35 @@ export default function VerifyEmailScreen() {
                                 textAlign: "center",
                             }}
                         >
-                            Enviamos um link de{"\n"}confirmação
+                            Enviamos um código{"\n"}de confirmação
                         </Text>
                         <Text style={{ fontSize: 14, color: HADES.textSecondary, textAlign: "center", lineHeight: 21 }}>
-                            Acesse sua caixa de entrada e clique no link que enviamos para ativar sua conta.
+                            Digite abaixo o código de 6 dígitos que enviamos para {email || "seu e-mail"}.
                         </Text>
                     </View>
+
+                    {/* Code input */}
+                    <TextInput
+                        value={code}
+                        onChangeText={(v) => setCode(v.replace(/[^0-9]/g, "").slice(0, 6))}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        placeholder="000000"
+                        placeholderTextColor={HADES.textFaint}
+                        style={{
+                            alignSelf: "stretch",
+                            backgroundColor: HADES.surfaceRaised,
+                            borderWidth: 1.5,
+                            borderColor: HADES.border,
+                            borderRadius: 14,
+                            paddingVertical: 16,
+                            textAlign: "center",
+                            fontSize: 26,
+                            fontWeight: "800",
+                            letterSpacing: 10,
+                            color: HADES.text,
+                        }}
+                    />
 
                     {/* Hint row */}
                     <View
@@ -232,7 +268,7 @@ export default function VerifyEmailScreen() {
                             <ActivityIndicator size="small" color="#000000" />
                         ) : (
                             <Text style={{ color: "#000000", fontWeight: "800", fontSize: 15, letterSpacing: 2 }}>
-                                JÁ CONFIRMEI O EMAIL
+                                CONFIRMAR CÓDIGO
                             </Text>
                         )}
                     </TouchableOpacity>
@@ -256,7 +292,7 @@ export default function VerifyEmailScreen() {
                             <RefreshCw size={15} color={HADES.textMuted} />
                         )}
                         <Text style={{ fontSize: 14, color: HADES.textMuted, fontWeight: "600" }}>
-                            {isResending ? "Reenviando..." : "Reenviar e-mail"}
+                            {isResending ? "Reenviando..." : "Reenviar código"}
                         </Text>
                     </TouchableOpacity>
                 </View>

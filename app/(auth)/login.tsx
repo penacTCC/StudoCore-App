@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 //Componentes do React Native
 import {
     View,
@@ -13,9 +13,7 @@ import {
 } from "react-native";
 
 //Componentes do Expo
-import { router, useLocalSearchParams } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
+import { router } from "expo-router";
 
 import { Eye, EyeOff, Github } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
@@ -25,127 +23,19 @@ import { DotPattern, LogoMark, BackButton, DragHandle } from "@/components/auth"
 import { PrimaryButton } from "@/components/form";
 
 //Serviços da Aplicação
-import { gerarUrlLoginGoogle, loginComSenha, obterSessaoAtual, validarSessaoGoogle, validarSessaoPorTokens } from "@/services/auth";
+import { loginComSenha } from "@/services/auth";
+
+//Hooks da Aplicação
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const GOOGLE_REDIRECT_URL = "studocore://login";
-
-type GoogleCallbackParams = {
-    code: string | null;
-    accessToken: string | null;
-    refreshToken: string | null;
-    error: string | null;
-    errorDescription: string | null;
-};
-
-// Avisa ao sistema para fechar o navegador automaticamente quando terminar
-WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
-    const params = useLocalSearchParams<{ code?: string; error?: string; error_description?: string }>();
-    const codigoGoogleProcessado = useRef<string | null>(null);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-
-    const extrairParametrosUrl = (url: string): GoogleCallbackParams => {
-        const queryString = url.split("?")[1]?.split("#")[0] ?? "";
-        const hashString = url.split("#")[1] ?? "";
-        const searchParams = new URLSearchParams(queryString || hashString);
-
-        return {
-            code: searchParams.get("code"),
-            accessToken: searchParams.get("access_token"),
-            refreshToken: searchParams.get("refresh_token"),
-            error: searchParams.get("error"),
-            errorDescription: searchParams.get("error_description"),
-        };
-    };
-
-    const finalizarLoginGoogle = async (code: string) => {
-        if (codigoGoogleProcessado.current === code) return;
-        codigoGoogleProcessado.current = code;
-
-        const { error: sessionError } = await validarSessaoGoogle(code);
-        if (sessionError) {
-            const { data: { session } } = await obterSessaoAtual();
-            if (!session) throw sessionError;
-        }
-
-        router.replace("/");
-    };
-
-    const finalizarCallbackGoogle = async (
-        code?: string | null,
-        accessToken?: string | null,
-        refreshToken?: string | null,
-        error?: string | null,
-        errorDescription?: string | null
-    ) => {
-        if (error) {
-            Alert.alert("Erro no Google", errorDescription ?? error);
-            return;
-        }
-
-        if (!code && (!accessToken || !refreshToken)) return;
-
-        try {
-            setIsLoading(true);
-            if (code) {
-                await finalizarLoginGoogle(code);
-            } else if (accessToken && refreshToken) {
-                const { error: sessionError } = await validarSessaoPorTokens(accessToken, refreshToken);
-                if (sessionError) throw sessionError;
-                router.replace("/");
-            }
-        } catch (error) {
-            console.error("Erro no callback do Google:", error);
-            Alert.alert("Erro", "Não foi possível concluir o login com o Google.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        finalizarCallbackGoogle(params.code, null, null, params.error, params.error_description);
-    }, [params.code, params.error, params.error_description]);
-
-    useEffect(() => {
-        const subscription = Linking.addEventListener("url", ({ url }) => {
-            if (!url.startsWith(GOOGLE_REDIRECT_URL)) return;
-
-            const { code, accessToken, refreshToken, error, errorDescription } = extrairParametrosUrl(url);
-            finalizarCallbackGoogle(code, accessToken, refreshToken, error, errorDescription);
-        });
-
-        return () => subscription.remove();
-    }, []);
-
-    const handleGoogleSignIn = async () => {
-        try {
-            setIsLoading(true);
-            const { data, error } = await gerarUrlLoginGoogle(GOOGLE_REDIRECT_URL);
-            if (error) throw error;
-
-            const res = await WebBrowser.openAuthSessionAsync(data?.url ?? "", GOOGLE_REDIRECT_URL);
-
-            if (res.type === "success") {
-                const { code, accessToken, refreshToken, error, errorDescription } = extrairParametrosUrl(res.url);
-
-                await finalizarCallbackGoogle(code, accessToken, refreshToken, error, errorDescription);
-
-                if (!code && !accessToken && !error) {
-                    Alert.alert("Erro no Google", "O Google voltou sem código de autenticação.");
-                }
-            }
-        } catch (error) {
-            console.error("Erro no fluxo do Google:", error);
-            Alert.alert("Erro", "Não foi possível concluir o login com o Google.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const { isLoading: isGoogleLoading, handleGoogleSignIn } = useGoogleAuth();
 
     const handleLogin = async () => {
         setIsLoading(true);
@@ -272,7 +162,7 @@ export default function LoginScreen() {
                 <PrimaryButton
                     label="ENTRAR"
                     onPress={handleLogin}
-                    isLoading={isLoading}
+                    isLoading={isLoading || isGoogleLoading}
                     hades
                     style={{ marginBottom: 22 }}
                 />
