@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Share2, Timer, Layers } from "lucide-react-native";
+import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Timer, Layers } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 import { HADES } from "@/constants/hades";
+import { useGraficosAnalytics } from "@/lib/graphics-analytics";
 import { useAnalisePessoal } from "@/hooks/useAnalisePessoal";
 import { useAuth } from "@/hooks/useAuth";
 import { SessaoFocoRow } from "@/types/sessions";
@@ -29,6 +30,7 @@ import {
     EscopoAnalise,
     PeriodoAnalise,
 } from "@/components/analytics/GraficosAnalise";
+import { UserStats } from "@/types/profile";
 
 type BrainTab = "database" | "analytics";
 
@@ -42,6 +44,7 @@ export default function BrainScreen() {
     const [comecoSemana, setComecoSemana] = useState<'domingo' | 'segunda'>('domingo');
     const [escopoAnalise, setEscopoAnalise] = useState<EscopoAnalise>("pessoal");
     const [periodoAnalise, setPeriodoAnalise] = useState<PeriodoAnalise>("7d");
+    // const [statsPessoais, setStatsPessoais] = useState<UserStats | null>()
 
     //Busca para ver a preferência do início da semana do usuário (ex: Domingo ou Segunda)
     useEffect(() => {
@@ -61,6 +64,26 @@ export default function BrainScreen() {
     // Uma única leitura alimenta as duas abas: `analise` (números da aba Análise,
     // escopo pessoal) e as sessões cruas (aba Banco de dados).
     const { analise, savedSessions, pendingSessions, loading } = useAnalisePessoal(userId, comecoSemana);
+
+    //------Cálculos e funções para os gráficos dessa tela------
+    const {
+        horasFormatadasAtuais,
+        variacaoPercentual,
+        rotuloPeriodo,
+        qtdSessoes,
+        mediaDasHoras,
+        pontosGraficoArea,
+        tituloComparativo,
+        paresGraficoComparativo,
+        qtdMateriasEstudadas,
+        materiasParaDonut,
+        qtdQuestoesTotais,
+        qtdQuestoesCorretas,
+        qtdQuestoesErradas,
+        pctAcerto,
+        pontosDiaSemana,
+        pontosOfensiva,
+    } = useGraficosAnalytics(userId, comecoSemana, periodoAnalise);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -302,7 +325,7 @@ export default function BrainScreen() {
 
                 {/* ── ANALYTICS ────────────────────────────────── */}
                 {brainTab === "analytics" && (
-                    <View className="px-4 pb-4 gap-7">
+                    <View className="px-4 pb-4 gap-9">
                         {/* Share Progress Button */}
                         {/*
                             <TouchableOpacity
@@ -332,7 +355,7 @@ export default function BrainScreen() {
                         </View>
 
                         {escopoAnalise === "grupo" ? (
-                            <View className="gap-5">
+                            <View className="gap-8">
                                 <CabecalhoGrupo cor={HADES.accentSolid} />
                                 <MetaSemanalGrupo />
                                 <RankingHorasGrupo cor={HADES.accentSolid} />
@@ -346,19 +369,19 @@ export default function BrainScreen() {
                                 <QuestoesPorMembroGrupo />
                             </View>
                         ) : (
-                            <View className="gap-5">
-                                <GraficoArea cor={HADES.accentSolid} />
+                            <View className="gap-8">
+                                <GraficoArea cor={HADES.accentSolid} horas={horasFormatadasAtuais} percentual={variacaoPercentual} periodo={rotuloPeriodo} pontos={pontosGraficoArea}/>
 
                                 <View className="flex-row gap-[10px]">
-                                    <CartaoMetrica icone={Timer} rotulo="SESSÃO MÉDIA" valor="1h 42m" legenda="por sessão" />
-                                    <CartaoMetrica icone={Layers} rotulo="Nº SESSÕES" valor="17" legenda="esta semana" />
+                                    <CartaoMetrica icone={Timer} rotulo="SESSÃO MÉDIA" valor={mediaDasHoras} legenda="por sessão" />
+                                    <CartaoMetrica icone={Layers} rotulo="Nº SESSÕES" valor={qtdSessoes.toString()} legenda="esta semana" />
                                 </View>
 
-                                <GraficoComparativoSemanal cor={HADES.accentSolid} />
-                                <GraficoDonutMaterias />
-                                <BarraTaxaAcerto />
-                                <GraficoDiaSemana cor={HADES.accentSolid} />
-                                <GraficoOfensiva />
+                                <GraficoComparativoSemanal cor={HADES.accentSolid} titulo={tituloComparativo} pares={paresGraficoComparativo} />
+                                <GraficoDonutMaterias qtdMaterias={qtdMateriasEstudadas} materias={materiasParaDonut}/>
+                                <BarraTaxaAcerto acerto={qtdQuestoesCorretas} erro={qtdQuestoesErradas} total={qtdQuestoesTotais} pct={pctAcerto}/>
+                                <GraficoDiaSemana cor={HADES.accentSolid} pontos={pontosDiaSemana} />
+                                <GraficoOfensiva ofensivaAtual={analise.sequencia} melhorOfensiva={analise.melhorSequencia} pontos={pontosOfensiva} />
                             </View>
                         )}
                     </View>

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { CheckCircle2, ChevronLeft, BookOpen, XCircle, AlertCircle } from "lucide-react-native";
-import { COLORS } from "@/constants/colors";
+import { X, Lightbulb, CheckCheck, Trophy, RotateCw, Lock, Send, Bookmark, Clock, Check } from "lucide-react-native";
+import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { salvarSessaoFoco, atualizarSessaoFoco, calculateFocusSessionMinutes } from "@/services/sessions";
 import { syncProfileStatsAfterFocusSession } from "@/services/profileStats";
@@ -36,6 +36,7 @@ export default function FocusFeedbackModal() {
     const [showResults, setShowResults] = useState(false);
 
     const isComplete = Object.values(answers).every(val => val !== null);
+    const answeredCount = Object.values(answers).filter(val => val !== null).length;
 
     // Substitua este array com as suas perguntas reais do banco de dados (adicione o 'correctAnswer')
     const contentQuestions = [
@@ -238,178 +239,247 @@ export default function FocusFeedbackModal() {
         return answers[curr.id] === curr.correctAnswer ? acc + 1 : acc;
     }, 0);
 
+    const isHighScore = score > 7;
+
     return (
-        <SafeAreaView className="flex-1 bg-slate-950" edges={['top', 'bottom']}>
-            {/* Header */}
-            <View className="flex-row items-center justify-between px-4 py-4 border-b border-slate-800 bg-slate-950 z-10">
-                <View className="w-10" />
-                <Text className="text-slate-200 text-lg font-bold">
-                    {showResults ? "Gabarito" : "Quiz do Conteúdo"}
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top", "bottom"]}>
+            {/* Top bar */}
+            <View style={{ paddingHorizontal: 14, paddingTop: 4, paddingBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: HADES.surfaceRaised, alignItems: "center", justifyContent: "center" }}
+                >
+                    <X size={17} color={HADES.textSecondary} />
+                </TouchableOpacity>
+                <Text style={{ flex: 1, textAlign: "center", fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
+                    {showResults ? "Resultado" : "Quiz do Conteúdo"}
                 </Text>
-                <View className="w-10" />
+                <View style={{ width: 34 }} />
             </View>
 
+            {/* Progresso (só durante as respostas) */}
+            {!showResults && (
+                <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <Text style={{ fontSize: 11.5, color: HADES.textFaint, fontWeight: "700", letterSpacing: 0.7 }}>PROGRESSO</Text>
+                        <Text style={{ fontSize: 12.5, color: isComplete ? HADES.accentSolid : HADES.text, fontWeight: "700" }}>
+                            {answeredCount} <Text style={{ color: HADES.textFaint, fontWeight: "600" }}>/ 10</Text>
+                        </Text>
+                    </View>
+                    <View style={{ height: 6, borderRadius: 3, backgroundColor: HADES.surfaceOverlay, overflow: "hidden" }}>
+                        <View style={{ height: "100%", width: `${(answeredCount / 10) * 100}%`, backgroundColor: HADES.accentSolid, borderRadius: 3 }} />
+                    </View>
+                </View>
+            )}
+
             <ScrollView
-                className="flex-1 px-4 pt-6"
-                contentContainerStyle={{ paddingBottom: 100 }}
+                style={{ flex: 1, paddingHorizontal: 18 }}
+                contentContainerStyle={{ paddingBottom: 24 }}
                 showsVerticalScrollIndicator={false}
             >
-                <View className="items-center mb-8">
-                    <View className={`w-16 h-16 ${showResults ? (score > 7 ? 'bg-emerald-600/20' : score > 5 ? 'bg-amber-600/20' : 'bg-rose-600/20') : 'bg-violet-600/20'} rounded-full items-center justify-center mb-4`}>
-                        {showResults ? (
-                            score > 7 ? <CheckCircle2 color="#34d399" size={32} /> :
-                                score > 5 ? <AlertCircle color="#fbbf24" size={32} /> :
-                                    <XCircle color="#fb7185" size={32} />
-                        ) : <BookOpen color={COLORS.violet} size={32} />}
-                    </View>
-                    <Text className="text-2xl font-bold text-slate-100 mb-2">
-                        {showResults ? `Você acertou ${score} de 10!` : "Teste seus Conhecimentos"}
-                    </Text>
-                    <Text className="text-slate-400 text-center px-4">
-                        {showResults
-                            ? "Confira abaixo os seus acertos e os pontos que precisa melhorar."
-                            : "Responda as questões abaixo baseadas no conteúdo que acabou de estudar."}
-                    </Text>
-                </View>
-
-                {/* Renderizando as questões personalizadas e embaralhadas */}
-                {shuffledQuestions.map((question) => {
-                    const isQuestionCorrect = answers[question.id] === question.correctAnswer;
-
-                    return (
-                        <View key={question.id} className="mb-6 bg-slate-900 p-5 rounded-2xl border border-slate-800">
-                            <Text className="text-slate-200 font-semibold text-base mb-4">
-                                Questão {question.id}: {question.text}
+                {!showResults ? (
+                    isComplete ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: HADES.accentTint, borderWidth: 1, borderColor: HADES.accentTintBorder, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                            <CheckCheck size={18} color={HADES.accentSolid} />
+                            <Text style={{ flex: 1, fontSize: 13, color: HADES.textSecondary, lineHeight: 18 }}>
+                                Tudo respondido! Revise se quiser e envie para ver o gabarito.
                             </Text>
-                            <View className="flex-col gap-3">
-                                {question.options.map((opt) => {
-                                    const isSelected = answers[question.id] === opt;
-                                    const isCorrectOpt = opt === question.correctAnswer;
-
-                                    // A Lógica visual (Google Forms style)
-                                    let itemContainerStyle = 'bg-slate-800 border-slate-700';
-                                    let itemTextColor = 'text-slate-300';
-                                    let itemIcon = null;
-
-                                    if (!showResults) {
-                                        // Fase de respostas (Normal)
-                                        if (isSelected) {
-                                            itemContainerStyle = 'bg-violet-600/20 border-violet-500';
-                                            itemTextColor = 'text-violet-400';
-                                            itemIcon = <CheckCircle2 color={COLORS.violet} size={20} />;
-                                        }
-                                    } else {
-                                        // Fase de Gabarito (Review)
-                                        if (isSelected && isCorrectOpt) {
-                                            // Ele selecionou a correta
-                                            itemContainerStyle = 'bg-emerald-600/20 border-emerald-500';
-                                            itemTextColor = 'text-emerald-400 font-bold';
-                                            itemIcon = <CheckCircle2 color="#34d399" size={20} />;
-                                        } else if (isSelected && !isCorrectOpt) {
-                                            // Se ele escolheu algo que NÃO é correto (Vermelho)
-                                            itemContainerStyle = 'bg-rose-600/20 border-rose-500';
-                                            itemTextColor = 'text-rose-400 line-through opacity-80';
-                                            itemIcon = <XCircle color="#fb7185" size={20} />;
-                                        } else {
-                                            // Opções ignoradas (incluindo a correta, se ele não tiver escolhido ela)
-                                            itemContainerStyle = 'bg-slate-900 border-slate-800 opacity-50';
-                                            itemTextColor = 'text-slate-500';
-                                        }
-                                    }
-
-                                    return (
-                                        <TouchableOpacity
-                                            key={opt}
-                                            onPress={() => handleAnswerChange(question.id, opt)}
-                                            activeOpacity={0.7}
-                                            disabled={showResults} // Se estiver mostrando o gabarito, não deixa clicar
-                                            className={`py-3.5 px-4 rounded-xl border flex-row items-center justify-between ${itemContainerStyle}`}
-                                        >
-                                            <Text className={`font-medium flex-1 mr-2 ${itemTextColor}`}>
-                                                {opt}
-                                            </Text>
-                                            {itemIcon}
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-
-                            {/* Removida a mensagem de review por escolha do usuário para manter o app blindado */}
                         </View>
-                    );
-                })}
+                    ) : (
+                        <View style={{ alignItems: "center", paddingVertical: 6, paddingBottom: 22 }}>
+                            <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: HADES.accentTint, alignItems: "center", justifyContent: "center" }}>
+                                <Lightbulb size={32} color={HADES.accentSolid} />
+                            </View>
+                            <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text, marginTop: 15, letterSpacing: -0.2 }}>
+                                Teste seus Conhecimentos
+                            </Text>
+                            <Text style={{ fontSize: 13.5, color: HADES.textMuted, marginTop: 7, textAlign: "center", lineHeight: 19, paddingHorizontal: 18 }}>
+                                Responda as questões baseadas no conteúdo que você acabou de estudar.
+                            </Text>
+                        </View>
+                    )
+                ) : (
+                    <View style={{ alignItems: "center", paddingVertical: 10, paddingBottom: 24 }}>
+                        <View style={{
+                            width: 84, height: 84, borderRadius: 42,
+                            backgroundColor: isHighScore ? HADES.greenTint : "rgba(240,85,107,0.12)",
+                            alignItems: "center", justifyContent: "center",
+                        }}>
+                            {isHighScore ? <Trophy size={40} color={HADES.green} /> : <RotateCw size={38} color={HADES.red} />}
+                        </View>
+                        <Text style={{ fontSize: 23, fontWeight: "800", color: isHighScore ? HADES.green : HADES.red, marginTop: 16, letterSpacing: -0.4 }}>
+                            {isHighScore ? `Você acertou ${score} de 10!` : `Você acertou ${score} de 10`}
+                        </Text>
+                        <Text style={{ fontSize: 14, color: isHighScore ? "#7fae91" : "#b98089", marginTop: 7, textAlign: "center", lineHeight: 20 }}>
+                            {isHighScore ? "Conteúdo dominado. Mandou muito bem. 🔥" : "Faltou pouco. Uma revisada rápida agora e o conteúdo gruda de vez. 💪"}
+                        </Text>
+                    </View>
+                )}
 
+                {/* Questões */}
+                <View style={{ gap: 14 }}>
+                    {shuffledQuestions.map((question) => {
+                        const selected = answers[question.id];
+                        const isCorrectlyAnswered = selected === question.correctAnswer;
+
+                        return (
+                            <View
+                                key={question.id}
+                                style={{ backgroundColor: HADES.surface, borderWidth: 1, borderColor: HADES.border, borderRadius: 16, padding: 16 }}
+                            >
+                                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                                    <Text style={{ fontSize: 11.5, fontWeight: "700", color: HADES.textFaint, letterSpacing: 0.7 }}>
+                                        QUESTÃO {question.id}
+                                    </Text>
+                                    {showResults && (
+                                        <View style={{
+                                            flexDirection: "row", alignItems: "center", gap: 4,
+                                            backgroundColor: isCorrectlyAnswered ? HADES.greenTint : "rgba(240,85,107,0.13)",
+                                            borderRadius: 8, paddingVertical: 4, paddingHorizontal: 9,
+                                        }}>
+                                            <Text style={{ fontSize: 11, fontWeight: "700", color: isCorrectlyAnswered ? HADES.green : HADES.red }}>
+                                                {isCorrectlyAnswered ? "Certa" : "Errada"}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.text, lineHeight: 21, marginTop: 11 }}>
+                                    {question.text}
+                                </Text>
+                                <View style={{ gap: 9, marginTop: 14 }}>
+                                    {question.options.map((opt) => {
+                                        const isSelected = selected === opt;
+                                        const isCorrectOpt = opt === question.correctAnswer;
+
+                                        let bg: string = HADES.bg;
+                                        let border: string = HADES.borderStrong;
+                                        let radBg: string = "transparent";
+                                        let radBorder: string = HADES.dot;
+                                        let textColor: string = HADES.textSecondary;
+                                        let textWeight: "400" | "600" = "400";
+                                        let strike = false;
+                                        let opacity = 1;
+                                        let icon = null;
+
+                                        if (!showResults) {
+                                            if (isSelected) {
+                                                bg = HADES.accentTint;
+                                                border = HADES.accentTintBorder;
+                                                radBg = HADES.accentSolid;
+                                                radBorder = HADES.accentSolid;
+                                                textColor = HADES.text;
+                                                textWeight = "600";
+                                                icon = <Check size={13} color="#000" />;
+                                            }
+                                        } else if (isSelected && isCorrectOpt) {
+                                            bg = HADES.greenTint;
+                                            border = "rgba(48,209,88,0.55)";
+                                            radBg = HADES.green;
+                                            radBorder = HADES.green;
+                                            textColor = "#eafff2";
+                                            textWeight = "600";
+                                            icon = <Check size={13} color="#04140a" />;
+                                        } else if (isSelected && !isCorrectOpt) {
+                                            bg = "rgba(240,85,107,0.10)";
+                                            border = "rgba(240,85,107,0.5)";
+                                            radBg = HADES.red;
+                                            radBorder = HADES.red;
+                                            textColor = HADES.red;
+                                            textWeight = "600";
+                                            strike = true;
+                                        } else {
+                                            opacity = 0.32;
+                                        }
+
+                                        return (
+                                            <TouchableOpacity
+                                                key={opt}
+                                                onPress={() => handleAnswerChange(question.id, opt)}
+                                                activeOpacity={0.7}
+                                                disabled={showResults}
+                                                style={{
+                                                    flexDirection: "row", alignItems: "center", gap: 13,
+                                                    paddingVertical: 13, paddingHorizontal: 14, borderRadius: 12,
+                                                    backgroundColor: bg, borderWidth: 1, borderColor: border, opacity,
+                                                }}
+                                            >
+                                                <View style={{
+                                                    width: 21, height: 21, borderRadius: 11, borderWidth: 2,
+                                                    borderColor: radBorder, backgroundColor: radBg,
+                                                    alignItems: "center", justifyContent: "center",
+                                                }}>
+                                                    {icon}
+                                                </View>
+                                                <Text style={{
+                                                    flex: 1, fontSize: 14, lineHeight: 19, color: textColor,
+                                                    fontWeight: textWeight,
+                                                    textDecorationLine: strike ? "line-through" : "none",
+                                                }}>
+                                                    {opt}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            </View>
+                        );
+                    })}
+                </View>
             </ScrollView>
 
-            {/* Submit Buttons fixados na parte inferior */}
-            <View className="absolute bottom-0 left-0 right-0 p-4 bg-slate-950 border-t border-slate-900">
+            {/* Ações fixadas na parte inferior */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20, borderTopWidth: 1, borderTopColor: HADES.border, backgroundColor: HADES.bg, gap: 10 }}>
                 {!showResults ? (
                     <TouchableOpacity
                         onPress={() => handleSubmit('salvo')}
-                        disabled={saving}
+                        disabled={saving || !isComplete}
                         activeOpacity={0.8}
-                        className={`flex-row items-center justify-center py-4 rounded-2xl ${isComplete ? 'bg-violet-600' : 'bg-slate-800'}`}
-                        style={isComplete ? {
-                            shadowColor: COLORS.violet,
-                            shadowOffset: { width: 0, height: 4 },
-                            shadowOpacity: 0.3,
-                            shadowRadius: 12,
-                            elevation: 8,
-                        } : {}}
+                        style={{
+                            height: 54, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
+                            backgroundColor: isComplete ? HADES.accentSolid : HADES.surfaceRaised,
+                            borderWidth: isComplete ? 0 : 1, borderColor: HADES.border,
+                        }}
                     >
-                        <Text className={`text-lg font-bold mr-2 ${isComplete ? 'text-white' : 'text-slate-500'}`}>
-                            {isComplete ? 'Enviar Respostas' : 'Responda as 10 Questões'}
+                        {isComplete ? <Send size={18} color="#000" /> : <Lock size={16} color={HADES.textDim} />}
+                        <Text style={{ fontSize: isComplete ? 16 : 15, fontWeight: "700", color: isComplete ? "#000" : HADES.textDim }}>
+                            {isComplete ? "Enviar Respostas" : "Responda as 10 Questões"}
                         </Text>
-                        {isComplete && <CheckCircle2 color={COLORS.white} size={20} />}
+                    </TouchableOpacity>
+                ) : isHighScore ? (
+                    <TouchableOpacity
+                        onPress={() => handleSubmit('salvo')}
+                        activeOpacity={0.8}
+                        disabled={saving}
+                        style={{ height: 54, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, backgroundColor: HADES.accentSolid }}
+                    >
+                        <Bookmark size={18} color="#000" />
+                        <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>Guardar Questões</Text>
                     </TouchableOpacity>
                 ) : (
-                    score > 7 ? (
+                    <>
                         <TouchableOpacity
-                            onPress={() => handleSubmit('salvo')}
+                            onPress={() => {
+                                setAnswers({ 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null, 8: null, 9: null, 10: null });
+                                setShowResults(false);
+                            }}
+                            activeOpacity={0.8}
+                            style={{ height: 54, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, backgroundColor: HADES.accentSolid }}
+                        >
+                            <RotateCw size={18} color="#000" />
+                            <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>Revisar e refazer agora</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={() => handleSubmit('pendente')}
                             activeOpacity={0.8}
                             disabled={saving}
-                            className="flex-row items-center justify-center py-4 rounded-2xl bg-violet-600"
-                            style={{
-                                shadowColor: COLORS.violet,
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 12,
-                                elevation: 8,
-                            }}
+                            style={{ height: 50, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}
                         >
-                            <Text className="text-lg font-bold mr-2 text-white">Guardar Questões</Text>
-                            <BookOpen color={COLORS.white} size={20} />
+                            <Clock size={16} color={HADES.textMuted} />
+                            <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.textMuted }}>Salvar e refazer mais tarde</Text>
                         </TouchableOpacity>
-                    ) : (
-                        <View className="flex-col gap-3">
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setAnswers({ 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null, 8: null, 9: null, 10: null });
-                                    setShowResults(false);
-                                }}
-                                activeOpacity={0.8}
-                                className="flex-row items-center justify-center py-4 rounded-2xl bg-violet-600"
-                                style={{
-                                    shadowColor: COLORS.violet,
-                                    shadowOffset: { width: 0, height: 4 },
-                                    shadowOpacity: 0.3,
-                                    shadowRadius: 12,
-                                    elevation: 8,
-                                }}
-                            >
-                                <Text className="text-lg font-bold text-white">Revisar e refazer agora</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                onPress={() => handleSubmit('pendente')}
-                                activeOpacity={0.8}
-                                disabled={saving}
-                                className="flex-row items-center justify-center py-4 rounded-2xl bg-slate-900 border border-slate-700"
-                            >
-                                <Text className="text-lg font-bold text-slate-300">Salvar e refazer mais tarde</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )
+                    </>
                 )}
             </View>
         </SafeAreaView>

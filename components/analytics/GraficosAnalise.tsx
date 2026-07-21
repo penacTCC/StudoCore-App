@@ -1,8 +1,10 @@
 import { Fragment } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import Svg, { Path, Line, Rect, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, { Path, Line, Rect, Circle, Defs, LinearGradient, Stop, Text as SvgText } from "react-native-svg";
 import { Flame, Swords, ChevronRight, User } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
+import { DIAS_SEMANA_ABREV, NOME_COMPLETO_DIA, formatarHoras } from "@/lib/analytics";
+import { ParDiaSemana, PontoSerieDia } from "@/types/analytics";
 
 // Paleta exata do mockup "HADES Analytics" — propositalmente diferente da navy
 // padrão do app, pra manter fidelidade visual ao design aprovado.
@@ -60,10 +62,10 @@ export function SeletorEscopo({
 }
 
 // ── Pills de período: 7 dias / 30 dias / Ano ────────────────────────────
-const OPCOES_PERIODO: { chave: PeriodoAnalise; rotulo: string }[] = [
-    { chave: "7d", rotulo: "7 dias" },
-    { chave: "30d", rotulo: "30 dias" },
-    { chave: "ano", rotulo: "Ano" },
+const OPCOES_PERIODO: { key: PeriodoAnalise; label: string }[] = [
+    { key: "7d", label: "7 dias" },
+    { key: "30d", label: "30 dias" },
+    { key: "ano", label: "Ano" },
 ];
 
 export function SeletorPeriodo({
@@ -76,15 +78,15 @@ export function SeletorPeriodo({
     return (
         <View className="flex-row gap-1.5">
             {OPCOES_PERIODO.map((opcao) => {
-                const ativo = valor === opcao.chave;
+                const ativo = valor === opcao.key;
                 return (
                     <TouchableOpacity
-                        key={opcao.chave}
-                        onPress={() => aoAlterar(opcao.chave)}
+                        key={opcao.key}
+                        onPress={() => aoAlterar(opcao.key)}
                         className={`mt-3 rounded-lg px-3.5 py-1.5 ${ativo ? "bg-[#1a1b20]" : "bg-transparent"}`}
                     >
                         <Text className={`text-[13px] font-semibold ${ativo ? "text-white" : "text-[#6b6e76]"}`}>
-                            {opcao.rotulo}
+                            {opcao.label}
                         </Text>
                     </TouchableOpacity>
                 );
@@ -121,52 +123,83 @@ function AvatarMembro({ inicial, cor }: { inicial: string | null; cor: string })
 // ════════════════════════════════════════════════════════════════════════
 
 // ── 1. Horas estudadas — gráfico de área ─────────────────────────────────
-const DIAS_SEMANA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
- export function GraficoArea({ cor }: { cor: string }) {
+ export function GraficoArea({
+    cor,
+    horas,
+    percentual,
+    periodo,
+    pontos,
+}: {
+    cor: string;
+    horas: string;
+    percentual: string;
+    periodo: string;
+    pontos: PontoSerieDia[];
+}) {
+    const largura = 320;
+    const altura = 130;
+    const yTopo = 15;
+    const yBase = 110;
+
+    const maxMinutos = Math.max(...pontos.map((p) => p.minutos), 1);
+    const passoX = pontos.length > 1 ? largura / (pontos.length - 1) : 0;
+
+    const coordenadas = pontos.map((p, i) => ({
+        x: i * passoX,
+        y: yBase - (p.minutos / maxMinutos) * (yBase - yTopo),
+    }));
+
+    const linhaPath = coordenadas.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x} ${c.y}`).join(" ");
+    const areaPath = `${linhaPath} L ${largura} ${altura} L 0 ${altura} Z`;
+    const diaDeHoje = DIAS_SEMANA_ABREV[new Date().getDay()];
+    const ultimoPonto = coordenadas[coordenadas.length - 1];
+
     return (
         <View>
             <View className="mb-3.5 flex-row items-end justify-between">
                 <View>
                     <Text className="text-[13px] font-medium text-[#8a8d96]">Horas estudadas</Text>
                     <View className="mt-1 flex-row items-baseline gap-1.5">
-                        <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">28h 42m</Text>
+                        <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{horas}</Text>
                     </View>
                     <View className="mt-1 flex-row items-center gap-1.5">
-                        <IconeTendenciaAlta cor={CORES.verde} />
-                        <Text className="text-xs font-semibold text-[#30d158]">+12%</Text>
-                        <Text className="text-xs text-[#6b6e76]">vs semana passada</Text>
+                        <IconeTendenciaAlta cor={CORES.verde}   />
+                        <Text className="text-xs font-semibold text-[#30d158]">{percentual}</Text>
+                        <Text className="text-xs text-[#6b6e76]">vs. {periodo} passado(a)</Text>
                     </View>
                 </View>
             </View>
 
-            <Svg width="100%" height={130} viewBox="0 0 320 130">
+            <Svg width="100%" height={altura} viewBox={`0 0 ${largura} ${altura}`}>
                 <Defs>
                     <LinearGradient id="gradienteAreaPessoal" x1="0" x2="0" y1="0" y2="1">
                         <Stop offset="0%" stopColor={cor} stopOpacity={0.35} />
                         <Stop offset="100%" stopColor={cor} stopOpacity={0} />
-                    </LinearGradient>
+                    </LinearGradient>   
                 </Defs>
-                <Line x1="0" y1="40" x2="320" y2="40" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
-                <Line x1="0" y1="80" x2="320" y2="80" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
-                <Path d="M 0 95 L 53 78 L 107 86 L 160 55 L 213 62 L 267 38 L 320 25 L 320 130 L 0 130 Z" fill="url(#gradienteAreaPessoal)" />
+                <Line x1="0" y1="40" x2={largura} y2="40" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
+                <Line x1="0" y1="80" x2={largura} y2="80" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
+                <Path d={areaPath} fill="url(#gradienteAreaPessoal)" />
                 <Path
-                    d="M 0 95 L 53 78 L 107 86 L 160 55 L 213 62 L 267 38 L 320 25"
+                    d={linhaPath}
                     fill="none"
                     stroke={cor}
                     strokeWidth={2.5}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 />
-                <Circle cx={320} cy={25} r={4} fill="#000" stroke={cor} strokeWidth={2.5} />
+                {ultimoPonto && (
+                    <Circle cx={ultimoPonto.x} cy={ultimoPonto.y} r={4} fill="#000" stroke={cor} strokeWidth={2.5} />
+                )}
             </Svg>
             <View className="mt-2 flex-row justify-between px-0.5">
-                {DIAS_SEMANA.map((dia, i) => (
+                {pontos.map((p, i) => (
                     <Text
-                        key={dia}
-                        className={i === DIAS_SEMANA.length - 1 ? "text-[11px] font-semibold text-white" : "text-[11px] text-[#5f636c]"}
+                        key={`${p.dia}-${i}`}
+                        className={p.dia === diaDeHoje ? "text-[11px] font-semibold text-white" : "text-[11px] text-[#5f636c]"}
                     >
-                        {dia}
+                        {p.dia}
                     </Text>
                 ))}
             </View>
@@ -198,22 +231,22 @@ export function CartaoMetrica({
     );
 }
 
-// ── 3. Esta semana vs. anterior — barras pareadas ────────────────────────
-const PARES_SEMANA = [
-    { atual: 65, anterior: 47 },
-    { atual: 77, anterior: 57 },
-    { atual: 53, anterior: 70 },
-    { atual: 95, anterior: 65 },
-    { atual: 75, anterior: 40 },
-    { atual: 103, anterior: 77 },
-    { atual: 113, anterior: 85 },
-];
-const INICIAIS_DIAS = ["D", "S", "T", "Q", "Q", "S", "S"];
+// ── 3. Período atual vs. anterior — barras pareadas ──────────────────────
+export function GraficoComparativoSemanal({
+    cor,
+    titulo,
+    pares,
+}: {
+    cor: string;
+    titulo: string;
+    pares: ParDiaSemana[];
+}) {
+    const alturaMax = 105; // deixa espaço pro eixo em y=125 dentro da viewBox de 130
+    const maxMinutos = Math.max(...pares.flatMap((p) => [p.atual, p.anterior]), 1);
 
-export function GraficoComparativoSemanal({ cor }: { cor: string }) {
     return (
         <View>
-            <Text className="mb-3.5 text-base font-bold tracking-[-0.2px] text-white">Esta semana vs. anterior</Text>
+            <Text className="mb-3.5 text-base font-bold tracking-[-0.2px] text-white">{titulo}</Text>
             <View className="mb-3 flex-row items-center gap-4">
                 <View className="flex-row items-center gap-1.5">
                     <View className="h-2 w-2 rounded-sm" style={{ backgroundColor: cor }} />
@@ -226,19 +259,21 @@ export function GraficoComparativoSemanal({ cor }: { cor: string }) {
             </View>
             <Svg width="100%" height={130} viewBox="0 0 320 130">
                 <Line x1="0" y1="125" x2="320" y2="125" stroke={CORES.divisor} />
-                {PARES_SEMANA.map((par, i) => {
+                {pares.map((par, i) => {
                     const baseX = 11 + i * 45;
+                    const alturaAtual = (par.atual / maxMinutos) * alturaMax;
+                    const alturaAnterior = (par.anterior / maxMinutos) * alturaMax;
                     return (
                         <Fragment key={i}>
-                            <Rect x={baseX} y={125 - par.atual} width={9} height={par.atual} rx={2} fill={cor} />
-                            <Rect x={baseX + 12} y={125 - par.anterior} width={9} height={par.anterior} rx={2} fill={CORES.barraAnterior} />
+                            <Rect x={baseX} y={125 - alturaAtual} width={9} height={alturaAtual} rx={2} fill={cor} />
+                            <Rect x={baseX + 12} y={125 - alturaAnterior} width={9} height={alturaAnterior} rx={2} fill={CORES.barraAnterior} />
                         </Fragment>
                     );
                 })}
             </Svg>
             <View className="mt-1.5 flex-row justify-between px-3">
-                {INICIAIS_DIAS.map((d, i) => (
-                    <Text key={i} className="text-[11px] text-[#5f636c]">{d}</Text>
+                {pares.map((p, i) => (
+                    <Text key={i} className="text-[11px] text-[#5f636c]">{p.dia[0]}</Text>
                 ))}
             </View>
         </View>
@@ -247,12 +282,6 @@ export function GraficoComparativoSemanal({ cor }: { cor: string }) {
 
 // ── 4. Distribuição por matéria — donut + legenda ────────────────────────
 type Materia = { rotulo: string; pct: number; cor: string };
-const MATERIAS: Materia[] = [
-    { rotulo: "Matemática", pct: 38, cor: "#3b82f6" },
-    { rotulo: "Física", pct: 24, cor: CORES.violeta },
-    { rotulo: "Química", pct: 20, cor: CORES.vermelho },
-    { rotulo: "Biologia", pct: 18, cor: CORES.verde },
-];
 
 function segmentosDonut(materias: Materia[], raio: number) {
     const circunferencia = 2 * Math.PI * raio;
@@ -265,9 +294,9 @@ function segmentosDonut(materias: Materia[], raio: number) {
     });
 }
 
-export function GraficoDonutMaterias() {
+export function GraficoDonutMaterias({ qtdMaterias, materias }: { qtdMaterias: number; materias: Materia[] }) {
     const raio = 45;
-    const segmentos = segmentosDonut(MATERIAS, raio);
+    const segmentos = segmentosDonut(materias, raio);
     return (
         <View>
             <Text className="mb-3.5 text-base font-bold tracking-[-0.2px] text-white">Distribuição por matéria</Text>
@@ -292,12 +321,12 @@ export function GraficoDonutMaterias() {
                         ))}
                     </Svg>
                     <View className="absolute left-0 top-0 h-[120px] w-[120px] items-center justify-center">
-                        <Text className="text-lg font-bold text-white">{MATERIAS.length}</Text>
-                        <Text className="mt-0.5 text-[9px] font-semibold tracking-[0.5px] text-[#6b6e76]">MATÉRIAS</Text>
+                        <Text className="text-lg font-bold text-white">{qtdMaterias}</Text>
+                        <Text className="mt-0.5 text-[9px] font-semibold tracking-[0.5px] text-[#6b6e76]">MATÉRIA(s)</Text>
                     </View>
                 </View>
                 <View className="flex-1 gap-2.5">
-                    {MATERIAS.map((m) => (
+                    {materias.map((m) => (
                         <View key={m.rotulo} className="flex-row items-center justify-between">
                             <View className="flex-row items-center gap-2">
                                 <View className="h-2 w-2 rounded-sm" style={{ backgroundColor: m.cor }} />
@@ -313,31 +342,33 @@ export function GraficoDonutMaterias() {
 }
 
 // ── 5. Taxa de acerto — barra dividida ───────────────────────────────────
-export function BarraTaxaAcerto() {
-    const acerto = 73;
-    const erro = 27;
+export function BarraTaxaAcerto({acerto, erro, total, pct} : {acerto: number, erro: number, total: number, pct: number}) {
+    // `acerto`/`erro` são contagens brutas (podem passar de 100) — a largura da
+    // barra precisa ser em % do total, não a contagem direto.
+    const pctErro = total > 0 ? 100 - pct : 0;
+
     return (
         <View>
             <View className="mb-2.5 flex-row items-center justify-between">
                 <Text className="text-base font-bold tracking-[-0.2px] text-white">Taxa de acerto</Text>
-                <Text className="text-[13px] text-[#6b6e76]">1.842 questões</Text>
+                <Text className="text-[13px] text-[#6b6e76]">{total} respondidas</Text>
             </View>
             <View className="mb-3 flex-row items-baseline gap-2">
-                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{acerto}%</Text>
+                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{pct}%</Text>
                 <Text className="text-[13px] text-[#6b6e76]">de acerto</Text>
             </View>
             <View className="h-2.5 flex-row gap-[3px] overflow-hidden rounded-[5px]">
-                <View className="h-full rounded-[5px] bg-[#30d158]" style={{ width: `${acerto}%` }} />
-                <View className="h-full rounded-[5px] bg-[#f0556b] opacity-70" style={{ width: `${erro}%` }} />
+                <View className="h-full rounded-[5px] bg-[#30d158]" style={{ width: `${pct}%` }} />
+                <View className="h-full rounded-[5px] bg-[#f0556b] opacity-70" style={{ width: `${pctErro}%` }} />
             </View>
             <View className="mt-2.5 flex-row justify-between">
                 <View className="flex-row items-center gap-1.5">
                     <View className="h-2 w-2 rounded-sm bg-[#30d158]" />
                     <Text className="text-xs text-[#c9ccd2]">Acertos</Text>
-                    <Text className="text-xs text-[#6b6e76]">1.345</Text>
+                    <Text className="text-xs text-[#6b6e76]">{acerto}</Text>
                 </View>
                 <View className="flex-row items-center gap-1.5">
-                    <Text className="text-xs text-[#6b6e76]">497</Text>
+                    <Text className="text-xs text-[#6b6e76]">{erro}</Text>
                     <Text className="text-xs text-[#c9ccd2]">Erros</Text>
                     <View className="h-2 w-2 rounded-sm bg-[#f0556b]" />
                 </View>
@@ -347,44 +378,63 @@ export function BarraTaxaAcerto() {
 }
 
 // ── 6. Quando você mais estuda — barras por dia da semana ────────────────
-const BARRAS_DIA_SEMANA = [
-    { rotulo: "Dom", altura: 50 },
-    { rotulo: "Seg", altura: 70 },
-    { rotulo: "Ter", altura: 78 },
-    { rotulo: "Qua", altura: 62 },
-    { rotulo: "Qui", altura: 85 },
-    { rotulo: "Sex", altura: 102 },
-    { rotulo: "Sáb", altura: 55 },
-];
-const INDICE_MELHOR_DIA = 5;
+export function GraficoDiaSemana({ cor, pontos }: { cor: string; pontos: PontoSerieDia[] }) {
+    const baseY = 110;
+    const alturaMax = 92; // deixa espaço acima pro rótulo de horas do dia em destaque
+    const maxMinutos = Math.max(...pontos.map((p) => p.minutos), 1);
 
-export function GraficoDiaSemana({ cor }: { cor: string }) {
+    const indiceMelhorDia = pontos.reduce(
+        (melhorIndice, p, i, arr) => (p.minutos > arr[melhorIndice].minutos ? i : melhorIndice),
+        0
+    );
+    const melhorDia = pontos[indiceMelhorDia];
+    const nomeMelhorDia = melhorDia ? (NOME_COMPLETO_DIA[melhorDia.dia] ?? melhorDia.dia) : "";
+    const horasMelhorDia = melhorDia ? formatarHoras(melhorDia.minutos) : "0h00";
+
     return (
         <View>
             <Text className="mb-1.5 text-base font-bold tracking-[-0.2px] text-white">Quando você mais estuda</Text>
             <Text className="mb-3.5 text-[13px] text-[#6b6e76]">
-                <Text className="font-semibold" style={{ color: cor }}>Sexta</Text> é seu melhor dia
+                <Text className="font-semibold" style={{ color: cor }}>{nomeMelhorDia}</Text> é seu melhor dia
             </Text>
-            <Svg width="100%" height={110} viewBox="0 0 320 110">
-                {BARRAS_DIA_SEMANA.map((dia, i) => (
-                    <Rect
-                        key={dia.rotulo}
-                        x={6 + i * 44}
-                        y={110 - dia.altura}
-                        width={28}
-                        height={dia.altura}
-                        rx={4}
-                        fill={i === INDICE_MELHOR_DIA ? cor : CORES.barraInativa}
-                    />
-                ))}
+            <Svg width="100%" height={130} viewBox="0 0 320 130">
+                {pontos.map((p, i) => {
+                    const altura = (p.minutos / maxMinutos) * alturaMax;
+                    const destaque = i === indiceMelhorDia;
+                    const x = 6 + i * 44;
+                    return (
+                        <Fragment key={`${p.dia}-${i}`}>
+                            {destaque && (
+                                <SvgText
+                                    x={x + 14}
+                                    y={baseY - altura - 8}
+                                    fontSize={11}
+                                    fontWeight="600"
+                                    fill={cor}
+                                    textAnchor="middle"
+                                >
+                                    {horasMelhorDia}
+                                </SvgText>
+                            )}
+                            <Rect
+                                x={x}
+                                y={baseY - altura}
+                                width={28}
+                                height={altura}
+                                rx={4}
+                                fill={destaque ? cor : CORES.barraInativa}
+                            />
+                        </Fragment>
+                    );
+                })}
             </Svg>
             <View className="mt-1.5 flex-row justify-between">
-                {BARRAS_DIA_SEMANA.map((dia, i) => (
+                {pontos.map((p, i) => (
                     <Text
-                        key={dia.rotulo}
-                        className={`w-[34px] text-center text-[11px] ${i === INDICE_MELHOR_DIA ? "font-semibold text-white" : "text-[#6b6e76]"}`}
+                        key={`${p.dia}-${i}`}
+                        className={`w-[34px] text-center text-[11px] ${i === indiceMelhorDia ? "font-semibold text-white" : "text-[#6b6e76]"}`}
                     >
-                        {dia.rotulo}
+                        {p.dia}
                     </Text>
                 ))}
             </View>
@@ -393,33 +443,59 @@ export function GraficoDiaSemana({ cor }: { cor: string }) {
 }
 
 // ── 7. Evolução da ofensiva ───────────────────────────────────────────────
-export function GraficoOfensiva() {
+export function GraficoOfensiva({
+    ofensivaAtual,
+    melhorOfensiva,
+    pontos,
+}: {
+    ofensivaAtual: number;
+    melhorOfensiva: number;
+    pontos: number[];
+}) {
+    const largura = 320;
+    const altura = 90;
+    const yTopo = 10;
+    const yBase = 78;
+
+    const maxValor = Math.max(...pontos, 1);
+    const passoX = pontos.length > 1 ? largura / (pontos.length - 1) : 0;
+
+    const coordenadas = pontos.map((valor, i) => ({
+        x: i * passoX,
+        y: yBase - (valor / maxValor) * (yBase - yTopo),
+    }));
+
+    const linhaPath = coordenadas.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x} ${c.y}`).join(" ");
+    const ultimoPonto = coordenadas[coordenadas.length - 1];
+
     return (
         <View>
             <Text className="mb-2.5 text-base font-bold tracking-[-0.2px] text-white">Evolução da ofensiva</Text>
             <View className="mb-3.5 flex-row items-baseline gap-2">
                 <Flame size={20} color={CORES.chama} />
-                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">12</Text>
+                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{ofensivaAtual}</Text>
                 <Text className="text-[13px] text-[#6b6e76]">dias seguidos</Text>
                 <Text className="ml-auto text-[13px] text-[#6b6e76]">
-                    recorde: <Text className="font-semibold text-white">47</Text>
+                    recorde: <Text className="font-semibold text-white">{melhorOfensiva}</Text>
                 </Text>
             </View>
-            <Svg width="100%" height={90} viewBox="0 0 320 90">
-                <Line x1="0" y1="30" x2="320" y2="30" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
-                <Line x1="0" y1="60" x2="320" y2="60" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
+            <Svg width="100%" height={altura} viewBox={`0 0 ${largura} ${altura}`}>
+                <Line x1="0" y1="30" x2={largura} y2="30" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
+                <Line x1="0" y1="60" x2={largura} y2="60" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
                 <Path
-                    d="M 0 78 L 27 72 L 53 75 L 80 60 L 107 65 L 133 50 L 160 55 L 187 40 L 213 45 L 240 30 L 267 22 L 293 18 L 320 12"
+                    d={linhaPath}
                     fill="none"
                     stroke={CORES.chama}
                     strokeWidth={2.5}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 />
-                <Circle cx={320} cy={12} r={4} fill="#000" stroke={CORES.chama} strokeWidth={2.5} />
+                {ultimoPonto && (
+                    <Circle cx={ultimoPonto.x} cy={ultimoPonto.y} r={4} fill="#000" stroke={CORES.chama} strokeWidth={2.5} />
+                )}
             </Svg>
             <View className="mt-2 flex-row justify-between">
-                <Text className="text-[11px] text-[#5f636c]">12 sem atrás</Text>
+                <Text className="text-[11px] text-[#5f636c]">{pontos.length} sem atrás</Text>
                 <Text className="text-[11px] text-[#5f636c]">Hoje</Text>
             </View>
         </View>

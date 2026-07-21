@@ -145,8 +145,8 @@ export const buscarSessoesRecentes = async (limit: number = 20, groupId?: string
 };
 
 // ───── SELECT (sessões de um usuário específico) ─────
-export const buscarSessoesPorUsuario = async (userId: string, limit: number = 20) => {
-    return await supabase
+export const buscarSessoesPorUsuario = async (userId: string, limit?: number) => {
+    const query = supabase
         .from("sessoes_foco")
         .select(`
             *,
@@ -157,8 +157,10 @@ export const buscarSessoesPorUsuario = async (userId: string, limit: number = 20
             )
         `)
         .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(limit);
+        .order("created_at", { ascending: false });
+
+    // Sem limite explícito, traz todas as sessões (necessário para análises que olham até 1 ano+ para trás).
+    return await (limit !== undefined ? query.limit(limit) : query);
 };
 
 //dataAtual
@@ -186,6 +188,7 @@ export const tempoTotalSessoesFoco = async (groupId?: string) => {
         };
     }
     console.log(data)
+    
     //reduce percorre todo um array e reduz todos os seus elementos a um único valor
     const totalMinutos = data?.reduce((acumulador, sessao) => {
         return acumulador + (sessao.tempo_minutos ?? 0)
