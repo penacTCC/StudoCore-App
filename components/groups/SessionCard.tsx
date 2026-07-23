@@ -24,8 +24,8 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
     return (
         <TouchableOpacity
             onPress={() => router.push({
-                pathname: "/join-session",
-                params: { subjectColors: JSON.stringify(subjectColors) }
+                pathname: "/session-preview",
+                params: { isPublic: String(session.is_public) }
             })}
             className="bg-slate-900 border border-slate-800 rounded-2xl p-4"
         >

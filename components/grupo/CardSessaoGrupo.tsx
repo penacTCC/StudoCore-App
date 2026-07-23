@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Globe, Lock, Flame, Clock, BadgeCheck, Wind } from "lucide-react-native";
+import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { getSubjectColor, getTimeAgo } from "@/constants/helpers";
 import Avatar from "@/components/ui/Avatar";
@@ -27,7 +28,14 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
     });
 
     return (
-        <View
+        <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() =>
+                router.push({
+                    pathname: "/session-preview",
+                    params: { isPublic: String(sessao.is_public) },
+                })
+            }
             style={{
                 backgroundColor: HADES.surface,
                 borderWidth: 1,
@@ -125,7 +133,7 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
                     </View>
                 </View>
             </View>
-        </View>
+        </TouchableOpacity>
     );
 }
 
