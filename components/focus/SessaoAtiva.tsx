@@ -37,6 +37,7 @@ type Props = {
     onEstender: () => void;
     onPularDescanso: () => void;
     onConcluirBloco: () => void;
+    onAbrirColegas?: () => void;
 };
 
 export default function SessaoAtiva(props: Props) {
@@ -55,6 +56,7 @@ function TelaCronometro({
     iniciadaEm,
     onPausar,
     onEncerrar,
+    onAbrirColegas,
 }: Props) {
     return (
         <>
@@ -82,7 +84,9 @@ function TelaCronometro({
                     )}
                 </View>
 
-                {colegas && <ColegasFocando nomes={colegas} total={colegas.length} />}
+                {colegas && (
+                    <ColegasFocando nomes={colegas} total={colegas.length} onPress={onAbrirColegas} />
+                )}
             </View>
 
             <View style={{ paddingHorizontal: 24, paddingBottom: 12, gap: 12 }}>

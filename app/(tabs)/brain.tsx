@@ -36,6 +36,9 @@ import { UserStats } from "@/types/profile";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { useMembrosGrupos } from "@/hooks/useMembrosGrupos";
 import { horasSemanaisGrupo } from "@/services/grupos";
+import { useRankingHorasGrupo } from "@/hooks/useRankingHorasGrupo";
+import { LeaderboardFilter } from "@/constants/ranking";
+import { membrosRankingAnalytics } from "@/types/analytics";
 
 type BrainTab = "database" | "analytics";
 
@@ -117,6 +120,8 @@ export default function BrainScreen() {
         };
     }, [sessoesUsuario]);
 
+    //========Aba Grupo========
+
     //Busca os grupos do usuário, para a tela de grupos
     const {grupos} = useMeusGrupos()
 
@@ -128,6 +133,9 @@ export default function BrainScreen() {
 
     //useState para as horas semanais do grupo
     const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
+
+    //Grupo selecionado, para ser passado (como prop) para outras telas
+    const grupoSelecionado = grupos.find((g) => g.id === grupoSelecionadoId) ?? grupos[0] ?? null;
 
     //useEffect para o grupoSelecionadoId não começar nulo
     useEffect(() => {
@@ -152,6 +160,37 @@ export default function BrainScreen() {
     const qtdMembrosGrupoSelecionado = grupoSelecionadoId
     ? (membrosPorGrupo[grupoSelecionadoId]?.length ?? 0)
     : 0
+    
+    //Transforma o período da aba Análise (PeriodoAnalise) no formato que o
+    //ranking de grupo espera (LeaderboardFilter)
+    const mapaPeriodo: Record<PeriodoAnalise, LeaderboardFilter> = {
+        "7d": "semanal",
+        "30d": "mensal",
+        "ano": "anual",
+    }
+    const filtroRankingGrupo = mapaPeriodo[periodoAnalise]
+    
+    //Pega as horas e membros do grupo selecionado
+    const horasMembros = useRankingHorasGrupo(
+        grupoSelecionadoId,
+        filtroRankingGrupo,
+        grupoSelecionadoId ? membrosPorGrupo[grupoSelecionadoId] ?? [] : []
+    )
+
+    //Filtramos os membros para que o membro não fique undefined numa renderização de transição entre telas
+    const membrosRanking: membrosRankingAnalytics[] = useMemo(
+        () => 
+            horasMembros.rankingMembros.filter((item) => item.membro)
+                .map((item) => ({
+                    userId: item.user_id,
+                    nome: item.membro!.userData?.nome_usuario || "Sem nome",
+                    foto: item.membro!.userData?.foto_usuario,
+                    minutos: item.total_minutos,
+                    ofensiva: item.membro!.ofensiva ?? 0,
+                    ehVoce: item.user_id === userId,
+            })),
+        [horasMembros, userId]
+    )
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -433,8 +472,8 @@ export default function BrainScreen() {
                                     aoSelecionarGrupo={(grupo) => setGrupoSelecionadoId(grupo.id)}
                                     membros={membrosPorGrupo}
                                 />
-                                <MetaSemanalGrupo grupos={grupos} grupoSelecionadoId={grupoSelecionadoId} horas={horasSemanaGrupo} qtdMembros={qtdMembrosGrupoSelecionado}/>
-                                <RankingHorasGrupo cor={HADES.accentSolid} />
+                                <MetaSemanalGrupo grupos={grupos} grupoSelecionado={grupoSelecionado} horas={horasSemanaGrupo} qtdMembros={qtdMembrosGrupoSelecionado}/>
+                                <RankingHorasGrupo cor={HADES.accentSolid} membros={membrosRanking} grupoSelecionado={grupoSelecionado} />
 
                                 <View className="flex-row gap-[10px]">
                                     <MateriaMaisEstudadaGrupo />

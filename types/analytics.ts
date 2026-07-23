@@ -32,4 +32,11 @@ export type PontoSerieDia = { dia: string; minutos: number };
 
 export type ParDiaSemana = { dia: string; atual: number; anterior: number };
 
-
+export type  membrosRankingAnalytics = {
+    userId: string;
+    nome: string;
+    foto?: string | null | undefined;
+    minutos: number;
+    ofensiva: number;
+    ehVoce: boolean;
+}

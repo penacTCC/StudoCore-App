@@ -1,12 +1,14 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Image } from "react-native";
 import Svg, { Path, Line, Rect, Circle, Defs, LinearGradient, Stop, Text as SvgText } from "react-native-svg";
 import { Flame, Swords, ChevronRight, User, ChevronDown } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import { DIAS_SEMANA_ABREV, NOME_COMPLETO_DIA, formatarHoras } from "@/lib/analytics";
-import { ParDiaSemana, PontoSerieDia } from "@/types/analytics";
+import { membrosRankingAnalytics, ParDiaSemana, PontoSerieDia } from "@/types/analytics";
 import { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 import { getTimeAgo } from "@/constants/helpers";
+import { Avatar } from "../ui";
+import { formatarMinutos } from "@/constants/ranking";
 
 // Paleta exata do mockup "HADES Analytics" — propositalmente diferente da navy
 // padrão do app, pra manter fidelidade visual ao design aprovado.
@@ -610,26 +612,23 @@ export function CabecalhoGrupo({
 }
 
 // ── G2. Meta semanal do grupo ──────────────────────────────────────────
-export function MetaSemanalGrupo({grupos, grupoSelecionadoId, horas, qtdMembros}: {grupos: Grupo[], grupoSelecionadoId: string | null, horas:number, qtdMembros: number}) {
-
-    //Como o usuário pode ter mais de um grupo, devemos pegar qual está selecionado
-    const grupoSelecionado = grupos.find((g) => g.id === grupoSelecionadoId) ?? grupos[0] ?? null;
+export function MetaSemanalGrupo({grupos, grupoSelecionado, horas, qtdMembros}: {grupos: Grupo[], grupoSelecionado: Grupo, horas:number, qtdMembros: number}) {
     
     const progressoGrupo = grupoSelecionado.meta_horas > 0 ? horas / grupoSelecionado.meta_horas : 0
 
     const progressoPercentual = Math.min(Math.round(progressoGrupo * 100), 100)
 
-    const horasDoGrupo = grupoSelecionado.meta_horas * qtdMembros
+    const horasDoGrupo = formatarHoras(grupoSelecionado.meta_horas * qtdMembros)
 
     return (
         <View>
             <View className="mb-1.5 flex-row items-baseline justify-between">
-                <Text className="text-base font-bold tracking-[-0.2px] text-white">Meta Semanal <Text className="text-[10px] text-[#FF9A00]">- {grupoSelecionado.meta_horas}h por membro</Text> </Text>
+                <Text className="text-base font-bold tracking-[-0.2px] text-white">Meta Semanal <Text className="text-[10px] text-[#fcc470]">• {grupoSelecionado.meta_horas}h por membro</Text> </Text>
                 <Text className="text-[13px] font-semibold text-[#30d158]">{progressoPercentual}%</Text>
             </View>
             <View className="mb-3 flex-row items-baseline gap-2">
-                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{horas}h</Text>
-                <Text className="text-[13px] text-[#6b6e76]">/ {horasDoGrupo}h</Text>
+                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{formatarHoras(horas)}</Text>
+                <Text className="text-[13px] text-[#6b6e76]">/ {horasDoGrupo}</Text>
            </View>
             <View className="h-2 overflow-hidden rounded-full bg-[#1a1b20]">
                 <View className="h-full w-full rounded-full bg-[#30d158]" />
@@ -642,16 +641,17 @@ export function MetaSemanalGrupo({grupos, grupoSelecionadoId, horas, qtdMembros}
 }
 
 // ── G3. Ranking de horas do grupo ──────────────────────────────────────
-type MembroRanking = { nome: string; horas: string; inicial: string | null; corAvatar: string; pctBarra: number; destaque?: boolean };
-const RANKING_HORAS: MembroRanking[] = [
-    { nome: "penac", horas: "62h 14m", inicial: "P", corAvatar: "#1f9aa8", pctBarra: 100, destaque: true },
-    { nome: "NatVM", horas: "38h 02m", inicial: "N", corAvatar: "#1f9d63", pctBarra: 61 },
-    { nome: "natDefault", horas: "24h 48m", inicial: null, corAvatar: "#2a2c33", pctBarra: 40 },
-    { nome: "toulhe", horas: "12h 21m", inicial: "T", corAvatar: CORES.violeta, pctBarra: 20 },
-    { nome: "h", horas: "4h 35m", inicial: "H", corAvatar: "#e08a1e", pctBarra: 7 },
-];
+export function RankingHorasGrupo({ cor, membros, grupoSelecionado }: { cor: string, membros: membrosRankingAnalytics[], grupoSelecionado: Grupo }) {
+    
+    //Cálculo para a barra de progresso de horas dos membros no ranking
+    const pctMembros = (minutos: number) => {
+        const pct = (minutos / grupoSelecionado.meta_horas) * 100
+        if(pct > 100) {
+            return 100
+        }
+        return pct;
+    }
 
-export function RankingHorasGrupo({ cor }: { cor: string }) {
     return (
         <View>
             <View className="mb-3.5 flex-row items-center justify-between">
@@ -659,21 +659,21 @@ export function RankingHorasGrupo({ cor }: { cor: string }) {
                 <Text className="text-[13px] text-[#6b6e76]">esta semana</Text>
             </View>
             <View className="gap-3.5 mb-6">
-                {RANKING_HORAS.map((membro) => (
+                {membros.map((membro) => (
                     <View key={membro.nome}>
                         <View className="mb-1.5 flex-row items-center justify-between">
-                            <View className="flex-row items-center gap-2.5">
-                                <AvatarMembro inicial={membro.inicial} cor={membro.corAvatar} />
+                            <View className="flex-row items-center gap-2.5 mb-2">
+                                <Avatar foto={membro.foto}/>
                                 <Text className="text-[13px] font-semibold text-white">{membro.nome}</Text>
                             </View>
-                            <Text className={`text-[13px] font-semibold ${membro.destaque ? "text-white" : "text-[#c9ccd2]"}`}>
-                                {membro.horas}
+                            <Text className={`text-[13px] font-semibold ${membro.ehVoce ? "text-white" : "text-[#9a9da3]"}`}>
+                                {formatarMinutos(membro.minutos)} • <Text className="text-xs text-[#fcc470]">{(pctMembros(membro.minutos / 60)).toFixed(1)}%</Text>
                             </Text>
                         </View>
                         <View className="h-1.5 rounded-sm bg-[#1a1b20]">
                             <View
                                 className="h-full rounded-sm"
-                                style={{ width: `${membro.pctBarra}%`, backgroundColor: membro.destaque ? cor : CORES.barraAnterior }}
+                                style={{ width: `${pctMembros(membro.minutos / 60)}%`, backgroundColor: membro.ehVoce ? cor : CORES.barraAnterior }}
                             />
                         </View>
                     </View>
