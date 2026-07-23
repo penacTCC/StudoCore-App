@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { View, Text, TouchableOpacity, Alert, AppState } from "react-native";
@@ -18,10 +18,11 @@ import ConfigSessao, { SeletorModo } from "@/components/focus/ConfigSessao";
 import BloqueioFeedback from "@/components/focus/BloqueioFeedback";
 import SheetVault from "@/components/focus/SheetVault";
 import SessaoAtiva from "@/components/focus/SessaoAtiva";
-import { FaixaBlocoCronograma, FaixaSessaoRestaurada } from "@/components/focus/PecasFoco";
 import type { ArquivoDetalhe } from "@/types/archives";
-import type { SessaoFocoRow } from "@/types/sessions";
-import type { ConfigPomodoro, ContextoBloco, EstadoFoco, FaseFoco, ModoFoco } from "@/types/foco";
+import type { SessaoFocoRow, SessionCardItem, MemberSession } from "@/types/sessions";
+import { salvarSessaoFoco, atualizarSessaoFoco, fetchFocusSession, calculateFocusSessionMinutes, insertTabSessaoMembros, fetchSessionMembers, updateTabSessaoMembros } from "@/services/sessions";
+import { FaixaBlocoCronograma, FaixaSessaoRestaurada } from "@/components/focus/PecasFoco";
+import type { ConfigPomodoro, ContextoBloco, FocusState, FaseFoco, ModoFoco } from "@/types/foco";
 
 // Configurar o comportamento das notificações (necessário para mostrar enquanto o app está aberto)
 Notifications.setNotificationHandler({
@@ -45,6 +46,11 @@ function normalizar(texto: string) {
         .replace(/[̀-ͯ]/g, "");
 }
 
+/**
+     * formata o tempo em segundos para o formato HH:MM:SS
+     * @param seconds 
+     * @returns horas minutos e segundos
+     */
 function formatarHMS(segundos: number) {
     const h = Math.floor(segundos / 3600);
     const m = Math.floor((segundos % 3600) / 60);
@@ -54,19 +60,29 @@ function formatarHMS(segundos: number) {
         .padStart(2, "0")}`;
 }
 
+/**
+     * formata o tempo em segundos para o formato HH:MM
+     * @param seconds 
+     * @returns horas minutos
+     */
 function formatarMS(segundos: number) {
     const m = Math.floor(Math.max(0, segundos) / 60);
     const s = Math.max(0, segundos) % 60;
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+/**
+     * formata o tempo em segundos para o formato HH
+     * @param timestamp 
+     * @returns horas 
+     */
 function formatarHora(timestamp: number) {
     const d = new Date(timestamp);
     return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
 export default function FocusScreen() {
-    const [focusState, setFocusState] = useState<EstadoFoco>("config");
+    const [focusState, setFocusState] = useState<FocusState>("config");
     const [modo, setModo] = useState<ModoFoco>("cronometro");
     const [isPublicSession, setIsPublicSession] = useState(true);
     const [selectedSubject, setSelectedSubject] = useState("");
@@ -97,6 +113,89 @@ export default function FocusScreen() {
     const params = useLocalSearchParams();
     const router = useRouter();
     const navigation = useNavigation();
+
+    /**
+     * Sessão enviada pelo SessionCard (quando o usuário clica em "Continuar sessão" no card do cronograma). O parâmetro é enviado como JSON stringificado na query da rota.
+     */
+    const { session: sessionParam } = useLocalSearchParams<{ session?: string }>(); // parametros de sessão em grupo
+
+    // Parse session data enviada pelo SessionCard.
+    const parsedSession = useMemo<SessionCardItem | null>(() => {
+        if (!sessionParam) return null;
+
+        try {
+            return JSON.parse(sessionParam as string) as SessionCardItem;
+        } catch (error) {
+            console.warn("Erro ao parsear sessão:", error);
+            return null;
+        }
+    }, [sessionParam]);
+
+    const [createdSession, setCreatedSession] = useState<SessionCardItem | null>(null);
+    const session = createdSession || parsedSession;
+
+    //estado dos membros da sessão
+    const [members, setMembers] = useState<Array<MemberSession>>([]);
+
+    const [newUserTimer, setNewUserTimer] = useState<number>(0)
+
+    /**
+     * Calcula o tempo do cronometro do usuário
+     * @param user 
+     * @returns tempoTotal = tempoAcumulado + tempoDesdeUltimoInicio
+     */
+    const base = session?.tempo_minutos ?? 0;
+
+    const inicio = session?.ultimo_inicio
+        ? new Date(session?.ultimo_inicio + "Z").getTime()
+        : null;
+
+    const live =
+        session?.status === "ativo" && inicio
+            ? (Date.now() - inicio) / 1000
+            : 0;
+
+    const total = Math.floor(base + live);
+
+
+
+    /**
+     * Calcula o tempo do usuário atual em tempo real
+     */
+    useEffect(() => {
+        console.log("session ultimo_inicio:", session?.ultimo_inicio);
+
+        if (focusState !== "active" || isPaused) return;
+        let lastStart: number | null = null;
+        let storedTime: number = 0;
+
+        // Usa último_inicio da sessão  
+        if (session?.ultimo_inicio) {
+            lastStart = new Date(session.ultimo_inicio).getTime();
+        }
+
+
+        //se tempo_minutos estiver definido, converte para segundos
+        storedTime = (session?.tempo_minutos ?? 0);
+
+        if (!lastStart) return;
+
+        /**
+         * tempo decorrido desde o último início da sessão (em segundos) + tempo armazenado
+         */
+        const updateTimer = () => {
+            const elapsed = Math.floor(
+                storedTime + ((Date.now() - lastStart) / 1000)
+            );
+            setNewUserTimer(elapsed);
+        };
+        updateTimer();
+
+        const interval = setInterval(updateTimer, 1000);
+
+        return () => clearInterval(interval);
+    }, [session?.ultimo_inicio, isPaused, focusState]);
+
 
     // Recarrega matérias sempre que a tela ganha foco (ex: ao voltar do modal de criar matéria)
     useEffect(() => {
@@ -142,7 +241,7 @@ export default function FocusScreen() {
                     // Sessões salvas antes do pomodoro não têm modo: caem no cronômetro.
                     setModo(sessionData.modo === "pomodoro" ? "pomodoro" : "cronometro");
                     setTimerSeconds(elapsed);
-                    setFocusState("ativo");
+                    setFocusState("active");
                     setRestaurada(true);
                 }
             } catch (e) {
@@ -163,7 +262,7 @@ export default function FocusScreen() {
         requestPermissions();
     }, []);
 
-    // Sessão iniciada a partir de um bloco do cronograma.
+    // POMODORO Sessão   a partir de um bloco do cronograma.
     useEffect(() => {
         if (params.blocoId && params.subject) {
             setContexto({
@@ -187,14 +286,14 @@ export default function FocusScreen() {
         if (params.autoStart === "true" && params.reviewSessionId) {
             setSelectedSubject(params.subject as string);
             setSpecificContent(params.content as string);
-            setFocusState("ativo");
+            setFocusState("active");
             setTimerSeconds(0);
         }
     }, [params.autoStart, params.reviewSessionId, params.subject, params.content]);
 
     // Timer com setInterval (atualiza a cada segundo enquanto em foreground)
     useEffect(() => {
-        if (focusState === "ativo" && !isPaused) {
+        if (focusState === "active" && !isPaused) {
             intervalRef.current = setInterval(() => {
                 if (modo === "cronometro") {
                     if (startTimeRef.current) {
@@ -254,7 +353,7 @@ export default function FocusScreen() {
 
     // Avanço automático de fase quando o tempo acaba.
     useEffect(() => {
-        if (focusState !== "ativo" || modo !== "pomodoro" || isPaused) return;
+        if (focusState !== "active" || modo !== "pomodoro" || isPaused) return;
         if (restanteFase > 0) return;
 
         if (fase === "foco") {
@@ -285,19 +384,12 @@ export default function FocusScreen() {
         }
     };
 
-    const realmenteIniciar = async (grupoId: string | null) => {
-        const now = Date.now();
-        startTimeRef.current = now;
-        focoAcumuladoRef.current = 0;
-        setCiclo(1);
-        await persistirSessao(now, grupoId);
-        setFocusState("ativo");
-        setTimerSeconds(0);
-        setRestaurada(false);
-        if (modo === "pomodoro") iniciarFase("foco");
-    };
-
+    /**
+     * Inicia a sessão de foco. Verifica se os campos estão preenchidos, se há sessões pendentes e se existem arquivos relacionados à matéria no vault. Se houver arquivos, notifica o usuário e oferece a opção de revisar antes de iniciar. Salva os dados da sessão e o timestamp de início no AsyncStorage para persistência.
+     * @returns void
+     */
     const startSession = async () => {
+        //Verifica preenchimento de dados obrigatorios
         if (!selectedSubject || !specificContent.trim()) {
             Alert.alert(
                 "Incompleto",
@@ -305,7 +397,6 @@ export default function FocusScreen() {
             );
             return;
         }
-
         if (bloqueadoPorFeedback) return;
 
         try {
@@ -315,6 +406,9 @@ export default function FocusScreen() {
             const activeGroupId = currentGroupId || (await carregarUltimoGrupoLocalmente());
             setCurrentGroupId(activeGroupId);
 
+            /**
+             * Mapeia o nome da matéria para o formato usado no banco (minúsculo e sem acento, se necessário)
+             */
             const disciplinaBusca = normalizar(selectedSubject);
             const doVault = archives.filter(
                 (f) => f.disciplina && normalizar(f.disciplina) === disciplinaBusca
@@ -322,8 +416,7 @@ export default function FocusScreen() {
 
             if (doVault.length > 0) {
                 /*
-                a biblioteca Expo Go removeu o suporte a notificações push remotas a partir do SDK 53
-                A biblioteca expo-notifications continua funcionando, porém não dentro do Expo Go.
+                  Dispara a notificação de sistema se existem arquivos relacionados à matéria no vault. O usuário pode então decidir revisar os arquivos antes de iniciar a sessão.
                 */
                 await Notifications.scheduleNotificationAsync({
                     content: {
@@ -332,11 +425,9 @@ export default function FocusScreen() {
                     },
                     trigger: null,
                 });
-
                 setArquivosVault(doVault);
                 return;
             }
-
             await realmenteIniciar(activeGroupId);
         } catch (error) {
             console.error("Erro ao verificar vault:", error);
@@ -347,13 +438,85 @@ export default function FocusScreen() {
         }
     };
 
+    const realmenteIniciar = async (grupoId: string | null) => {
+        const now = Date.now();
+        startTimeRef.current = now;
+
+        const activeGroupId = currentGroupId || (await carregarUltimoGrupoLocalmente());
+        setCurrentGroupId(activeGroupId);
+
+        // Primeira vez salvando essa sessão — insere e guarda o ID
+        const { data, error } = await salvarSessaoFoco({
+            user_id: userId as string,
+            grupo_id: activeGroupId as string,
+            disciplina: selectedSubject || "Estudo Geral",
+            conteudo_especifico: specificContent || "Sessão livre",
+            tempo_minutos: 0,
+            questoes_respondidas: 0,
+            questoes_acertadas: 0,
+            is_public: isPublicSession,
+            status: "ativo",
+            ultimo_inicio: new Date().toISOString(),
+            concluido_em: null,
+        });
+        const insertedSession = (data as any)[0];
+        // Define a sessão no estado para ativar a visualização de grupo
+        setCreatedSession(insertedSession);
+
+        focoAcumuladoRef.current = 0;
+        setCiclo(1);
+        await persistirSessao(now, grupoId);
+        setFocusState("active");
+        setTimerSeconds(0);
+        setRestaurada(false);
+        if (modo === "pomodoro") iniciarFase("foco");
+    };
+
+    /**
+     * Função para pausar ou retomar a sessão. Ao pausar, salva os segundos acumulados e para o timer. Ao retomar, calcula um novo startTime baseado nos segundos acumulados para continuar a contagem de onde parou.
+     */
     const togglePause = async () => {
         if (isPaused) {
-            const now = Date.now();
-
+            const nowIso = new Date().toISOString();
+            if (!session?.id) {
+                console.error("Nemhuma sessão foi encontrada:", session);
+                return;
+            }
             if (modo === "cronometro") {
-                const newStartTime = now - pausedSecondsRef.current * 1000;
+                //Retomar: cria um novo startTime baseado nos segundos acumulados
+                const newStartTime = Date.now() - pausedSecondsRef.current * 1000;
                 startTimeRef.current = newStartTime;
+
+                const { error: updateError } = await atualizarSessaoFoco(session.id, {
+                    ultimo_inicio: nowIso,
+                    status: "ativo",
+                });
+                if (updateError) {
+                    console.error("Erro ao atualizar sessão ao retomar:", updateError);
+                    return;
+                }
+                const { data: refreshedSession } = await fetchFocusSession(session.id);
+                if (refreshedSession && refreshedSession.length > 0) {
+                    setCreatedSession(refreshedSession[0]);
+                }
+
+                if (isPublicSession) {
+                    const { error: updateMemberError } = await updateTabSessaoMembros(userId || "", session.id, {
+                        ultimo_inicio: nowIso,
+                        status: "ativo",
+                    });
+                    if (updateMemberError) {
+                        console.error("Erro ao atualizar membro ao retomar:", updateMemberError);
+                        return;
+                    }
+
+                    const { data: updatedMembers } = await fetchSessionMembers(session.id)
+                    if (updatedMembers) {
+                        setMembers(updatedMembers)
+                    }
+                }
+
+
                 try {
                     await AsyncStorage.setItem(STORAGE_KEY_START_TIME, newStartTime.toString());
                 } catch (e) {
@@ -361,21 +524,40 @@ export default function FocusScreen() {
                 }
             } else {
                 // Retoma a fase de onde parou.
-                faseInicioRef.current = now - (faseDuracaoRef.current - pausedSecondsRef.current) * 1000;
+                faseInicioRef.current = Date.now(); - (faseDuracaoRef.current - pausedSecondsRef.current) * 1000;
             }
 
             setIsPaused(false);
             return;
-        }
+        } else {
+            // Pausar: salva os segundos acumulados e para o interval
+            if (!session?.id) return;
 
-        pausedSecondsRef.current = modo === "cronometro" ? timerSeconds : restanteFase;
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        setIsPaused(true);
+            await atualizarSessaoFoco(session.id, {
+                status: "pausado",
+                tempo_minutos: newUserTimer, // em segundos
+            });
+
+            if (isPublicSession) {
+                const { error: updateMemberError } = await updateTabSessaoMembros(userId || "", session.id, {
+                    status: "pausado",
+                    tempo_segundos: newUserTimer, // em segundos
+                });
+                if (updateMemberError) {
+                    console.error("Erro ao pausar membro:", updateMemberError);
+                    return;
+                }
+            }
+
+            pausedSecondsRef.current = modo === "cronometro" ? newUserTimer : restanteFase;
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            setIsPaused(true);
+        }
     };
 
     /** Tempo de foco que vira sessão. Descanso nunca entra na conta. */
     const segundosDeFoco = () => {
-        if (modo === "cronometro") return timerSeconds;
+        if (modo === "cronometro") return newUserTimer;
         const naFase =
             fase === "foco" && faseInicioRef.current
                 ? Math.min(faseDuracaoRef.current, Math.floor((Date.now() - faseInicioRef.current) / 1000))
@@ -383,6 +565,10 @@ export default function FocusScreen() {
         return focoAcumuladoRef.current + naFase;
     };
 
+    /**
+     * Encerra a sessão
+     * Para de contar o tempo, reseta os estados relacionados e navega para o modal de feedback, passando os dados da sessão como parâmetros.
+     */
     const stopSession = async () => {
         setFocusState("config");
 
@@ -405,6 +591,18 @@ export default function FocusScreen() {
         setCiclo(1);
         setContexto(null);
         setRestaurada(false);
+
+        if (isPublicSession && session?.id && userId) {
+            await updateTabSessaoMembros(userId, session?.id, {
+                status: "concluido",
+                tempo_segundos: finalDuration,
+            });
+        }
+
+        await atualizarSessaoFoco(session?.id || "", {
+            tempo_minutos: await calculateFocusSessionMinutes(finalDuration),
+            concluido_em: Date.now().toString(),
+        });
 
         if (intervalRef.current) clearInterval(intervalRef.current);
 
@@ -459,8 +657,11 @@ export default function FocusScreen() {
         setRestanteFase((r) => r + 5 * 60);
     };
 
+    /**
+     * Formata o tempo restante ou decorrido para exibição no relógio da sessão. No modo cronômetro, mostra horas, minutos e segundos; no modo pomodoro, mostra minutos e segundos restantes na fase atual.
+     */
     const textoRelogio =
-        modo === "cronometro" ? formatarHMS(timerSeconds) : formatarMS(restanteFase);
+        modo === "cronometro" ? formatarHMS(total) : formatarMS(restanteFase);
 
     const progressoFase =
         faseDuracaoRef.current > 0 ? 1 - restanteFase / faseDuracaoRef.current : 0;

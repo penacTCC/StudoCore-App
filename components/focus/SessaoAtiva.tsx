@@ -46,7 +46,6 @@ export default function SessaoAtiva(props: Props) {
     if (props.modo === "pomodoro") return <TelaPomodoroFoco {...props} />;
     return <TelaCronometro {...props} />;
 }
-
 function TelaCronometro({
     materia,
     conteudo,

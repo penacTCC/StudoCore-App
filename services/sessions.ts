@@ -1,5 +1,5 @@
 import { supabase } from "@/repositories/supabase";
-import { SessaoFocoInsert } from "@/types/sessions";
+import { SessaoFocoInsert, MemberSession } from "@/types/sessions";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TEST_MODE_KEY = "@app_test_mode";
@@ -74,6 +74,17 @@ export const atualizarSessaoFoco = async (id: string, updates: Partial<SessaoFoc
     // Retorna o resultado original quando a migration já foi aplicada ou quando há outro erro real.
     return result;
 };
+
+// ───── SELECT (sessão específica) ─────
+export const fetchFocusSession = async (id: string) => {
+    let query = supabase
+    .from("sessoes_foco")
+    .select(`*`)
+    .eq("id", id);
+
+    const result = await query
+    return result;
+}
 
 // ───── SELECT (feed público, só sessões públicas, status salvo e score > 7) ─────
 export const buscarSessoesRecentes = async (limit: number = 20, groupId?: string | null) => {
@@ -233,4 +244,29 @@ export const tempoTotalSessoesFocoOntem = async (groupId?: string) => {
     }, 0) ?? 0
 
     return totalMinutosAnteriores
+}
+
+export const insertTabSessaoMembros = async (memberData: MemberSession) => {
+    const { data, error } = await supabase
+        .from('tab_sessao_membros')
+        .insert(memberData)
+        .select();
+    return { data, error };
+}
+
+export const fetchSessionMembers = async (sessaoId: string) => {
+    const { data, error } = await supabase
+        .from('tab_sessao_membros')
+        .select('*, profiles:membro_id (nome_real, nome_usuario)')
+        .eq('sessao_id', sessaoId);
+    return { data, error };
+}
+
+export const updateTabSessaoMembros = async (userid: string, sessaoid: string, updates: Partial<MemberSession>) => {
+    const { data, error } = await supabase
+        .from('tab_sessao_membros')
+        .update(updates)
+        .eq('membro_id', userid)
+        .eq('sessao_id', sessaoid);
+    return { data, error };
 }
