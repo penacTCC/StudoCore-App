@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Timer, Layers } from "lucide-react-native";
@@ -9,7 +9,9 @@ import { HADES } from "@/constants/hades";
 import { useGraficosAnalytics } from "@/lib/graphics-analytics";
 import { useAnalisePessoal } from "@/hooks/useAnalisePessoal";
 import { useAuth } from "@/hooks/useAuth";
+import { formatarHoras } from "@/lib/analytics";
 import { SessaoFocoRow } from "@/types/sessions";
+import { EstadoPoucosDadosPessoal, EstadoVazioPessoal } from "@/components/analytics/EstadosAnalise";
 import {
     SeletorEscopo,
     SeletorPeriodo,
@@ -31,6 +33,9 @@ import {
     PeriodoAnalise,
 } from "@/components/analytics/GraficosAnalise";
 import { UserStats } from "@/types/profile";
+import { useMeusGrupos } from "@/hooks/useMeusGrupos";
+import { useMembrosGrupos } from "@/hooks/useMembrosGrupos";
+import { horasSemanaisGrupo } from "@/services/grupos";
 
 type BrainTab = "database" | "analytics";
 
@@ -67,6 +72,7 @@ export default function BrainScreen() {
 
     //------Cálculos e funções para os gráficos dessa tela------
     const {
+        sessoesUsuario,
         horasFormatadasAtuais,
         variacaoPercentual,
         rotuloPeriodo,
@@ -84,6 +90,68 @@ export default function BrainScreen() {
         pontosDiaSemana,
         pontosOfensiva,
     } = useGraficosAnalytics(userId, comecoSemana, periodoAnalise);
+
+    // Estado da aba Pessoal (cheio / poucos dados / vazio) — baseado em quantos
+    // dias distintos o usuário já registrou sessão, em todo o histórico (não só
+    // no período selecionado no SeletorPeriodo).
+    const diasComSessaoHistorico = useMemo(
+        () => new Set(sessoesUsuario.map((s) => s.data_sessao)).size,
+        [sessoesUsuario]
+    );
+    const estadoPessoal: "vazio" | "poucos" | "cheio" =
+        diasComSessaoHistorico === 0 ? "vazio" : diasComSessaoHistorico < 3 ? "poucos" : "cheio";
+
+    // Estatísticas de hoje, usadas só no estado "poucos dados".
+    const estatisticasHoje = useMemo(() => {
+        const hoje = new Date();
+        const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+        const sessoesDeHoje = sessoesUsuario.filter((s) => s.data_sessao === hojeStr);
+        const minutosHoje = sessoesDeHoje.reduce((acc, s) => acc + (s.tempo_minutos ?? 0), 0);
+        const questoesHoje = sessoesDeHoje.reduce((acc, s) => acc + (s.questoes_respondidas ?? 0), 0);
+        const acertosHoje = sessoesDeHoje.reduce((acc, s) => acc + (s.questoes_acertadas ?? 0), 0);
+        return {
+            horasHoje: formatarHoras(minutosHoje),
+            qtdSessoesHoje: sessoesDeHoje.length,
+            questoesHoje,
+            pctAcertoHoje: questoesHoje > 0 ? Math.round((acertosHoje / questoesHoje) * 100) : 0,
+        };
+    }, [sessoesUsuario]);
+
+    //Busca os grupos do usuário, para a tela de grupos
+    const {grupos} = useMeusGrupos()
+
+    //Busca os membros dos grupos
+    const {membrosPorGrupo} = useMembrosGrupos(grupos)
+
+    // Grupo escolhido no seletor da aba Análise > Grupo (null = usa o primeiro da lista)
+    const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null)
+
+    //useState para as horas semanais do grupo
+    const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
+
+    //useEffect para o grupoSelecionadoId não começar nulo
+    useEffect(() => {
+    if (grupoSelecionadoId === null && grupos.length > 0) {
+            setGrupoSelecionadoId(grupos[0].id)
+        }
+    }, [grupos, grupoSelecionadoId])
+
+    //Horas semanais do grupo
+    //Faz useEffect para pegar as horas semanais do grupo
+    useEffect(() => {
+        if(!grupoSelecionadoId) return
+        const carregarHoras = async () => {
+            const horas = await horasSemanaisGrupo(grupoSelecionadoId as string)
+            setHorasSemanaGrupo(horas)
+            console.log('Horas' + horas)
+        }
+        carregarHoras()
+    }, [grupoSelecionadoId])
+
+    //Quantidade de membros em cada grupo
+    const qtdMembrosGrupoSelecionado = grupoSelecionadoId
+    ? (membrosPorGrupo[grupoSelecionadoId]?.length ?? 0)
+    : 0
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -351,13 +419,21 @@ export default function BrainScreen() {
                         {/* Seletor Pessoal / Grupo */}
                         <View className="gap-3">
                             <SeletorEscopo valor={escopoAnalise} aoAlterar={setEscopoAnalise} />
-                            <SeletorPeriodo valor={periodoAnalise} aoAlterar={setPeriodoAnalise} />
+                            {(escopoAnalise === "grupo" || estadoPessoal !== "vazio") && (
+                                <SeletorPeriodo valor={periodoAnalise} aoAlterar={setPeriodoAnalise} />
+                            )}
                         </View>
 
                         {escopoAnalise === "grupo" ? (
                             <View className="gap-8">
-                                <CabecalhoGrupo cor={HADES.accentSolid} />
-                                <MetaSemanalGrupo />
+                                <CabecalhoGrupo
+                                    cor={HADES.accentSolid}
+                                    grupos={grupos}
+                                    grupoSelecionadoId={grupoSelecionadoId}
+                                    aoSelecionarGrupo={(grupo) => setGrupoSelecionadoId(grupo.id)}
+                                    membros={membrosPorGrupo}
+                                />
+                                <MetaSemanalGrupo grupos={grupos} grupoSelecionadoId={grupoSelecionadoId} horas={horasSemanaGrupo} qtdMembros={qtdMembrosGrupoSelecionado}/>
                                 <RankingHorasGrupo cor={HADES.accentSolid} />
 
                                 <View className="flex-row gap-[10px]">
@@ -368,6 +444,21 @@ export default function BrainScreen() {
                                 <EvolucaoGrupo cor={HADES.accentSolid} />
                                 <QuestoesPorMembroGrupo />
                             </View>
+                        ) : estadoPessoal === "vazio" ? (
+                            <EstadoVazioPessoal
+                                cor={HADES.accentSolid}
+                                aoIniciarSessao={() => router.push("/(tabs)/focus")}
+                            />
+                        ) : estadoPessoal === "poucos" ? (
+                            <EstadoPoucosDadosPessoal
+                                cor={HADES.accentSolid}
+                                qtdSessoesTotal={sessoesUsuario.length}
+                                diasFaltantes={3 - diasComSessaoHistorico}
+                                horasHoje={estatisticasHoje.horasHoje}
+                                qtdSessoesHoje={estatisticasHoje.qtdSessoesHoje}
+                                questoesHoje={estatisticasHoje.questoesHoje}
+                                pctAcertoHoje={estatisticasHoje.pctAcertoHoje}
+                            />
                         ) : (
                             <View className="gap-8">
                                 <GraficoArea cor={HADES.accentSolid} horas={horasFormatadasAtuais} percentual={variacaoPercentual} periodo={rotuloPeriodo} pontos={pontosGraficoArea}/>

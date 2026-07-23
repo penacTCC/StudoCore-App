@@ -128,6 +128,89 @@ export function agregarParesPorDiaSemana(
     }));
 }
 
+type PeriodoAgregacao = "7d" | "30d" | "ano";
+
+/**
+ * Divide os últimos `dias` dias em `numBuckets` intervalos de tamanho igual,
+ * terminando em `agora`, e soma os minutos de cada sessão no intervalo em que
+ * ela cai. Diferente de `agregarMinutosPorDiaSemana`, a ordem aqui é sempre
+ * do intervalo mais antigo pro mais recente (não depende de comecoSemana),
+ * já que representa uma linha do tempo, não um padrão semanal recorrente.
+ */
+function agregarMinutosPorIntervalosIguais(
+    sessoes: SessaoFocoRow[],
+    dias: number,
+    numBuckets: number,
+    rotulos: string[],
+    agora: Date
+): PontoSerieDia[] {
+    const fimMs = new Date(agora).setHours(23, 59, 59, 999);
+    const inicioMs = fimMs - dias * 24 * 60 * 60 * 1000;
+    const duracaoBucket = (fimMs - inicioMs) / numBuckets;
+
+    const minutosPorBucket = new Array(numBuckets).fill(0);
+
+    for (const sessao of sessoes) {
+        const dataMs = new Date(sessao.created_at || sessao.data_sessao).getTime();
+        if (dataMs < inicioMs || dataMs > fimMs) continue;
+        const indice = Math.min(numBuckets - 1, Math.floor((dataMs - inicioMs) / duracaoBucket));
+        minutosPorBucket[indice] += sessao.tempo_minutos || 0;
+    }
+
+    return minutosPorBucket.map((minutos, i) => ({ dia: rotulos[i], minutos }));
+}
+
+const ROTULOS_SEMANAS = ["Sem 1", "Sem 2", "Sem 3", "Sem 4"];
+const ROTULOS_TRIMESTRES = ["Trim 1", "Trim 2", "Trim 3", "Trim 4"];
+
+/**
+ * Ponto de entrada usado pelo gráfico de área e pelo comparativo: escolhe o
+ * tipo de bucket certo pro período selecionado no SeletorPeriodo — dias da
+ * semana pro filtro "7 dias", 4 semanas pro "30 dias" e 4 trimestres pro
+ * "Ano", em vez de sempre colapsar tudo em 7 dias da semana.
+ */
+export function agregarMinutosPorPeriodo(
+    sessoes: SessaoFocoRow[],
+    periodo: PeriodoAgregacao,
+    comecoSemana: ComecoSemana,
+    agora: Date = new Date()
+): PontoSerieDia[] {
+    if (periodo === "7d") return agregarMinutosPorDiaSemana(sessoes, comecoSemana);
+    if (periodo === "30d") return agregarMinutosPorIntervalosIguais(sessoes, 30, 4, ROTULOS_SEMANAS, agora);
+    return agregarMinutosPorIntervalosIguais(sessoes, 365, 4, ROTULOS_TRIMESTRES, agora);
+}
+
+/**
+ * Versão pareada (atual vs. anterior) de `agregarMinutosPorPeriodo` — usada
+ * pelo `GraficoComparativoSemanal`. Pro período anterior, os buckets são
+ * recalculados com `agora` deslocado pra trás pela duração do período, pra
+ * casar com a janela que `filtrarSessoesEntre` já usou pra separar
+ * `sessoesAnterior`.
+ */
+export function agregarParesPorPeriodo(
+    sessoesAtual: SessaoFocoRow[],
+    sessoesAnterior: SessaoFocoRow[],
+    periodo: PeriodoAgregacao,
+    comecoSemana: ComecoSemana,
+    agora: Date = new Date()
+): ParDiaSemana[] {
+    if (periodo === "7d") {
+        return agregarParesPorDiaSemana(sessoesAtual, sessoesAnterior, comecoSemana);
+    }
+
+    const dias = periodo === "30d" ? 30 : 365;
+    const agoraAnterior = new Date(agora.getTime() - dias * 24 * 60 * 60 * 1000);
+
+    const atual = agregarMinutosPorPeriodo(sessoesAtual, periodo, comecoSemana, agora);
+    const anterior = agregarMinutosPorPeriodo(sessoesAnterior, periodo, comecoSemana, agoraAnterior);
+
+    return atual.map((ponto, i) => ({
+        dia: ponto.dia,
+        atual: ponto.minutos,
+        anterior: anterior[i]?.minutos ?? 0,
+    }));
+}
+
 const JANELA_DIAS_OFENSIVA = 84; // 12 semanas
 const PASSO_AMOSTRAGEM_OFENSIVA = 7; // 1 ponto por semana
 

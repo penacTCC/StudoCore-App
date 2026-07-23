@@ -28,7 +28,8 @@ export function formatDuration(hours: number, minutes: number) {
 }
 
 // Calcula "Xh atrás" / "Xm atrás" / "Xd atrás" a partir de um timestamp ISO.
-export function getTimeAgo(createdAt: string): string {
+export function getTimeAgo(createdAt: string | null | undefined): string {
+    if (!createdAt) return "";
     const diff = Date.now() - new Date(createdAt).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "Agora";

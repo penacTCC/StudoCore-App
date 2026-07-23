@@ -43,10 +43,6 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
                     <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }} numberOfLines={1}>
                         {nome}
                     </Text>
-                    {verificado && <BadgeCheck size={15} color={HADES.subjectBlue} />}
-                    <Text style={{ fontSize: 12, color: HADES.textFaint }}>
-                        · {getTimeAgo(sessao.created_at)}
-                    </Text>
                 </View>
 
                 <View
@@ -119,7 +115,7 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                         <Clock size={13} color={HADES.textFaint} />
-                        <Text style={{ fontSize: 12.5, color: HADES.textMuted }}>{horario}</Text>
+                        <Text style={{ fontSize: 12.5, color: HADES.textMuted }}>{getTimeAgo(sessao.created_at)}</Text>
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                         <Flame size={14} color={HADES.accentSolid} />

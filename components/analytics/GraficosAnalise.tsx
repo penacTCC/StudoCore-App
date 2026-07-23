@@ -1,10 +1,12 @@
-import { Fragment } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { Fragment, useState } from "react";
+import { View, Text, TouchableOpacity, Image } from "react-native";
 import Svg, { Path, Line, Rect, Circle, Defs, LinearGradient, Stop, Text as SvgText } from "react-native-svg";
-import { Flame, Swords, ChevronRight, User } from "lucide-react-native";
+import { Flame, Swords, ChevronRight, User, ChevronDown } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import { DIAS_SEMANA_ABREV, NOME_COMPLETO_DIA, formatarHoras } from "@/lib/analytics";
 import { ParDiaSemana, PontoSerieDia } from "@/types/analytics";
+import { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
+import { getTimeAgo } from "@/constants/helpers";
 
 // Paleta exata do mockup "HADES Analytics" — propositalmente diferente da navy
 // padrão do app, pra manter fidelidade visual ao design aprovado.
@@ -152,6 +154,10 @@ function AvatarMembro({ inicial, cor }: { inicial: string | null; cor: string })
 
     const linhaPath = coordenadas.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x} ${c.y}`).join(" ");
     const areaPath = `${linhaPath} L ${largura} ${altura} L 0 ${altura} Z`;
+    // Só no filtro "7 dias" os pontos são dias da semana (Seg, Ter...) — nesse
+    // caso destaca o dia de hoje. Nos demais (semanas/trimestres) os buckets já
+    // terminam em hoje por construção, então destaca sempre o último ponto.
+    const ehSerieSemanal = pontos.every((p) => DIAS_SEMANA_ABREV.includes(p.dia));
     const diaDeHoje = DIAS_SEMANA_ABREV[new Date().getDay()];
     const ultimoPonto = coordenadas[coordenadas.length - 1];
 
@@ -194,14 +200,17 @@ function AvatarMembro({ inicial, cor }: { inicial: string | null; cor: string })
                 )}
             </Svg>
             <View className="mt-2 flex-row justify-between px-0.5">
-                {pontos.map((p, i) => (
-                    <Text
-                        key={`${p.dia}-${i}`}
-                        className={p.dia === diaDeHoje ? "text-[11px] font-semibold text-white" : "text-[11px] text-[#5f636c]"}
-                    >
-                        {p.dia}
-                    </Text>
-                ))}
+                {pontos.map((p, i) => {
+                    const destaque = ehSerieSemanal ? p.dia === diaDeHoje : i === pontos.length - 1;
+                    return (
+                        <Text
+                            key={`${p.dia}-${i}`}
+                            className={destaque ? "text-[11px] font-semibold text-white" : "text-[11px] text-[#5f636c]"}
+                        >
+                            {p.dia}
+                        </Text>
+                    );
+                })}
             </View>
         </View>
     );
@@ -234,7 +243,7 @@ export function CartaoMetrica({
 // ── 3. Período atual vs. anterior — barras pareadas ──────────────────────
 export function GraficoComparativoSemanal({
     cor,
-    titulo,
+    titulo, 
     pares,
 }: {
     cor: string;
@@ -273,7 +282,11 @@ export function GraficoComparativoSemanal({
             </Svg>
             <View className="mt-1.5 flex-row justify-between px-3">
                 {pares.map((p, i) => (
-                    <Text key={i} className="text-[11px] text-[#5f636c]">{p.dia[0]}</Text>
+                    // Dias da semana (Seg, Ter...) usam só a inicial pra caber no espaço
+                    // apertado de 7 barras; "Sem 1"/"Trim 1" (30d/ano) já são curtos.
+                    <Text key={i} className="text-[11px] text-[#5f636c]">
+                        {DIAS_SEMANA_ABREV.includes(p.dia) ? p.dia[0] : p.dia}
+                    </Text>
                 ))}
             </View>
         </View>
@@ -507,39 +520,122 @@ export function GraficoOfensiva({
 // ════════════════════════════════════════════════════════════════════════
 
 // ── G1. Cabeçalho do grupo ─────────────────────────────────────────────
-export function CabecalhoGrupo({ cor }: { cor: string }) {
+export function CabecalhoGrupo({
+    cor,
+    grupos,
+    grupoSelecionadoId,
+    aoSelecionarGrupo,
+    membros,
+}: {
+    cor: string;
+    grupos: Grupo[];
+    grupoSelecionadoId: string | null;
+    aoSelecionarGrupo: (grupo: Grupo) => void;
+    membros: Record<string, MembroGrupoComPerfil[]>;
+}) {
+    const [aberto, setAberto] = useState(false);
+
+    const grupoSelecionado = grupos.find((g) => g.id === grupoSelecionadoId) ?? grupos[0] ?? null;
+    const outrosGrupos = grupos.filter((g) => g.id !== grupoSelecionado?.id);
+    const temEscolha = grupos.length > 1;
+
+    if (!grupoSelecionado) return null;
+
     return (
-        <View className="flex-row items-center gap-3 rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#0d0e12] p-3.5">
-            <View className="h-[42px] w-[42px] items-center justify-center rounded-xl bg-[#13192c]">
-                <Swords size={22} color={cor} />
-            </View>
-            <View className="flex-1">
-                <Text className="text-[15px] font-bold text-white">HADES</Text>
-                <Text className="mt-0.5 text-xs text-[#6b6e76]">5 membros · criado há 3 meses</Text>
-            </View>
-            <ChevronRight size={18} color={CORES.textoMuted} />
+        <View>
+            <TouchableOpacity
+                activeOpacity={temEscolha ? 0.75 : 1}
+                onPress={() => temEscolha && setAberto((v) => !v)}
+                className="flex-row items-center gap-3 rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#0d0e12] p-3.5"
+            >
+                <View className="h-[42px] w-[42px] items-center justify-center rounded-xl bg-[#13192c]">
+                    {grupoSelecionado.foto_grupo ? (
+                        <Image
+                            source={{ uri: grupoSelecionado.foto_grupo }}
+                            className="h-[42px] w-[42px] rounded-xl"
+                        />
+                    ) : (
+                        <Swords size={22} color={cor} />
+                    )}
+                </View>
+                <View className="flex-1">
+                    <Text className="text-[15px] font-bold text-white">{grupoSelecionado.nome_grupo}</Text>
+                    <Text className="mt-0.5 text-xs text-[#6b6e76]">
+                        {membros[grupoSelecionado.id]?.length ?? 0} membros · criado há {getTimeAgo(grupoSelecionado.created_at)}
+                    </Text>
+                </View>
+                {temEscolha && (
+                    <View style={{ transform: [{ rotate: aberto ? "180deg" : "0deg" }] }}>
+                        <ChevronDown size={18} color={CORES.textoMuted} />
+                    </View>
+                )}
+            </TouchableOpacity>
+
+            {aberto && (
+                <View className="mt-2 overflow-hidden rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#0d0e12]">
+                    {outrosGrupos.map((grupo, index) => (
+                        <TouchableOpacity
+                            key={grupo.id}
+                            activeOpacity={0.75}
+                            onPress={() => {
+                                aoSelecionarGrupo(grupo);
+                                setAberto(false);
+                            }}
+                            className={`flex-row items-center gap-3 p-3.5 ${
+                                index > 0 ? "border-t border-[rgba(255,255,255,0.06)]" : ""
+                            }`}
+                        >
+                            <View className="h-9 w-9 items-center justify-center rounded-xl bg-[#13192c]">
+                                {grupo.foto_grupo ? (
+                                    <Image
+                                        source={{ uri: grupo.foto_grupo }}
+                                        className="h-[42px] w-[42px] rounded-xl"
+                                    />
+                                ) : (
+                                    <Swords size={22} color={cor} />
+                                )}
+                            </View>
+                            <View className="flex-1">
+                                <Text className="text-sm font-semibold text-white">{grupo.nome_grupo}</Text>
+                                <Text className="mt-0.5 text-xs text-[#6b6e76]">
+                                    {membros[grupo.id]?.length ?? 0} membros
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
         </View>
     );
 }
 
 // ── G2. Meta semanal do grupo ──────────────────────────────────────────
-export function MetaSemanalGrupo() {
+export function MetaSemanalGrupo({grupos, grupoSelecionadoId, horas, qtdMembros}: {grupos: Grupo[], grupoSelecionadoId: string | null, horas:number, qtdMembros: number}) {
+
+    //Como o usuário pode ter mais de um grupo, devemos pegar qual está selecionado
+    const grupoSelecionado = grupos.find((g) => g.id === grupoSelecionadoId) ?? grupos[0] ?? null;
+    
+    const progressoGrupo = grupoSelecionado.meta_horas > 0 ? horas / grupoSelecionado.meta_horas : 0
+
+    const progressoPercentual = Math.min(Math.round(progressoGrupo * 100), 100)
+
+    const horasDoGrupo = grupoSelecionado.meta_horas * qtdMembros
+
     return (
         <View>
             <View className="mb-1.5 flex-row items-baseline justify-between">
-                <Text className="text-base font-bold tracking-[-0.2px] text-white">Meta semanal</Text>
-                <Text className="text-[13px] font-semibold text-[#30d158]">100%</Text>
+                <Text className="text-base font-bold tracking-[-0.2px] text-white">Meta Semanal <Text className="text-[10px] text-[#FF9A00]">- {grupoSelecionado.meta_horas}h por membro</Text> </Text>
+                <Text className="text-[13px] font-semibold text-[#30d158]">{progressoPercentual}%</Text>
             </View>
             <View className="mb-3 flex-row items-baseline gap-2">
-                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">142h</Text>
-                <Text className="text-[13px] text-[#6b6e76]">/ 120h</Text>
+                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{horas}h</Text>
+                <Text className="text-[13px] text-[#6b6e76]">/ {horasDoGrupo}h</Text>
            </View>
             <View className="h-2 overflow-hidden rounded-full bg-[#1a1b20]">
                 <View className="h-full w-full rounded-full bg-[#30d158]" />
             </View>
             <View className="mt-1.5 flex-row justify-between">
                 <Text className="text-[11px] text-[#5f636c]"></Text>
-                <Text className="text-[11px] text-[#5f636c]">120</Text>
             </View>
         </View>
     );

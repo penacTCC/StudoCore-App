@@ -27,33 +27,11 @@ import { buscarGrupoPorId, horasSemanaisGrupo } from "@/services/grupos";
 import { buscarRankingHorasMembros } from "@/services/ranking";
 import { RankingMembroComPerfil } from "@/types/ranking";
 import { Grupo } from "@/types/grupos";
-
-type LeaderboardFilter = "total" | "semanal" | "mensal" | "anual"
-
-const LEADERBOARD_TABS = [
-    // Filtro principal atual, baseado nas horas de estudo do membro.
-    { key: "total", label: "Total" },
-
-    // Filtros de período mantidos no layout para a evolução do ranking.
-    { key: "semanal", label: "Semana" },
-    { key: "mensal", label: "Mês" },
-    { key: "anual", label: "Ano" },
-];
-
-const formatarMinutos = (totalMinutos: number) => {
-    const horas = Math.floor(totalMinutos / 60);
-    const minutos = totalMinutos % 60;
-
-    if (horas === 0) return `${minutos}m`;
-    if (minutos === 0) return `${horas}h`;
-
-    return `${horas}h ${minutos}m`;
-};
+import { LEADERBOARD_TABS, LeaderboardFilter, formatarMinutos } from "@/constants/ranking";
 
 export default function GroupScreen() {
     const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
     const [showLeaderboardFilters, setShowLeaderboardFilters] = useState(false);
-    const [rankingExpandido, setRankingExpandido] = useState(false);
     const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
     const [rankingMembros, setRankingMembros] = useState<RankingMembroComPerfil[]>([])
     const [grupo, setGroup] = useState<Grupo | null>(null)
@@ -200,7 +178,7 @@ export default function GroupScreen() {
             {/* Header */}
             <View
                 style={{
-                    paddingTop: 4,
+                    paddingTop: 15,
                     paddingHorizontal: 18,
                     paddingBottom: 14,
                     flexDirection: "row",
@@ -292,7 +270,7 @@ export default function GroupScreen() {
 
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20 }}
+                contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20, paddingTop: 10 }}
                 showsVerticalScrollIndicator={false}
             >
                 {grupoSozinho && <ConviteDestaque onConvidar={abrirConvite} />}
@@ -310,11 +288,19 @@ export default function GroupScreen() {
                     filtroAtivo={leaderboardFilter}
                     filtrosAbertos={showLeaderboardFilters}
                     rotuloFiltro={activeLeaderboardFilter?.label ?? "Filtro"}
-                    expandido={rankingExpandido}
                     formatarMinutos={formatarMinutos}
                     onToggleFiltros={() => setShowLeaderboardFilters((current) => !current)}
                     onSelecionarFiltro={(key) => setLeaderboardFilter(key as LeaderboardFilter)}
-                    onToggleExpandir={() => setRankingExpandido((current) => !current)}
+                    onVerRankingCompleto={() =>
+                        router.push({
+                            pathname: "/ranking-completo",
+                            params: {
+                                groupId: groupId as string,
+                                filtro: leaderboardFilter,
+                                grupoNome: grupo?.nome_grupo ?? "",
+                            },
+                        })
+                    }
                     onAbrirMembro={(linha, rank) => abrirMembro(linha.userId, linha.admin, rank)}
                 />
 

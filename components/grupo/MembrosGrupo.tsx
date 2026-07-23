@@ -29,7 +29,8 @@ export default function MembrosGrupo({ membros, onConvidar, onAbrirMembro }: Pro
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    marginBottom: 14,
+                    marginBottom: 17,
+                    marginTop: 10
                 }}
             >
                 <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
@@ -224,6 +225,7 @@ export function CtaGruposPublicos({ onPress }: { onPress: () => void }) {
                 borderRadius: 16,
                 paddingVertical: 14,
                 paddingHorizontal: 16,
+                marginTop: 7,
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 13,

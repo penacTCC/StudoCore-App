@@ -64,7 +64,6 @@ export default function MetaGrupo({ percentual, horasFeitas, metaTotal, metaPorM
     return (
         <View
             style={{
-                backgroundColor: HADES.surface,
                 borderWidth: 1,
                 borderColor: HADES.border,
                 borderRadius: 16,
@@ -94,17 +93,19 @@ export default function MetaGrupo({ percentual, horasFeitas, metaTotal, metaPorM
                     {semMeta ? "definir" : `${percentual}% atingida`}
                 </Text>
             </View>
-
+            
             <Barra
                 largura={semMeta ? "2%" : `${percentual}%`}
                 cor={semMeta ? HADES.dot : HADES.accentSolid}
             />
 
-            <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 9 }}>
-                {semMeta
-                    ? "Nenhuma meta definida ainda"
-                    : `${Math.round(horasFeitas)}h de ${Math.round(metaTotal)}h esta semana · ${metaPorMembro}h por membro`}
-            </Text>
+            <View className="flex-row justify-between align-baseline">
+                <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 9,}}>
+                    {semMeta
+                        ? "Nenhuma meta definida ainda"
+                        : `${Math.round(metaTotal)}h esta semana`}
+                </Text>
+            </View>
         </View>
     );
 }

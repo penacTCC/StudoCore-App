@@ -43,7 +43,8 @@ export const buscarMeusGrupos = async () => {
                         foto_grupo,
                         meta_horas,
                         publico,
-                        codigo_convite
+                        codigo_convite,
+                        created_at
                     )
                 `)
       .eq("user_id", user.id);
@@ -352,4 +353,43 @@ export const horasTotaisUsuario = async (groupId?: string) => {
   .select("*")
   .eq("grupo_id", groupId)
   .order("total_minutos", { ascending: false });
+}
+
+export const buscarMembrosDosGrupos = async (gruposIds: string[]): Promise<Record<string, MembroGrupoComPerfil[]>> => {
+  if (!gruposIds || gruposIds.length === 0) return {};
+
+  const { data: usuarioMembro, error } = await supabase
+    .from("membros")
+    .select(`
+      *,
+      profiles:user_id (
+        id,
+        nome_usuario,
+        foto_usuario,
+        gamificacoes (
+          ofensiva
+        )
+      )
+    `)
+    .in("grupo_id", gruposIds);
+
+  if (error) {
+    console.error("Erro ao puxar membros:", error);
+    return {};
+  }
+
+  return ((usuarioMembro || []) as MembroGrupoComPerfil[]).reduce((porGrupo, membro) => {
+    // `gamificacoes` vem como relação 1:1 (user_id é PK), mas o PostgREST pode devolver objeto ou array de 1 item.
+    const gamificacao = membro.profiles?.gamificacoes;
+    const ofensiva = Array.isArray(gamificacao) ? gamificacao[0]?.ofensiva : gamificacao?.ofensiva;
+
+    const membroTratado: MembroGrupoComPerfil = {
+      ...membro,
+      userData: membro.profiles,
+      ofensiva: ofensiva ?? 0,
+    };
+
+    (porGrupo[membro.grupo_id] ??= []).push(membroTratado);
+    return porGrupo;
+  }, {} as Record<string, MembroGrupoComPerfil[]>);
 }

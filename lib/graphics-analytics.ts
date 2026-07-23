@@ -4,7 +4,8 @@ import { useFocusEffect } from "expo-router";
 import {
     agregarDistribuicaoPorMateria,
     agregarMinutosPorDiaSemana,
-    agregarParesPorDiaSemana,
+    agregarMinutosPorPeriodo,
+    agregarParesPorPeriodo,
     amostrarPontosOfensiva,
     construirHistoricoOfensiva,
 } from "@/lib/analytics";
@@ -125,8 +126,8 @@ export function useGraficosAnalytics(
     const mediaMinutosPorSessao = qtdSessoes !== 0 ? minutosAtuais / qtdSessoes : 0;
     const mediaDasHoras = qtdSessoes !== 0 ? formatarMinutosParaHoras(mediaMinutosPorSessao) : "0";
 
-    //Pontos do gráfico de área: minutos estudados por dia da semana, dentro do período selecionado
-    const pontosGraficoArea = agregarMinutosPorDiaSemana(sessoesDoPeriodoAtual, comecoSemana);
+    //Pontos do gráfico de área: dias da semana no filtro 7d, 4 semanas no 30d, 4 trimestres no ano
+    const pontosGraficoArea = agregarMinutosPorPeriodo(sessoesDoPeriodoAtual, periodoAnalise, comecoSemana);
 
     //Título do comparativo (concordância: "Esta semana" / "Este mês" / "Este ano")
     const tituloComparativo =
@@ -134,8 +135,8 @@ export function useGraficosAnalytics(
         : periodoAnalise === "30d" ? "Este mês vs. anterior"
         : "Este ano vs. anterior";
 
-    //Pares atual/anterior por dia da semana, para o gráfico de barras
-    const paresGraficoComparativo = agregarParesPorDiaSemana(sessoesDoPeriodoAtual, sessoesDoPeriodoAnterior, comecoSemana);
+    //Pares atual/anterior, no mesmo agrupamento de pontosGraficoArea, para o gráfico de barras
+    const paresGraficoComparativo = agregarParesPorPeriodo(sessoesDoPeriodoAtual, sessoesDoPeriodoAnterior, periodoAnalise, comecoSemana);
 
     //Conta quantas e quais matérias o usuário estudou no período escolhido
     const materiasSet = new Set(sessoesDoPeriodoAtual.map((s) => s.disciplina));
