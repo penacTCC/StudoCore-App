@@ -170,12 +170,23 @@ export function PontosDeCiclo({ total, concluidos }: { total: number; concluidos
     );
 }
 
-export function ColegasFocando({ nomes, total }: { nomes: string[]; total: number }) {
+export function ColegasFocando({
+    nomes,
+    total,
+    onPress,
+}: {
+    nomes: string[];
+    total: number;
+    onPress?: () => void;
+}) {
     const visiveis = nomes.slice(0, 3);
     const extras = total - visiveis.length;
 
     return (
-        <View
+        <TouchableOpacity
+            onPress={onPress}
+            disabled={!onPress}
+            activeOpacity={0.7}
             style={{
                 width: "100%",
                 backgroundColor: HADES.surface,
@@ -236,6 +247,6 @@ export function ColegasFocando({ nomes, total }: { nomes: string[]; total: numbe
                 <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#34c759" }} />
                 <Text style={{ fontSize: 12, color: HADES.textMuted }}>{total} focando juntos</Text>
             </View>
-        </View>
+        </TouchableOpacity>
     );
 }

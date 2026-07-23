@@ -37,6 +37,9 @@ Notifications.setNotificationHandler({
 const STORAGE_KEY_START_TIME = "@focus_session_start_time";
 const STORAGE_KEY_SESSION_DATA = "@focus_session_data";
 
+// Mock: ainda não existe sessão pública em tempo real no backend (ver docs/project-context.md).
+const COLEGAS_MOCK = ["Nina", "Théo", "Helena", "Rafa", "Duda"];
+
 /** Remove acentos e caixa para comparar nomes de matéria com o Vault. */
 function normalizar(texto: string) {
     return texto
@@ -549,7 +552,7 @@ export default function FocusScreen() {
                         totalCiclos={configPomodoro.ciclosAteLongo}
                         contexto={contexto}
                         autoFoco
-                        colegas={null}
+                        colegas={isPublicSession ? COLEGAS_MOCK : null}
                         iniciadaEm={
                             restaurada && startTimeRef.current ? formatarHora(startTimeRef.current) : null
                         }
@@ -558,6 +561,12 @@ export default function FocusScreen() {
                         onEstender={estenderFoco}
                         onPularDescanso={pularDescanso}
                         onConcluirBloco={stopSession}
+                        onAbrirColegas={() =>
+                            router.push({
+                                pathname: "/(modals)/colegas-focando",
+                                params: { materia: selectedSubject, conteudo: specificContent },
+                            })
+                        }
                     />
                 </>
             )}
