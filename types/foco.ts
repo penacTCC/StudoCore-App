@@ -3,7 +3,7 @@ export type ModoFoco = "cronometro" | "pomodoro";
 /** Fase do pomodoro. O cronômetro usa sempre "foco". */
 export type FaseFoco = "foco" | "descansoCurto" | "descansoLongo";
 
-export type EstadoFoco = "config" | "ativo";
+export type FocusState = "config" | "active";
 
 export type PresetPomodoro = {
     id: string;

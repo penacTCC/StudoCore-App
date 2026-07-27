@@ -119,6 +119,8 @@ export default function FocusFeedbackModal() {
                 questoes_acertadas: score,
                 is_public: params.isPublic === "true",
                 status,
+                ultimo_inicio: null,
+                concluido_em: new Date().toISOString(),
             });
             dbError = error;
 
@@ -206,6 +208,8 @@ export default function FocusFeedbackModal() {
                     questoes_acertadas: score,
                     is_public: params.isPublic === "true",
                     status: status,
+                    ultimo_inicio: null,
+                    concluido_em: new Date().toISOString(),
                 });
                 dbError = error;
                 if (!error && data) {
