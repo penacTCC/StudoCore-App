@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useFocusEffect } from "expo-router";
 
 import {
@@ -8,11 +8,21 @@ import {
     agregarParesPorPeriodo,
     amostrarPontosOfensiva,
     construirHistoricoOfensiva,
+    formatarHoras,
+    separarSessoesPorPeriodo,
 } from "@/lib/analytics";
 import { SessaoFocoRow } from "@/types/sessions";
-import { ComecoSemana } from "@/types/analytics";
-import { PeriodoAnalise } from "@/components/analytics/GraficosAnalise";
+import { ComecoSemana, membrosRankingAnalytics, PontoSerieDia } from "@/types/analytics";
+import { PeriodoAnalise, QuestoesMembroGrupo } from "@/components/analytics/GraficosAnalise";
 import { buscarSessoesPorUsuario } from "@/services/sessions";
+import { useMeusGrupos } from "@/hooks/useMeusGrupos";
+import { useMembrosGrupos } from "@/hooks/useMembrosGrupos";
+import { buscarMembrosGrupo, horasSemanaisGrupo } from "@/services/grupos";
+import { useRankingHorasGrupo } from "@/hooks/useRankingHorasGrupo";
+import { LeaderboardFilter } from "@/constants/ranking";
+import { useSessoesGrupo } from "@/hooks/useSessoesGrupo";
+import { MateriaMaisEstudada } from "@/types/materias";
+import { MembroGrupoComPerfil } from "@/types/grupos";
 
 export function useGraficosAnalytics(
     userId: string | null | undefined,
@@ -22,6 +32,7 @@ export function useGraficosAnalytics(
     const [sessoesUsuario, setSessoesUsuario] = useState<SessaoFocoRow[]>([])
 
     //------Cálculos e funções para os gráficos dessa tela------
+    //========PESSOAL========
 
     //Busca sessões do usuário
     useFocusEffect(
@@ -169,6 +180,191 @@ export function useGraficosAnalytics(
     const historicoOfensiva = construirHistoricoOfensiva(sessoesUsuario);
     const pontosOfensiva = amostrarPontosOfensiva(historicoOfensiva);
 
+    //========Aba Grupo========
+
+    //Busca os grupos do usuário, para a tela de grupos
+    const {grupos} = useMeusGrupos()
+
+    //Busca os membros dos grupos
+    const {membrosPorGrupo} = useMembrosGrupos(grupos)
+
+    // Grupo escolhido no seletor da aba Análise > Grupo (null = usa o primeiro da lista)
+    const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null)
+
+    //useState para as horas semanais do grupo
+    const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
+
+    //Grupo selecionado, para ser passado (como prop) para outras telas
+    const grupoSelecionado = grupos.find((g) => g.id === grupoSelecionadoId) ?? grupos[0] ?? null;
+
+    //useEffect para o grupoSelecionadoId não começar nulo
+    useEffect(() => {
+    if (grupoSelecionadoId === null && grupos.length > 0) {
+            setGrupoSelecionadoId(grupos[0].id)
+        }
+    }, [grupos, grupoSelecionadoId])
+
+    //Horas semanais do grupo
+    //Faz useEffect para pegar as horas semanais do grupo
+    useEffect(() => {
+        if(!grupoSelecionadoId) return
+        const carregarHoras = async () => {
+            const horas = await horasSemanaisGrupo(grupoSelecionadoId as string)
+            setHorasSemanaGrupo(horas)
+            console.log('Horas' + horas)
+        }
+        carregarHoras()
+    }, [grupoSelecionadoId])
+
+    //Quantidade de membros em cada grupo
+    const qtdMembrosGrupoSelecionado = grupoSelecionadoId
+    ? (membrosPorGrupo[grupoSelecionadoId]?.length ?? 0)
+    : 0
+
+    //Transforma o período da aba Análise (PeriodoAnalise) no formato que o
+    //ranking de grupo espera (LeaderboardFilter)
+    const mapaPeriodo: Record<PeriodoAnalise, LeaderboardFilter> = {
+        "7d": "semanal",
+        "30d": "mensal",
+        "ano": "anual",
+    }
+    const filtroRankingGrupo = mapaPeriodo[periodoAnalise]
+
+    //Pega as horas e membros do grupo selecionado
+    const horasMembros = useRankingHorasGrupo(
+        grupoSelecionadoId,
+        filtroRankingGrupo,
+        grupoSelecionadoId ? membrosPorGrupo[grupoSelecionadoId] ?? [] : []
+    )
+
+    //Filtramos os membros para que o membro não fique undefined numa renderização de transição entre telas
+    const membrosRanking: membrosRankingAnalytics[] = useMemo(
+        () =>
+            horasMembros.rankingMembros.filter((item) => item.membro)
+                .map((item) => ({
+                    userId: item.user_id,
+                    nome: item.membro!.userData?.nome_usuario || "Sem nome",
+                    foto: item.membro!.userData?.foto_usuario,
+                    minutos: item.total_minutos,
+                    ofensiva: item.membro!.ofensiva ?? 0,
+                    ehVoce: item.user_id === userId,
+            })),
+        [horasMembros, userId]
+    )
+
+    //Lógica para pegar as matérias mais estudadas do grupo
+    //1. Chamamos o hook SessoesGrupo, que pega as sessões e retorna-as pra gente
+    const sessoesGrupo = useSessoesGrupo(grupoSelecionadoId)
+
+    //Recorte das sessões do grupo dentro do período escolhido no SeletorPeriodo —
+    //sem isso, matéria mais estudada e membros ativos ficavam sempre calculados
+    //em cima de TODAS as sessões (useSessoesGrupo não filtra por data), ignorando o filtro.
+    const sessoesGrupoNoPeriodo = useMemo(
+        () => separarSessoesPorPeriodo(sessoesGrupo.sessions, periodoAnalise).atual,
+        [sessoesGrupo.sessions, periodoAnalise]
+    )
+
+    const materiasGrupo: MateriaMaisEstudada[] = useMemo(() => {
+
+        //2. Reaproveitamos a função que já soma os minutos de cada matéria
+        const distribuicao = agregarDistribuicaoPorMateria(sessoesGrupoNoPeriodo)
+
+        //3. Transformamos o tipo da distribuicao MateriaDistribuicao[] para Materia[] (tipo que o grafico aceita)
+        //Reduzimos todos os valores do array a somente um
+        const totalHorasMaterias = distribuicao.reduce((s, d) => s + d.hours, 0) || 1
+
+        //transformamos o array distribuicao no tipo Materia[]
+        return distribuicao.map((d) => ({
+            rotulo: d.subject,
+            pct: Math.round((d.hours / totalHorasMaterias) * 100),
+            cor: d.color
+        }))
+    }, [sessoesGrupoNoPeriodo])
+
+    //Criamos um novo set com as disciplinas das sessões do grupo, a quantidade de disciplinas é o tamanho do set.
+    const setSessoesGrupo = new Set(sessoesGrupoNoPeriodo.map((s) => s.disciplina))
+    const qtdDisciplinasGrupo = setSessoesGrupo.size
+
+    //cria um array state que guarda os membros inativos
+    const [membrosInativos, setMembrosInativos] = useState<MembroGrupoComPerfil[]>([])
+    const [membrosTotais, setMembrosTotais] = useState<MembroGrupoComPerfil[]>([])
+
+    useEffect(() => {
+        //Cria um array com os usuários do grupo que não têm sessões de foco no período selecionado
+        const filtraUsuariosInativos = async () => {
+            //1. Busca os membros do grupo atual
+            if(!grupoSelecionadoId) return
+            const membrosDoGrupo = await buscarMembrosGrupo(grupoSelecionadoId)
+            setMembrosTotais(membrosDoGrupo)
+
+            //2. Vê se no array de sessões de foco do período, tem os membros
+            const idsComSessao = new Set(sessoesGrupoNoPeriodo.map((s) => s.user_id))
+            const inativos = membrosDoGrupo.filter(m => !idsComSessao.has(m.user_id))
+            setMembrosInativos(inativos)
+        }
+        filtraUsuariosInativos()
+    }, [grupoSelecionadoId, sessoesGrupoNoPeriodo])
+
+    //Questões por membro: soma respondidas/acertadas de cada membro (a partir das
+    //sessões do grupo no período) e junta com membrosTotais pra pegar nome/foto —
+    //mesmo padrão de join usado em useRankingHorasGrupo (ranking de horas x membros).
+    const questoesPorMembroGrupo: QuestoesMembroGrupo[] = useMemo(() => {
+        const porUsuario = new Map<string, { total: number; acertadas: number }>()
+
+        for (const sessao of sessoesGrupoNoPeriodo) {
+            const atual = porUsuario.get(sessao.user_id) ?? { total: 0, acertadas: 0 }
+            atual.total += sessao.questoes_respondidas ?? 0
+            atual.acertadas += sessao.questoes_acertadas ?? 0
+            porUsuario.set(sessao.user_id, atual)
+        }
+
+        return Array.from(porUsuario.entries())
+            .map(([userId, { total, acertadas }]) => {
+                const membro = membrosTotais.find((m) => m.user_id === userId)
+                return {
+                    userId,
+                    nome: membro?.userData?.nome_usuario || "Sem nome",
+                    foto: membro?.userData?.foto_usuario,
+                    total,
+                    pctAcerto: total > 0 ? Math.round((acertadas / total) * 100) : 0,
+                }
+            })
+            .sort((a, b) => b.total - a.total)
+    }, [sessoesGrupoNoPeriodo, membrosTotais])
+
+    //Evolução do grupo: pontos do gráfico (distribuídos conforme periodoAnalise) e
+    //variação % vs. período anterior, mesma lógica usada na aba Pessoal (useGraficosAnalytics)
+    const pontosEvolucaoGrupo: PontoSerieDia[] = useMemo(
+        () => agregarMinutosPorPeriodo(sessoesGrupo.sessions, periodoAnalise, comecoSemana),
+        [sessoesGrupo.sessions, periodoAnalise, comecoSemana]
+    )
+
+    const { horasEvolucaoGrupo, percentualEvolucaoGrupo } = useMemo(() => {
+        const { atual, anterior } = separarSessoesPorPeriodo(sessoesGrupo.sessions, periodoAnalise)
+        const minutosAtuais = totalMinutosSessoes(atual)
+        const minutosAnteriores = totalMinutosSessoes(anterior)
+        return {
+            horasEvolucaoGrupo: formatarHoras(minutosAtuais),
+            percentualEvolucaoGrupo: calcularVariacaoPercentual(minutosAnteriores, minutosAtuais),
+        }
+    }, [sessoesGrupo.sessions, periodoAnalise])
+
+    //Ofensiva coletiva: número atual/recorde vêm de `grupos.ofensiva`/`melhor_ofensiva`
+    //(fonte real, atualizada por registrarOfensivaGrupo a cada sessão salva com
+    //grupo_id — regra da cota diária, não "qualquer sessão"). Os pontos do gráfico
+    //continuam reconstruídos a partir das sessões (não existe histórico diário salvo),
+    //igual a ofensiva pessoal faz — é só uma aproximação visual da tendência.
+    const ofensivaGrupo = useMemo(() => {
+        const historico = construirHistoricoOfensiva(sessoesGrupo.sessions)
+        return {
+            atual: grupoSelecionado?.ofensiva ?? 0,
+            melhor: grupoSelecionado?.melhor_ofensiva ?? 0,
+            pontos: amostrarPontosOfensiva(historico),
+        }
+    }, [sessoesGrupo.sessions, grupoSelecionado?.ofensiva, grupoSelecionado?.melhor_ofensiva])
+
+    //Função para calcular acertos x erros dos membros
+
     return {
         sessoesUsuario,
         sessoesDoPeriodoAtual,
@@ -191,5 +387,25 @@ export function useGraficosAnalytics(
         pctAcerto,
         pontosDiaSemana,
         pontosOfensiva,
+        //=======GRUPO=======
+        grupos,
+        membrosPorGrupo,
+        grupoSelecionadoId,
+        setGrupoSelecionadoId,
+        horasSemanaGrupo,
+        grupoSelecionado,
+        qtdMembrosGrupoSelecionado,
+        membrosRanking,
+        sessoesGrupo,
+        sessoesGrupoNoPeriodo,
+        materiasGrupo,
+        qtdDisciplinasGrupo,
+        membrosInativos,
+        membrosTotais,
+        questoesPorMembroGrupo,
+        pontosEvolucaoGrupo,
+        horasEvolucaoGrupo,
+        percentualEvolucaoGrupo,
+        ofensivaGrupo,
     };
 }

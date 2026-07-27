@@ -261,6 +261,17 @@ export const tempoTotalSessoesFocoOntem = async (groupId?: string) => {
     return totalMinutosAnteriores
 }
 
+//Buscar sessões do Grupo
+export const buscarSessoesPorGrupo = async (groupId: string, limit?: number) => {
+    const query = supabase
+        .from("sessoes_foco")
+        .select("*")
+        .eq("grupo_id", groupId)
+        .order("created_at", { ascending: false });
+
+    return await (limit !== undefined ? query.limit(limit) : query);
+};
+
 export const insertTabSessaoMembros = async (memberData: MemberSession) => {
     const { data, error } = await supabase
         .from('tab_sessao_membros')
