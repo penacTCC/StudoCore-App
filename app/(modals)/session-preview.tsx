@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -18,6 +18,8 @@ import {
 
 import { HADES } from "@/constants/hades";
 import { getSubjectColor } from "@/constants/helpers";
+import { buscarSessoesRecentes, fetchSessionById, fetchSessionMembers } from "@/services/sessions";
+import type { MemberSession, SessionCardItem } from "@/types/sessions";
 
 type Participante = {
     nome: string;
@@ -26,74 +28,6 @@ type Participante = {
     topico: string;
     tempoSegundos: number;
     host?: boolean;
-};
-
-type SessaoPreviewMock = {
-    hostNome: string;
-    hostInicial: string;
-    hostCor: string;
-    hostVerificado?: boolean;
-    abertaHaMin: number;
-    disciplina: string;
-    conteudo: string;
-    duracaoMin: number;
-    horaInicio: string;
-    ofensiva: number;
-    participantes: Participante[];
-    maisPessoas: number;
-    torcidaNomes?: string;
-    torcidaTotal?: number;
-};
-
-// Mock: ainda não existe sessão pública em tempo real no backend (ver docs/project-context.md).
-const MOCKS: Record<"entrar" | "primeiro" | "privada", SessaoPreviewMock> = {
-    entrar: {
-        hostNome: "NatVM",
-        hostInicial: "N",
-        hostCor: "#1f9d63",
-        hostVerificado: true,
-        abertaHaMin: 39,
-        disciplina: "Cálculo II",
-        conteudo: "Integrais definidas",
-        duracaoMin: 80,
-        horaInicio: "09:15",
-        ofensiva: 9,
-        participantes: [
-            { nome: "NatVM", inicial: "N", cor: "#1f9d63", topico: "Integrais definidas", tempoSegundos: 4804, host: true },
-            { nome: "toulhe", inicial: "T", cor: "#7c5cfc", topico: "Integração por partes", tempoSegundos: 2832 },
-        ],
-        maisPessoas: 3,
-    },
-    primeiro: {
-        hostNome: "toulhe",
-        hostInicial: "T",
-        hostCor: "#7c5cfc",
-        abertaHaMin: 4,
-        disciplina: "Física",
-        conteudo: "Cinemática · MRUV",
-        duracaoMin: 4,
-        horaInicio: "10:40",
-        ofensiva: 3,
-        participantes: [
-            { nome: "toulhe", inicial: "T", cor: "#7c5cfc", topico: "Cinemática · MRUV", tempoSegundos: 252, host: true },
-        ],
-        maisPessoas: 0,
-    },
-    privada: {
-        hostNome: "penac",
-        hostInicial: "P",
-        hostCor: "#1f9aa8",
-        abertaHaMin: 62,
-        disciplina: "Anatomia",
-        conteudo: "Sistema nervoso central",
-        duracaoMin: 62,
-        horaInicio: "09:42",
-        ofensiva: 21,
-        participantes: [],
-        maisPessoas: 0,
-        torcidaNomes: "NatVM, h e mais 6",
-        torcidaTotal: 8,
-    },
 };
 
 function formatarDuracao(min: number) {
@@ -113,31 +47,156 @@ function formatarCronometro(totalSegundos: number) {
 }
 
 export default function SessionPreviewScreen() {
-    const params = useLocalSearchParams<{ variante?: "entrar" | "primeiro" | "privada"; isPublic?: string }>();
+    const params = useLocalSearchParams<{ sessionId?: string; session?: string; variante?: string; isPublic?: string }>();
+    const [sessao, setSessao] = useState<SessionCardItem | null>(null);
+    const [participantes, setParticipantes] = useState<Participante[]>([]);
+    const [carregando, setCarregando] = useState(true);
+    const [erro, setErro] = useState<string | null>(null);
 
-    const variante: "entrar" | "primeiro" | "privada" =
-        params.variante && MOCKS[params.variante]
-            ? params.variante
-            : params.isPublic === "false"
-            ? "privada"
-            : "entrar";
+    const sessionParam = useMemo(() => {
+        const raw = Array.isArray(params.session) ? params.session[0] : params.session;
+        return raw ? raw : null;
+    }, [params.session]);
 
-    const sessao = MOCKS[variante];
-    const privada = variante === "privada";
-    const corMateria = getSubjectColor(sessao.disciplina);
+    const privada = sessao ? !sessao.is_public : params.isPublic === "false";
+    const corMateria = getSubjectColor(sessao?.disciplina || "Estudo Geral");
 
-    // Cronômetros locais ticando a partir do mock, só para dar sensação de "ao vivo".
+    // Cronômetros locais para dar sensação de "ao vivo".
     const [tick, setTick] = useState(0);
     useEffect(() => {
         const id = setInterval(() => setTick((t) => t + 1), 1000);
         return () => clearInterval(id);
     }, []);
 
+    useEffect(() => {
+        let ativo = true;
+
+        const carregarSessao = async () => {
+            setCarregando(true);
+            setErro(null);
+            setParticipantes([]);
+
+            try {
+                let sessaoEncontrada: SessionCardItem | null = null;
+
+                if (sessionParam) {
+                    try {
+                        sessaoEncontrada = JSON.parse(sessionParam) as SessionCardItem;
+                    } catch {
+                        sessaoEncontrada = null;
+                    }
+                }
+
+                if (!sessaoEncontrada && params.sessionId) {
+                    const { data, error } = await fetchSessionById(params.sessionId);
+                    if (error) throw error;
+                    sessaoEncontrada = data as SessionCardItem | null;
+                }
+
+                if (!sessaoEncontrada) {
+                    const { data, error } = await buscarSessoesRecentes(1);
+                    if (error) throw error;
+                    sessaoEncontrada = (data?.[0] as SessionCardItem | undefined) ?? null;
+                }
+
+                if (!ativo) return;
+                setSessao(sessaoEncontrada);
+
+                if (!sessaoEncontrada) {
+                    setCarregando(false);
+                    return;
+                }
+
+                const { data: membrosData, error: membrosError } = await fetchSessionMembers(sessaoEncontrada.id);
+                if (!ativo) return;
+
+                if (membrosError) {
+                    setParticipantes([]);
+                } else {
+                    const participantesMapeados: Participante[] = (membrosData || []).map((membro: MemberSession, index: number) => {
+                        const profile = membro.profiles as { nome_usuario?: string | null; nome_real?: string | null } | undefined;
+                        const nome = profile?.nome_usuario || profile?.nome_real || "Usuário";
+                        const inicial = nome.charAt(0).toUpperCase();
+                        const cores = ["#1f9d63", "#7c5cfc", "#1f9aa8", "#e08a1e", "#d0455e"];
+
+                        return {
+                            nome,
+                            inicial,
+                            cor: cores[index % cores.length],
+                            topico: membro.sessoes_foco?.conteudo_especifico || sessaoEncontrada?.conteudo_especifico || "Foco",
+                            tempoSegundos: membro.tempo_segundos ?? 0,
+                            host: membro.funcao === "anfitriao" || membro.membro_id === sessaoEncontrada?.user_id,
+                        };
+                    });
+                    setParticipantes(participantesMapeados);
+                }
+            } catch (error) {
+                console.warn("Erro ao carregar prévia da sessão:", error);
+                if (ativo) {
+                    setErro("Não foi possível carregar os dados dessa sessão.");
+                    setSessao(null);
+                }
+            } finally {
+                if (ativo) {
+                    setCarregando(false);
+                }
+            }
+        };
+
+        carregarSessao();
+        return () => {
+            ativo = false;
+        };
+    }, [params.sessionId, sessionParam]);
+
     const handleAcao = () => {
+        if (!sessao) return;
         if (privada) return; // "Mandar força" ainda não tem efeito colateral real
         router.dismissAll();
-        router.replace("/(tabs)/focus");
+        router.replace({
+            pathname: "/(tabs)/focus",
+            params: {
+                session: JSON.stringify(sessao),
+                sessionId: sessao.id,
+                joinPublicSession: "true",
+            },
+        });
     };
+
+    if (carregando) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+                    <Text style={{ color: HADES.text, fontSize: 16, fontWeight: "600" }}>Carregando sessão…</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    if (!sessao) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+                    <Text style={{ color: HADES.text, fontSize: 16, fontWeight: "600" }}>{erro || "Nenhuma sessão disponível no momento."}</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    const hostNome = sessao.profiles?.nome_usuario || sessao.profiles?.nome_real || "Usuário";
+    const hostInicial = hostNome.charAt(0).toUpperCase();
+    const hostCor = corMateria.text || "#1f9d63";
+    const estaConcluida = Boolean(sessao.concluido_em || sessao.status === "concluido");
+    const abertaHaMin = Math.max(1, Math.round((Date.now() - new Date(sessao.created_at).getTime()) / 60000));
+    const duracaoMin = Math.max(1, Math.round(sessao.tempo_minutos || 0));
+    const horaInicio = sessao.ultimo_inicio ? new Date(sessao.ultimo_inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : new Date(sessao.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const ofensiva = sessao.questoes_acertadas || 0;
+    const torcidaTotal = participantes.length;
+    const torcidaNomes = participantes.length > 0 ? participantes.map((p) => p.nome).slice(0, 3).join(", ") : "Ainda ninguém entrou";
+    const maisPessoas = Math.max(0, participantes.length - 2);
+    const statusTexto = estaConcluida
+        ? "Sessão concluída"
+        : `${privada ? "está focando" : "abriu esta sessão"} · há ${abertaHaMin} min`;
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -177,16 +236,16 @@ export default function SessionPreviewScreen() {
                     />
 
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
-                        <View style={[estilos.avatar, { width: 44, height: 44, borderRadius: 22, backgroundColor: sessao.hostCor }]}>
-                            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "600" }}>{sessao.hostInicial}</Text>
+                        <View style={[estilos.avatar, { width: 44, height: 44, borderRadius: 22, backgroundColor: hostCor }]}>
+                            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "600" }}>{hostInicial}</Text>
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                                <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>{sessao.hostNome}</Text>
-                                {sessao.hostVerificado && <BadgeCheck size={16} color={HADES.subjectBlue} />}
+                                <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>{hostNome}</Text>
+                                <BadgeCheck size={16} color={HADES.subjectBlue} />
                             </View>
                             <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 1 }}>
-                                {privada ? "está focando" : "abriu esta sessão"} · há {sessao.abertaHaMin} min
+                                {statusTexto}
                             </Text>
                         </View>
                         {privada ? (
@@ -204,27 +263,29 @@ export default function SessionPreviewScreen() {
 
                     <View style={{ marginTop: 18 }}>
                         <Text style={{ fontSize: 24, fontWeight: "700", color: HADES.text, letterSpacing: -0.4 }}>{sessao.disciplina}</Text>
-                        <Text style={{ fontSize: 14, color: corMateria.text, marginTop: 3 }}>{sessao.conteudo}</Text>
+                        <Text style={{ fontSize: 14, color: corMateria.text, marginTop: 3 }}>{sessao.conteudo_especifico || "Sessão sem conteúdo detalhado"}</Text>
                     </View>
 
-                    <View style={estilos.aoVivo}>
-                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: HADES.green }} />
-                        <Text style={{ fontSize: 12, color: HADES.green, fontWeight: "600" }}>ao vivo agora</Text>
-                    </View>
+                    {estaConcluida ? (
+                        <View style={estilos.badgeConcluida}>
+                            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: HADES.textMuted }} />
+                            <Text style={{ fontSize: 12, color: HADES.textMuted, fontWeight: "600" }}>Sessão concluída</Text>
+                        </View>
+                    ) : null}
 
                     <View style={estilos.stats}>
                         <View style={{ flex: 1 }}>
-                            <Text style={estilos.statValor}>{formatarDuracao(sessao.duracaoMin)}</Text>
+                            <Text style={estilos.statValor}>{formatarDuracao(duracaoMin)}</Text>
                             <Text style={estilos.statRotulo}>DURAÇÃO</Text>
                         </View>
                         <View style={[estilos.statDivider, { flex: 1 }]}>
-                            <Text style={estilos.statValor}>{sessao.horaInicio}</Text>
+                            <Text style={estilos.statValor}>{horaInicio}</Text>
                             <Text style={estilos.statRotulo}>INÍCIO</Text>
                         </View>
                         <View style={[estilos.statDivider, { flex: 1 }]}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                                 <Flame size={16} color={HADES.accentSolid} />
-                                <Text style={estilos.statValor}>{sessao.ofensiva}</Text>
+                                <Text style={estilos.statValor}>{ofensiva}</Text>
                             </View>
                             <Text style={estilos.statRotulo}>OFENSIVA</Text>
                         </View>
@@ -245,7 +306,7 @@ export default function SessionPreviewScreen() {
                         {/* Torcida */}
                         <View style={estilos.secaoHeader}>
                             <Text style={estilos.secaoTitulo}>Torcida</Text>
-                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>{sessao.torcidaTotal} mandaram força</Text>
+                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>{torcidaTotal} mandaram força</Text>
                         </View>
                         <View style={estilos.torcidaCard}>
                             <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -260,7 +321,7 @@ export default function SessionPreviewScreen() {
                                 </View>
                             </View>
                             <Text style={{ flex: 1, fontSize: 13, color: HADES.textSecondary }} numberOfLines={1}>
-                                {sessao.torcidaNomes}
+                                {torcidaNomes}
                             </Text>
                             <HandMetal size={18} color={HADES.accentSolid} />
                         </View>
@@ -271,20 +332,20 @@ export default function SessionPreviewScreen() {
                         <View style={estilos.secaoHeader}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                 <Text style={estilos.secaoTitulo}>Focando agora</Text>
-                                {sessao.participantes.length > 0 && (
+                                {participantes.length > 0 && (
                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                                         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.green }} />
                                         <Text style={{ fontSize: 11, color: HADES.green, fontWeight: "600" }}>
-                                            {sessao.participantes.length + sessao.maisPessoas} pessoas
+                                            {participantes.length + maisPessoas} pessoas
                                         </Text>
                                     </View>
                                 )}
                             </View>
                         </View>
 
-                        {sessao.participantes.length > 0 ? (
+                        {participantes.length > 0 ? (
                             <View style={{ gap: 9 }}>
-                                {sessao.participantes.map((p) => (
+                                {participantes.map((p) => (
                                     <View key={p.nome} style={estilos.participanteCard}>
                                         <View style={{ position: "relative" }}>
                                             <View style={[estilos.avatar, { width: 38, height: 38, borderRadius: 19, backgroundColor: p.cor }]}>
@@ -311,7 +372,7 @@ export default function SessionPreviewScreen() {
                                         </View>
                                     </View>
                                 ))}
-                                {sessao.maisPessoas > 0 && (
+                                {maisPessoas > 0 && (
                                     <View style={estilos.participanteCard}>
                                         <View style={{ flexDirection: "row", alignItems: "center" }}>
                                             <View style={[estilos.avatarPilha, { backgroundColor: "#e08a1e" }]}>
@@ -322,11 +383,11 @@ export default function SessionPreviewScreen() {
                                             </View>
                                             <View style={[estilos.avatarPilha, { backgroundColor: HADES.surfaceOverlay, marginLeft: -10 }]}>
                                                 <Text style={[estilos.avatarPilhaTexto, { color: HADES.textMuted, fontSize: 11 }]}>
-                                                    +{sessao.maisPessoas - 2 > 0 ? sessao.maisPessoas - 2 : 1}
+                                                    +{maisPessoas - 2 > 0 ? maisPessoas - 2 : 1}
                                                 </Text>
                                             </View>
                                         </View>
-                                        <Text style={{ flex: 1, fontSize: 13.5, color: HADES.textSecondary }}>e mais {sessao.maisPessoas} focando</Text>
+                                        <Text style={{ flex: 1, fontSize: 13.5, color: HADES.textSecondary }}>e mais {maisPessoas} focando</Text>
                                         <ChevronRight size={17} color={HADES.textDim} />
                                     </View>
                                 )}
@@ -337,7 +398,7 @@ export default function SessionPreviewScreen() {
                                     <UserPlus size={23} color={HADES.accentSolid} />
                                 </View>
                                 <Text style={estilos.vazioTitulo}>Ninguém entrou ainda</Text>
-                                <Text style={estilos.vazioTexto}>Seja a primeira pessoa a focar junto com {sessao.hostNome}.</Text>
+                                <Text style={estilos.vazioTexto}>Seja a primeira pessoa a focar junto com {hostNome}.</Text>
                             </View>
                         )}
 
@@ -365,9 +426,16 @@ export default function SessionPreviewScreen() {
                         <TouchableOpacity style={estilos.botaoTorcerPequeno}>
                             <HandMetal size={20} color={HADES.accentSolid} />
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={handleAcao} activeOpacity={0.85} style={estilos.botaoEntrar}>
+                        <TouchableOpacity
+                            onPress={handleAcao}
+                            activeOpacity={0.85}
+                            disabled={estaConcluida}
+                            style={[estilos.botaoEntrar, estaConcluida && { opacity: 0.7 }]}
+                        >
                             <Play size={19} color="#000" />
-                            <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>Entrar e focar junto</Text>
+                            <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>
+                                {estaConcluida ? "Sessão concluída" : "Entrar e focar junto"}
+                            </Text>
                         </TouchableOpacity>
                     </>
                 )}
@@ -444,15 +512,15 @@ const estilos = StyleSheet.create({
         color: HADES.textMuted,
         fontWeight: "700",
     },
-    aoVivo: {
+    badgeConcluida: {
         flexDirection: "row",
         alignSelf: "flex-start",
         alignItems: "center",
         gap: 6,
         marginTop: 14,
-        backgroundColor: HADES.greenTint,
+        backgroundColor: HADES.surfaceOverlay,
         borderWidth: 1,
-        borderColor: "rgba(48,209,88,0.3)",
+        borderColor: HADES.border,
         borderRadius: 999,
         paddingHorizontal: 11,
         paddingVertical: 5,

@@ -25,6 +25,8 @@ export type SessaoFocoRow = {
     status: string;
     data_sessao: string;
     created_at: string;
+    concluido_em: string | null;
+    ultimo_inicio: string | null;
     // Vem do JOIN com profiles
     profiles?: {
         nome_real: string | null;
@@ -68,6 +70,17 @@ export type MemberSession = {
     ultimo_inicio: string | null;
     tempo_segundos: number;
     status: "ativo" | "pausado" | "concluido";
-    profiles?: { nome_usuario?: string }
-    sessoes_foco?: {disciplina: string, conteudo_especifico: string, tempo_minutos: number, status: string, concluido_em: string | null, ultimo_inicio: string | null,}
+    profiles?: {
+        nome_usuario?: string | null;
+        nome_real?: string | null;
+        foto_usuario?: string | null;
+    };
+    sessoes_foco?: {
+        disciplina?: string;
+        conteudo_especifico?: string | null;
+        tempo_minutos?: number;
+        status?: string;
+        concluido_em?: string | null;
+        ultimo_inicio?: string | null;
+    };
 }

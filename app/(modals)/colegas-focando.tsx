@@ -1,33 +1,56 @@
+import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ChevronLeft, HandMetal, MessageCircle } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
+import { useAuth } from "@/hooks/useAuth";
+import { fetchSessionMembers } from "@/services/sessions";
+import type { MemberSession } from "@/types/sessions";
 
-type ColegaMock = {
-    nome: string;
-    inicial: string;
-    cor: string;
-    topico: string;
-    tempo: string;
-    emFoco: boolean;
+const formatarTempo = (segundos: number) => {
+    const totalSegundos = Math.max(0, Math.floor(segundos));
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    const segundosRestantes = totalSegundos % 60;
+
+    if (horas > 0) {
+        return `${horas.toString().padStart(2, "0")}:${minutos.toString().padStart(2, "0")}:${segundosRestantes.toString().padStart(2, "0")}`;
+    }
+
+    return `${minutos.toString().padStart(2, "0")}:${segundosRestantes.toString().padStart(2, "0")}`;
 };
-
-// Mock: ainda não existe sessão pública em tempo real no backend (ver docs/project-context.md).
-const COLEGAS_MOCK: ColegaMock[] = [
-    { nome: "Nina", inicial: "N", cor: "#1f9d63", topico: "Modelagem entidade-relacionamento", tempo: "1:08:22", emFoco: true },
-    { nome: "Théo", inicial: "T", cor: "#7c5cfc", topico: "Consultas SQL · JOINs", tempo: "55:40", emFoco: true },
-    { nome: "Helena", inicial: "H", cor: "#c9482f", topico: "Normalização e formas normais", tempo: "33:15", emFoco: true },
-    { nome: "Rafa", inicial: "R", cor: "#2f7dc9", topico: "Índices e otimização", tempo: "27:53", emFoco: true },
-    { nome: "Duda", inicial: "D", cor: "#5a5d66", topico: "Transações e concorrência", tempo: "19:04", emFoco: false },
-];
 
 export default function ColegasFocandoScreen() {
     const router = useRouter();
-    const { materia, conteudo } = useLocalSearchParams<{ materia?: string; conteudo?: string }>();
+    const { userId } = useAuth();
+    const { materia, conteudo, sessionId } = useLocalSearchParams<{ materia?: string; conteudo?: string; sessionId?: string }>();
+    const [members, setMembers] = useState<MemberSession[]>([]);
 
-    const focando = COLEGAS_MOCK.filter((c) => c.emFoco).length + 1; // +1 = você
-    const emPausa = COLEGAS_MOCK.filter((c) => !c.emFoco).length;
+    useEffect(() => {
+        const carregarMembros = async () => {
+            const idDaSessao = Array.isArray(sessionId) ? sessionId[0] : sessionId;
+            if (!idDaSessao) {
+                setMembers([]);
+                return;
+            }
+
+            const { data, error } = await fetchSessionMembers(idDaSessao);
+            if (error) {
+                console.error("Erro ao carregar membros da sessão:", error);
+                setMembers([]);
+                return;
+            }
+
+            setMembers((data || []) as MemberSession[]);
+        };
+
+        carregarMembros();
+    }, [sessionId]);
+
+    const focando = members.filter((member) => member.status === "ativo").length;
+    const emPausa = members.length - focando;
+    const tempoCombinado = members.reduce((total, member) => total + (member.tempo_segundos || 0), 0);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -74,7 +97,7 @@ export default function ColegasFocandoScreen() {
                     <Text style={{ fontSize: 11, color: HADES.accentSolid, fontWeight: "700", letterSpacing: 0.6 }}>
                         TEMPO COMBINADO
                     </Text>
-                    <Text style={{ fontSize: 30, fontWeight: "600", color: HADES.text, marginTop: 3 }}>3h 47m</Text>
+                    <Text style={{ fontSize: 30, fontWeight: "600", color: HADES.text, marginTop: 3 }}>{formatarTempo(tempoCombinado)}</Text>
                 </View>
                 <View style={{ width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.1)" }} />
                 <View style={{ alignItems: "center" }}>
@@ -93,26 +116,30 @@ export default function ColegasFocandoScreen() {
                 </Text>
 
                 <View style={{ gap: 9 }}>
-                    <LinhaColega
-                        inicial="H"
-                        cor="#e08a1e"
-                        nome="Você"
-                        voce
-                        topico={conteudo || "Normalização e formas normais"}
-                        tempo="42:09"
-                        emFoco
-                    />
-                    {COLEGAS_MOCK.map((c) => (
-                        <LinhaColega
-                            key={c.nome}
-                            inicial={c.inicial}
-                            cor={c.cor}
-                            nome={c.nome}
-                            topico={c.topico}
-                            tempo={c.tempo}
-                            emFoco={c.emFoco}
-                        />
-                    ))}
+                    {members.length === 0 ? (
+                        <Text style={{ fontSize: 13, color: HADES.textMuted, paddingVertical: 8 }}>
+                            Nenhum participante encontrado para esta sessão ainda.
+                        </Text>
+                    ) : (
+                        members.map((member) => {
+                            const nome = member.profiles?.nome_usuario || member.profiles?.nome_real || "Participante";
+                            const inicial = nome.charAt(0).toUpperCase() || "P";
+                            const cor = member.membro_id === userId ? "#e08a1e" : (member.status === "ativo" ? "#1f9d63" : "#5a5d66");
+
+                            return (
+                                <LinhaColega
+                                    key={member.membro_id}
+                                    inicial={inicial}
+                                    cor={cor}
+                                    nome={member.membro_id === userId ? "Você" : nome}
+                                    voce={member.membro_id === userId}
+                                    topico={conteudo || materia || "Sessão em andamento"}
+                                    tempo={formatarTempo(member.tempo_segundos || 0)}
+                                    emFoco={member.status === "ativo"}
+                                />
+                            );
+                        })
+                    )}
                 </View>
             </ScrollView>
 

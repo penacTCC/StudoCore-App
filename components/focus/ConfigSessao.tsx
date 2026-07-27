@@ -87,6 +87,8 @@ type Props = {
     onChangeVisibilidade: (publica: boolean) => void;
     config: ConfigPomodoro;
     onChangeConfig: (c: ConfigPomodoro) => void;
+    mostrarSeletorModo?: boolean;
+    mostrarVisibilidade?: boolean;
 };
 
 export default function ConfigSessao({
@@ -101,6 +103,8 @@ export default function ConfigSessao({
     onChangeVisibilidade,
     config,
     onChangeConfig,
+    mostrarSeletorModo = true,
+    mostrarVisibilidade = true,
 }: Props) {
     const presetAtivo = PRESETS_POMODORO.find(
         (p) => p.focoMin === config.focoMin && p.descansoMin === config.descansoCurtoMin
@@ -194,27 +198,29 @@ export default function ConfigSessao({
             )}
 
             {modo === "cronometro" ? (
-                <>
-                    <View style={{ marginTop: 26 }}>
-                        <Rotulo texto="VISIBILIDADE" />
-                    </View>
-                    <View style={{ flexDirection: "row", gap: 10 }}>
-                        <CardVisibilidade
-                            Icone={Globe}
-                            titulo="Pública"
-                            descricao="Outros podem entrar"
-                            ativo={publica}
-                            onPress={() => onChangeVisibilidade(true)}
-                        />
-                        <CardVisibilidade
-                            Icone={Lock}
-                            titulo="Privada"
-                            descricao="Só você vê"
-                            ativo={!publica}
-                            onPress={() => onChangeVisibilidade(false)}
-                        />
-                    </View>
-                </>
+                mostrarVisibilidade ? (
+                    <>
+                        <View style={{ marginTop: 26 }}>
+                            <Rotulo texto="VISIBILIDADE" />
+                        </View>
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                            <CardVisibilidade
+                                Icone={Globe}
+                                titulo="Pública"
+                                descricao="Outros podem entrar"
+                                ativo={publica}
+                                onPress={() => onChangeVisibilidade(true)}
+                            />
+                            <CardVisibilidade
+                                Icone={Lock}
+                                titulo="Privada"
+                                descricao="Só você vê"
+                                ativo={!publica}
+                                onPress={() => onChangeVisibilidade(false)}
+                            />
+                        </View>
+                    </>
+                ) : null
             ) : (
                 <>
                     <View style={{ marginTop: 22 }}>

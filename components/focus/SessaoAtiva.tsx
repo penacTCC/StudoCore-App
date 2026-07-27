@@ -97,7 +97,7 @@ function TelaCronometro({
     );
 }
 
-function TelaPausada({ materia, conteudo, textoRelogio, onPausar, onEncerrar }: Props) {
+function TelaPausada({ materia, conteudo, textoRelogio, colegas, onPausar, onEncerrar, onAbrirColegas }: Props) {
     return (
         <>
             <View style={{ flex: 1, alignItems: "center", paddingTop: 8, paddingHorizontal: 24 }}>
@@ -115,6 +115,12 @@ function TelaPausada({ materia, conteudo, textoRelogio, onPausar, onEncerrar }: 
                 <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
                     <Relogio texto={textoRelogio} tamanho={72} cor={HADES.textFaint} />
                 </View>
+
+                {colegas && (
+                    <View style={{ width: "100%", marginBottom: 8 }}>
+                        <ColegasFocando nomes={colegas} total={colegas.length} onPress={onAbrirColegas} />
+                    </View>
+                )}
             </View>
 
             <View style={{ paddingHorizontal: 24, paddingBottom: 12, gap: 12 }}>

@@ -86,6 +86,21 @@ export const fetchFocusSession = async (id: string) => {
     return result;
 }
 
+export const fetchSessionById = async (id: string) => {
+    return await supabase
+        .from("sessoes_foco")
+        .select(`
+            *,
+            profiles:user_id (
+                nome_real,
+                nome_usuario,
+                foto_usuario
+            )
+        `)
+        .eq("id", id)
+        .maybeSingle();
+};
+
 // ───── SELECT (feed público, só sessões públicas, status salvo e score > 7) ─────
 export const buscarSessoesRecentes = async (limit: number = 20, groupId?: string | null) => {
     // Monta a query base do feed: apenas sessões públicas, salvas e com bom desempenho no quiz.
