@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { salvarSessaoFoco, atualizarSessaoFoco, calculateFocusSessionMinutes } from "@/services/sessions";
 import { syncProfileStatsAfterFocusSession } from "@/services/profileStats";
 import { registrarSessaoConcluida } from "@/services/gamificacao";
+import { registrarOfensivaGrupo } from "@/services/grupos";
 
 // Helper para misturar qualquer array (Fisher-Yates) sem mutar o original
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -140,6 +141,7 @@ export default function FocusFeedbackModal() {
         // Recalcula perfil, estatísticas e medalhas depois que a sessão já existe no banco.
         await syncProfileStatsAfterFocusSession(userId);
         await registrarSessaoConcluida(userId);
+        if (groupId) await registrarOfensivaGrupo(groupId);
 
         return true;
     };
@@ -224,6 +226,7 @@ export default function FocusFeedbackModal() {
             // Recalcula perfil, estatísticas e medalhas depois que a sessão já existe no banco.
             await syncProfileStatsAfterFocusSession(userId);
             await registrarSessaoConcluida(userId);
+            if (groupId) await registrarOfensivaGrupo(groupId);
 
             router.back();
         }

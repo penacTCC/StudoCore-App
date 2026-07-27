@@ -34,3 +34,5 @@ export interface ResultadoDelecao {
   erro?: string;
   sessoesVinculadas?: number;
 }
+
+export type MateriaMaisEstudada = { rotulo: string; pct: number; cor: string };

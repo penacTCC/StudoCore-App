@@ -202,7 +202,7 @@ export default function OnboardingWelcome() {
                             width: 64,
                             height: 64,
                             borderRadius: 18,
-                            backgroundColor: "#ffffff",
+                            backgroundColor: "#000000",
                             alignItems: "center",
                             justifyContent: "center",
                             shadowColor: HADES.accentSolid,

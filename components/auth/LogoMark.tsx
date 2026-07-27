@@ -21,7 +21,7 @@ export default function LogoMark({ size = 88, borderRadius = 24 }: LogoMarkProps
                     width: size,
                     height: size,
                     borderRadius,
-                    backgroundColor: "#fff",
+                    backgroundColor: "#000",
                     alignItems: "center",
                     justifyContent: "center",
                     shadowColor: COLORS.bgPrimary,

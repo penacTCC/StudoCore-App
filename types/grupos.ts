@@ -9,6 +9,10 @@ export type Grupo = {
   publico: boolean;
   codigo_convite: string | null;
   created_at: string | null;
+  // Ofensiva coletiva (streak) do grupo — cota diária de estudo batida em dias seguidos.
+  ofensiva: number;
+  melhor_ofensiva: number;
+  ultima_data_estudo: string | null;
 };
 
 export type CartaoGrupoPublico = {

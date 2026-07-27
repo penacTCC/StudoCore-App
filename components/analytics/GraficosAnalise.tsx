@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Image } from "react-native";
 import Svg, { Path, Line, Rect, Circle, Defs, LinearGradient, Stop, Text as SvgText } from "react-native-svg";
-import { Flame, Swords, ChevronRight, User, ChevronDown } from "lucide-react-native";
+import { Flame, Swords, ChevronRight, ChevronDown } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import { DIAS_SEMANA_ABREV, NOME_COMPLETO_DIA, formatarHoras } from "@/lib/analytics";
 import { membrosRankingAnalytics, ParDiaSemana, PontoSerieDia } from "@/types/analytics";
@@ -9,6 +9,7 @@ import { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 import { getTimeAgo } from "@/constants/helpers";
 import { Avatar } from "../ui";
 import { formatarMinutos } from "@/constants/ranking";
+import { MateriaMaisEstudada } from "@/types/materias";
 
 // Paleta exata do mockup "HADES Analytics" — propositalmente diferente da navy
 // padrão do app, pra manter fidelidade visual ao design aprovado.
@@ -106,19 +107,6 @@ function IconeTendenciaAlta({ cor }: { cor: string }) {
             <Path d="M23 6l-9.5 9.5-5-5L1 18" stroke={cor} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
             <Path d="M17 6h6v6" stroke={cor} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
-    );
-}
-
-// Avatar circular usado nas listas de membros (ranking e questões por membro).
-function AvatarMembro({ inicial, cor }: { inicial: string | null; cor: string }) {
-    return (
-        <View className="h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: cor }}>
-            {inicial ? (
-                <Text className="text-[11px] font-semibold text-white">{inicial}</Text>
-            ) : (
-                <User size={13} color={CORES.textoSecundario} />
-            )}
-        </View>
     );
 }
 
@@ -301,12 +289,16 @@ type Materia = { rotulo: string; pct: number; cor: string };
 function segmentosDonut(materias: Materia[], raio: number) {
     const circunferencia = 2 * Math.PI * raio;
     let acumulado = 0;
-    return materias.map((m) => {
-        const dash = (m.pct / 100) * circunferencia;
-        const offset = -acumulado;
-        acumulado += dash;
-        return { ...m, dash, offset, circunferencia };
-    });
+    // Matérias com % nulo/negativo (arredondamento de horas ~0) não geram fatia
+    // visível e, pior, um dash negativo quebra o strokeDasharray inteiro.
+    return materias
+        .filter((m) => m.pct > 0)
+        .map((m) => {
+            const dash = (m.pct / 100) * circunferencia;
+            const offset = -acumulado;
+            acumulado += dash;
+            return { ...m, dash, offset, circunferencia };
+        });
 }
 
 export function GraficoDonutMaterias({ qtdMaterias, materias }: { qtdMaterias: number; materias: Materia[] }) {
@@ -404,7 +396,7 @@ export function GraficoDiaSemana({ cor, pontos }: { cor: string; pontos: PontoSe
     );
     const melhorDia = pontos[indiceMelhorDia];
     const nomeMelhorDia = melhorDia ? (NOME_COMPLETO_DIA[melhorDia.dia] ?? melhorDia.dia) : "";
-    const horasMelhorDia = melhorDia ? formatarHoras(melhorDia.minutos) : "0h00";
+    const horasMelhorDia = melhorDia ? formatarHoras(melhorDia.minutos) : "0h";
 
     return (
         <View>
@@ -459,10 +451,12 @@ export function GraficoDiaSemana({ cor, pontos }: { cor: string; pontos: PontoSe
 
 // ── 7. Evolução da ofensiva ───────────────────────────────────────────────
 export function GraficoOfensiva({
+    titulo = "Evolução da ofensiva",
     ofensivaAtual,
     melhorOfensiva,
     pontos,
 }: {
+    titulo?: string;
     ofensivaAtual: number;
     melhorOfensiva: number;
     pontos: number[];
@@ -485,7 +479,7 @@ export function GraficoOfensiva({
 
     return (
         <View>
-            <Text className="mb-2.5 text-base font-bold tracking-[-0.2px] text-white">Evolução da ofensiva</Text>
+            <Text className="mb-2.5 text-base font-bold tracking-[-0.2px] text-white">{titulo}</Text>
             <View className="mb-3.5 flex-row items-baseline gap-2">
                 <Flame size={20} color={CORES.chama} />
                 <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{ofensivaAtual}</Text>
@@ -618,7 +612,7 @@ export function MetaSemanalGrupo({grupos, grupoSelecionado, horas, qtdMembros}: 
 
     const progressoPercentual = Math.min(Math.round(progressoGrupo * 100), 100)
 
-    const horasDoGrupo = formatarHoras(grupoSelecionado.meta_horas * qtdMembros)
+    const horasDoGrupo = formatarHoras(grupoSelecionado.meta_horas * qtdMembros * 60)
 
     return (
         <View>
@@ -627,7 +621,7 @@ export function MetaSemanalGrupo({grupos, grupoSelecionado, horas, qtdMembros}: 
                 <Text className="text-[13px] font-semibold text-[#30d158]">{progressoPercentual}%</Text>
             </View>
             <View className="mb-3 flex-row items-baseline gap-2">
-                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{formatarHoras(horas)}</Text>
+                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{formatarHoras(horas * 60)}</Text>
                 <Text className="text-[13px] text-[#6b6e76]">/ {horasDoGrupo}</Text>
            </View>
             <View className="h-2 overflow-hidden rounded-full bg-[#1a1b20]">
@@ -684,20 +678,13 @@ export function RankingHorasGrupo({ cor, membros, grupoSelecionado }: { cor: str
 }
 
 // ── G4 (esquerda). Matéria mais estudada pelo grupo ────────────────────
-const MATERIAS_GRUPO: Materia[] = [
-    { rotulo: "Matemática", pct: 42, cor: "#3b82f6" },
-    { rotulo: "Física", pct: 22, cor: CORES.violeta },
-    { rotulo: "Química", pct: 20, cor: CORES.vermelho },
-    { rotulo: "Biologia", pct: 16, cor: CORES.verde },
-];
-
-export function MateriaMaisEstudadaGrupo() {
+export function MateriaMaisEstudadaGrupo({materias, qtdMaterias}: {materias: MateriaMaisEstudada[], qtdMaterias: number}) {
     const raio = 36;
-    const segmentos = segmentosDonut(MATERIAS_GRUPO, raio);
+    const segmentos = segmentosDonut(materias, raio);
     return (
-        <View className="flex-1 justify-between rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#0d0e12] p-3.5">
+        <View className="flex-1 items-center justify-between rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#0d0e12] p-3.5">
             <Text className="text-[11px] font-semibold tracking-[0.5px] text-[#8a8d96]">MAIS ESTUDADA</Text>
-            <View className="my-2.5 h-[84px] w-[84px] self-start">
+            <View className="my-2.5 h-[84px] w-[84px]">
                 <Svg width={84} height={84} viewBox="0 0 100 100">
                     <Circle cx={50} cy={50} r={raio} fill="none" stroke={CORES.trilhaDonut} strokeWidth={14} />
                     {segmentos.map((s) => (
@@ -718,23 +705,29 @@ export function MateriaMaisEstudadaGrupo() {
                 </Svg>
             </View>
             <View>
-                <Text className="text-[15px] font-bold text-white">Matemática</Text>
-                <Text className="mt-0.5 text-xs text-[#6b6e76]">42% das horas</Text>
+                <Text className="text-[15px] font-bold text-white text-center">{materias[0]?.rotulo}</Text>
+                <Text className="mt-0.5 text-xs text-[#6b6e76] text-center">{materias[0]?.pct}% das horas</Text>
             </View>
         </View>
     );
 }
 
 // ── G4 (direita). Membros ativos ───────────────────────────────────────
-export function MembrosAtivosGrupo({ cor }: { cor: string }) {
+export function MembrosAtivosGrupo({ cor, inativos, membrosTotais }: { cor: string, inativos: MembroGrupoComPerfil[], membrosTotais: MembroGrupoComPerfil[] }) {
     const raio = 24;
     const circunferencia = 2 * Math.PI * raio;
-    const pct = 0.8;
+
+    //Quantidade de usuarios inativos e ativos
+    const qtdInativos = inativos.length
+    const qtdMembrosTotais = membrosTotais.length
+    const qtdAtivos = qtdMembrosTotais - qtdInativos
+    const pct = qtdMembrosTotais > 0 ? qtdAtivos / qtdMembrosTotais : 0;
+
     return (
-        <View className="flex-1 justify-between rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#0d0e12] p-3.5">
+        <View className="flex-1 items-center justify-between rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#0d0e12] p-3.5">
             <Text className="text-[11px] font-semibold tracking-[0.5px] text-[#8a8d96]">MEMBROS ATIVOS</Text>
             <View className="my-2.5 flex-row items-center gap-3">
-                <View className="h-14 w-14">
+                <View className="h-14 w-14 mr-3">
                     <Svg width={56} height={56} viewBox="0 0 60 60">
                         <Circle cx={30} cy={30} r={raio} fill="none" stroke={CORES.trilhaDonut} strokeWidth={8} />
                         <Circle
@@ -752,67 +745,101 @@ export function MembrosAtivosGrupo({ cor }: { cor: string }) {
                     </Svg>
                 </View>
                 <View>
-                    <Text className="text-2xl font-bold tracking-[-0.5px] text-white">4/5</Text>
-                    <Text className="mt-1 text-[11px] text-[#6b6e76]">80% ativos</Text>
+                    <Text className="text-2xl font-bold tracking-[-0.5px] text-white">{qtdAtivos}/{qtdMembrosTotais}</Text>
+                    <Text className="mt-1 text-[11px] text-[#6b6e76]">usuários ativos</Text>
                 </View>
             </View>
-            <Text className="text-xs text-[#6b6e76]">1 sem atividade</Text>
+            <Text className="text-xs text-[#6b6e76]">{qtdInativos} sem atividade</Text>
         </View>
     );
 }
 
 // ── G5. Evolução de horas do grupo ──────────────────────────────────────
-export function EvolucaoGrupo({ cor }: { cor: string }) {
+export function EvolucaoGrupo({
+    cor,
+    horas,
+    percentual,
+    pontos,
+}: {
+    cor: string;
+    horas: string;
+    percentual: string;
+    pontos: PontoSerieDia[];
+}) {
+    const largura = 320;
+    const altura = 110;
+    const yTopo = 10;
+    const yBase = 78;
+
+    const maxMinutos = Math.max(...pontos.map((p) => p.minutos), 1);
+    const passoX = pontos.length > 1 ? largura / (pontos.length - 1) : 0;
+
+    const coordenadas = pontos.map((p, i) => ({
+        x: i * passoX,
+        y: yBase - (p.minutos / maxMinutos) * (yBase - yTopo),
+    }));
+
+    const linhaPath = coordenadas.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x} ${c.y}`).join(" ");
+    const areaPath = `${linhaPath} L ${largura} ${altura} L 0 ${altura} Z`;
+    const ultimoPonto = coordenadas[coordenadas.length - 1];
+    const percentualNegativo = percentual.trim().startsWith("-");
+
     return (
         <View>
             <Text className="mb-1.5 text-base font-bold tracking-[-0.2px] text-white">Evolução do grupo</Text>
             <View className="mb-3.5 flex-row items-baseline gap-2">
-                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">142h</Text>
+                <Text className="text-[30px] font-bold tracking-[-0.7px] text-white">{horas}</Text>
                 <Text className="text-[13px] text-[#6b6e76]">esta semana</Text>
                 <View className="ml-auto flex-row items-center gap-1">
-                    <IconeTendenciaAlta cor={CORES.verde} />
-                    <Text className="text-xs font-semibold text-[#30d158]">+18%</Text>
+                    <IconeTendenciaAlta cor={percentualNegativo ? CORES.vermelho : CORES.verde} />
+                    <Text className={`text-xs font-semibold ${percentualNegativo ? "text-[#f0556b]" : "text-[#30d158]"}`}>
+                        {percentual}
+                    </Text>
                 </View>
             </View>
-            <Svg width="100%" height={110} viewBox="0 0 320 110">
+            <Svg width="100%" height={altura} viewBox={`0 0 ${largura} ${altura}`}>
                 <Defs>
                     <LinearGradient id="gradienteAreaGrupo" x1="0" x2="0" y1="0" y2="1">
                         <Stop offset="0%" stopColor={cor} stopOpacity={0.3} />
                         <Stop offset="100%" stopColor={cor} stopOpacity={0} />
                     </LinearGradient>
                 </Defs>
-                <Line x1="0" y1="35" x2="320" y2="35" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
-                <Line x1="0" y1="70" x2="320" y2="70" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
-                <Path d="M 0 78 L 53 70 L 107 82 L 160 55 L 213 48 L 267 35 L 320 18 L 320 110 L 0 110 Z" fill="url(#gradienteAreaGrupo)" />
+                <Line x1="0" y1="35" x2={largura} y2="35" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
+                <Line x1="0" y1="70" x2={largura} y2="70" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
+                <Path d={areaPath} fill="url(#gradienteAreaGrupo)" />
                 <Path
-                    d="M 0 78 L 53 70 L 107 82 L 160 55 L 213 48 L 267 35 L 320 18"
+                    d={linhaPath}
                     fill="none"
                     stroke={cor}
                     strokeWidth={2.5}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                 />
-                <Circle cx={320} cy={18} r={4} fill="#000" stroke={cor} strokeWidth={2.5} />
+                {ultimoPonto && (
+                    <Circle cx={ultimoPonto.x} cy={ultimoPonto.y} r={4} fill="#000" stroke={cor} strokeWidth={2.5} />
+                )}
             </Svg>
             <View className="mt-1.5 flex-row justify-between">
-                <Text className="text-[11px] text-[#5f636c]">7 sem atrás</Text>
-                <Text className="text-[11px] text-[#5f636c]">esta sem</Text>
+                {pontos.map((p, i) => (
+                    <Text key={`${p.dia}-${i}`} className="text-[11px] text-[#5f636c]">
+                        {p.dia}
+                    </Text>
+                ))}
             </View>
         </View>
     );
 }
 
 // ── G6. Questões por membro ──────────────────────────────────────────────
-type MembroQuestoes = { nome: string; inicial: string | null; corAvatar: string; total: string; pctAcerto: number };
-const QUESTOES_POR_MEMBRO: MembroQuestoes[] = [
-    { nome: "penac", inicial: "P", corAvatar: "#1f9aa8", total: "1.842", pctAcerto: 73 },
-    { nome: "NatVM", inicial: "N", corAvatar: "#1f9d63", total: "1.204", pctAcerto: 81 },
-    { nome: "natDefault", inicial: null, corAvatar: "#2a2c33", total: "782", pctAcerto: 64 },
-    { nome: "toulhe", inicial: "T", corAvatar: CORES.violeta, total: "418", pctAcerto: 58 },
-    { nome: "h", inicial: "H", corAvatar: "#e08a1e", total: "96", pctAcerto: 51 },
-];
+export type QuestoesMembroGrupo = {
+    userId: string;
+    nome: string;
+    foto?: string | null;
+    total: number;
+    pctAcerto: number;
+};
 
-export function QuestoesPorMembroGrupo() {
+export function QuestoesPorMembroGrupo({ membros }: { membros: QuestoesMembroGrupo[] }) {
     return (
         <View className="mb-3 mt-5">
             <Text className="mb-1.5 text-base font-bold tracking-[-0.2px] text-white">Questões por membro</Text>
@@ -827,15 +854,15 @@ export function QuestoesPorMembroGrupo() {
                 </View>
             </View>
             <View className="gap-3">
-                {QUESTOES_POR_MEMBRO.map((membro) => (
-                    <View key={membro.nome}>
+                {membros.map((membro) => (
+                    <View key={membro.userId}>
                         <View className="mb-1.5 flex-row items-center justify-between">
                             <View className="flex-row items-center gap-2.5">
-                                <AvatarMembro inicial={membro.inicial} cor={membro.corAvatar} />
+                                <Avatar foto={membro.foto} nome={membro.nome} size={28} />
                                 <Text className="text-[13px] font-semibold text-white">{membro.nome}</Text>
                             </View>
                             <View className="flex-row items-baseline gap-1">
-                                <Text className="text-[13px] font-semibold text-white">{membro.total}</Text>
+                                <Text className="text-[13px] font-semibold text-white">{membro.total.toLocaleString("pt-BR")}</Text>
                                 <Text className="text-[11px] text-[#6b6e76]">· {membro.pctAcerto}%</Text>
                             </View>
                         </View>

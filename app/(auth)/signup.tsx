@@ -130,7 +130,7 @@ export default function SignUpScreen() {
                         width: 72,
                         height: 72,
                         borderRadius: 20,
-                        backgroundColor: "#fff",
+                        backgroundColor: "#000",
                         alignItems: "center",
                         justifyContent: "center",
                         shadowColor: "#000",

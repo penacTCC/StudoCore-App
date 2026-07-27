@@ -32,13 +32,6 @@ import {
     EscopoAnalise,
     PeriodoAnalise,
 } from "@/components/analytics/GraficosAnalise";
-import { UserStats } from "@/types/profile";
-import { useMeusGrupos } from "@/hooks/useMeusGrupos";
-import { useMembrosGrupos } from "@/hooks/useMembrosGrupos";
-import { horasSemanaisGrupo } from "@/services/grupos";
-import { useRankingHorasGrupo } from "@/hooks/useRankingHorasGrupo";
-import { LeaderboardFilter } from "@/constants/ranking";
-import { membrosRankingAnalytics } from "@/types/analytics";
 
 type BrainTab = "database" | "analytics";
 
@@ -71,7 +64,7 @@ export default function BrainScreen() {
 
     // Uma única leitura alimenta as duas abas: `analise` (números da aba Análise,
     // escopo pessoal) e as sessões cruas (aba Banco de dados).
-    const { analise, savedSessions, pendingSessions, loading } = useAnalisePessoal(userId, comecoSemana);
+    const { analise, savedSessions, pendingSessions } = useAnalisePessoal(userId, comecoSemana);
 
     //------Cálculos e funções para os gráficos dessa tela------
     const {
@@ -92,6 +85,23 @@ export default function BrainScreen() {
         pctAcerto,
         pontosDiaSemana,
         pontosOfensiva,
+        grupos,
+        membrosPorGrupo,
+        grupoSelecionadoId,
+        setGrupoSelecionadoId,
+        horasSemanaGrupo,
+        grupoSelecionado,
+        qtdMembrosGrupoSelecionado,
+        membrosRanking,
+        materiasGrupo,
+        qtdDisciplinasGrupo,
+        membrosInativos,
+        membrosTotais,
+        questoesPorMembroGrupo,
+        pontosEvolucaoGrupo,
+        horasEvolucaoGrupo,
+        percentualEvolucaoGrupo,
+        ofensivaGrupo,
     } = useGraficosAnalytics(userId, comecoSemana, periodoAnalise);
 
     // Estado da aba Pessoal (cheio / poucos dados / vazio) — baseado em quantos
@@ -119,78 +129,6 @@ export default function BrainScreen() {
             pctAcertoHoje: questoesHoje > 0 ? Math.round((acertosHoje / questoesHoje) * 100) : 0,
         };
     }, [sessoesUsuario]);
-
-    //========Aba Grupo========
-
-    //Busca os grupos do usuário, para a tela de grupos
-    const {grupos} = useMeusGrupos()
-
-    //Busca os membros dos grupos
-    const {membrosPorGrupo} = useMembrosGrupos(grupos)
-
-    // Grupo escolhido no seletor da aba Análise > Grupo (null = usa o primeiro da lista)
-    const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null)
-
-    //useState para as horas semanais do grupo
-    const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
-
-    //Grupo selecionado, para ser passado (como prop) para outras telas
-    const grupoSelecionado = grupos.find((g) => g.id === grupoSelecionadoId) ?? grupos[0] ?? null;
-
-    //useEffect para o grupoSelecionadoId não começar nulo
-    useEffect(() => {
-    if (grupoSelecionadoId === null && grupos.length > 0) {
-            setGrupoSelecionadoId(grupos[0].id)
-        }
-    }, [grupos, grupoSelecionadoId])
-
-    //Horas semanais do grupo
-    //Faz useEffect para pegar as horas semanais do grupo
-    useEffect(() => {
-        if(!grupoSelecionadoId) return
-        const carregarHoras = async () => {
-            const horas = await horasSemanaisGrupo(grupoSelecionadoId as string)
-            setHorasSemanaGrupo(horas)
-            console.log('Horas' + horas)
-        }
-        carregarHoras()
-    }, [grupoSelecionadoId])
-
-    //Quantidade de membros em cada grupo
-    const qtdMembrosGrupoSelecionado = grupoSelecionadoId
-    ? (membrosPorGrupo[grupoSelecionadoId]?.length ?? 0)
-    : 0
-    
-    //Transforma o período da aba Análise (PeriodoAnalise) no formato que o
-    //ranking de grupo espera (LeaderboardFilter)
-    const mapaPeriodo: Record<PeriodoAnalise, LeaderboardFilter> = {
-        "7d": "semanal",
-        "30d": "mensal",
-        "ano": "anual",
-    }
-    const filtroRankingGrupo = mapaPeriodo[periodoAnalise]
-    
-    //Pega as horas e membros do grupo selecionado
-    const horasMembros = useRankingHorasGrupo(
-        grupoSelecionadoId,
-        filtroRankingGrupo,
-        grupoSelecionadoId ? membrosPorGrupo[grupoSelecionadoId] ?? [] : []
-    )
-
-    //Filtramos os membros para que o membro não fique undefined numa renderização de transição entre telas
-    const membrosRanking: membrosRankingAnalytics[] = useMemo(
-        () => 
-            horasMembros.rankingMembros.filter((item) => item.membro)
-                .map((item) => ({
-                    userId: item.user_id,
-                    nome: item.membro!.userData?.nome_usuario || "Sem nome",
-                    foto: item.membro!.userData?.foto_usuario,
-                    minutos: item.total_minutos,
-                    ofensiva: item.membro!.ofensiva ?? 0,
-                    ehVoce: item.user_id === userId,
-            })),
-        [horasMembros, userId]
-    )
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -476,12 +414,23 @@ export default function BrainScreen() {
                                 <RankingHorasGrupo cor={HADES.accentSolid} membros={membrosRanking} grupoSelecionado={grupoSelecionado} />
 
                                 <View className="flex-row gap-[10px]">
-                                    <MateriaMaisEstudadaGrupo />
-                                    <MembrosAtivosGrupo cor={HADES.accentSolid} />
+                                    <MateriaMaisEstudadaGrupo materias={materiasGrupo} qtdMaterias={qtdDisciplinasGrupo}/>
+                                    <MembrosAtivosGrupo cor={HADES.accentSolid} membrosTotais={membrosTotais} inativos={membrosInativos}/>
                                 </View>
 
-                                <EvolucaoGrupo cor={HADES.accentSolid} />
-                                <QuestoesPorMembroGrupo />
+                                <EvolucaoGrupo
+                                    cor={HADES.accentSolid}
+                                    horas={horasEvolucaoGrupo}
+                                    percentual={percentualEvolucaoGrupo}
+                                    pontos={pontosEvolucaoGrupo}
+                                />
+                                <QuestoesPorMembroGrupo membros={questoesPorMembroGrupo} />
+                                <GraficoOfensiva
+                                    titulo="Ofensiva do grupo"
+                                    ofensivaAtual={ofensivaGrupo.atual}
+                                    melhorOfensiva={ofensivaGrupo.melhor}
+                                    pontos={ofensivaGrupo.pontos}
+                                />
                             </View>
                         ) : estadoPessoal === "vazio" ? (
                             <EstadoVazioPessoal

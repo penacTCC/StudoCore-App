@@ -344,6 +344,88 @@ export const horasSemanaisGrupo = async (groupId: string) => {
   return totalMinutes / 60
 }
 
+// Formata a data pro formato aaaa-mm-dd usado em data_sessao (mesma convenção de services/gamificacao.ts).
+const paraDataISO = (data: Date) => data.toISOString().split("T")[0];
+
+/**
+ * Recalcula e persiste a ofensiva coletiva do grupo: um dia só conta se a soma de
+ * minutos estudados por TODOS os membros naquele dia bater a cota diária "justa"
+ * da meta semanal (meta_horas * membros / 7) — assim quem estuda mais compensa
+ * quem não estudou naquele dia específico, sem exigir que cada membro apareça.
+ * Segue a mesma regra Duolingo da ofensiva pessoal (registrarSessaoConcluida):
+ * bateu a cota ontem -> +1; pulou um dia -> reseta pra 1. Idempotente por dia —
+ * chamar de novo depois que a cota do dia já foi contabilizada não faz nada.
+ * Deve ser chamada depois de toda sessão salva com grupo_id, pra recontar a cota
+ * do dia à medida que as sessões dos membros forem chegando.
+ */
+export const registrarOfensivaGrupo = async (grupoId: string) => {
+  const { data: grupo, error: erroGrupo } = await supabase
+    .from('grupos')
+    .select('meta_horas, ofensiva, melhor_ofensiva, ultima_data_estudo')
+    .eq('id', grupoId)
+    .single();
+
+  if (erroGrupo || !grupo) {
+    console.error("Erro ao buscar grupo para ofensiva:", erroGrupo);
+    return null;
+  }
+
+  const hojeStr = paraDataISO(new Date());
+
+  // Cota do dia já contabilizada — nada a recalcular.
+  if (grupo.ultima_data_estudo === hojeStr) {
+    return grupo;
+  }
+
+  const qtdMembros = await contarMembrosGrupo(grupoId);
+  if (qtdMembros === 0) return grupo;
+
+  // Fração diária da meta semanal do grupo, em minutos.
+  const metaDiariaMinutos = ((grupo.meta_horas * qtdMembros) / 7) * 60;
+
+  const { data: sessoesHoje, error: erroSessoes } = await supabase
+    .from('sessoes_foco')
+    .select('tempo_minutos')
+    .eq('grupo_id', grupoId)
+    .eq('data_sessao', hojeStr);
+
+  if (erroSessoes) {
+    console.error("Erro ao buscar sessões de hoje do grupo:", erroSessoes);
+    return grupo;
+  }
+
+  const minutosHoje = sessoesHoje?.reduce((total, sessao) => total + (sessao.tempo_minutos ?? 0), 0) ?? 0;
+
+  // Ainda não bateu a cota do dia — espera mais sessões dos membros chegarem.
+  if (minutosHoje < metaDiariaMinutos) return grupo;
+
+  const ontem = new Date();
+  ontem.setDate(ontem.getDate() - 1);
+  const ontemStr = paraDataISO(ontem);
+
+  const estudouOntem = grupo.ultima_data_estudo === ontemStr;
+  const novaOfensiva = estudouOntem ? grupo.ofensiva + 1 : 1;
+  const novaMelhorOfensiva = Math.max(grupo.melhor_ofensiva, novaOfensiva);
+
+  const { data, error } = await supabase
+    .from('grupos')
+    .update({
+      ofensiva: novaOfensiva,
+      melhor_ofensiva: novaMelhorOfensiva,
+      ultima_data_estudo: hojeStr,
+    })
+    .eq('id', grupoId)
+    .select('meta_horas, ofensiva, melhor_ofensiva, ultima_data_estudo')
+    .single();
+
+  if (error) {
+    console.error("Erro ao registrar ofensiva do grupo:", error);
+    return null;
+  }
+
+  return data;
+};
+
 //horas totais do usuario
 export const horasTotaisUsuario = async (groupId?: string) => {
   if (!groupId) return 0

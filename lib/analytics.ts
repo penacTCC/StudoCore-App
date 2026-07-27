@@ -57,7 +57,7 @@ export const NOME_COMPLETO_DIA: Record<string, string> = {
 export function formatarHoras(minutos: number): string {
     const horas = Math.floor(minutos / 60);
     const resto = minutos % 60;
-    return `${horas}h${String(resto).padStart(2, "0")}`;
+    return resto === 0 ? `${horas}h` : `${horas}h${String(resto).padStart(2, "0")}`;
 }
 
 /**
@@ -128,7 +128,7 @@ export function agregarParesPorDiaSemana(
     }));
 }
 
-type PeriodoAgregacao = "7d" | "30d" | "ano";
+export type PeriodoAgregacao = "7d" | "30d" | "ano";
 
 /**
  * Divide os últimos `dias` dias em `numBuckets` intervalos de tamanho igual,
@@ -209,6 +209,61 @@ export function agregarParesPorPeriodo(
         atual: ponto.minutos,
         anterior: anterior[i]?.minutos ?? 0,
     }));
+}
+
+/**
+ * Separa um array de sessões (de um usuário ou de um grupo) em duas janelas
+ * de mesmo tamanho: o período selecionado no SeletorPeriodo e o período
+ * imediatamente anterior a ele — base pro cálculo de "vs. período anterior"
+ * (%). Reaproveitável tanto pela aba Pessoal quanto pela aba Grupo, já que
+ * ambas recebem um array plano de `SessaoFocoRow` e o mesmo `PeriodoAnalise`.
+ */
+export function separarSessoesPorPeriodo(
+    sessoes: SessaoFocoRow[],
+    periodo: PeriodoAgregacao,
+    agora: Date = new Date()
+): { atual: SessaoFocoRow[]; anterior: SessaoFocoRow[] } {
+    const dias = periodo === "7d" ? 7 : periodo === "30d" ? 30 : 365;
+
+    const formatarData = (data: Date) =>
+        `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
+
+    const filtrarEntre = (diasInicio: number, diasFim: number) => {
+        const dataInicio = new Date(agora);
+        dataInicio.setDate(dataInicio.getDate() - diasInicio);
+        const dataFim = new Date(agora);
+        dataFim.setDate(dataFim.getDate() - diasFim);
+
+        const inicioFormatado = formatarData(dataInicio);
+        const fimFormatado = formatarData(dataFim);
+
+        return sessoes.filter(
+            (sessao) => sessao.data_sessao >= inicioFormatado && sessao.data_sessao <= fimFormatado
+        );
+    };
+
+    return {
+        atual: filtrarEntre(dias, 0),
+        anterior: filtrarEntre(dias * 2, dias),
+    };
+}
+
+// Soma os minutos totais de um recorte de sessões (usada no cálculo da
+// variação percentual "vs. período anterior").
+export function totalMinutosSessoes(sessoes: SessaoFocoRow[]): number {
+    return sessoes.reduce((acumulador, sessao) => acumulador + (sessao.tempo_minutos ?? 0), 0);
+}
+
+/**
+ * Compara dois totais de minutos (atual vs. anterior) e devolve o texto já
+ * formatado ("+18.0%", "-5.0%", "+100.0%" quando não havia base de
+ * comparação). Mesma regra usada hoje inline em `useGraficosAnalytics`.
+ */
+export function calcularVariacaoPercentual(minutosAnteriores: number, minutosAtuais: number): string {
+    if (minutosAnteriores === 0) return minutosAtuais === 0 ? "0.0%" : "+100.0%";
+    const variacao = ((minutosAtuais - minutosAnteriores) / minutosAnteriores) * 100;
+    const sinal = variacao > 0 ? "+" : "";
+    return `${sinal}${variacao.toFixed(1)}%`;
 }
 
 const JANELA_DIAS_OFENSIVA = 84; // 12 semanas
