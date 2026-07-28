@@ -21,6 +21,7 @@ import SessaoAtiva from "@/components/focus/SessaoAtiva";
 import type { ArquivoDetalhe } from "@/types/archives";
 import type { SessaoFocoRow, SessionCardItem, MemberSession } from "@/types/sessions";
 import { salvarSessaoFoco, atualizarSessaoFoco, fetchFocusSession, calculateFocusSessionMinutes, insertTabSessaoMembros, fetchSessionMembers, updateTabSessaoMembros } from "@/services/sessions";
+import { observarIncentivosDaSessao, buscarIncentivosDaSessao } from "@/services/incentivos";
 import { FaixaBlocoCronograma, FaixaSessaoRestaurada } from "@/components/focus/PecasFoco";
 import type { ConfigPomodoro, ContextoBloco, FocusState, FaseFoco, ModoFoco } from "@/types/foco";
 
@@ -37,9 +38,6 @@ Notifications.setNotificationHandler({
 
 const STORAGE_KEY_START_TIME = "@focus_session_start_time";
 const STORAGE_KEY_SESSION_DATA = "@focus_session_data";
-
-// Mock: ainda não existe sessão pública em tempo real no backend (ver docs/project-context.md).
-const COLEGAS_MOCK = ["Nina", "Théo", "Helena", "Rafa", "Duda"];
 
 /** Remove acentos e caixa para comparar nomes de matéria com o Vault. */
 function normalizar(texto: string) {
@@ -190,6 +188,67 @@ export default function FocusScreen() {
     }, [members]);
 
     const [newUserTimer, setNewUserTimer] = useState<number>(0)
+
+    // Quantidade de incentivos já recebidos, para mostrar a torcida durante a sessão.
+    const [incentivosRecebidos, setIncentivosRecebidos] = useState(0);
+
+    /*
+      Avisa quem está focando que alguém mandou força. Usa notificação LOCAL (o mesmo
+      recurso do aviso de materiais do Vault) porque o projeto ainda não tem push real:
+      não há Expo Push Token, tabela de tokens nem FCM configurado. A limitação é que só
+      dispara com o app vivo — o que cobre bem o caso de uso, já que durante uma sessão de
+      foco o app costuma estar aberto.
+    */
+    useEffect(() => {
+        const sessaoAtiva = session?.id;
+        // Só sessão pública tem torcida: na privada a pessoa está estudando sozinha.
+        if (!sessaoAtiva || focusState !== "active" || !userId || !isPublicSession) return;
+
+        let cancelado = false;
+
+        const sincronizarContador = async () => {
+            const { data } = await buscarIncentivosDaSessao(sessaoAtiva);
+            if (cancelado) return data;
+            setIncentivosRecebidos(data.filter((item) => item.destinatario_id === userId).length);
+            return data;
+        };
+
+        sincronizarContador();
+
+        const cancelarInscricao = observarIncentivosDaSessao(sessaoAtiva, async (novoIncentivo) => {
+            // DELETE chega como null: apenas ressincroniza o contador, sem notificar.
+            if (!novoIncentivo) {
+                await sincronizarContador();
+                return;
+            }
+
+            // Só interessa a força destinada a mim, e não o eco do meu próprio envio.
+            if (novoIncentivo.destinatario_id !== userId || novoIncentivo.remetente_id === userId) return;
+
+            // O payload do realtime não traz o JOIN com profiles, então recarrega para
+            // descobrir o nome de quem torceu e deixar o aviso pessoal.
+            const incentivosAtuais = await sincronizarContador();
+            if (cancelado) return;
+
+            const autor = incentivosAtuais.find((item) => item.id === novoIncentivo.id);
+            const nomeAutor = autor?.profiles?.nome_usuario || autor?.profiles?.nome_real;
+
+            await Notifications.scheduleNotificationAsync({
+                content: {
+                    title: "💪 Você recebeu força!",
+                    body: nomeAutor
+                        ? `${nomeAutor} está torcendo pelo seu foco agora.`
+                        : "Alguém está torcendo pelo seu foco agora.",
+                },
+                trigger: null,
+            });
+        });
+
+        return () => {
+            cancelado = true;
+            cancelarInscricao();
+        };
+    }, [session?.id, focusState, userId, isPublicSession]);
 
     const cancelarEntradaSessao = () => {
         setIgnoreJoinSession(true);
@@ -941,6 +1000,7 @@ export default function FocusScreen() {
                         contexto={contexto}
                         autoFoco
                         colegas={isPublicSession ? memberNames : null}
+                        incentivosRecebidos={incentivosRecebidos}
                         iniciadaEm={
                             restaurada && startTimeRef.current ? formatarHora(startTimeRef.current) : null
                         }

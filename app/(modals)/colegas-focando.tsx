@@ -5,6 +5,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { ChevronLeft, HandMetal, MessageCircle } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
+import { useIncentivos } from "@/hooks/useIncentivos";
 import { fetchSessionMembers } from "@/services/sessions";
 import type { MemberSession } from "@/types/sessions";
 
@@ -27,9 +28,17 @@ export default function ColegasFocandoScreen() {
     const { materia, conteudo, sessionId } = useLocalSearchParams<{ materia?: string; conteudo?: string; sessionId?: string }>();
     const [members, setMembers] = useState<MemberSession[]>([]);
 
+    const idDaSessao = Array.isArray(sessionId) ? sessionId[0] : sessionId;
+
+    // Tick local de 1s: antes o tempo vinha de um fetch único e ficava congelado na tela.
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setTick((t) => t + 1), 1000);
+        return () => clearInterval(id);
+    }, []);
+
     useEffect(() => {
         const carregarMembros = async () => {
-            const idDaSessao = Array.isArray(sessionId) ? sessionId[0] : sessionId;
             if (!idDaSessao) {
                 setMembers([]);
                 return;
@@ -43,14 +52,24 @@ export default function ColegasFocandoScreen() {
             }
 
             setMembers((data || []) as MemberSession[]);
+            // O tick reinicia junto com os dados para não somar duas vezes o mesmo tempo.
+            setTick(0);
         };
 
         carregarMembros();
-    }, [sessionId]);
+    }, [idDaSessao]);
+
+    // A força é individual: cada colega da lista pode receber a sua.
+    const { enviandoPara, contarPara, euMandeiPara, podeTorcerPor, alternarPara } = useIncentivos(idDaSessao);
 
     const focando = members.filter((member) => member.status === "ativo").length;
     const emPausa = members.length - focando;
-    const tempoCombinado = members.reduce((total, member) => total + (member.tempo_segundos || 0), 0);
+
+    /** Tempo do membro somado ao tick local — só avança para quem está de fato focando. */
+    const tempoDoMembro = (member: MemberSession) =>
+        (member.tempo_segundos || 0) + (member.status === "ativo" ? tick : 0);
+
+    const tempoCombinado = members.reduce((total, member) => total + tempoDoMembro(member), 0);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -134,8 +153,13 @@ export default function ColegasFocandoScreen() {
                                     nome={member.membro_id === userId ? "Você" : nome}
                                     voce={member.membro_id === userId}
                                     topico={conteudo || materia || "Sessão em andamento"}
-                                    tempo={formatarTempo(member.tempo_segundos || 0)}
+                                    tempo={formatarTempo(tempoDoMembro(member))}
                                     emFoco={member.status === "ativo"}
+                                    podeTorcer={podeTorcerPor(member.membro_id)}
+                                    jaTorci={euMandeiPara(member.membro_id)}
+                                    forcasRecebidas={contarPara(member.membro_id)}
+                                    torcendo={!!enviandoPara}
+                                    onTorcer={() => alternarPara(member.membro_id)}
                                 />
                             );
                         })
@@ -143,6 +167,7 @@ export default function ColegasFocandoScreen() {
                 </View>
             </ScrollView>
 
+            {/* A força agora sai no card de cada colega, então o rodapé só guarda o chat. */}
             <View
                 style={{
                     flexDirection: "row",
@@ -155,24 +180,6 @@ export default function ColegasFocandoScreen() {
                     borderTopColor: HADES.border,
                 }}
             >
-                <TouchableOpacity
-                    activeOpacity={0.85}
-                    style={{
-                        flex: 1,
-                        height: 52,
-                        borderRadius: 14,
-                        backgroundColor: HADES.surfaceRaised,
-                        borderWidth: 1,
-                        borderColor: HADES.borderStrong,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8,
-                    }}
-                >
-                    <HandMetal size={18} color={HADES.accentSolid} />
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>Mandar força</Text>
-                </TouchableOpacity>
                 <TouchableOpacity
                     activeOpacity={0.85}
                     style={{
@@ -201,6 +208,11 @@ function LinhaColega({
     tempo,
     emFoco,
     voce = false,
+    podeTorcer = false,
+    jaTorci = false,
+    forcasRecebidas = 0,
+    torcendo = false,
+    onTorcer,
 }: {
     inicial: string;
     cor: string;
@@ -209,6 +221,11 @@ function LinhaColega({
     tempo: string;
     emFoco: boolean;
     voce?: boolean;
+    podeTorcer?: boolean;
+    jaTorci?: boolean;
+    forcasRecebidas?: number;
+    torcendo?: boolean;
+    onTorcer?: () => void;
 }) {
     return (
         <View
@@ -297,6 +314,33 @@ function LinhaColega({
                     {emFoco ? "em foco" : "em pausa"}
                 </Text>
             </View>
+
+            {/* Cada colega recebe força individualmente; não aparece na própria linha. */}
+            {podeTorcer && (
+                <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={onTorcer}
+                    disabled={torcendo}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        paddingHorizontal: 9,
+                        paddingVertical: 7,
+                        borderRadius: 10,
+                        backgroundColor: jaTorci ? "rgba(255,154,0,0.12)" : HADES.surfaceRaised,
+                        borderWidth: 1,
+                        borderColor: jaTorci ? "rgba(255,154,0,0.35)" : HADES.borderStrong,
+                        opacity: torcendo ? 0.6 : 1,
+                    }}
+                >
+                    <HandMetal size={15} color={HADES.accentSolid} fill={jaTorci ? HADES.accentSolid : "none"} />
+                    {forcasRecebidas > 0 && (
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: HADES.accentSolid }}>{forcasRecebidas}</Text>
+                    )}
+                </TouchableOpacity>
+            )}
         </View>
     );
 }
