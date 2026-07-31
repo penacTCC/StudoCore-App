@@ -1,33 +1,75 @@
+import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ChevronLeft, HandMetal, MessageCircle } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
+import { useAuth } from "@/hooks/useAuth";
+import { useIncentivos } from "@/hooks/useIncentivos";
+import { fetchSessionMembers } from "@/services/sessions";
+import type { MemberSession } from "@/types/sessions";
 
-type ColegaMock = {
-    nome: string;
-    inicial: string;
-    cor: string;
-    topico: string;
-    tempo: string;
-    emFoco: boolean;
+const formatarTempo = (segundos: number) => {
+    const totalSegundos = Math.max(0, Math.floor(segundos));
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    const segundosRestantes = totalSegundos % 60;
+
+    if (horas > 0) {
+        return `${horas.toString().padStart(2, "0")}:${minutos.toString().padStart(2, "0")}:${segundosRestantes.toString().padStart(2, "0")}`;
+    }
+
+    return `${minutos.toString().padStart(2, "0")}:${segundosRestantes.toString().padStart(2, "0")}`;
 };
-
-// Mock: ainda não existe sessão pública em tempo real no backend (ver docs/project-context.md).
-const COLEGAS_MOCK: ColegaMock[] = [
-    { nome: "Nina", inicial: "N", cor: "#1f9d63", topico: "Modelagem entidade-relacionamento", tempo: "1:08:22", emFoco: true },
-    { nome: "Théo", inicial: "T", cor: "#7c5cfc", topico: "Consultas SQL · JOINs", tempo: "55:40", emFoco: true },
-    { nome: "Helena", inicial: "H", cor: "#c9482f", topico: "Normalização e formas normais", tempo: "33:15", emFoco: true },
-    { nome: "Rafa", inicial: "R", cor: "#2f7dc9", topico: "Índices e otimização", tempo: "27:53", emFoco: true },
-    { nome: "Duda", inicial: "D", cor: "#5a5d66", topico: "Transações e concorrência", tempo: "19:04", emFoco: false },
-];
 
 export default function ColegasFocandoScreen() {
     const router = useRouter();
-    const { materia, conteudo } = useLocalSearchParams<{ materia?: string; conteudo?: string }>();
+    const { userId } = useAuth();
+    const { materia, conteudo, sessionId } = useLocalSearchParams<{ materia?: string; conteudo?: string; sessionId?: string }>();
+    const [members, setMembers] = useState<MemberSession[]>([]);
 
-    const focando = COLEGAS_MOCK.filter((c) => c.emFoco).length + 1; // +1 = você
-    const emPausa = COLEGAS_MOCK.filter((c) => !c.emFoco).length;
+    const idDaSessao = Array.isArray(sessionId) ? sessionId[0] : sessionId;
+
+    // Tick local de 1s: antes o tempo vinha de um fetch único e ficava congelado na tela.
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setTick((t) => t + 1), 1000);
+        return () => clearInterval(id);
+    }, []);
+
+    useEffect(() => {
+        const carregarMembros = async () => {
+            if (!idDaSessao) {
+                setMembers([]);
+                return;
+            }
+
+            const { data, error } = await fetchSessionMembers(idDaSessao);
+            if (error) {
+                console.error("Erro ao carregar membros da sessão:", error);
+                setMembers([]);
+                return;
+            }
+
+            setMembers((data || []) as MemberSession[]);
+            // O tick reinicia junto com os dados para não somar duas vezes o mesmo tempo.
+            setTick(0);
+        };
+
+        carregarMembros();
+    }, [idDaSessao]);
+
+    // A força é individual: cada colega da lista pode receber a sua.
+    const { enviandoPara, contarPara, euMandeiPara, podeTorcerPor, alternarPara } = useIncentivos(idDaSessao);
+
+    const focando = members.filter((member) => member.status === "ativo").length;
+    const emPausa = members.length - focando;
+
+    /** Tempo do membro somado ao tick local — só avança para quem está de fato focando. */
+    const tempoDoMembro = (member: MemberSession) =>
+        (member.tempo_segundos || 0) + (member.status === "ativo" ? tick : 0);
+
+    const tempoCombinado = members.reduce((total, member) => total + tempoDoMembro(member), 0);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -74,7 +116,7 @@ export default function ColegasFocandoScreen() {
                     <Text style={{ fontSize: 11, color: HADES.accentSolid, fontWeight: "700", letterSpacing: 0.6 }}>
                         TEMPO COMBINADO
                     </Text>
-                    <Text style={{ fontSize: 30, fontWeight: "600", color: HADES.text, marginTop: 3 }}>3h 47m</Text>
+                    <Text style={{ fontSize: 30, fontWeight: "600", color: HADES.text, marginTop: 3 }}>{formatarTempo(tempoCombinado)}</Text>
                 </View>
                 <View style={{ width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.1)" }} />
                 <View style={{ alignItems: "center" }}>
@@ -93,29 +135,39 @@ export default function ColegasFocandoScreen() {
                 </Text>
 
                 <View style={{ gap: 9 }}>
-                    <LinhaColega
-                        inicial="H"
-                        cor="#e08a1e"
-                        nome="Você"
-                        voce
-                        topico={conteudo || "Normalização e formas normais"}
-                        tempo="42:09"
-                        emFoco
-                    />
-                    {COLEGAS_MOCK.map((c) => (
-                        <LinhaColega
-                            key={c.nome}
-                            inicial={c.inicial}
-                            cor={c.cor}
-                            nome={c.nome}
-                            topico={c.topico}
-                            tempo={c.tempo}
-                            emFoco={c.emFoco}
-                        />
-                    ))}
+                    {members.length === 0 ? (
+                        <Text style={{ fontSize: 13, color: HADES.textMuted, paddingVertical: 8 }}>
+                            Nenhum participante encontrado para esta sessão ainda.
+                        </Text>
+                    ) : (
+                        members.map((member) => {
+                            const nome = member.profiles?.nome_usuario || member.profiles?.nome_real || "Participante";
+                            const inicial = nome.charAt(0).toUpperCase() || "P";
+                            const cor = member.membro_id === userId ? "#e08a1e" : (member.status === "ativo" ? "#1f9d63" : "#5a5d66");
+
+                            return (
+                                <LinhaColega
+                                    key={member.membro_id}
+                                    inicial={inicial}
+                                    cor={cor}
+                                    nome={member.membro_id === userId ? "Você" : nome}
+                                    voce={member.membro_id === userId}
+                                    topico={conteudo || materia || "Sessão em andamento"}
+                                    tempo={formatarTempo(tempoDoMembro(member))}
+                                    emFoco={member.status === "ativo"}
+                                    podeTorcer={podeTorcerPor(member.membro_id)}
+                                    jaTorci={euMandeiPara(member.membro_id)}
+                                    forcasRecebidas={contarPara(member.membro_id)}
+                                    torcendo={!!enviandoPara}
+                                    onTorcer={() => alternarPara(member.membro_id)}
+                                />
+                            );
+                        })
+                    )}
                 </View>
             </ScrollView>
 
+            {/* A força agora sai no card de cada colega, então o rodapé só guarda o chat. */}
             <View
                 style={{
                     flexDirection: "row",
@@ -128,24 +180,6 @@ export default function ColegasFocandoScreen() {
                     borderTopColor: HADES.border,
                 }}
             >
-                <TouchableOpacity
-                    activeOpacity={0.85}
-                    style={{
-                        flex: 1,
-                        height: 52,
-                        borderRadius: 14,
-                        backgroundColor: HADES.surfaceRaised,
-                        borderWidth: 1,
-                        borderColor: HADES.borderStrong,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8,
-                    }}
-                >
-                    <HandMetal size={18} color={HADES.accentSolid} />
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>Mandar força</Text>
-                </TouchableOpacity>
                 <TouchableOpacity
                     activeOpacity={0.85}
                     style={{
@@ -174,6 +208,11 @@ function LinhaColega({
     tempo,
     emFoco,
     voce = false,
+    podeTorcer = false,
+    jaTorci = false,
+    forcasRecebidas = 0,
+    torcendo = false,
+    onTorcer,
 }: {
     inicial: string;
     cor: string;
@@ -182,6 +221,11 @@ function LinhaColega({
     tempo: string;
     emFoco: boolean;
     voce?: boolean;
+    podeTorcer?: boolean;
+    jaTorci?: boolean;
+    forcasRecebidas?: number;
+    torcendo?: boolean;
+    onTorcer?: () => void;
 }) {
     return (
         <View
@@ -270,6 +314,33 @@ function LinhaColega({
                     {emFoco ? "em foco" : "em pausa"}
                 </Text>
             </View>
+
+            {/* Cada colega recebe força individualmente; não aparece na própria linha. */}
+            {podeTorcer && (
+                <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={onTorcer}
+                    disabled={torcendo}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 4,
+                        paddingHorizontal: 9,
+                        paddingVertical: 7,
+                        borderRadius: 10,
+                        backgroundColor: jaTorci ? "rgba(255,154,0,0.12)" : HADES.surfaceRaised,
+                        borderWidth: 1,
+                        borderColor: jaTorci ? "rgba(255,154,0,0.35)" : HADES.borderStrong,
+                        opacity: torcendo ? 0.6 : 1,
+                    }}
+                >
+                    <HandMetal size={15} color={HADES.accentSolid} fill={jaTorci ? HADES.accentSolid : "none"} />
+                    {forcasRecebidas > 0 && (
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: HADES.accentSolid }}>{forcasRecebidas}</Text>
+                    )}
+                </TouchableOpacity>
+            )}
         </View>
     );
 }

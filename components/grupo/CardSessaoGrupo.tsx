@@ -18,6 +18,7 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
     const corMateria = getSubjectColor(sessao.disciplina);
     const verificado = sessao.questoes_acertadas > 7;
     const publica = sessao.is_public;
+    const estaConcluida = Boolean(sessao.concluido_em || sessao.status === "concluido" || sessao.status === "salvo");
 
     const horas = Math.floor(sessao.tempo_minutos / 60);
     const minutos = sessao.tempo_minutos % 60;
@@ -34,7 +35,8 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
             onPress={() =>
                 router.push({
                     pathname: "/session-preview",
-                    params: { isPublic: String(sessao.is_public) },
+                    // Sem o id a prévia abria sempre a última sessão encerrada, não a que foi tocada.
+                    params: { sessionId: sessao.id, isPublic: String(sessao.is_public) },
                 })
             }
             style={{
@@ -54,31 +56,51 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
                     </Text>
                 </View>
 
-                <View
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 4,
-                        backgroundColor: publica ? "rgba(255,154,0,0.10)" : HADES.surfaceOverlay,
-                        borderRadius: 7,
-                        paddingVertical: 3,
-                        paddingHorizontal: 8,
-                    }}
-                >
-                    {publica ? (
-                        <Globe size={11} color={HADES.accentSolid} />
-                    ) : (
-                        <Lock size={11} color={HADES.textMuted} />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    {estaConcluida && (
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 4,
+                                backgroundColor: HADES.surfaceOverlay,
+                                borderRadius: 7,
+                                paddingVertical: 3,
+                                paddingHorizontal: 8,
+                            }}
+                        >
+                            <BadgeCheck size={11} color={HADES.textMuted} />
+                            <Text style={{ fontSize: 10.5, color: HADES.textMuted, fontWeight: "600" }}>
+                                Sessão concluída
+                            </Text>
+                        </View>
                     )}
-                    <Text
+                    <View
                         style={{
-                            fontSize: 10.5,
-                            color: publica ? HADES.accentSolid : HADES.textMuted,
-                            fontWeight: "600",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 4,
+                            backgroundColor: publica ? "rgba(255,154,0,0.10)" : HADES.surfaceOverlay,
+                            borderRadius: 7,
+                            paddingVertical: 3,
+                            paddingHorizontal: 8,
                         }}
                     >
-                        {publica ? "Pública" : "Privada"}
-                    </Text>
+                        {publica ? (
+                            <Globe size={11} color={HADES.accentSolid} />
+                        ) : (
+                            <Lock size={11} color={HADES.textMuted} />
+                        )}
+                        <Text
+                            style={{
+                                fontSize: 10.5,
+                                color: publica ? HADES.accentSolid : HADES.textMuted,
+                                fontWeight: "600",
+                            }}
+                        >
+                            {publica ? "Pública" : "Privada"}
+                        </Text>
+                    </View>
                 </View>
             </View>
 

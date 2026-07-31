@@ -22,6 +22,7 @@ import SessaoAtiva from "@/components/focus/SessaoAtiva";
 import type { ArquivoDetalhe } from "@/types/archives";
 import type { SessaoFocoRow, SessionCardItem, MemberSession } from "@/types/sessions";
 import { salvarSessaoFoco, atualizarSessaoFoco, fetchFocusSession, calculateFocusSessionMinutes, insertTabSessaoMembros, fetchSessionMembers, updateTabSessaoMembros } from "@/services/sessions";
+import { observarIncentivosDaSessao, buscarIncentivosDaSessao } from "@/services/incentivos";
 import { FaixaBlocoCronograma, FaixaSessaoRestaurada } from "@/components/focus/PecasFoco";
 import { toast } from "@/services/toast";
 import type { ConfigPomodoro, ContextoBloco, FocusState, FaseFoco, ModoFoco } from "@/types/foco";
@@ -29,7 +30,6 @@ import type { ConfigPomodoro, ContextoBloco, FocusState, FaseFoco, ModoFoco } fr
 // Configurar o comportamento das notificações (necessário para mostrar enquanto o app está aberto)
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
-        shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
         shouldShowBanner: true,
@@ -39,9 +39,6 @@ Notifications.setNotificationHandler({
 
 const STORAGE_KEY_START_TIME = "@focus_session_start_time";
 const STORAGE_KEY_SESSION_DATA = "@focus_session_data";
-
-// Mock: ainda não existe sessão pública em tempo real no backend (ver docs/project-context.md).
-const COLEGAS_MOCK = ["Nina", "Théo", "Helena", "Rafa", "Duda"];
 
 /** Remove acentos e caixa para comparar nomes de matéria com o Vault. */
 function normalizar(texto: string) {
@@ -122,7 +119,10 @@ export default function FocusScreen() {
     /**
      * Sessão enviada pelo SessionCard (quando o usuário clica em "Continuar sessão" no card do cronograma). O parâmetro é enviado como JSON stringificado na query da rota.
      */
-    const { session: sessionParam } = useLocalSearchParams<{ session?: string }>(); // parametros de sessão em grupo
+    const { session: sessionParam, joinPublicSession } = useLocalSearchParams<{
+        session?: string;
+        joinPublicSession?: string;
+    }>(); // parametros de sessão em grupo
 
     // Parse session data enviada pelo SessionCard.
     const parsedSession = useMemo<SessionCardItem | null>(() => {
@@ -137,12 +137,133 @@ export default function FocusScreen() {
     }, [sessionParam]);
 
     const [createdSession, setCreatedSession] = useState<SessionCardItem | null>(null);
+    const [ignoreJoinSession, setIgnoreJoinSession] = useState(false);
     const session = createdSession || parsedSession;
+    const isJoiningExistingPublicSession = joinPublicSession === "true" && !!parsedSession && !ignoreJoinSession;
+    const hostName = session?.profiles?.nome_usuario || session?.profiles?.nome_real || "anfitrião";
+    const hostInitial = hostName.trim().charAt(0).toUpperCase() || "A";
+
+    useEffect(() => {
+        if (joinPublicSession === "true") {
+            setIgnoreJoinSession(false);
+            setIsPublicSession(true);
+        }
+    }, [joinPublicSession]);
+
+    useEffect(() => {
+        if (isJoiningExistingPublicSession && parsedSession) {
+            setSelectedSubject(parsedSession.disciplina || "");
+            setSpecificContent(parsedSession.conteudo_especifico || "");
+            setIsPublicSession(true);
+            setModo("cronometro");
+        }
+    }, [isJoiningExistingPublicSession, parsedSession]);
+
+    useEffect(() => {
+        const carregarMembros = async () => {
+            if (!session?.id) {
+                setMembers([]);
+                return;
+            }
+
+            const { data, error } = await fetchSessionMembers(session.id);
+            if (error) {
+                console.error("Erro ao carregar membros da sessão:", error);
+                return;
+            }
+
+            setMembers((data || []) as MemberSession[]);
+        };
+
+        carregarMembros();
+    }, [session?.id]);
 
     //estado dos membros da sessão
     const [members, setMembers] = useState<Array<MemberSession>>([]);
 
+    const memberNames = useMemo(() => {
+        return members.map((member) => {
+            const profileName = member.profiles?.nome_usuario || member.profiles?.nome_real;
+            return profileName || "Participante";
+        });
+    }, [members]);
+
     const [newUserTimer, setNewUserTimer] = useState<number>(0)
+
+    // Quantidade de incentivos já recebidos, para mostrar a torcida durante a sessão.
+    const [incentivosRecebidos, setIncentivosRecebidos] = useState(0);
+
+    /*
+      Avisa quem está focando que alguém mandou força. Usa notificação LOCAL (o mesmo
+      recurso do aviso de materiais do Vault) porque o projeto ainda não tem push real:
+      não há Expo Push Token, tabela de tokens nem FCM configurado. A limitação é que só
+      dispara com o app vivo — o que cobre bem o caso de uso, já que durante uma sessão de
+      foco o app costuma estar aberto.
+    */
+    useEffect(() => {
+        const sessaoAtiva = session?.id;
+        // Só sessão pública tem torcida: na privada a pessoa está estudando sozinha.
+        if (!sessaoAtiva || focusState !== "active" || !userId || !isPublicSession) return;
+
+        let cancelado = false;
+
+        const sincronizarContador = async () => {
+            const { data } = await buscarIncentivosDaSessao(sessaoAtiva);
+            if (cancelado) return data;
+            setIncentivosRecebidos(data.filter((item) => item.destinatario_id === userId).length);
+            return data;
+        };
+
+        sincronizarContador();
+
+        const cancelarInscricao = observarIncentivosDaSessao(sessaoAtiva, async (novoIncentivo) => {
+            // DELETE chega como null: apenas ressincroniza o contador, sem notificar.
+            if (!novoIncentivo) {
+                await sincronizarContador();
+                return;
+            }
+
+            // Só interessa a força destinada a mim, e não o eco do meu próprio envio.
+            if (novoIncentivo.destinatario_id !== userId || novoIncentivo.remetente_id === userId) return;
+
+            // O payload do realtime não traz o JOIN com profiles, então recarrega para
+            // descobrir o nome de quem torceu e deixar o aviso pessoal.
+            const incentivosAtuais = await sincronizarContador();
+            if (cancelado) return;
+
+            const autor = incentivosAtuais.find((item) => item.id === novoIncentivo.id);
+            const nomeAutor = autor?.profiles?.nome_usuario || autor?.profiles?.nome_real;
+
+            await Notifications.scheduleNotificationAsync({
+                content: {
+                    title: "💪 Você recebeu força!",
+                    body: nomeAutor
+                        ? `${nomeAutor} está torcendo pelo seu foco agora.`
+                        : "Alguém está torcendo pelo seu foco agora.",
+                },
+                trigger: null,
+            });
+        });
+
+        return () => {
+            cancelado = true;
+            cancelarInscricao();
+        };
+    }, [session?.id, focusState, userId, isPublicSession]);
+
+    const cancelarEntradaSessao = () => {
+        setIgnoreJoinSession(true);
+        setCreatedSession(null);
+        setSelectedSubject("");
+        setSpecificContent("");
+        setIsPublicSession(true);
+        setModo("cronometro");
+        setFocusState("config");
+        setContexto(null);
+        setRestaurada(false);
+        setArquivosVault(null);
+        router.replace({ pathname: "/(tabs)/focus" });
+    };
 
     /**
      * Calcula o tempo do cronometro do usuário
@@ -392,6 +513,71 @@ export default function FocusScreen() {
     };
 
     /**
+     * função para entrar na sessão em grupo
+     */
+    const handleJoinGroupSession = async (sessionData: SessionCardItem, options?: { funcao?: "anfitriao" | "membro" }) => {
+        if (!userId) return;
+
+        // inserir o usuário na tabela de membros da sessão
+        const { data: insertTabSM, error: insertError } = await insertTabSessaoMembros({
+            sessao_id: sessionData.id,
+            membro_id: userId,
+            funcao: options?.funcao ?? 'membro',
+            tempo_segundos: 0,
+            status: 'ativo',
+            ultimo_inicio: new Date().toISOString(),
+        });
+
+        console.log("Inserindo membro na sessão:", { sessionId: sessionData.id, userId });
+        console.log("insertTabSM: ", insertTabSM)
+
+
+        if (insertError) {
+            /*
+              23505 é a violação da constraint (sessao_id, membro_id): já existe linha para
+              essa pessoa nessa sessão. Isso não é falha — acontece ao reentrar numa sessão
+              que já foi aberta antes, ou ao entrar na sessão que a própria pessoa criou (o
+              anfitrião já entra como membro ao criar). Antes o `return` abortava aqui e a
+              pessoa ficava presa sem nunca virar `active`; agora só reativamos a presença.
+
+              O `tempo_segundos` fica de fora de propósito, para não zerar o que já foi
+              acumulado por quem está retomando.
+            */
+            if (insertError.code === "23505") {
+                const { error: reativarError } = await updateTabSessaoMembros(userId, sessionData.id, {
+                    status: "ativo",
+                    ultimo_inicio: new Date().toISOString(),
+                });
+
+                if (reativarError) {
+                    console.warn("Erro ao reativar membro na sessão:", reativarError);
+                    return;
+                }
+            } else {
+                console.warn("Erro ao adicionar membro na sessão:", insertError);
+                return;
+            }
+        }
+
+        // carregar dados dos membros da sessão para mostrar no carrossel
+        const { data: sessionMembers, error } = await fetchSessionMembers(sessionData.id);
+        if (error) {
+            console.error("Erro ao buscar membros da sessão:", error);
+            return;
+        }
+        console.log("sessionMembers: ", sessionMembers)
+
+        if (sessionMembers) {
+            setMembers(sessionMembers);
+            console.log("1Membros da sessão:", sessionMembers);
+        }
+
+
+        // mudar para o modo de foco
+        setFocusState('active');
+    };
+
+    /**
      * Inicia a sessão de foco. Verifica se os campos estão preenchidos, se há sessões pendentes e se existem arquivos relacionados à matéria no vault. Se houver arquivos, notifica o usuário e oferece a opção de revisar antes de iniciar. Salva os dados da sessão e o timestamp de início no AsyncStorage para persistência.
      * @returns void
      */
@@ -471,6 +657,15 @@ export default function FocusScreen() {
         const insertedSession = (data as any)[0];
         // Define a sessão no estado para ativar a visualização de grupo
         setCreatedSession(insertedSession);
+
+        // verifica se a sessão foi criada localmente e se ela é pública
+        if (!error && data && data.length > 0 && isPublicSession && !sessionParam) {
+            await handleJoinGroupSession(insertedSession, { funcao: "anfitriao" });
+        }
+        //se veio uma sessão já existente via parâmetro da rota, também entra nela
+        if (sessionParam && parsedSession) {
+            await handleJoinGroupSession(parsedSession, { funcao: "membro" });
+        }
 
         focoAcumuladoRef.current = 0;
         setCiclo(1);
@@ -616,10 +811,15 @@ export default function FocusScreen() {
             });
         }
 
-        await atualizarSessaoFoco(session?.id || "", {
+        const concluidoEm = new Date().toISOString();
+        const { error: updateSessionError } = await atualizarSessaoFoco(session?.id || "", {
             tempo_minutos: await calculateFocusSessionMinutes(finalDuration),
-            concluido_em: Date.now().toString(),
+            concluido_em: concluidoEm,
+            status: "salvo",
         });
+        if (updateSessionError) {
+            console.error("Erro ao finalizar sessão de foco:", updateSessionError);
+        }
 
         if (intervalRef.current) clearInterval(intervalRef.current);
 
@@ -630,6 +830,8 @@ export default function FocusScreen() {
             console.warn("Erro ao limpar sessão:", e);
         }
 
+        const sessionIdParaFeedback = params.reviewSessionId || session?.id || undefined;
+
         // Abre o modal de feedback após a sessão passando os parâmetros
         router.push({
             pathname: "/(modals)/focus-feedback",
@@ -639,7 +841,7 @@ export default function FocusScreen() {
                 duration: finalDuration.toString(),
                 isPublic: finalIsPublic.toString(),
                 groupId: finalGroupId || undefined,
-                sessionId: params.reviewSessionId || undefined,
+                sessionId: sessionIdParaFeedback,
                 oldDuration: params.oldDuration || undefined,
             },
         });
@@ -708,9 +910,72 @@ export default function FocusScreen() {
                         />
                     ) : (
                         <>
-                            <View style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
-                                <SeletorModo modo={modo} onChange={setModo} />
-                            </View>
+                            {isJoiningExistingPublicSession && (
+                                <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
+                                    <View
+                                        style={{
+                                            backgroundColor: HADES.surface,
+                                            borderWidth: 1,
+                                            borderColor: HADES.border,
+                                            borderRadius: 16,
+                                            padding: 14,
+                                        }}
+                                    >
+                                        <Text style={{ fontSize: 11, color: HADES.accentSolid, fontWeight: "700", letterSpacing: 0.6, marginBottom: 10 }}>
+                                            ENTRANDO EM SESSÃO PÚBLICA
+                                        </Text>
+                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                                            <View
+                                                style={{
+                                                    width: 46,
+                                                    height: 46,
+                                                    borderRadius: 23,
+                                                    backgroundColor: HADES.accentSolid,
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                }}
+                                            >
+                                                <Text style={{ color: "#000", fontSize: 18, fontWeight: "700" }}>
+                                                    {hostInitial}
+                                                </Text>
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text, marginBottom: 4 }}>
+                                                    Você está prestes a entrar na sessão de {hostName}
+                                                </Text>
+                                                <Text style={{ fontSize: 13, color: HADES.textSecondary, lineHeight: 18 }}>
+                                                    {session?.disciplina || selectedSubject || "Sessão em andamento"}
+                                                    {session?.conteudo_especifico ? ` · ${session.conteudo_especifico}` : ""}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                        <TouchableOpacity
+                                            onPress={cancelarEntradaSessao}
+                                            activeOpacity={0.8}
+                                            style={{
+                                                marginTop: 12,
+                                                alignSelf: "flex-start",
+                                                paddingHorizontal: 12, 
+                                                paddingVertical: 8,
+                                                borderRadius: 999,
+                                                backgroundColor: HADES.surfaceRaised,
+                                                borderWidth: 1,
+                                                borderColor: HADES.border,
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: 12.5, fontWeight: "700", color: HADES.textSecondary }}>
+                                                Cancelar
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            )}
+
+                            {!isJoiningExistingPublicSession && (
+                                <View style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
+                                    <SeletorModo modo={modo} onChange={setModo} />
+                                </View>
+                            )}
 
                             <ConfigSessao
                                 modo={modo}
@@ -724,6 +989,8 @@ export default function FocusScreen() {
                                 onChangeVisibilidade={setIsPublicSession}
                                 config={configPomodoro}
                                 onChangeConfig={setConfigPomodoro}
+                                mostrarSeletorModo={!isJoiningExistingPublicSession}
+                                mostrarVisibilidade={!isJoiningExistingPublicSession}
                             />
 
                             <View style={{ paddingTop: 12, paddingHorizontal: 20, paddingBottom: 12 }}>
@@ -769,7 +1036,8 @@ export default function FocusScreen() {
                         totalCiclos={configPomodoro.ciclosAteLongo}
                         contexto={contexto}
                         autoFoco
-                        colegas={isPublicSession ? COLEGAS_MOCK : null}
+                        colegas={isPublicSession ? memberNames : null}
+                        incentivosRecebidos={incentivosRecebidos}
                         iniciadaEm={
                             restaurada && startTimeRef.current ? formatarHora(startTimeRef.current) : null
                         }
@@ -781,7 +1049,11 @@ export default function FocusScreen() {
                         onAbrirColegas={() =>
                             router.push({
                                 pathname: "/(modals)/colegas-focando",
-                                params: { materia: selectedSubject, conteudo: specificContent },
+                                params: {
+                                    materia: selectedSubject,
+                                    conteudo: specificContent,
+                                    sessionId: session?.id || parsedSession?.id || undefined,
+                                },
                             })
                         }
                     />

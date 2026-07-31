@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity } from "react-native";
-import { Pause, Play, Square, SkipForward, Check, Repeat } from "lucide-react-native";
+import { Pause, Play, Square, SkipForward, Check, Repeat, HandMetal } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import AnelPomodoro from "@/components/focus/AnelPomodoro";
 import {
@@ -31,6 +31,8 @@ type Props = {
     contexto: ContextoBloco | null;
     autoFoco: boolean;
     colegas: string[] | null;
+    /** Quantas pessoas mandaram força para esta sessão. */
+    incentivosRecebidos?: number;
     iniciadaEm: string | null;
     onPausar: () => void;
     onEncerrar: () => void;
@@ -47,12 +49,40 @@ export default function SessaoAtiva(props: Props) {
     if (props.modo === "pomodoro") return <TelaPomodoroFoco {...props} />;
     return <TelaCronometro {...props} />;
 }
+/** Selo discreto com a torcida acumulada; some quando ninguém mandou força ainda. */
+function SeloTorcida({ total }: { total?: number }) {
+    if (!total) return null;
+
+    return (
+        <View
+            style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                marginTop: 14,
+                backgroundColor: "rgba(255,154,0,0.12)",
+                borderWidth: 1,
+                borderColor: "rgba(255,154,0,0.28)",
+                borderRadius: 999,
+                paddingHorizontal: 12,
+                paddingVertical: 5,
+            }}
+        >
+            <HandMetal size={14} color={HADES.accentSolid} />
+            <Text style={{ fontSize: 12, fontWeight: "700", color: HADES.accentSolid }}>
+                {total === 1 ? "1 mandou força" : `${total} mandaram força`}
+            </Text>
+        </View>
+    );
+}
+
 function TelaCronometro({
     materia,
     conteudo,
     publica,
     textoRelogio,
     colegas,
+    incentivosRecebidos,
     iniciadaEm,
     onPausar,
     onEncerrar,
@@ -82,6 +112,7 @@ function TelaCronometro({
                             iniciada às {iniciadaEm}
                         </Text>
                     )}
+                    <SeloTorcida total={incentivosRecebidos} />
                 </View>
 
                 {colegas && (
@@ -97,7 +128,7 @@ function TelaCronometro({
     );
 }
 
-function TelaPausada({ materia, conteudo, textoRelogio, onPausar, onEncerrar }: Props) {
+function TelaPausada({ materia, conteudo, textoRelogio, colegas, incentivosRecebidos, onPausar, onEncerrar, onAbrirColegas }: Props) {
     return (
         <>
             <View style={{ flex: 1, alignItems: "center", paddingTop: 8, paddingHorizontal: 24 }}>
@@ -114,7 +145,14 @@ function TelaPausada({ materia, conteudo, textoRelogio, onPausar, onEncerrar }: 
 
                 <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
                     <Relogio texto={textoRelogio} tamanho={72} cor={HADES.textFaint} />
+                    <SeloTorcida total={incentivosRecebidos} />
                 </View>
+
+                {colegas && (
+                    <View style={{ width: "100%", marginBottom: 8 }}>
+                        <ColegasFocando nomes={colegas} total={colegas.length} onPress={onAbrirColegas} />
+                    </View>
+                )}
             </View>
 
             <View style={{ paddingHorizontal: 24, paddingBottom: 12, gap: 12 }}>
@@ -148,6 +186,7 @@ function TelaPomodoroFoco({
     ciclo,
     totalCiclos,
     contexto,
+    incentivosRecebidos,
     onPausar,
     onEncerrar,
     onEstender,
@@ -193,6 +232,7 @@ function TelaPomodoroFoco({
                             )}
                         </Text>
                     </AnelPomodoro>
+                    <SeloTorcida total={incentivosRecebidos} />
                 </View>
 
                 {!contexto && <PontosDeCiclo total={totalCiclos} concluidos={ciclo - 1} />}

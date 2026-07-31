@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -13,87 +13,25 @@ import {
     Lock,
     HandMetal,
     Play,
-    ChevronRight,
 } from "lucide-react-native";
 
 import { HADES } from "@/constants/hades";
 import { getSubjectColor } from "@/constants/helpers";
+import { fetchSessionById, fetchSessionMembers } from "@/services/sessions";
+import { useIncentivos } from "@/hooks/useIncentivos";
+import type { MemberSession, SessionCardItem } from "@/types/sessions";
 
 type Participante = {
+    /** id do usuário: é quem recebe a força quando alguém torce por ele. */
+    id: string;
     nome: string;
     inicial: string;
     cor: string;
     topico: string;
     tempoSegundos: number;
+    /** Só quem está de fato focando tem o cronômetro correndo na tela. */
+    ativo: boolean;
     host?: boolean;
-};
-
-type SessaoPreviewMock = {
-    hostNome: string;
-    hostInicial: string;
-    hostCor: string;
-    hostVerificado?: boolean;
-    abertaHaMin: number;
-    disciplina: string;
-    conteudo: string;
-    duracaoMin: number;
-    horaInicio: string;
-    ofensiva: number;
-    participantes: Participante[];
-    maisPessoas: number;
-    torcidaNomes?: string;
-    torcidaTotal?: number;
-};
-
-// Mock: ainda não existe sessão pública em tempo real no backend (ver docs/project-context.md).
-const MOCKS: Record<"entrar" | "primeiro" | "privada", SessaoPreviewMock> = {
-    entrar: {
-        hostNome: "NatVM",
-        hostInicial: "N",
-        hostCor: "#1f9d63",
-        hostVerificado: true,
-        abertaHaMin: 39,
-        disciplina: "Cálculo II",
-        conteudo: "Integrais definidas",
-        duracaoMin: 80,
-        horaInicio: "09:15",
-        ofensiva: 9,
-        participantes: [
-            { nome: "NatVM", inicial: "N", cor: "#1f9d63", topico: "Integrais definidas", tempoSegundos: 4804, host: true },
-            { nome: "toulhe", inicial: "T", cor: "#7c5cfc", topico: "Integração por partes", tempoSegundos: 2832 },
-        ],
-        maisPessoas: 3,
-    },
-    primeiro: {
-        hostNome: "toulhe",
-        hostInicial: "T",
-        hostCor: "#7c5cfc",
-        abertaHaMin: 4,
-        disciplina: "Física",
-        conteudo: "Cinemática · MRUV",
-        duracaoMin: 4,
-        horaInicio: "10:40",
-        ofensiva: 3,
-        participantes: [
-            { nome: "toulhe", inicial: "T", cor: "#7c5cfc", topico: "Cinemática · MRUV", tempoSegundos: 252, host: true },
-        ],
-        maisPessoas: 0,
-    },
-    privada: {
-        hostNome: "penac",
-        hostInicial: "P",
-        hostCor: "#1f9aa8",
-        abertaHaMin: 62,
-        disciplina: "Anatomia",
-        conteudo: "Sistema nervoso central",
-        duracaoMin: 62,
-        horaInicio: "09:42",
-        ofensiva: 21,
-        participantes: [],
-        maisPessoas: 0,
-        torcidaNomes: "NatVM, h e mais 6",
-        torcidaTotal: 8,
-    },
 };
 
 function formatarDuracao(min: number) {
@@ -113,31 +51,176 @@ function formatarCronometro(totalSegundos: number) {
 }
 
 export default function SessionPreviewScreen() {
-    const params = useLocalSearchParams<{ variante?: "entrar" | "primeiro" | "privada"; isPublic?: string }>();
+    const params = useLocalSearchParams<{ sessionId?: string; session?: string; variante?: string; isPublic?: string }>();
+    const [sessao, setSessao] = useState<SessionCardItem | null>(null);
+    const [participantes, setParticipantes] = useState<Participante[]>([]);
+    const [carregando, setCarregando] = useState(true);
+    const [erro, setErro] = useState<string | null>(null);
 
-    const variante: "entrar" | "primeiro" | "privada" =
-        params.variante && MOCKS[params.variante]
-            ? params.variante
-            : params.isPublic === "false"
-            ? "privada"
-            : "entrar";
+    const sessionParam = useMemo(() => {
+        const raw = Array.isArray(params.session) ? params.session[0] : params.session;
+        return raw ? raw : null;
+    }, [params.session]);
 
-    const sessao = MOCKS[variante];
-    const privada = variante === "privada";
-    const corMateria = getSubjectColor(sessao.disciplina);
+    const privada = sessao ? !sessao.is_public : params.isPublic === "false";
+    const corMateria = getSubjectColor(sessao?.disciplina || "Estudo Geral");
 
-    // Cronômetros locais ticando a partir do mock, só para dar sensação de "ao vivo".
+    // Cronômetros locais para dar sensação de "ao vivo".
     const [tick, setTick] = useState(0);
     useEffect(() => {
         const id = setInterval(() => setTick((t) => t + 1), 1000);
         return () => clearInterval(id);
     }, []);
 
+    // Torcida da sessão inteira, com contagem por participante. Fica fora dos early
+    // returns por causa das regras de hooks. Sessão privada é estudo solo e não tem
+    // torcida, então nem consulta nem abre canal de realtime à toa.
+    const {
+        total: totalIncentivos,
+        torcedores,
+        enviandoPara,
+        contarPara,
+        euMandeiPara,
+        podeTorcerPor,
+        alternarPara,
+    } = useIncentivos(privada ? null : sessao?.id);
+
+    useEffect(() => {
+        let ativo = true;
+
+        const carregarSessao = async () => {
+            setCarregando(true);
+            setErro(null);
+            setParticipantes([]);
+
+            try {
+                let sessaoEncontrada: SessionCardItem | null = null;
+
+                if (sessionParam) {
+                    try {
+                        sessaoEncontrada = JSON.parse(sessionParam) as SessionCardItem;
+                    } catch {
+                        sessaoEncontrada = null;
+                    }
+                }
+
+                if (!sessaoEncontrada && params.sessionId) {
+                    const { data, error } = await fetchSessionById(params.sessionId);
+                    if (error) throw error;
+                    sessaoEncontrada = data as SessionCardItem | null;
+                }
+
+                if (!ativo) return;
+
+                /*
+                  Antes, sem id, a tela caía em `buscarSessoesRecentes(1)` e abria uma sessão
+                  qualquer — o que escondeu por muito tempo o fato de que os cards do feed nunca
+                  passavam o `sessionId`. Agora, sem id, é erro explícito.
+                */
+                if (!sessaoEncontrada) {
+                    setErro("Não foi possível abrir essa sessão.");
+                }
+
+                setSessao(sessaoEncontrada);
+
+                if (!sessaoEncontrada) {
+                    setCarregando(false);
+                    return;
+                }
+
+                const { data: membrosData, error: membrosError } = await fetchSessionMembers(sessaoEncontrada.id);
+                if (!ativo) return;
+
+                if (membrosError) {
+                    setParticipantes([]);
+                } else {
+                    const participantesMapeados: Participante[] = (membrosData || []).map((membro: MemberSession, index: number) => {
+                        const profile = membro.profiles as { nome_usuario?: string | null; nome_real?: string | null } | undefined;
+                        const nome = profile?.nome_usuario || profile?.nome_real || "Usuário";
+                        const inicial = nome.charAt(0).toUpperCase();
+                        const cores = ["#1f9d63", "#7c5cfc", "#1f9aa8", "#e08a1e", "#d0455e"];
+
+                        return {
+                            id: membro.membro_id,
+                            nome,
+                            inicial,
+                            cor: cores[index % cores.length],
+                            topico: membro.sessoes_foco?.conteudo_especifico || sessaoEncontrada?.conteudo_especifico || "Foco",
+                            tempoSegundos: membro.tempo_segundos ?? 0,
+                            ativo: membro.status === "ativo",
+                            host: membro.funcao === "anfitriao" || membro.membro_id === sessaoEncontrada?.user_id,
+                        };
+                    });
+                    setParticipantes(participantesMapeados);
+                }
+            } catch (error) {
+                console.warn("Erro ao carregar prévia da sessão:", error);
+                if (ativo) {
+                    setErro("Não foi possível carregar os dados dessa sessão.");
+                    setSessao(null);
+                }
+            } finally {
+                if (ativo) {
+                    setCarregando(false);
+                }
+            }
+        };
+
+        carregarSessao();
+        return () => {
+            ativo = false;
+        };
+    }, [params.sessionId, sessionParam]);
+
+    // Só as sessões públicas têm este CTA; nas privadas o footer mostra apenas o "Mandar força".
     const handleAcao = () => {
-        if (privada) return; // "Mandar força" ainda não tem efeito colateral real
+        if (!sessao) return;
         router.dismissAll();
-        router.replace("/(tabs)/focus");
+        router.replace({
+            pathname: "/(tabs)/focus",
+            params: {
+                session: JSON.stringify(sessao),
+                sessionId: sessao.id,
+                joinPublicSession: "true",
+            },
+        });
     };
+
+    if (carregando) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+                    <Text style={{ color: HADES.text, fontSize: 16, fontWeight: "600" }}>Carregando sessão…</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    if (!sessao) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+                <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 }}>
+                    <Text style={{ color: HADES.text, fontSize: 16, fontWeight: "600" }}>{erro || "Nenhuma sessão disponível no momento."}</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    const hostNome = sessao.profiles?.nome_usuario || sessao.profiles?.nome_real || "Usuário";
+    const hostInicial = hostNome.charAt(0).toUpperCase();
+    const hostCor = corMateria.text || "#1f9d63";
+    const estaConcluida = Boolean(sessao.concluido_em || sessao.status === "concluido");
+    const abertaHaMin = Math.max(1, Math.round((Date.now() - new Date(sessao.created_at).getTime()) / 60000));
+    const duracaoMin = Math.max(1, Math.round(sessao.tempo_minutos || 0));
+    const horaInicio = sessao.ultimo_inicio ? new Date(sessao.ultimo_inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : new Date(sessao.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const ofensiva = sessao.questoes_acertadas || 0;
+
+    // A torcida vem dos incentivos de verdade — antes contava membros da sessão, que é outra coisa.
+    const torcidaNomes = torcedores.length > 0 ? torcedores.slice(0, 3).join(", ") : "Ainda ninguém mandou força";
+    const torcedoresRestantes = Math.max(0, torcedores.length - 2);
+    const statusTexto = estaConcluida
+        ? "Sessão concluída"
+        : `${privada ? "está focando" : "abriu esta sessão"} · há ${abertaHaMin} min`;
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -177,16 +260,16 @@ export default function SessionPreviewScreen() {
                     />
 
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
-                        <View style={[estilos.avatar, { width: 44, height: 44, borderRadius: 22, backgroundColor: sessao.hostCor }]}>
-                            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "600" }}>{sessao.hostInicial}</Text>
+                        <View style={[estilos.avatar, { width: 44, height: 44, borderRadius: 22, backgroundColor: hostCor }]}>
+                            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "600" }}>{hostInicial}</Text>
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                                <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>{sessao.hostNome}</Text>
-                                {sessao.hostVerificado && <BadgeCheck size={16} color={HADES.subjectBlue} />}
+                                <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>{hostNome}</Text>
+                                <BadgeCheck size={16} color={HADES.subjectBlue} />
                             </View>
                             <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 1 }}>
-                                {privada ? "está focando" : "abriu esta sessão"} · há {sessao.abertaHaMin} min
+                                {statusTexto}
                             </Text>
                         </View>
                         {privada ? (
@@ -204,27 +287,29 @@ export default function SessionPreviewScreen() {
 
                     <View style={{ marginTop: 18 }}>
                         <Text style={{ fontSize: 24, fontWeight: "700", color: HADES.text, letterSpacing: -0.4 }}>{sessao.disciplina}</Text>
-                        <Text style={{ fontSize: 14, color: corMateria.text, marginTop: 3 }}>{sessao.conteudo}</Text>
+                        <Text style={{ fontSize: 14, color: corMateria.text, marginTop: 3 }}>{sessao.conteudo_especifico || "Sessão sem conteúdo detalhado"}</Text>
                     </View>
 
-                    <View style={estilos.aoVivo}>
-                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: HADES.green }} />
-                        <Text style={{ fontSize: 12, color: HADES.green, fontWeight: "600" }}>ao vivo agora</Text>
-                    </View>
+                    {estaConcluida ? (
+                        <View style={estilos.badgeConcluida}>
+                            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: HADES.textMuted }} />
+                            <Text style={{ fontSize: 12, color: HADES.textMuted, fontWeight: "600" }}>Sessão concluída</Text>
+                        </View>
+                    ) : null}
 
                     <View style={estilos.stats}>
                         <View style={{ flex: 1 }}>
-                            <Text style={estilos.statValor}>{formatarDuracao(sessao.duracaoMin)}</Text>
+                            <Text style={estilos.statValor}>{formatarDuracao(duracaoMin)}</Text>
                             <Text style={estilos.statRotulo}>DURAÇÃO</Text>
                         </View>
                         <View style={[estilos.statDivider, { flex: 1 }]}>
-                            <Text style={estilos.statValor}>{sessao.horaInicio}</Text>
+                            <Text style={estilos.statValor}>{horaInicio}</Text>
                             <Text style={estilos.statRotulo}>INÍCIO</Text>
                         </View>
                         <View style={[estilos.statDivider, { flex: 1 }]}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                                 <Flame size={16} color={HADES.accentSolid} />
-                                <Text style={estilos.statValor}>{sessao.ofensiva}</Text>
+                                <Text style={estilos.statValor}>{ofensiva}</Text>
                             </View>
                             <Text style={estilos.statRotulo}>OFENSIVA</Text>
                         </View>
@@ -233,36 +318,13 @@ export default function SessionPreviewScreen() {
 
                 {privada ? (
                     <>
-                        {/* Bloqueio suave */}
+                        {/* Bloqueio suave. Sessão privada é estudo solo: não tem torcida. */}
                         <View style={estilos.avisoCard}>
                             <Lock size={19} color={HADES.textMuted} style={{ marginTop: 1 }} />
                             <Text style={estilos.avisoTexto}>
                                 Esta sessão é <Text style={estilos.avisoDestaque}>privada</Text>. Você acompanha o progresso, mas não pode entrar para
                                 focar junto.
                             </Text>
-                        </View>
-
-                        {/* Torcida */}
-                        <View style={estilos.secaoHeader}>
-                            <Text style={estilos.secaoTitulo}>Torcida</Text>
-                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>{sessao.torcidaTotal} mandaram força</Text>
-                        </View>
-                        <View style={estilos.torcidaCard}>
-                            <View style={{ flexDirection: "row", alignItems: "center" }}>
-                                <View style={[estilos.avatarPilha, { backgroundColor: "#e08a1e" }]}>
-                                    <Text style={estilos.avatarPilhaTexto}>H</Text>
-                                </View>
-                                <View style={[estilos.avatarPilha, { backgroundColor: "#d0455e", marginLeft: -10 }]}>
-                                    <Text style={estilos.avatarPilhaTexto}>M</Text>
-                                </View>
-                                <View style={[estilos.avatarPilha, { backgroundColor: HADES.surfaceOverlay, marginLeft: -10 }]}>
-                                    <Text style={[estilos.avatarPilhaTexto, { color: HADES.textMuted, fontSize: 11 }]}>+5</Text>
-                                </View>
-                            </View>
-                            <Text style={{ flex: 1, fontSize: 13, color: HADES.textSecondary }} numberOfLines={1}>
-                                {sessao.torcidaNomes}
-                            </Text>
-                            <HandMetal size={18} color={HADES.accentSolid} />
                         </View>
                     </>
                 ) : (
@@ -271,65 +333,85 @@ export default function SessionPreviewScreen() {
                         <View style={estilos.secaoHeader}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                 <Text style={estilos.secaoTitulo}>Focando agora</Text>
-                                {sessao.participantes.length > 0 && (
+                                {participantes.length > 0 && (
                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                                         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.green }} />
                                         <Text style={{ fontSize: 11, color: HADES.green, fontWeight: "600" }}>
-                                            {sessao.participantes.length + sessao.maisPessoas} pessoas
+                                            {participantes.length === 1 ? "1 pessoa" : `${participantes.length} pessoas`}
                                         </Text>
                                     </View>
                                 )}
                             </View>
                         </View>
 
-                        {sessao.participantes.length > 0 ? (
+                        {participantes.length > 0 ? (
                             <View style={{ gap: 9 }}>
-                                {sessao.participantes.map((p) => (
-                                    <View key={p.nome} style={estilos.participanteCard}>
-                                        <View style={{ position: "relative" }}>
-                                            <View style={[estilos.avatar, { width: 38, height: 38, borderRadius: 19, backgroundColor: p.cor }]}>
-                                                <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>{p.inicial}</Text>
+                                {participantes.map((p) => {
+                                    const forcasRecebidas = contarPara(p.id);
+                                    const jaTorciPorEle = euMandeiPara(p.id);
+                                    // Torcer só faz sentido com a sessão rolando: mandar força para
+                                    // quem terminou de estudar há horas não incentiva ninguém.
+                                    const posso = podeTorcerPor(p.id) && !estaConcluida;
+
+                                    return (
+                                        <View key={p.id} style={estilos.participanteCard}>
+                                            <View style={{ position: "relative" }}>
+                                                <View style={[estilos.avatar, { width: 38, height: 38, borderRadius: 19, backgroundColor: p.cor }]}>
+                                                    <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>{p.inicial}</Text>
+                                                </View>
+                                                {/* Verde só para quem está focando; pausado fica cinza. */}
+                                                <View style={[estilos.pontoOnline, !p.ativo && { backgroundColor: HADES.textDim }]} />
                                             </View>
-                                            <View style={estilos.pontoOnline} />
-                                        </View>
-                                        <View style={{ flex: 1, minWidth: 0 }}>
-                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                                <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>{p.nome}</Text>
-                                                {p.host && (
-                                                    <View style={estilos.tagHost}>
-                                                        <Text style={estilos.tagHostTexto}>HOST</Text>
-                                                    </View>
-                                                )}
-                                            </View>
-                                            <Text style={{ fontSize: 12, color: HADES.textMuted, marginTop: 2 }} numberOfLines={1}>
-                                                {p.topico}
-                                            </Text>
-                                        </View>
-                                        <View style={{ alignItems: "flex-end" }}>
-                                            <Text style={estilos.cronometro}>{formatarCronometro(p.tempoSegundos + tick)}</Text>
-                                            <Text style={{ fontSize: 11, color: HADES.green, marginTop: 1 }}>em foco</Text>
-                                        </View>
-                                    </View>
-                                ))}
-                                {sessao.maisPessoas > 0 && (
-                                    <View style={estilos.participanteCard}>
-                                        <View style={{ flexDirection: "row", alignItems: "center" }}>
-                                            <View style={[estilos.avatarPilha, { backgroundColor: "#e08a1e" }]}>
-                                                <Text style={estilos.avatarPilhaTexto}>H</Text>
-                                            </View>
-                                            <View style={[estilos.avatarPilha, { backgroundColor: "#d0455e", marginLeft: -10 }]}>
-                                                <Text style={estilos.avatarPilhaTexto}>M</Text>
-                                            </View>
-                                            <View style={[estilos.avatarPilha, { backgroundColor: HADES.surfaceOverlay, marginLeft: -10 }]}>
-                                                <Text style={[estilos.avatarPilhaTexto, { color: HADES.textMuted, fontSize: 11 }]}>
-                                                    +{sessao.maisPessoas - 2 > 0 ? sessao.maisPessoas - 2 : 1}
+                                            <View style={{ flex: 1, minWidth: 0 }}>
+                                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                                    <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>{p.nome}</Text>
+                                                    {p.host && (
+                                                        <View style={estilos.tagHost}>
+                                                            <Text style={estilos.tagHostTexto}>HOST</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                                <Text style={{ fontSize: 12, color: HADES.textMuted, marginTop: 2 }} numberOfLines={1}>
+                                                    {p.topico}
                                                 </Text>
                                             </View>
+                                            <View style={{ alignItems: "flex-end" }}>
+                                                {/* O tick local só avança para quem está de fato focando: antes o
+                                                    cronômetro de um membro pausado continuava subindo na tela. */}
+                                                <Text style={estilos.cronometro}>
+                                                    {formatarCronometro(p.tempoSegundos + (p.ativo ? tick : 0))}
+                                                </Text>
+                                                <Text style={{ fontSize: 11, color: p.ativo ? HADES.green : HADES.textMuted, marginTop: 1 }}>
+                                                    {p.ativo ? "em foco" : "em pausa"}
+                                                </Text>
+                                            </View>
+
+                                            {/* Cada participante recebe força individualmente; some no próprio card. */}
+                                            {posso && (
+                                                <TouchableOpacity
+                                                    onPress={() => alternarPara(p.id)}
+                                                    disabled={!!enviandoPara}
+                                                    activeOpacity={0.7}
+                                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                    style={[
+                                                        estilos.botaoForcaMembro,
+                                                        jaTorciPorEle && estilos.botaoForcaMembroAtivo,
+                                                        !!enviandoPara && { opacity: 0.6 },
+                                                    ]}
+                                                >
+                                                    <HandMetal
+                                                        size={15}
+                                                        color={HADES.accentSolid}
+                                                        fill={jaTorciPorEle ? HADES.accentSolid : "none"}
+                                                    />
+                                                    {forcasRecebidas > 0 && (
+                                                        <Text style={estilos.botaoForcaMembroTexto}>{forcasRecebidas}</Text>
+                                                    )}
+                                                </TouchableOpacity>
+                                            )}
                                         </View>
-                                        <Text style={{ flex: 1, fontSize: 13.5, color: HADES.textSecondary }}>e mais {sessao.maisPessoas} focando</Text>
-                                        <ChevronRight size={17} color={HADES.textDim} />
-                                    </View>
-                                )}
+                                    );
+                                })}
                             </View>
                         ) : (
                             <View style={estilos.vazioCard}>
@@ -337,9 +419,46 @@ export default function SessionPreviewScreen() {
                                     <UserPlus size={23} color={HADES.accentSolid} />
                                 </View>
                                 <Text style={estilos.vazioTitulo}>Ninguém entrou ainda</Text>
-                                <Text style={estilos.vazioTexto}>Seja a primeira pessoa a focar junto com {sessao.hostNome}.</Text>
+                                <Text style={estilos.vazioTexto}>Seja a primeira pessoa a focar junto com {hostNome}.</Text>
                             </View>
                         )}
+
+                        {/* Torcida: quem está de fora acompanhando e mandando força. */}
+                        <View style={estilos.secaoHeader}>
+                            <Text style={estilos.secaoTitulo}>Torcida</Text>
+                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>
+                                {totalIncentivos === 1 ? "1 força enviada" : `${totalIncentivos} forças enviadas`}
+                            </Text>
+                        </View>
+                        <View style={estilos.torcidaCard}>
+                            {torcedores.length > 0 && (
+                                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                    {torcedores.slice(0, 2).map((nome, index) => (
+                                        <View
+                                            key={`${nome}-${index}`}
+                                            style={[
+                                                estilos.avatarPilha,
+                                                { backgroundColor: index === 0 ? "#e08a1e" : "#d0455e" },
+                                                index > 0 && { marginLeft: -10 },
+                                            ]}
+                                        >
+                                            <Text style={estilos.avatarPilhaTexto}>{nome.charAt(0).toUpperCase()}</Text>
+                                        </View>
+                                    ))}
+                                    {torcedoresRestantes > 0 && (
+                                        <View style={[estilos.avatarPilha, { backgroundColor: HADES.surfaceOverlay, marginLeft: -10 }]}>
+                                            <Text style={[estilos.avatarPilhaTexto, { color: HADES.textMuted, fontSize: 11 }]}>
+                                                +{torcedoresRestantes}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                            )}
+                            <Text style={{ flex: 1, fontSize: 13, color: HADES.textSecondary }} numberOfLines={1}>
+                                {torcidaNomes}
+                            </Text>
+                            <HandMetal size={18} color={HADES.accentSolid} />
+                        </View>
 
                         {/* Explicação da ação */}
                         <View style={estilos.avisoCardAccent}>
@@ -353,25 +472,22 @@ export default function SessionPreviewScreen() {
                 )}
             </ScrollView>
 
-            {/* Footer CTA */}
-            <View style={estilos.footer}>
-                {privada ? (
-                    <TouchableOpacity onPress={handleAcao} activeOpacity={0.85} style={estilos.botaoTorcer}>
-                        <HandMetal size={19} color={HADES.accentSolid} />
-                        <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>Mandar força</Text>
+            {/* Footer CTA. Na privada não há ação: não dá para entrar nem torcer. */}
+            {!privada && (
+                <View style={estilos.footer}>
+                    <TouchableOpacity
+                        onPress={handleAcao}
+                        activeOpacity={0.85}
+                        disabled={estaConcluida}
+                        style={[estilos.botaoEntrar, estaConcluida && { opacity: 0.7 }]}
+                    >
+                        <Play size={19} color="#000" />
+                        <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>
+                            {estaConcluida ? "Sessão concluída" : "Entrar e focar junto"}
+                        </Text>
                     </TouchableOpacity>
-                ) : (
-                    <>
-                        <TouchableOpacity style={estilos.botaoTorcerPequeno}>
-                            <HandMetal size={20} color={HADES.accentSolid} />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={handleAcao} activeOpacity={0.85} style={estilos.botaoEntrar}>
-                            <Play size={19} color="#000" />
-                            <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>Entrar e focar junto</Text>
-                        </TouchableOpacity>
-                    </>
-                )}
-            </View>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
@@ -444,15 +560,15 @@ const estilos = StyleSheet.create({
         color: HADES.textMuted,
         fontWeight: "700",
     },
-    aoVivo: {
+    badgeConcluida: {
         flexDirection: "row",
         alignSelf: "flex-start",
         alignItems: "center",
         gap: 6,
         marginTop: 14,
-        backgroundColor: HADES.greenTint,
+        backgroundColor: HADES.surfaceOverlay,
         borderWidth: 1,
-        borderColor: "rgba(48,209,88,0.3)",
+        borderColor: HADES.border,
         borderRadius: 999,
         paddingHorizontal: 11,
         paddingVertical: 5,
@@ -635,33 +751,33 @@ const estilos = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: HADES.border,
     },
-    botaoTorcerPequeno: {
-        width: 54,
-        height: 54,
-        borderRadius: 15,
+    // Botão de força que fica dentro do card de cada participante.
+    botaoForcaMembro: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        marginLeft: 4,
+        paddingHorizontal: 9,
+        paddingVertical: 7,
+        borderRadius: 10,
         backgroundColor: HADES.surfaceRaised,
         borderWidth: 1,
         borderColor: HADES.borderStrong,
-        alignItems: "center",
-        justifyContent: "center",
+    },
+    botaoForcaMembroAtivo: {
+        backgroundColor: "rgba(255,154,0,0.12)",
+        borderColor: "rgba(255,154,0,0.35)",
+    },
+    botaoForcaMembroTexto: {
+        fontSize: 12,
+        fontWeight: "700",
+        color: HADES.accentSolid,
     },
     botaoEntrar: {
         flex: 1,
         height: 54,
         borderRadius: 15,
         backgroundColor: HADES.accentSolid,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 9,
-    },
-    botaoTorcer: {
-        flex: 1,
-        height: 54,
-        borderRadius: 15,
-        backgroundColor: HADES.surfaceRaised,
-        borderWidth: 1,
-        borderColor: HADES.borderStrong,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",

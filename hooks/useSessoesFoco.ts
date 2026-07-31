@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useFocusEffect } from "expo-router";
-import { buscarSessoesPorUsuario, buscarSessoesRecentes } from "@/services/sessions";
+import { buscarSessoesAoVivo, buscarSessoesPorUsuario, buscarSessoesRecentes } from "@/services/sessions";
 import { toast } from "@/services/toast";
 import { SessaoFocoRow } from "@/types/sessions";
 
@@ -34,6 +34,40 @@ export const useSessoesFoco = (limit: number = 20, groupId?: string | null) => {
     );
 
     return { sessions, loading, refresh: fetchSessions };
+};
+
+/**
+ * Hook que busca as sessões que estão acontecendo agora, para o feed "ao vivo".
+ *
+ * Sem realtime de propósito: o `useFocusEffect` já refaz a busca sempre que a tela volta
+ * ao foco, que é quando o usuário de fato olha o feed.
+ */
+export const useSessoesAoVivo = (limit: number = 20, groupId?: string | null) => {
+    const [sessoes, setSessoes] = useState<SessaoFocoRow[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchSessoes = useCallback(async () => {
+        setLoading(true);
+        const { data, error } = await buscarSessoesAoVivo(limit, groupId);
+        if (error) {
+            console.error("Erro ao buscar sessões ao vivo:", error);
+        } else {
+            setSessoes((data as SessaoFocoRow[]) || []);
+        }
+        setLoading(false);
+    }, [limit, groupId]);
+
+    useEffect(() => {
+        fetchSessoes();
+    }, [fetchSessoes]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchSessoes();
+        }, [fetchSessoes])
+    );
+
+    return { sessoes, loading, refresh: fetchSessoes };
 };
 
 /**

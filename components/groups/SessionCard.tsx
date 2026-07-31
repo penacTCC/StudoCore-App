@@ -25,7 +25,8 @@ export default function SessionCard({ session, colorIndex }: SessionCardProps) {
         <TouchableOpacity
             onPress={() => router.push({
                 pathname: "/session-preview",
-                params: { isPublic: String(session.is_public) }
+                // Sem o id a prévia abria sempre a última sessão encerrada, não a que foi tocada.
+                params: { sessionId: session.id, isPublic: String(session.is_public) }
             })}
             className="bg-slate-900 border border-slate-800 rounded-2xl p-4"
         >
