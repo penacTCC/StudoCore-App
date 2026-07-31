@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 //Componentes do React Native
-import { View, Text, TextInput, KeyboardAvoidingView, Platform, Alert, StatusBar, Dimensions } from "react-native";
+import { View, Text, TextInput, KeyboardAvoidingView, Platform, StatusBar, Dimensions } from "react-native";
 
 //Componentes do Expo
 import { router, useLocalSearchParams } from "expo-router";
@@ -23,6 +23,7 @@ import {
     validarSessaoPorCodigo,
     validarSessaoPorTokens,
 } from "@/services/auth";
+import { toast } from "@/services/toast";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -58,7 +59,7 @@ export default function ForgotPasswordScreen() {
             setIsValidatingLink(false);
 
             if (error) {
-                Alert.alert("Link invalido", error.message);
+                toast.error(error.message, "Link inválido");
                 router.replace("/(auth)/login");
                 return;
             }
@@ -76,7 +77,7 @@ export default function ForgotPasswordScreen() {
 
     const handleSendReset = async () => {
         if (!email.trim()) {
-            Alert.alert("Campo obrigatório", "Por favor, informe seu e-mail.");
+            toast.warning("Por favor, informe seu e-mail.", "Campo obrigatório");
             return;
         }
 
@@ -85,7 +86,7 @@ export default function ForgotPasswordScreen() {
         setIsLoading(false);
 
         if (error) {
-            Alert.alert("Erro", error.message);
+            toast.error(error.message);
         } else {
             setSent(true);
         }
@@ -93,12 +94,12 @@ export default function ForgotPasswordScreen() {
 
     const handleUpdatePassword = async () => {
         if (password.length < 6) {
-            Alert.alert("Senha muito curta", "Informe uma senha com pelo menos 6 caracteres.");
+            toast.warning("Informe uma senha com pelo menos 6 caracteres.", "Senha muito curta");
             return;
         }
 
         if (password !== confirmPassword) {
-            Alert.alert("Senhas diferentes", "A confirmacao precisa ser igual a nova senha.");
+            toast.warning("A confirmação precisa ser igual à nova senha.", "Senhas diferentes");
             return;
         }
 
@@ -107,11 +108,11 @@ export default function ForgotPasswordScreen() {
         setIsLoading(false);
 
         if (error) {
-            Alert.alert("Erro", error.message);
+            toast.error(error.message);
             return;
         }
 
-        Alert.alert("Senha alterada", "Agora voce ja pode entrar com a nova senha.");
+        toast.success("Agora você já pode entrar com a nova senha.", "Senha alterada");
         await deslogarUsuario();
         router.replace("/(auth)/login");
     };

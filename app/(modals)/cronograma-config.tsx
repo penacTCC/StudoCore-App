@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -10,30 +9,8 @@ import {
     LinhaSwitch,
     LinhaEscolha,
 } from "@/components/cronograma/LinhasConfig";
-import type { PreferenciasCronograma } from "@/types/cronograma";
-
-const PADRAO: PreferenciasCronograma = {
-    focoMin: 25,
-    descansoCurtoMin: 5,
-    descansoLongoMin: 15,
-    ciclosAteLongo: 4,
-    autoDescanso: true,
-    autoFoco: false,
-    notificacoesAtivas: true,
-    antecedenciaMin: 10,
-    avisarFimDeFase: true,
-    resumoDiaSeguinte: false,
-    naoPerturbar: true,
-    naoPerturbarInicio: "22:00",
-    naoPerturbarFim: "07:00",
-    somFimFoco: true,
-    vibrar: true,
-    manterTelaLigada: false,
-    inicioSemana: "segunda",
-    duracaoPadraoBlocoMin: 50,
-    duracaoPadraoDescansoMin: 10,
-    contarDescansoComoEstudado: false,
-};
+import { useAuth } from "@/hooks/useAuth";
+import { usePreferencias } from "@/hooks/usePreferencias";
 
 /** Mantém o valor dentro de [min, max] ao usar os steppers. */
 function limitar(valor: number, min: number, max: number) {
@@ -42,16 +19,8 @@ function limitar(valor: number, min: number, max: number) {
 
 export default function CronogramaConfigScreen() {
     const router = useRouter();
-    // Sem backend ainda: as preferências vivem só no estado da tela.
-    const [prefs, setPrefs] = useState<PreferenciasCronograma>(PADRAO);
-
-    const ajustar = <C extends keyof PreferenciasCronograma>(
-        chave: C,
-        valor: PreferenciasCronograma[C]
-    ) => setPrefs((atual) => ({ ...atual, [chave]: valor }));
-
-    const alternar = (chave: keyof PreferenciasCronograma) =>
-        setPrefs((atual) => ({ ...atual, [chave]: !atual[chave] }));
+    const { userId } = useAuth();
+    const { prefs, ajustar, alternar } = usePreferencias(userId);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.settingsBg }} edges={["top"]}>

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from "react-native";
+import { useState, useEffect, useCallback } from "react";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { X, Plus, BookOpen, AlertCircle, Check, Users } from "lucide-react-native";
 import { router } from "expo-router";
@@ -7,8 +7,11 @@ import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { criarMateria, normalizarNomeMateria, buscarMateriasComunidade } from "@/services/materias";
 import type { Materia } from "@/types/materias";
+import { toast } from "@/services/toast";
+import { confirm } from "@/services/confirm";
 
 export default function CriarMateriaScreen() {
     const [nomeMateria, setNomeMateria] = useState("");
@@ -20,16 +23,28 @@ export default function CriarMateriaScreen() {
     const { materias, materiasCustomizadas, recarregarMaterias, deletarMateriaComVerificacao } = useMaterias(userId);
 
     // Carrega matérias da comunidade ao montar
-    useEffect(() => {
-        const carregarComunidade = async () => {
-            if (!userId) return;
-            setCarregandoComunidade(true);
-            const resultado = await buscarMateriasComunidade(userId, materias);
-            setMateriasComunidade(resultado);
-            setCarregandoComunidade(false);
-        };
-        carregarComunidade();
+    const carregarComunidade = useCallback(async () => {
+        if (!userId) return;
+        setCarregandoComunidade(true);
+        const resultado = await buscarMateriasComunidade(userId, materias);
+        setMateriasComunidade(resultado);
+        setCarregandoComunidade(false);
     }, [userId, materias]);
+
+    useEffect(() => {
+        carregarComunidade();
+    }, [carregarComunidade]);
+
+    //Controla o estado do pull-to-refresh
+    const [atualizando, setAtualizando] = useState(false);
+    const handleRefresh = async () => {
+        setAtualizando(true);
+        try {
+            await Promise.all([recarregarMaterias(), carregarComunidade()]);
+        } finally {
+            setAtualizando(false);
+        }
+    };
 
     // Verifica em tempo real se a matéria já existe
     const nomeNormalizado = normalizarNomeMateria(nomeMateria);
@@ -45,28 +60,27 @@ export default function CriarMateriaScreen() {
         setCriando(false);
 
         if (!resultado.sucesso) {
-            Alert.alert("Erro", resultado.erro || "Não foi possível criar a matéria.");
+            toast.error(resultado.erro || "Não foi possível criar a matéria.");
             return;
         }
 
         await recarregarMaterias();
-        Alert.alert("Sucesso!", `"${resultado.materia?.nomeExibicao}" foi adicionada às suas matérias.`);
+        toast.success(`"${resultado.materia?.nomeExibicao}" foi adicionada às suas matérias.`, "Sucesso!");
         router.back();
     };
 
     const handleRemover = async (materia: Materia) => {
         if (!materia.id) return;
 
-        Alert.alert("Remover matéria", `Deseja remover "${materia.nomeExibicao}" da sua lista?`, [
-            { text: "Cancelar", style: "cancel" },
-            {
-                text: "Remover",
-                style: "destructive",
-                onPress: async () => {
-                    await deletarMateriaComVerificacao(materia.id!, materia.nomeExibicao);
-                },
+        confirm({
+            title: "Remover matéria",
+            message: `Deseja remover "${materia.nomeExibicao}" da sua lista?`,
+            confirmText: "Remover",
+            destructive: true,
+            onConfirm: async () => {
+                await deletarMateriaComVerificacao(materia.id!, materia.nomeExibicao);
             },
-        ]);
+        });
     };
 
     const handleAdotarComunidade = async (materia: Materia) => {
@@ -77,12 +91,12 @@ export default function CriarMateriaScreen() {
         setCriando(false);
 
         if (!resultado.sucesso) {
-            Alert.alert("Erro", resultado.erro || "Não foi possível adicionar a matéria.");
+            toast.error(resultado.erro || "Não foi possível adicionar a matéria.");
             return;
         }
 
         await recarregarMaterias();
-        Alert.alert("Adicionada!", `"${materia.nomeExibicao}" foi adicionada à sua lista.`);
+        toast.success(`"${materia.nomeExibicao}" foi adicionada à sua lista.`, "Adicionada!");
     };
 
     return (
@@ -119,6 +133,9 @@ export default function CriarMateriaScreen() {
                 contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 20 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                refreshControl={
+                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                }
             >
                 {/* Input de Nome */}
                 <View style={{ marginBottom: 24 }}>
@@ -169,11 +186,15 @@ export default function CriarMateriaScreen() {
                 </View>
 
                 {/* Matérias Customizadas do Usuário (com remoção) */}
-                {materiasCustomizadas.length > 0 && (
-                    <View style={{ marginBottom: 24 }}>
-                        <Text style={{ fontSize: 14, fontWeight: "500", color: HADES.textMuted, marginBottom: 12 }}>
-                            Suas matérias criadas
+                <View style={{ marginBottom: 24 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "500", color: HADES.textMuted, marginBottom: 12 }}>
+                        Suas matérias criadas
+                    </Text>
+                    {materiasCustomizadas.length === 0 ? (
+                        <Text style={{ fontSize: 12.5, color: HADES.textDim }}>
+                            Você ainda não criou nenhuma matéria própria.
                         </Text>
+                    ) : (
                         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                             {materiasCustomizadas.map((materia) => (
                                 <View
@@ -211,8 +232,8 @@ export default function CriarMateriaScreen() {
                                 </View>
                             ))}
                         </View>
-                    </View>
-                )}
+                    )}
+                </View>
 
                 {/* Matérias Padrão */}
                 <View style={{ marginBottom: 24 }}>
@@ -265,9 +286,10 @@ export default function CriarMateriaScreen() {
                     </View>
 
                     {carregandoComunidade ? (
-                        <View style={{ paddingVertical: 16, alignItems: "center" }}>
-                            <ActivityIndicator color={HADES.groupViolet} size="small" />
-                            <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 8 }}>Buscando matérias...</Text>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                            {[92, 74, 110].map((largura, i) => (
+                                <Skeleton key={i} width={largura} height={31} borderRadius={12} hades />
+                            ))}
                         </View>
                     ) : materiasComunidade.length > 0 ? (
                         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>

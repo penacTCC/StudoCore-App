@@ -652,27 +652,31 @@ export function RankingHorasGrupo({ cor, membros, grupoSelecionado }: { cor: str
                 <Text className="text-base font-bold tracking-[-0.2px] text-white">Ranking de horas</Text>
                 <Text className="text-[13px] text-[#6b6e76]">esta semana</Text>
             </View>
-            <View className="gap-3.5 mb-6">
-                {membros.map((membro) => (
-                    <View key={membro.nome}>
-                        <View className="mb-1.5 flex-row items-center justify-between">
-                            <View className="flex-row items-center gap-2.5 mb-2">
-                                <Avatar foto={membro.foto}/>
-                                <Text className="text-[13px] font-semibold text-white">{membro.nome}</Text>
+            {membros.length === 0 ? (
+                <Text className="mb-6 text-[13px] text-[#6b6e76]">Nenhum membro com sessões nesse período.</Text>
+            ) : (
+                <View className="gap-3.5 mb-6">
+                    {membros.map((membro) => (
+                        <View key={membro.nome}>
+                            <View className="mb-1.5 flex-row items-center justify-between">
+                                <View className="flex-row items-center gap-2.5 mb-2">
+                                    <Avatar foto={membro.foto}/>
+                                    <Text className="text-[13px] font-semibold text-white">{membro.nome}</Text>
+                                </View>
+                                <Text className={`text-[13px] font-semibold ${membro.ehVoce ? "text-white" : "text-[#9a9da3]"}`}>
+                                    {formatarMinutos(membro.minutos)} • <Text className="text-xs text-[#fcc470]">{(pctMembros(membro.minutos / 60)).toFixed(1)}%</Text>
+                                </Text>
                             </View>
-                            <Text className={`text-[13px] font-semibold ${membro.ehVoce ? "text-white" : "text-[#9a9da3]"}`}>
-                                {formatarMinutos(membro.minutos)} • <Text className="text-xs text-[#fcc470]">{(pctMembros(membro.minutos / 60)).toFixed(1)}%</Text>
-                            </Text>
+                            <View className="h-1.5 rounded-sm bg-[#1a1b20]">
+                                <View
+                                    className="h-full rounded-sm"
+                                    style={{ width: `${pctMembros(membro.minutos / 60)}%`, backgroundColor: membro.ehVoce ? cor : CORES.barraAnterior }}
+                                />
+                            </View>
                         </View>
-                        <View className="h-1.5 rounded-sm bg-[#1a1b20]">
-                            <View
-                                className="h-full rounded-sm"
-                                style={{ width: `${pctMembros(membro.minutos / 60)}%`, backgroundColor: membro.ehVoce ? cor : CORES.barraAnterior }}
-                            />
-                        </View>
-                    </View>
-                ))}
-            </View>
+                    ))}
+                </View>
+            )}
         </View>
     );
 }
@@ -705,8 +709,12 @@ export function MateriaMaisEstudadaGrupo({materias, qtdMaterias}: {materias: Mat
                 </Svg>
             </View>
             <View>
-                <Text className="text-[15px] font-bold text-white text-center">{materias[0]?.rotulo}</Text>
-                <Text className="mt-0.5 text-xs text-[#6b6e76] text-center">{materias[0]?.pct}% das horas</Text>
+                <Text className="text-[15px] font-bold text-white text-center">
+                    {materias[0]?.rotulo ?? "Sem dados"}
+                </Text>
+                <Text className="mt-0.5 text-xs text-[#6b6e76] text-center">
+                    {materias[0] ? `${materias[0].pct}% das horas` : "nenhuma sessão no período"}
+                </Text>
             </View>
         </View>
     );
@@ -853,26 +861,30 @@ export function QuestoesPorMembroGrupo({ membros }: { membros: QuestoesMembroGru
                     <Text className="text-xs text-[#c9ccd2]">Erros</Text>
                 </View>
             </View>
-            <View className="gap-3">
-                {membros.map((membro) => (
-                    <View key={membro.userId}>
-                        <View className="mb-1.5 flex-row items-center justify-between">
-                            <View className="flex-row items-center gap-2.5">
-                                <Avatar foto={membro.foto} nome={membro.nome} size={28} />
-                                <Text className="text-[13px] font-semibold text-white">{membro.nome}</Text>
+            {membros.length === 0 ? (
+                <Text className="text-[13px] text-[#6b6e76]">Nenhuma questão respondida pelo grupo nesse período.</Text>
+            ) : (
+                <View className="gap-3">
+                    {membros.map((membro) => (
+                        <View key={membro.userId}>
+                            <View className="mb-1.5 flex-row items-center justify-between">
+                                <View className="flex-row items-center gap-2.5">
+                                    <Avatar foto={membro.foto} nome={membro.nome} size={28} />
+                                    <Text className="text-[13px] font-semibold text-white">{membro.nome}</Text>
+                                </View>
+                                <View className="flex-row items-baseline gap-1">
+                                    <Text className="text-[13px] font-semibold text-white">{membro.total.toLocaleString("pt-BR")}</Text>
+                                    <Text className="text-[11px] text-[#6b6e76]">· {membro.pctAcerto}%</Text>
+                                </View>
                             </View>
-                            <View className="flex-row items-baseline gap-1">
-                                <Text className="text-[13px] font-semibold text-white">{membro.total.toLocaleString("pt-BR")}</Text>
-                                <Text className="text-[11px] text-[#6b6e76]">· {membro.pctAcerto}%</Text>
+                            <View className="h-2 flex-row gap-0.5 overflow-hidden rounded-sm bg-[#1a1b20]">
+                                <View className="h-full bg-[#30d158]" style={{ width: `${membro.pctAcerto}%` }} />
+                                <View className="h-full bg-[#f0556b] opacity-75" style={{ width: `${100 - membro.pctAcerto}%` }} />
                             </View>
                         </View>
-                        <View className="h-2 flex-row gap-0.5 overflow-hidden rounded-sm bg-[#1a1b20]">
-                            <View className="h-full bg-[#30d158]" style={{ width: `${membro.pctAcerto}%` }} />
-                            <View className="h-full bg-[#f0556b] opacity-75" style={{ width: `${100 - membro.pctAcerto}%` }} />
-                        </View>
-                    </View>
-                ))}
-            </View>
+                    ))}
+                </View>
+            )}
         </View>
     );
 }

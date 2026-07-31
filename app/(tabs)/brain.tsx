@@ -1,17 +1,18 @@
-import { useState, useEffect, useMemo } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, } from "react-native";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Modal, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Timer, Layers } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 import { HADES } from "@/constants/hades";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { useGraficosAnalytics } from "@/lib/graphics-analytics";
 import { useAnalisePessoal } from "@/hooks/useAnalisePessoal";
 import { useAuth } from "@/hooks/useAuth";
 import { formatarHoras } from "@/lib/analytics";
 import { SessaoFocoRow } from "@/types/sessions";
-import { EstadoPoucosDadosPessoal, EstadoVazioPessoal } from "@/components/analytics/EstadosAnalise";
+import { EstadoPoucosDadosPessoal, EstadoVazioPessoal, EstadoSemGrupo, EstadoGrupoSemDadosPeriodo } from "@/components/analytics/EstadosAnalise";
 import {
     SeletorEscopo,
     SeletorPeriodo,
@@ -64,7 +65,7 @@ export default function BrainScreen() {
 
     // Uma única leitura alimenta as duas abas: `analise` (números da aba Análise,
     // escopo pessoal) e as sessões cruas (aba Banco de dados).
-    const { analise, savedSessions, pendingSessions } = useAnalisePessoal(userId, comecoSemana);
+    const { analise, savedSessions, pendingSessions, loading: carregandoAnalise, refresh: refreshAnalisePessoal } = useAnalisePessoal(userId, comecoSemana);
 
     //------Cálculos e funções para os gráficos dessa tela------
     const {
@@ -93,6 +94,7 @@ export default function BrainScreen() {
         grupoSelecionado,
         qtdMembrosGrupoSelecionado,
         membrosRanking,
+        sessoesGrupoNoPeriodo,
         materiasGrupo,
         qtdDisciplinasGrupo,
         membrosInativos,
@@ -102,7 +104,19 @@ export default function BrainScreen() {
         horasEvolucaoGrupo,
         percentualEvolucaoGrupo,
         ofensivaGrupo,
+        refresh: refreshGraficos,
     } = useGraficosAnalytics(userId, comecoSemana, periodoAnalise);
+
+    //Controla o estado do pull-to-refresh
+    const [atualizando, setAtualizando] = useState(false);
+    const handleRefresh = useCallback(async () => {
+        setAtualizando(true);
+        try {
+            await Promise.all([refreshAnalisePessoal(), refreshGraficos()]);
+        } finally {
+            setAtualizando(false);
+        }
+    }, [refreshAnalisePessoal, refreshGraficos]);
 
     // Estado da aba Pessoal (cheio / poucos dados / vazio) — baseado em quantos
     // dias distintos o usuário já registrou sessão, em todo o histórico (não só
@@ -172,11 +186,21 @@ export default function BrainScreen() {
                 </View>
             </View>
 
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-                
+            <ScrollView
+                className="flex-1"
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                }
+            >
+
                 {/* ── DATABASE ─────────────────────────────────── */}
                 {brainTab === "database" && (
                     <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 16 }}>
+                      {carregandoAnalise ? (
+                        <BancoDadosSkeleton />
+                      ) : (
+                        <>
                         {/* Formulários Pendentes */}
                         <View
                             style={{
@@ -365,6 +389,8 @@ export default function BrainScreen() {
                                 </View>
                             )}
                         </View>
+                        </>
+                      )}
                     </View>
                 )}
 
@@ -396,12 +422,18 @@ export default function BrainScreen() {
                         {/* Seletor Pessoal / Grupo */}
                         <View className="gap-3">
                             <SeletorEscopo valor={escopoAnalise} aoAlterar={setEscopoAnalise} />
-                            {(escopoAnalise === "grupo" || estadoPessoal !== "vazio") && (
+                            {(escopoAnalise === "grupo" || (!carregandoAnalise && estadoPessoal !== "vazio")) && (
                                 <SeletorPeriodo valor={periodoAnalise} aoAlterar={setPeriodoAnalise} />
                             )}
                         </View>
 
                         {escopoAnalise === "grupo" ? (
+                            grupos.length === 0 ? (
+                                <EstadoSemGrupo
+                                    cor={HADES.accentSolid}
+                                    aoVerGrupos={() => router.push("/(groups)/browse-groups")}
+                                />
+                            ) : !grupoSelecionado ? null : (
                             <View className="gap-8">
                                 <CabecalhoGrupo
                                     cor={HADES.accentSolid}
@@ -411,27 +443,37 @@ export default function BrainScreen() {
                                     membros={membrosPorGrupo}
                                 />
                                 <MetaSemanalGrupo grupos={grupos} grupoSelecionado={grupoSelecionado} horas={horasSemanaGrupo} qtdMembros={qtdMembrosGrupoSelecionado}/>
-                                <RankingHorasGrupo cor={HADES.accentSolid} membros={membrosRanking} grupoSelecionado={grupoSelecionado} />
 
-                                <View className="flex-row gap-[10px]">
-                                    <MateriaMaisEstudadaGrupo materias={materiasGrupo} qtdMaterias={qtdDisciplinasGrupo}/>
-                                    <MembrosAtivosGrupo cor={HADES.accentSolid} membrosTotais={membrosTotais} inativos={membrosInativos}/>
-                                </View>
+                                {sessoesGrupoNoPeriodo.length === 0 ? (
+                                    <EstadoGrupoSemDadosPeriodo nomeGrupo={grupoSelecionado.nome_grupo} />
+                                ) : (
+                                    <>
+                                        <RankingHorasGrupo cor={HADES.accentSolid} membros={membrosRanking} grupoSelecionado={grupoSelecionado} />
 
-                                <EvolucaoGrupo
-                                    cor={HADES.accentSolid}
-                                    horas={horasEvolucaoGrupo}
-                                    percentual={percentualEvolucaoGrupo}
-                                    pontos={pontosEvolucaoGrupo}
-                                />
-                                <QuestoesPorMembroGrupo membros={questoesPorMembroGrupo} />
-                                <GraficoOfensiva
-                                    titulo="Ofensiva do grupo"
-                                    ofensivaAtual={ofensivaGrupo.atual}
-                                    melhorOfensiva={ofensivaGrupo.melhor}
-                                    pontos={ofensivaGrupo.pontos}
-                                />
+                                        <View className="flex-row gap-[10px]">
+                                            <MateriaMaisEstudadaGrupo materias={materiasGrupo} qtdMaterias={qtdDisciplinasGrupo}/>
+                                            <MembrosAtivosGrupo cor={HADES.accentSolid} membrosTotais={membrosTotais} inativos={membrosInativos}/>
+                                        </View>
+
+                                        <EvolucaoGrupo
+                                            cor={HADES.accentSolid}
+                                            horas={horasEvolucaoGrupo}
+                                            percentual={percentualEvolucaoGrupo}
+                                            pontos={pontosEvolucaoGrupo}
+                                        />
+                                        <QuestoesPorMembroGrupo membros={questoesPorMembroGrupo} />
+                                        <GraficoOfensiva
+                                            titulo="Ofensiva do grupo"
+                                            ofensivaAtual={ofensivaGrupo.atual}
+                                            melhorOfensiva={ofensivaGrupo.melhor}
+                                            pontos={ofensivaGrupo.pontos}
+                                        />
+                                    </>
+                                )}
                             </View>
+                            )
+                        ) : carregandoAnalise ? (
+                            <AnalisePessoalSkeleton />
                         ) : estadoPessoal === "vazio" ? (
                             <EstadoVazioPessoal
                                 cor={HADES.accentSolid}
@@ -634,5 +676,147 @@ export default function BrainScreen() {
                 </View>
             </Modal>
         </SafeAreaView>
+    );
+}
+
+/** Esqueleto dos cartões "Formulários pendentes" / "Formulários salvos", exibido enquanto as sessões do usuário ainda carregam. */
+function BancoDadosSkeleton() {
+    return (
+        <>
+            <View
+                style={{
+                    backgroundColor: HADES.surface,
+                    borderWidth: 1,
+                    borderColor: HADES.border,
+                    borderRadius: 16,
+                    padding: 16,
+                }}
+            >
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: 16,
+                    }}
+                >
+                    <Skeleton width={150} height={16} hades />
+                    <Skeleton width={70} height={20} borderRadius={7} hades />
+                </View>
+                {[0, 1].map((i) => (
+                    <View
+                        key={i}
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: 14,
+                            borderRadius: 13,
+                            marginBottom: 10,
+                            backgroundColor: HADES.bg,
+                        }}
+                    >
+                        <SkeletonCircle size={40} hades />
+                        <View style={{ flex: 1, gap: 6 }}>
+                            <Skeleton width="55%" height={13} hades />
+                            <Skeleton width="75%" height={11} hades />
+                        </View>
+                    </View>
+                ))}
+            </View>
+
+            <View
+                style={{
+                    backgroundColor: HADES.surface,
+                    borderWidth: 1,
+                    borderColor: HADES.border,
+                    borderRadius: 16,
+                    padding: 16,
+                }}
+            >
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: 16,
+                    }}
+                >
+                    <Skeleton width={140} height={16} hades />
+                    <Skeleton width={60} height={20} borderRadius={7} hades />
+                </View>
+                {[0, 1, 2].map((i) => (
+                    <View
+                        key={i}
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: 14,
+                            borderRadius: 13,
+                            marginBottom: 10,
+                            backgroundColor: HADES.bg,
+                        }}
+                    >
+                        <SkeletonCircle size={40} hades />
+                        <View style={{ flex: 1, gap: 6 }}>
+                            <Skeleton width="50%" height={13} hades />
+                            <Skeleton width="70%" height={11} hades />
+                        </View>
+                    </View>
+                ))}
+            </View>
+        </>
+    );
+}
+
+/** Esqueleto da aba Análise (escopo pessoal), exibido enquanto as sessões do usuário ainda carregam — evita mostrar o estado "vazio" antes da hora. */
+function AnalisePessoalSkeleton() {
+    return (
+        <View className="gap-8">
+            <View style={{ gap: 10 }}>
+                <Skeleton width={90} height={11} hades />
+                <Skeleton width={130} height={26} hades />
+                <Skeleton height={130} borderRadius={12} hades />
+            </View>
+
+            <View className="flex-row gap-[10px]">
+                <Skeleton height={84} borderRadius={16} hades style={{ flex: 1 }} />
+                <Skeleton height={84} borderRadius={16} hades style={{ flex: 1 }} />
+            </View>
+
+            <View style={{ gap: 12 }}>
+                <Skeleton width={160} height={16} hades />
+                <Skeleton height={130} borderRadius={12} hades />
+            </View>
+
+            <View style={{ gap: 12 }}>
+                <Skeleton width={190} height={16} hades />
+                <View className="flex-row items-center gap-[18px]">
+                    <SkeletonCircle size={120} hades />
+                    <View style={{ flex: 1, gap: 8 }}>
+                        <Skeleton height={12} hades />
+                        <Skeleton height={12} hades />
+                        <Skeleton height={12} hades />
+                    </View>
+                </View>
+            </View>
+
+            <View style={{ gap: 10 }}>
+                <Skeleton width={110} height={16} hades />
+                <Skeleton width={90} height={30} hades />
+                <Skeleton height={10} borderRadius={5} hades />
+            </View>
+
+            <View style={{ gap: 12 }}>
+                <Skeleton width={200} height={16} hades />
+                <Skeleton height={130} borderRadius={12} hades />
+            </View>
+
+            <View style={{ gap: 10 }}>
+                <Skeleton width={170} height={16} hades />
+                <Skeleton height={90} borderRadius={12} hades />
+            </View>
+        </View>
     );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { carregarGruposPublicosLocalmente, salvarGruposPublicosLocalmente } from "@/services/armazenamentoOffline";
 import { buscarGruposPublicosDisponiveis } from "@/services/grupos";
+import { toast } from "@/services/toast";
 import type { GrupoPublico } from "@/types/grupos";
 
 export function useGruposPublicos() {
@@ -22,6 +23,7 @@ export function useGruposPublicos() {
       await salvarGruposPublicosLocalmente(gruposAtualizados);
     } catch (erro) {
       console.error("Erro inesperado:", erro);
+      toast.error("Não foi possível carregar os grupos públicos.");
     } finally {
       setCarregando(false);
     }

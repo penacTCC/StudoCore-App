@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { ChevronLeft, Flame, Clock, Scale, Trophy, Star, Globe, CheckCircle2 } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import Avatar from "@/components/ui/Avatar";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { buscarPerfil } from "@/services/auth";
 import { buscarGamificacao } from "@/services/gamificacao";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
@@ -37,13 +38,31 @@ export default function MemberProfileScreen() {
     const [profile, setProfile] = useState<Profile | null>(null);
     const [gamificacao, setGamificacao] = useState<Gamificacao | null>(null);
 
-    const { savedSessions, loading: loadingSessions } = useSessoesUsuario(userId);
+    const { savedSessions, loading: loadingSessions, refresh: refreshSessions } = useSessoesUsuario(userId);
+
+    //Controla o estado do pull-to-refresh
+    const [atualizando, setAtualizando] = useState(false);
+
+    const carregarPerfilEGamificacao = useCallback(async () => {
+        if (!userId) return;
+        await Promise.all([
+            buscarPerfil(userId).then(({ data }) => setProfile(data)),
+            buscarGamificacao(userId).then(setGamificacao),
+        ]);
+    }, [userId]);
 
     useEffect(() => {
-        if (!userId) return;
-        buscarPerfil(userId).then(({ data }) => setProfile(data));
-        buscarGamificacao(userId).then(setGamificacao);
-    }, [userId]);
+        carregarPerfilEGamificacao();
+    }, [carregarPerfilEGamificacao]);
+
+    const handleRefresh = async () => {
+        setAtualizando(true);
+        try {
+            await Promise.all([carregarPerfilEGamificacao(), refreshSessions()]);
+        } finally {
+            setAtualizando(false);
+        }
+    };
 
     const joinDate = profile?.created_at
         ? new Intl.DateTimeFormat("pt-BR").format(new Date(profile.created_at))
@@ -60,13 +79,7 @@ export default function MemberProfileScreen() {
     const progressoSemanal = Math.min(Math.round((minutosEstaSemana / metaSemanaMinutos) * 100), 100);
 
     if (!profile) {
-        return (
-            <SafeAreaView
-                style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}
-            >
-                <ActivityIndicator color={HADES.accentSolid} />
-            </SafeAreaView>
-        );
+        return <MemberProfileSkeleton />;
     }
 
     return (
@@ -107,6 +120,9 @@ export default function MemberProfileScreen() {
                 style={{ flex: 1 }}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingTop: 52, paddingBottom: 32, paddingHorizontal: 20 }}
+                refreshControl={
+                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                }
             >
                 {/* Nome & handle */}
                 <View style={{ alignItems: "center", marginBottom: 16 }}>
@@ -244,9 +260,29 @@ export default function MemberProfileScreen() {
                     Sessões Públicas Anteriores
                 </Text>
                 {loadingSessions ? (
-                    <Text style={{ fontSize: 12, color: HADES.textDim, textAlign: "center", paddingVertical: 16 }}>
-                        Carregando...
-                    </Text>
+                    <View style={{ gap: 12 }}>
+                        {[0, 1].map((i) => (
+                            <View key={i} style={estilos.card}>
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                                    <SkeletonCircle size={32} hades />
+                                    <View style={{ flex: 1, gap: 5 }}>
+                                        <Skeleton width={90} height={12} hades />
+                                        <Skeleton width={60} height={10} hades />
+                                    </View>
+                                </View>
+                                <Skeleton width="70%" height={13} hades style={{ marginBottom: 8 }} />
+                                <Skeleton width={80} height={18} borderRadius={6} hades style={{ marginBottom: 12 }} />
+                                <View style={{ flexDirection: "row", borderTopWidth: 1, borderTopColor: HADES.border, paddingTop: 12 }}>
+                                    {[0, 1, 2].map((j) => (
+                                        <View key={j} style={{ flex: 1, alignItems: "center", gap: 4 }}>
+                                            <Skeleton width={36} height={13} hades />
+                                            <Skeleton width={44} height={9} hades />
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                        ))}
+                    </View>
                 ) : savedSessions.length === 0 ? (
                     <View style={[estilos.card, { alignItems: "center", paddingVertical: 24 }]}>
                         <Text style={{ fontSize: 12, color: HADES.textDim, textAlign: "center" }}>
@@ -318,6 +354,47 @@ export default function MemberProfileScreen() {
                         })}
                     </View>
                 )}
+            </ScrollView>
+        </View>
+    );
+}
+
+function MemberProfileSkeleton() {
+    return (
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
+            <View>
+                <LinearGradient
+                    colors={["#241a44", HADES.bg]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ height: 150 }}
+                />
+                <View style={{ position: "absolute", bottom: -44, left: 0, right: 0, alignItems: "center" }}>
+                    <View style={{ borderRadius: 999, borderWidth: 3, borderColor: HADES.bg }}>
+                        <SkeletonCircle size={88} hades />
+                    </View>
+                </View>
+            </View>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingTop: 52, paddingBottom: 32, paddingHorizontal: 20 }}
+            >
+                <View style={{ alignItems: "center", marginBottom: 16, gap: 8 }}>
+                    <Skeleton width={150} height={18} hades style={{ marginTop: 8 }} />
+                    <Skeleton width={100} height={13} hades />
+                    <Skeleton width={110} height={11} hades />
+                </View>
+
+                <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
+                    <Skeleton width="100%" height={56} borderRadius={14} hades style={{ flex: 1 }} />
+                    <Skeleton width="100%" height={56} borderRadius={14} hades style={{ flex: 1 }} />
+                </View>
+
+                <Skeleton width="100%" height={50} borderRadius={15} hades style={{ marginBottom: 16 }} />
+                <Skeleton width="100%" height={128} borderRadius={16} hades style={{ marginBottom: 16 }} />
+                <Skeleton width="100%" height={112} borderRadius={16} hades />
             </ScrollView>
         </View>
     );

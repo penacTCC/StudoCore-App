@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { buscarGamificacao } from "@/services/gamificacao";
-import { calcularAnalisePessoal, type AnalisePessoal, type ComecoSemana } from "@/lib/analytics";
+import { calcularAnalisePessoal} from "@/lib/analytics";
+import {ComecoSemana, AnalisePessoal} from "@/types/analytics"
 
 /**
  * Junta as duas fontes de dados da aba "Análise" pessoal — sessões de foco do
@@ -17,28 +18,27 @@ export function useAnalisePessoal(
     userId: string | null | undefined,
     comecoSemana: ComecoSemana
 ) {
-    const { savedSessions, pendingSessions, loading } = useSessoesUsuario(userId);
+    const { savedSessions, pendingSessions, loading, refresh: refreshSessoes } = useSessoesUsuario(userId);
 
     const [ofensiva, setOfensiva] = useState(0);
     const [melhorOfensiva, setMelhorOfensiva] = useState(0);
 
     // A ofensiva é persistida no backend ao concluir uma sessão, então aqui só
     // buscamos o valor pronto em vez de recalcular a partir do histórico.
-    useEffect(() => {
+    const buscarOfensiva = useCallback(async () => {
         if (!userId) return;
-
-        let ativo = true;
-        buscarGamificacao(userId).then((gamificacao) => {
-            if (!ativo) return;
-            setOfensiva(gamificacao?.ofensiva ?? 0);
-            setMelhorOfensiva(gamificacao?.melhor_ofensiva ?? 0);
-        });
-
-        // Evita setState depois de desmontar / trocar de usuário.
-        return () => {
-            ativo = false;
-        };
+        const gamificacao = await buscarGamificacao(userId);
+        setOfensiva(gamificacao?.ofensiva ?? 0);
+        setMelhorOfensiva(gamificacao?.melhor_ofensiva ?? 0);
     }, [userId]);
+
+    useEffect(() => {
+        buscarOfensiva();
+    }, [buscarOfensiva]);
+
+    const refresh = useCallback(async () => {
+        await Promise.all([refreshSessoes(), buscarOfensiva()]);
+    }, [refreshSessoes, buscarOfensiva]);
 
     const analise = useMemo<AnalisePessoal>(
         () =>
@@ -50,5 +50,5 @@ export function useAnalisePessoal(
         [savedSessions, pendingSessions, comecoSemana, ofensiva, melhorOfensiva]
     );
 
-    return { analise, savedSessions, pendingSessions, loading };
+    return { analise, savedSessions, pendingSessions, loading, refresh };
 }

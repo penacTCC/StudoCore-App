@@ -10,6 +10,9 @@ export type SessaoFocoInsert = {
     status: string;
     ultimo_inicio: string | null;
     concluido_em: string | null;
+    /** Preenchido quando a sessão começa a partir de um bloco da aba Hoje. */
+    bloco_rotina_id?: string | null;
+    bloco_plano_id?: string | null;
 };
 
 export type SessaoFocoRow = {
@@ -25,6 +28,8 @@ export type SessaoFocoRow = {
     status: string;
     data_sessao: string;
     created_at: string;
+    bloco_rotina_id?: string | null;
+    bloco_plano_id?: string | null;
     // Vem do JOIN com profiles
     profiles?: {
         nome_real: string | null;

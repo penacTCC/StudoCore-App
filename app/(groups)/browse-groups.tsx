@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Globe, Compass, Link as LinkIcon } from "lucide-react-native";
 
@@ -14,13 +14,25 @@ import { useGruposPublicos } from "@/hooks/useGruposPublicos";
 import SearchBar from "@/components/ui/SearchBar";
 import PublicGroupCard from "@/components/groups/PublicGroupCard";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 
 export default function BrowseGroupsScreen() {
     //Faz sistema de pesquisa
     const [searchQuery, setSearchQuery] = useState("");
 
     //Busca os grupos públicos
-    const { gruposPublicos, carregando } = useGruposPublicos();
+    const { gruposPublicos, carregando, recarregarGrupos } = useGruposPublicos();
+
+    //Controla o estado do pull-to-refresh
+    const [atualizando, setAtualizando] = useState(false);
+    const handleRefresh = async () => {
+        setAtualizando(true);
+        try {
+            await recarregarGrupos();
+        } finally {
+            setAtualizando(false);
+        }
+    };
 
     //Filtra os grupos por pesquisa
     const gruposFiltrados = gruposPublicos.filter(
@@ -76,12 +88,7 @@ export default function BrowseGroupsScreen() {
             </View>
 
             {carregando ? (
-                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                    <ActivityIndicator size="large" color={HADES.accentSolid} />
-                    <Text style={{ color: HADES.textMuted, marginTop: 14 }}>
-                        Carregando os melhores grupos para você...
-                    </Text>
-                </View>
+                <BrowseGroupsSkeleton />
             ) : (
                 <>
                     {/* Search */}
@@ -134,6 +141,13 @@ export default function BrowseGroupsScreen() {
                         style={{ flex: 1 }}
                         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 }}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={atualizando}
+                                onRefresh={handleRefresh}
+                                tintColor={HADES.accentSolid}
+                            />
+                        }
                     >
                         <View style={{ gap: 12 }}>
                             {gruposFiltrados.map((group, index) => (
@@ -144,10 +158,14 @@ export default function BrowseGroupsScreen() {
                                 <View style={{ alignItems: "center", paddingVertical: 40 }}>
                                     <Compass size={44} color={HADES.dot} />
                                     <Text style={{ color: HADES.textMuted, fontWeight: "600", marginTop: 14 }}>
-                                        Nenhum grupo encontrado
+                                        {searchQuery.trim().length > 0
+                                            ? "Nenhum grupo encontrado"
+                                            : "Nenhum grupo público ainda"}
                                     </Text>
                                     <Text style={{ fontSize: 13, color: HADES.textDim, marginTop: 4 }}>
-                                        Tente um termo de busca diferente
+                                        {searchQuery.trim().length > 0
+                                            ? "Tente um termo de busca diferente"
+                                            : "Seja o primeiro a criar um grupo público pra outras pessoas encontrarem"}
                                     </Text>
                                 </View>
                             )}
@@ -156,5 +174,75 @@ export default function BrowseGroupsScreen() {
                 </>
             )}
         </SafeAreaView>
+    );
+}
+
+function PublicGroupCardSkeleton() {
+    return (
+        <View
+            style={{
+                backgroundColor: HADES.surface,
+                borderWidth: 1,
+                borderColor: HADES.border,
+                borderRadius: 16,
+                padding: 14,
+            }}
+        >
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+                <Skeleton width={56} height={56} borderRadius={14} hades />
+                <View style={{ flex: 1, gap: 8 }}>
+                    <Skeleton width="55%" height={15} hades />
+                    <Skeleton width="90%" height={13} hades />
+                    <View style={{ flexDirection: "row", gap: 16 }}>
+                        <Skeleton width={70} height={12} hades />
+                        <Skeleton width={80} height={12} hades />
+                    </View>
+                </View>
+                <Skeleton width={62} height={32} borderRadius={11} hades />
+            </View>
+        </View>
+    );
+}
+
+function BrowseGroupsSkeleton() {
+    return (
+        <>
+            <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                <Skeleton width="100%" height={44} borderRadius={12} hades />
+            </View>
+
+            <View style={{ paddingHorizontal: 20, marginBottom: 4 }}>
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 14,
+                        backgroundColor: HADES.accentTint,
+                        borderWidth: 1,
+                        borderColor: HADES.accentTintBorder,
+                        borderRadius: 16,
+                        padding: 14,
+                    }}
+                >
+                    <SkeletonCircle size={44} hades />
+                    <View style={{ gap: 6 }}>
+                        <Skeleton width={140} height={16} hades />
+                        <Skeleton width={170} height={13} hades />
+                    </View>
+                </View>
+            </View>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 }}
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={{ gap: 12 }}>
+                    {[0, 1, 2, 3].map((i) => (
+                        <PublicGroupCardSkeleton key={i} />
+                    ))}
+                </View>
+            </ScrollView>
+        </>
     );
 }

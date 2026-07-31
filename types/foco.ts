@@ -22,6 +22,7 @@ export type ConfigPomodoro = {
 /** Contexto de um bloco do cronograma que originou a sessão. */
 export type ContextoBloco = {
     blocoId: string;
+    origem: "rotina" | "plano";
     materia: string;
     topico: string;
     fimEm: string; // "10h"

@@ -8,7 +8,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Alert,
     StatusBar,
     Image,
 } from "react-native";
@@ -28,6 +27,7 @@ import { InputField, PasswordStrength, PrimaryButton } from "@/components/form";
 
 //Serviços
 import { cadastrarUsuario, verificarNomeUsuario } from "@/services/auth";
+import { toast } from "@/services/toast";
 
 export default function SignUpScreen() {
     const [realName, setRealName] = useState("");
@@ -63,32 +63,32 @@ export default function SignUpScreen() {
 
     const handleSignUp = async () => {
         if (!realName.trim() || !username.trim() || !email || !password || !confirmPassword) {
-            Alert.alert("Campos obrigatórios", "Preencha todos os campos.");
+            toast.warning("Preencha todos os campos.", "Campos obrigatórios");
             return;
         }
         if (username.trim().length < 3) {
-            Alert.alert("Nome de usuário curto", "O nome de usuário deve ter pelo menos 3 caracteres.");
+            toast.warning("O nome de usuário deve ter pelo menos 3 caracteres.", "Nome de usuário curto");
             return;
         }
         if (usernameStatus === "checking") {
-            Alert.alert("Aguarde", "Ainda estamos verificando a disponibilidade do nome de usuário.");
+            toast.info("Ainda estamos verificando a disponibilidade do nome de usuário.", "Aguarde");
             return;
         }
         if (usernameStatus === "taken") {
-            Alert.alert("Nome de usuário indisponível", "Escolha outro nome de usuário.");
+            toast.warning("Escolha outro nome de usuário.", "Nome de usuário indisponível");
             return;
         }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            Alert.alert("E-mail inválido", "Por favor, insira um e-mail válido.");
+            toast.warning("Por favor, insira um e-mail válido.", "E-mail inválido");
             return;
         }
         if (password.length < 8) {
-            Alert.alert("Senha muito curta", "A senha deve ter pelo menos 8 caracteres.");
+            toast.warning("A senha deve ter pelo menos 8 caracteres.", "Senha muito curta");
             return;
         }
         if (password !== confirmPassword) {
-            Alert.alert("Senhas diferentes", "As senhas não coincidem.");
+            toast.warning("As senhas não coincidem.", "Senhas diferentes");
             return;
         }
 
@@ -97,7 +97,7 @@ export default function SignUpScreen() {
         //Cadastra o usuário (nome e @usuário viajam em user_metadata até a verificação)
         const { data, error } = await cadastrarUsuario(email, password, realName, username);
         if (error) {
-            Alert.alert("Erro no cadastro", error.message);
+            toast.error(error.message, "Erro no cadastro");
         } else {
             console.log("DADOS DO CADASTRO:", data);
             router.replace("/(auth)/onboarding-profile");

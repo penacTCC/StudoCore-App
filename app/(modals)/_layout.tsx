@@ -13,6 +13,8 @@ export default function ModalsLayout() {
             <Stack.Screen name="criar-materia" options={{ presentation: "modal" }} />
             <Stack.Screen name="plano-editor" options={{ presentation: "modal" }} />
             <Stack.Screen name="cronograma-config" options={{ presentation: "modal" }} />
+            <Stack.Screen name="novo-bloco" options={{ presentation: "modal" }} />
+            <Stack.Screen name="novo-bloco-plano" options={{ presentation: "modal" }} />
         </Stack>
     );
 }

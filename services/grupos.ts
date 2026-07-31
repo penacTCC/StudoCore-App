@@ -1,4 +1,5 @@
 import { supabase } from "@/repositories/supabase";
+import { toast } from "@/services/toast";
 import type { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 
 /**
@@ -14,6 +15,7 @@ export const contarMembrosGrupo = async (id: string) => {
 
     if (error) {
       console.error("Erro ao buscar membros do grupo:", error);
+      toast.error("Não foi possível contar os membros do grupo.");
       return 0;
     }
 
@@ -21,6 +23,7 @@ export const contarMembrosGrupo = async (id: string) => {
 
   } catch (err) {
     console.error("Erro inesperado:", err);
+    toast.error("Não foi possível contar os membros do grupo.");
     return 0;
   }
 };
@@ -51,6 +54,7 @@ export const buscarMeusGrupos = async () => {
 
     if (error) {
       console.error("Erro ao buscar grupos:", error);
+      toast.error("Não foi possível carregar seus grupos.");
       return [];
     }
 
@@ -62,6 +66,7 @@ export const buscarMeusGrupos = async () => {
     return meusGrupos || [];
   } catch (error) {
     console.error("Error fetching groups:", error);
+    toast.error("Não foi possível carregar seus grupos.");
     return [];
   }
 };
@@ -77,6 +82,7 @@ export const buscarGruposPublicosDisponiveis = async () => {
 
   if (error) {
     console.error("Erro ao buscar grupos:", error);
+    toast.error("Não foi possível carregar os grupos públicos.");
     return [];
   }
 
@@ -114,6 +120,7 @@ export const buscarMembrosGrupo = async (grupoId: string) => {
 
   if (error) {
     console.error("Erro ao puxar membros:", error);
+    toast.error("Não foi possível carregar os membros do grupo.");
     return [];
   }
 
@@ -222,6 +229,7 @@ export const buscarGrupoPorId = async (grupoId: string) => {
 
     if (error) {
       console.error("Erro ao buscar grupo:", error);
+      toast.error("Não foi possível carregar o grupo.");
       return null;
     }
 
@@ -231,6 +239,7 @@ export const buscarGrupoPorId = async (grupoId: string) => {
     };
   } catch (error) {
     console.error("Error fetching group:", error);
+    toast.error("Não foi possível carregar o grupo.");
     return null;
   }
 }
@@ -457,6 +466,7 @@ export const buscarMembrosDosGrupos = async (gruposIds: string[]): Promise<Recor
 
   if (error) {
     console.error("Erro ao puxar membros:", error);
+    toast.error("Não foi possível carregar os membros dos grupos.");
     return {};
   }
 

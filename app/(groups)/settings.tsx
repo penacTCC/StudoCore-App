@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, ScrollView, Alert, Modal, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 
@@ -16,6 +16,7 @@ import { HADES } from "@/constants/hades";
 import Avatar from "@/components/ui/Avatar";
 import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
 import { SecaoConfig, LinhaSwitch, LinhaEscolha, LinhaPerigo } from "@/components/cronograma/LinhasConfig";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import {
     atualizarDadosGrupo,
@@ -25,6 +26,8 @@ import {
     excluirGrupoAtual,
 } from "@/services/grupos";
 import type { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
+import { toast } from "@/services/toast";
+import { confirm } from "@/services/confirm";
 
 type ModalEdicao = "dados" | "meta" | "convite" | null;
 
@@ -104,7 +107,7 @@ export default function GroupSettingsScreen() {
         setSalvando(false);
 
         if (error) {
-            Alert.alert("Erro ao salvar", error.message);
+            toast.error(error.message, "Erro ao salvar");
             return false;
         }
 
@@ -144,7 +147,7 @@ export default function GroupSettingsScreen() {
         const { error } = await excluirGrupoAtual(groupId as string);
 
         if (error) {
-            Alert.alert("Erro ao excluir grupo", error.message);
+            toast.error(error.message, "Erro ao excluir grupo");
             return;
         }
     };
@@ -162,10 +165,12 @@ export default function GroupSettingsScreen() {
     };
 
     const salvarAlterações = (salvar: () => void | Promise<void>) => {
-        Alert.alert("Salvar alterações", `Tem certeza que deseja salvar as alterações?`, [
-            { text: "Cancelar", style: "cancel" },
-            { text: "Salvar", style: "default", onPress: salvar },
-        ]);
+        confirm({
+            title: "Salvar alterações",
+            message: "Tem certeza que deseja salvar as alterações?",
+            confirmText: "Salvar",
+            onConfirm: salvar,
+        });
     };
 
     const handleLeaveGroup = () => {
@@ -175,58 +180,47 @@ export default function GroupSettingsScreen() {
             return;
         }
 
-        Alert.alert(
-            "Sair do Grupo",
-            `Tem certeza que deseja sair do ${grupo?.nome_grupo}? O grupo será apagado após esta ação.`,
-            [
-                { text: "Cancelar", style: "cancel" },
-                { text: "Sair", style: "destructive", onPress: () => router.push("/(groups)") },
-            ]
-        );
+        confirm({
+            title: "Sair do Grupo",
+            message: `Tem certeza que deseja sair do ${grupo?.nome_grupo}? O grupo será apagado após esta ação.`,
+            confirmText: "Sair",
+            destructive: true,
+            onConfirm: () => router.push("/(groups)"),
+        });
     };
 
     const confirmarSaidaComTransferencia = () => {
         if (!novoAdminId) {
-            Alert.alert("Escolha um novo admin", "Selecione uma pessoa para assumir a administração do grupo.");
+            toast.warning("Selecione uma pessoa para assumir a administração do grupo.", "Escolha um novo admin");
             return;
         }
 
         const novoAdmin = membros.find((membro) => membro.user_id === novoAdminId);
 
-        Alert.alert(
-            "Transferir administração",
-            `${novoAdmin?.userData?.nome_usuario ?? "Este membro"} será o novo admin antes de você sair do grupo.`,
-            [
-                { text: "Cancelar", style: "cancel" },
-                {
-                    text: "Confirmar",
-                    style: "destructive",
-                    onPress: () => {
-                        setModalTransferenciaAdmin(false);
-                        // TODO: chamar backend para transferir admin e remover o usuário atual do grupo.
-                        router.replace("/(groups)");
-                    },
-                },
-            ]
-        );
+        confirm({
+            title: "Transferir administração",
+            message: `${novoAdmin?.userData?.nome_usuario ?? "Este membro"} será o novo admin antes de você sair do grupo.`,
+            confirmText: "Confirmar",
+            destructive: true,
+            onConfirm: () => {
+                setModalTransferenciaAdmin(false);
+                // TODO: chamar backend para transferir admin e remover o usuário atual do grupo.
+                router.replace("/(groups)");
+            },
+        });
     };
 
     const handleDeleteGroup = () => {
-        Alert.alert(
-            "Excluir Grupo",
-            "Esta ação é irreversível. Todos os dados, arquivos e histórico do grupo serão apagados.",
-            [
-                { text: "Cancelar", style: "cancel" },
-                {
-                    text: "Excluir",
-                    style: "destructive",
-                    onPress: async () => {
-                        await excluirGrupo();
-                        router.push("/(groups)");
-                    },
-                },
-            ]
-        );
+        confirm({
+            title: "Excluir Grupo",
+            message: "Esta ação é irreversível. Todos os dados, arquivos e histórico do grupo serão apagados.",
+            confirmText: "Excluir",
+            destructive: true,
+            onConfirm: async () => {
+                await excluirGrupo();
+                router.push("/(groups)");
+            },
+        });
     };
 
     // Example output: "2026-06-10"
@@ -242,7 +236,7 @@ export default function GroupSettingsScreen() {
         if (!grupo?.codigo_convite) return;
 
         await Clipboard.setStringAsync(grupo.codigo_convite);
-        Alert.alert("Código copiado", "O código de convite foi copiado para a área de transferência.");
+        toast.success("O código de convite foi copiado para a área de transferência.", "Código copiado");
     };
 
     //Como é tudo o mesmo modal, aqui a gente verifica de qual campo é, para mudar os textos
@@ -595,10 +589,7 @@ export default function GroupSettingsScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {loading ? (
-                    <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 80 }}>
-                        <ActivityIndicator size="large" color={HADES.accentSolid} />
-                        <Text style={{ color: HADES.textMuted, marginTop: 16 }}>Carregando configurações...</Text>
-                    </View>
+                    <GroupSettingsSkeleton />
                 ) : (
                     <>
                         {/* Identidade do grupo */}
@@ -666,6 +657,60 @@ export default function GroupSettingsScreen() {
             {renderModal()}
             {renderModalTransferenciaAdmin()}
         </SafeAreaView>
+    );
+}
+
+function LinhaSkeleton({ ultima }: { ultima?: boolean }) {
+    return (
+        <View
+            style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 14,
+                borderBottomWidth: ultima ? 0 : 1,
+                borderBottomColor: HADES.borderSettings,
+            }}
+        >
+            <Skeleton width="40%" height={14} hades />
+            <View style={{ flex: 1 }} />
+            <Skeleton width={70} height={14} hades />
+        </View>
+    );
+}
+
+function SecaoConfigSkeleton({ tituloWidth }: { tituloWidth: number }) {
+    return (
+        <>
+            <Skeleton width={tituloWidth} height={12} hades style={{ marginTop: 20, marginBottom: 10, marginLeft: 4 }} />
+            <View
+                style={{
+                    backgroundColor: HADES.settingsCard,
+                    borderWidth: 1,
+                    borderColor: HADES.borderSettings,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                }}
+            >
+                <LinhaSkeleton />
+                <LinhaSkeleton ultima />
+            </View>
+        </>
+    );
+}
+
+function GroupSettingsSkeleton() {
+    return (
+        <>
+            <View style={{ alignItems: "center", marginBottom: 8, marginTop: 2, gap: 10 }}>
+                <SkeletonCircle size={88} hades />
+                <Skeleton width={140} height={18} hades />
+                <Skeleton width={190} height={13} hades />
+            </View>
+
+            <SecaoConfigSkeleton tituloWidth={60} />
+            <SecaoConfigSkeleton tituloWidth={150} />
+            <SecaoConfigSkeleton tituloWidth={110} />
+        </>
     );
 }
 

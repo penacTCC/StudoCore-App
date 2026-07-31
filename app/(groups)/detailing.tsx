@@ -1,5 +1,5 @@
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
-import { useEffect, useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
+import { useCallback, useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, TrendingUp } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
@@ -16,25 +16,37 @@ export default function DetailingScreen() {
     const [totalSessoesAnteriores, setTotalsessoesAnteriores] = useState(0);
 
     // Busca o histórico público do grupo atual para não misturar sessões de outros grupos.
-    const { sessions, loading } = useSessoesFoco(50, groupId);
+    const { sessions, loading, refresh: refreshSessions } = useSessoesFoco(50, groupId);
 
     //Busca de membros online agora
     const { totalOnline } = useMembrosOnline(groupId);
 
+    //Controla o estado do pull-to-refresh
+    const [atualizando, setAtualizando] = useState(false);
+
     //Busca o tempo total das sessões de foco
-    useEffect(() => {
-        const buscarTotal = async () => {
-            //Busca resultados de tempo
-            const resultado = await tempoTotalSessoesFoco(groupId);
-            const totalMinutosAnteriores = await tempoTotalSessoesFocoOntem(groupId);
+    const buscarTotal = useCallback(async () => {
+        //Busca resultados de tempo
+        const resultado = await tempoTotalSessoesFoco(groupId);
+        const totalMinutosAnteriores = await tempoTotalSessoesFocoOntem(groupId);
 
-            setTotal(resultado.horasFormatadas);
-            setTotalMinutos(resultado.totalMinutos);
-            setTotalsessoesAnteriores(totalMinutosAnteriores);
-        };
-
-        buscarTotal();
+        setTotal(resultado.horasFormatadas);
+        setTotalMinutos(resultado.totalMinutos);
+        setTotalsessoesAnteriores(totalMinutosAnteriores);
     }, [groupId]);
+
+    useEffect(() => {
+        buscarTotal();
+    }, [buscarTotal]);
+
+    const handleRefresh = async () => {
+        setAtualizando(true);
+        try {
+            await Promise.all([refreshSessions(), buscarTotal()]);
+        } finally {
+            setAtualizando(false);
+        }
+    };
 
     //Faz o cálculo percentual do aumento, em relação a ontem
     const percentual =
@@ -96,6 +108,9 @@ export default function DetailingScreen() {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                }
             >
                 {/* Resumo de hoje */}
                 <View

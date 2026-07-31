@@ -241,6 +241,19 @@ export function SheetMateriaFavorita({
                                 </View>
                             )}
 
+                            {demais.length === 0 && (
+                                <Text
+                                    style={{
+                                        fontSize: 13,
+                                        color: HADES.textMuted,
+                                        textAlign: "center",
+                                        marginTop: 20,
+                                    }}
+                                >
+                                    Você ainda só tem essa matéria cadastrada.
+                                </Text>
+                            )}
+
                             <View style={{ marginTop: 6 }}>
                                 {demais.map((materia, i) => (
                                     <TouchableOpacity

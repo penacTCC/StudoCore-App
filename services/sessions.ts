@@ -1,5 +1,6 @@
 import { supabase } from "@/repositories/supabase";
-import { SessaoFocoInsert, MemberSession } from "@/types/sessions";
+import { SessaoFocoInsert, MemberSession, SessaoFocoRow } from "@/types/sessions";
+import { pegarIntervaloSemanaAtual } from "@/utils/tempo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TEST_MODE_KEY = "@app_test_mode";
@@ -280,4 +281,28 @@ export const updateTabSessaoMembros = async (userid: string, sessaoid: string, u
         .eq('membro_id', userid)
         .eq('sessao_id', sessaoid);
     return { data, error };
+}
+
+//Busca as sessões de um dia específico do usuário (usado pra calcular o status dos blocos da aba Hoje)
+export const buscarSessoesDoDia = async (userId: string, dataISO: string) => {
+    const { data, error } = await supabase
+        .from('sessoes_foco')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('data_sessao', dataISO)
+    return { data: data as SessaoFocoRow[] | null, error };
+}
+
+//Busca sessões da semana atual (segunda a domingo) do usuário
+export const buscarSessoesSemana = async (userId: string) => {
+    const { inicio, fim } = pegarIntervaloSemanaAtual();
+
+    const { data, error } = await supabase
+        .from('sessoes_foco')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('data_sessao', inicio)
+        .lte('data_sessao', fim)
+        .order('created_at', { ascending: false });
+    return { data: data as SessaoFocoRow[] | null, error };
 }

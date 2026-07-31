@@ -15,6 +15,7 @@ import { SessaoFocoRow } from "@/types/sessions";
 import { ComecoSemana, membrosRankingAnalytics, PontoSerieDia } from "@/types/analytics";
 import { PeriodoAnalise, QuestoesMembroGrupo } from "@/components/analytics/GraficosAnalise";
 import { buscarSessoesPorUsuario } from "@/services/sessions";
+import { toast } from "@/services/toast";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { useMembrosGrupos } from "@/hooks/useMembrosGrupos";
 import { buscarMembrosGrupo, horasSemanaisGrupo } from "@/services/grupos";
@@ -35,19 +36,21 @@ export function useGraficosAnalytics(
     //========PESSOAL========
 
     //Busca sessões do usuário
+    const buscarSessoesUsuario = useCallback(async () => {
+        if(!userId) return
+        const {data, error} = await buscarSessoesPorUsuario(userId)
+        if(error) {
+            console.error(error)
+            toast.error("Não foi possível carregar suas sessões de estudo.")
+            return
+        }
+        setSessoesUsuario(data ?? [])
+    }, [userId])
+
     useFocusEffect(
         useCallback(() => {
-            const buscarSessoesUsuario = async () => {
-                if(!userId) return
-                const {data, error} = await buscarSessoesPorUsuario(userId)
-                if(error) {
-                    console.error(error)
-                    return
-                }
-                setSessoesUsuario(data ?? [])
-            }
             buscarSessoesUsuario()
-        }, [userId])
+        }, [buscarSessoesUsuario])
     )
 
     //-------Filtros de Data limite-------
@@ -183,10 +186,10 @@ export function useGraficosAnalytics(
     //========Aba Grupo========
 
     //Busca os grupos do usuário, para a tela de grupos
-    const {grupos} = useMeusGrupos()
+    const {grupos, atualizar: atualizarGrupos} = useMeusGrupos()
 
     //Busca os membros dos grupos
-    const {membrosPorGrupo} = useMembrosGrupos(grupos)
+    const {membrosPorGrupo, recarregar: recarregarMembrosGrupos} = useMembrosGrupos(grupos)
 
     // Grupo escolhido no seletor da aba Análise > Grupo (null = usa o primeiro da lista)
     const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null)
@@ -206,15 +209,15 @@ export function useGraficosAnalytics(
 
     //Horas semanais do grupo
     //Faz useEffect para pegar as horas semanais do grupo
-    useEffect(() => {
+    const carregarHorasSemanaGrupo = useCallback(async () => {
         if(!grupoSelecionadoId) return
-        const carregarHoras = async () => {
-            const horas = await horasSemanaisGrupo(grupoSelecionadoId as string)
-            setHorasSemanaGrupo(horas)
-            console.log('Horas' + horas)
-        }
-        carregarHoras()
+        const horas = await horasSemanaisGrupo(grupoSelecionadoId as string)
+        setHorasSemanaGrupo(horas)
     }, [grupoSelecionadoId])
+
+    useEffect(() => {
+        carregarHorasSemanaGrupo()
+    }, [carregarHorasSemanaGrupo])
 
     //Quantidade de membros em cada grupo
     const qtdMembrosGrupoSelecionado = grupoSelecionadoId
@@ -289,21 +292,22 @@ export function useGraficosAnalytics(
     const [membrosInativos, setMembrosInativos] = useState<MembroGrupoComPerfil[]>([])
     const [membrosTotais, setMembrosTotais] = useState<MembroGrupoComPerfil[]>([])
 
-    useEffect(() => {
-        //Cria um array com os usuários do grupo que não têm sessões de foco no período selecionado
-        const filtraUsuariosInativos = async () => {
-            //1. Busca os membros do grupo atual
-            if(!grupoSelecionadoId) return
-            const membrosDoGrupo = await buscarMembrosGrupo(grupoSelecionadoId)
-            setMembrosTotais(membrosDoGrupo)
+    //Cria um array com os usuários do grupo que não têm sessões de foco no período selecionado
+    const filtraUsuariosInativos = useCallback(async () => {
+        //1. Busca os membros do grupo atual
+        if(!grupoSelecionadoId) return
+        const membrosDoGrupo = await buscarMembrosGrupo(grupoSelecionadoId)
+        setMembrosTotais(membrosDoGrupo)
 
-            //2. Vê se no array de sessões de foco do período, tem os membros
-            const idsComSessao = new Set(sessoesGrupoNoPeriodo.map((s) => s.user_id))
-            const inativos = membrosDoGrupo.filter(m => !idsComSessao.has(m.user_id))
-            setMembrosInativos(inativos)
-        }
-        filtraUsuariosInativos()
+        //2. Vê se no array de sessões de foco do período, tem os membros
+        const idsComSessao = new Set(sessoesGrupoNoPeriodo.map((s) => s.user_id))
+        const inativos = membrosDoGrupo.filter(m => !idsComSessao.has(m.user_id))
+        setMembrosInativos(inativos)
     }, [grupoSelecionadoId, sessoesGrupoNoPeriodo])
+
+    useEffect(() => {
+        filtraUsuariosInativos()
+    }, [filtraUsuariosInativos])
 
     //Questões por membro: soma respondidas/acertadas de cada membro (a partir das
     //sessões do grupo no período) e junta com membrosTotais pra pegar nome/foto —
@@ -348,6 +352,25 @@ export function useGraficosAnalytics(
             percentualEvolucaoGrupo: calcularVariacaoPercentual(minutosAnteriores, minutosAtuais),
         }
     }, [sessoesGrupo.sessions, periodoAnalise])
+
+    //Atualiza todos os dados (pessoal + grupo) num só disparo, usado pelo pull-to-refresh.
+    const refresh = useCallback(async () => {
+        await Promise.all([
+            buscarSessoesUsuario(),
+            atualizarGrupos(),
+            recarregarMembrosGrupos(),
+            sessoesGrupo.refresh(),
+            carregarHorasSemanaGrupo(),
+            filtraUsuariosInativos(),
+        ])
+    }, [
+        buscarSessoesUsuario,
+        atualizarGrupos,
+        recarregarMembrosGrupos,
+        sessoesGrupo.refresh,
+        carregarHorasSemanaGrupo,
+        filtraUsuariosInativos,
+    ])
 
     //Ofensiva coletiva: número atual/recorde vêm de `grupos.ofensiva`/`melhor_ofensiva`
     //(fonte real, atualizada por registrarOfensivaGrupo a cada sessão salva com
@@ -407,5 +430,6 @@ export function useGraficosAnalytics(
         horasEvolucaoGrupo,
         percentualEvolucaoGrupo,
         ofensivaGrupo,
+        refresh,
     };
 }

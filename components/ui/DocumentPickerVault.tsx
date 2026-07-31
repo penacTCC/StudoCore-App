@@ -2,6 +2,7 @@ import { View, Text, ActivityIndicator, TouchableOpacity, Image } from "react-na
 import * as DocumentPicker from "expo-document-picker";
 import { FileUp, FileText, Image as ImageIcon } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
+import { toast } from "@/services/toast";
 
 interface SelectedFileInfo {
     uri: string;
@@ -56,6 +57,7 @@ export default function DocumentPickerVault({
             });
         } catch (error: any) {
             console.error("Erro ao selecionar arquivo:", error);
+            toast.error("Não foi possível selecionar o arquivo.");
         }
     };
 

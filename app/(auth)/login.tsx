@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     KeyboardAvoidingView,
     Platform,
-    Alert,
     StatusBar,
     Dimensions,
 } from "react-native";
@@ -17,6 +16,7 @@ import { router } from "expo-router";
 
 import { Eye, EyeOff, Github } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
+import { toast } from "@/services/toast";
 
 //Componentes da Aplicação
 import { DotPattern, LogoMark, BackButton, DragHandle } from "@/components/auth";
@@ -40,13 +40,13 @@ export default function LoginScreen() {
     const handleLogin = async () => {
         setIsLoading(true);
         if (!email || !password) {
-            Alert.alert("Campos obrigatórios", "Por favor, preencha o e-mail e a senha.");
+            toast.warning("Por favor, preencha o e-mail e a senha.", "Campos obrigatórios");
             setIsLoading(false);
             return;
         }
         const { error } = await loginComSenha(email, password);
         if (error) {
-            Alert.alert("Erro ao entrar", error.message);
+            toast.error(error.message, "Erro ao entrar");
         }
         setIsLoading(false);
     };

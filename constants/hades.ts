@@ -27,7 +27,7 @@ export const HADES = {
     borderSettings: "rgba(255,255,255,0.05)",
 
     // Texto
-    text: "#ffffff",
+    text: "#e8e8ea",
     textSecondary: "#c9ccd2",
     textMuted: "#8a8d96",
     textFaint: "#6b6e76",
@@ -83,4 +83,11 @@ export const CORES_PLANO = [
     HADES.amber,
     HADES.violet,
     HADES.red,
+    "#06b6d4", // ciano
+    "#ec4899", // rosa
+    "#14b8a6", // verde-água
+    "#f97316", // laranja
+    "#84cc16", // lima
+    "#8b5cf6", // roxo
+    "#eab308", // dourado
 ] as const;

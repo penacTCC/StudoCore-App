@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useFocusEffect } from "expo-router";
 import { buscarSessoesPorUsuario, buscarSessoesRecentes } from "@/services/sessions";
+import { toast } from "@/services/toast";
 import { SessaoFocoRow } from "@/types/sessions";
 
 /**
@@ -15,6 +16,7 @@ export const useSessoesFoco = (limit: number = 20, groupId?: string | null) => {
         const { data, error } = await buscarSessoesRecentes(limit, groupId);
         if (error) {
             console.error("Erro ao buscar sessões de foco:", error);
+            toast.error("Não foi possível carregar as sessões de foco.");
         } else {
             setSessions((data as SessaoFocoRow[]) || []);
         }
@@ -48,6 +50,7 @@ export const useSessoesUsuario = (userId: string | null | undefined) => {
         const { data, error } = await buscarSessoesPorUsuario(userId, 100);
         if (error) {
             console.error("Erro ao buscar sessões do usuário:", error);
+            toast.error("Não foi possível carregar suas sessões.");
         } else {
             const rows = (data as SessaoFocoRow[]) || [];
             setSavedSessions(rows.filter(s => s.status === 'salvo'));

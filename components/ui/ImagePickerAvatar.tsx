@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { View, Text, Image, TouchableOpacity, Alert } from "react-native";
+import { View, Text, Image, TouchableOpacity } from "react-native";
 import { Plus, Users } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "@/constants/colors";
 import { HADES } from "@/constants/hades";
 import { uploadArquivoBucket } from "@/services/supabaseStorage";
+import { toast } from "@/services/toast";
 
 type ImagePickerAvatarProps = {
     /** Bucket do Supabase Storage onde a imagem será enviada. Padrão: 'images' */
@@ -69,13 +70,13 @@ export default function ImagePickerAvatar({
             const { publicUrl, error } = await uploadArquivoBucket({ fileName, base64, fileExt, bucket });
 
             if (error || !publicUrl) {
-                Alert.alert("Erro ao enviar imagem", JSON.stringify(error));
+                toast.error(JSON.stringify(error), "Erro ao enviar imagem");
                 return;
             }
 
             onImageUploaded(publicUrl);
         } catch (error) {
-            Alert.alert("Erro ao selecionar imagem", JSON.stringify(error));
+            toast.error(JSON.stringify(error), "Erro ao selecionar imagem");
         }
     };
 

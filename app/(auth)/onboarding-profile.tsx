@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     ScrollView,
     StatusBar,
-    Alert,
     DeviceEventEmitter,
     ActivityIndicator,
 } from "react-native";
@@ -37,6 +36,7 @@ import { HADES } from "@/constants/hades";
 //Componentes do Projeto
 import { InputField } from "@/components/form";
 import { ImagePickerAvatar, WheelPicker } from "@/components/ui";
+import { toast } from "@/services/toast";
 
 //Serviços da aplicação
 import { useAuth } from "@/hooks/useAuth";
@@ -285,7 +285,7 @@ export default function OnboardingCarousel() {
             const { error } = await validarSessaoGoogle(params.code);
             if (error) {
                 const { data: { session } } = await obterSessaoAtual();
-                if (!session) Alert.alert("Erro no Google", error.message);
+                if (!session) toast.error(error.message, "Erro no Google");
             }
             setValidatingGoogleLogin(false);
         };
@@ -341,27 +341,27 @@ export default function OnboardingCarousel() {
         const user_name = username.trim();
 
         if (!nome || !user_name) {
-            Alert.alert("Dados incompletos", "Precisamos do seu nome e nome de usuário.");
+            toast.warning("Precisamos do seu nome e nome de usuário.", "Dados incompletos");
             setStep(0);
             return;
         }
         if (!objetivo || !fase || !ritmo || !dificuldade) {
-            Alert.alert("Faltam respostas", "Responda todas as etapas para continuar.");
+            toast.warning("Responda todas as etapas para continuar.", "Faltam respostas");
             return;
         }
         if (areas.length === 0) {
-            Alert.alert("Escolha ao menos uma área", "Selecione pelo menos uma área de foco.");
+            toast.warning("Selecione pelo menos uma área de foco.", "Escolha ao menos uma área");
             return;
         }
         if (isLoading || validatingGoogleLogin) {
-            Alert.alert("Aguarde", "Ainda estamos finalizando seu login.");
+            toast.info("Ainda estamos finalizando seu login.", "Aguarde");
             return;
         }
 
         const { data: { session } } = await obterSessaoAtual();
         const usuarioId = userId ?? session?.user.id;
         if (!usuarioId) {
-            Alert.alert("Erro", "Usuário não encontrado. Tente logar novamente.");
+            toast.error("Usuário não encontrado. Tente logar novamente.");
             return;
         }
 
@@ -375,12 +375,12 @@ export default function OnboardingCarousel() {
         // Verifica se o nome de usuário já existe (o banco também garante via UNIQUE).
         const { data: existentes, error: selectError } = await verificarNomeUsuario(user_name);
         if (selectError) {
-            Alert.alert("Erro ao buscar", selectError.message);
+            toast.error(selectError.message, "Erro ao buscar");
             setLoading(false);
             return;
         }
         if (existentes && existentes.length > 0) {
-            Alert.alert("Nome de usuário indisponível", "Esse nome de usuário já existe. Escolha outro.");
+            toast.warning("Esse nome de usuário já existe. Escolha outro.", "Nome de usuário indisponível");
             setLoading(false);
             if (needsIdentity) setStep(0);
             return;
@@ -396,9 +396,9 @@ export default function OnboardingCarousel() {
 
         if (insertError) {
             const dup = insertError.code === "23505";
-            Alert.alert(
-                dup ? "Nome de usuário indisponível" : "Erro ao salvar",
+            toast.error(
                 dup ? "Esse nome de usuário já existe. Escolha outro." : insertError.message,
+                dup ? "Nome de usuário indisponível" : "Erro ao salvar",
             );
             setLoading(false);
             if (dup && needsIdentity) setStep(0);
@@ -458,7 +458,10 @@ export default function OnboardingCarousel() {
                                 label="Continuar"
                                 onPress={() => {
                                     if (!realName.trim() || username.trim().length < 3) {
-                                        Alert.alert("Dados incompletos", "Informe seu nome e um nome de usuário (mín. 3 caracteres).");
+                                        toast.warning(
+                                            "Informe seu nome e um nome de usuário (mín. 3 caracteres).",
+                                            "Dados incompletos",
+                                        );
                                         return;
                                     }
                                     goNext();
@@ -473,21 +476,6 @@ export default function OnboardingCarousel() {
                         <SlideHeader title="Quando é o teu" accent="aniversário?" />
                         <View style={{ flex: 1, justifyContent: "center" }}>
                             <View style={{ flexDirection: "row", gap: 10, position: "relative" }}>
-                                <View
-                                    style={{
-                                        position: "absolute",
-                                        top: "50%",
-                                        left: 0,
-                                        right: 0,
-                                        height: 52,
-                                        transform: [{ translateY: -26 }],
-                                        borderRadius: 14,
-                                        backgroundColor: "rgba(255,154,0,0.10)",
-                                        borderWidth: 1,
-                                        borderColor: "rgba(255,154,0,0.35)",
-                                    }}
-                                    pointerEvents="none"
-                                />
                                 <WheelPicker items={DIAS} selectedIndex={dayIdx} onChange={setDayIdx} flex={1} />
                                 <WheelPicker items={MESES_ABREV} selectedIndex={monthIdx} onChange={setMonthIdx} flex={1.2} />
                                 <WheelPicker items={ANOS} selectedIndex={yearIdx} onChange={setYearIdx} flex={1.4} />

@@ -1,4 +1,5 @@
 import { buscarArquivosVisiveis } from "@/services/archives";
+import { toast } from "@/services/toast";
 import type { ArquivoDetalhe } from "@/types/archives";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -22,6 +23,7 @@ export const useArchives = (userId: string | undefined) => {
             setArchives(uniqueFiles); // Salva os dados no estado
         } catch (err) {
             console.error(err);
+            toast.error("Não foi possível carregar seus arquivos.");
         } finally {
             setIsLoading(false); // Finaliza o estado de carregamento
         }

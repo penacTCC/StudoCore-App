@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 //Componentes do Native
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Alert, DeviceEventEmitter } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { X, Brain } from "lucide-react-native";
 
@@ -16,6 +16,7 @@ import { ImagePickerAvatar } from "@/components/ui/";
 //Serviços
 import { buscarUsuarioLogado } from "@/services/auth";
 import { inserirGrupo, inserirMembro } from "@/services/grupos";
+import { toast } from "@/services/toast";
 
 export default function CreateGroupScreen() {
     const [name, setName] = useState("");
@@ -37,7 +38,7 @@ export default function CreateGroupScreen() {
             } = await buscarUsuarioLogado();
 
             if (!user) {
-                Alert.alert("Erro", "Usuário não autenticado.");
+                toast.error("Usuário não autenticado.");
                 return;
             }
 
@@ -52,12 +53,12 @@ export default function CreateGroupScreen() {
             );
 
             if (erroNovoGrupo) {
-                Alert.alert("Erro ao criar grupo", erroNovoGrupo.message);
+                toast.error(erroNovoGrupo.message, "Erro ao criar grupo");
                 return;
             }
 
             if (!novoGrupo) {
-                Alert.alert("Erro ao criar grupo", "O grupo não foi retornado pelo banco de dados.");
+                toast.error("O grupo não foi retornado pelo banco de dados.", "Erro ao criar grupo");
                 return;
             }
 
@@ -65,15 +66,15 @@ export default function CreateGroupScreen() {
             const { error: erroNovoMembro } = await inserirMembro(user.id, novoGrupo);
 
             if (erroNovoMembro) {
-                Alert.alert("Erro ao criar membro", erroNovoMembro.message);
+                toast.error(erroNovoMembro.message, "Erro ao criar membro");
                 return;
             }
 
-            Alert.alert("Sucesso!", "Grupo criado com sucesso!");
+            toast.success("Grupo criado com sucesso!", "Sucesso!");
             DeviceEventEmitter.emit("groupMembershipChanged");
             router.replace("/(groups)");
         } catch (error) {
-            Alert.alert("Erro ao criar grupo", JSON.stringify(error));
+            toast.error(JSON.stringify(error), "Erro ao criar grupo");
         } finally {
             setIsLoading(false);
         }

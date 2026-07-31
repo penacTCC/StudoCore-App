@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert, DeviceEventEmitter } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, DeviceEventEmitter, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LogOut, Settings, Maximize2, Users, ChevronRight } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
@@ -24,6 +24,9 @@ import {
     SheetMateriaFavorita,
     ModalHeatmap,
 } from "@/components/profile/ModaisPerfil";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { toast } from "@/services/toast";
+import { confirm } from "@/services/confirm";
 
 function getBadgeProgress(badge: BadgeType, stats: UserStats): number {
     switch (badge.requirementType) {
@@ -48,23 +51,27 @@ export default function ProfileScreen() {
     const [ofensivaAtual, setOfensivaAtual] = useState(0);
 
     const { userId } = useAuth();
-    const { materiasComCores } = useMaterias(userId);
+    const { materiasComCores, recarregarMaterias } = useMaterias(userId);
+
+    //Controla o estado do pull-to-refresh
+    const [atualizando, setAtualizando] = useState(false);
+
+    const fetchInitialData = useCallback(async () => {
+        const { data } = await buscarUsuarioLogado();
+        if (data?.user) {
+            setSessionUser(data.user);
+            const { data: prof } = await buscarPerfil(data.user.id);
+            if (prof) setProfileData(prof);
+            const gamificacao = await buscarGamificacao(data.user.id);
+            setMelhorOfensiva(gamificacao?.melhor_ofensiva ?? 0);
+            setOfensivaAtual(gamificacao?.ofensiva ?? 0);
+        }
+        const s = await loadProfileStats();
+        setStats(s);
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
-            const fetchInitialData = async () => {
-                const { data } = await buscarUsuarioLogado();
-                if (data?.user) {
-                    setSessionUser(data.user);
-                    const { data: prof } = await buscarPerfil(data.user.id);
-                    if (prof) setProfileData(prof);
-                    const gamificacao = await buscarGamificacao(data.user.id);
-                    setMelhorOfensiva(gamificacao?.melhor_ofensiva ?? 0);
-                    setOfensivaAtual(gamificacao?.ofensiva ?? 0);
-                }
-                const s = await loadProfileStats();
-                setStats(s);
-            };
             fetchInitialData();
 
             const sub = DeviceEventEmitter.addListener('badgesUnlocked', async () => {
@@ -73,8 +80,17 @@ export default function ProfileScreen() {
             });
 
             return () => sub.remove();
-        }, [])
+        }, [fetchInitialData])
     );
+
+    const handleRefresh = async () => {
+        setAtualizando(true);
+        try {
+            await Promise.all([fetchInitialData(), recarregarMaterias()]);
+        } finally {
+            setAtualizando(false);
+        }
+    };
 
     /**
      * @constant heatmapMatrix
@@ -135,23 +151,18 @@ export default function ProfileScreen() {
     }, [stats]);
 
     const handleSignOut = () => {
-        Alert.alert(
-            "Sair da conta",
-            "Tem certeza que deseja sair?",
-            [
-                { text: "Cancelar", style: "cancel" },
-                {
-                    text: "Sair",
-                    style: "destructive",
-                    onPress: async () => {
-                        const { error } = await deslogarUsuario();
-                        if (error) {
-                            Alert.alert("Erro", "Não foi possível sair da conta.");
-                        }
-                    },
-                },
-            ]
-        );
+        confirm({
+            title: "Sair da conta",
+            message: "Tem certeza que deseja sair?",
+            confirmText: "Sair",
+            destructive: true,
+            onConfirm: async () => {
+                const { error } = await deslogarUsuario();
+                if (error) {
+                    toast.error("Não foi possível sair da conta.");
+                }
+            },
+        });
     };
 
     const handleSubjectSelect = async (subjectName: string) => {
@@ -190,7 +201,7 @@ export default function ProfileScreen() {
         return name.slice(0, 2).toUpperCase();
     };
 
-    if (!stats) return null; // Aguarda dados para não bugar a UI
+    if (!stats) return <ProfileSkeleton />; // Aguarda dados para não bugar a UI
 
     const progressPercent = Math.min((stats.weeklyCurrent / stats.weeklyGoal) * 100, 100);
 
@@ -249,6 +260,9 @@ export default function ProfileScreen() {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                }
             >
                 <CartaoIdentidade
                     nome={profileData?.nome_usuario || "Usuário Convite"}
@@ -458,6 +472,173 @@ export default function ProfileScreen() {
                     setSelectedDayInfo(null);
                 }}
             />
+        </SafeAreaView>
+    );
+}
+
+/** Placeholder da tela de perfil enquanto as estatísticas ainda não resolveram. */
+function ProfileSkeleton() {
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+            <View
+                style={{
+                    paddingTop: 6,
+                    paddingHorizontal: 20,
+                    paddingBottom: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                }}
+            >
+                <Text style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
+                    Perfil
+                </Text>
+                <SkeletonCircle size={38} hades />
+            </View>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Cartão de identidade */}
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        padding: 18,
+                        marginBottom: 16,
+                    }}
+                >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                        <SkeletonCircle size={60} hades />
+                        <View style={{ flex: 1, gap: 8 }}>
+                            <Skeleton width="55%" height={19} hades />
+                            <Skeleton width="35%" height={12.5} hades />
+                        </View>
+                    </View>
+                    <View style={{ height: 1, backgroundColor: HADES.border, marginVertical: 16 }} />
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
+                        <Skeleton width={100} height={13} hades />
+                        <Skeleton width={70} height={14} hades />
+                    </View>
+                    <Skeleton width="100%" height={9} borderRadius={5} hades />
+                    <Skeleton width={150} height={12.5} hades style={{ marginTop: 9 }} />
+                </View>
+
+                {/* Histórico */}
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        padding: 16,
+                        marginBottom: 16,
+                    }}
+                >
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: 16,
+                        }}
+                    >
+                        <Skeleton width={90} height={16} hades />
+                        <Skeleton width={82} height={24} borderRadius={8} hades />
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 4 }}>
+                        {Array.from({ length: 14 }).map((_, col) => (
+                            <View key={col} style={{ gap: 4 }}>
+                                {Array.from({ length: 7 }).map((_, row) => (
+                                    <Skeleton key={row} width={14} height={14} borderRadius={3} hades />
+                                ))}
+                            </View>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Medalhas */}
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        padding: 16,
+                        marginBottom: 16,
+                    }}
+                >
+                    <Skeleton width={90} height={16} hades style={{ marginBottom: 16 }} />
+                    <View style={{ flexDirection: "row", gap: 12 }}>
+                        {[0, 1, 2].map((i) => (
+                            <View key={i} style={{ flex: 1, alignItems: "center", gap: 7 }}>
+                                <SkeletonCircle size={44} hades />
+                                <Skeleton width="80%" height={11} hades />
+                            </View>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Estatísticas */}
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        padding: 16,
+                        marginBottom: 16,
+                    }}
+                >
+                    <Skeleton width={150} height={12} hades />
+                    <Skeleton width={100} height={38} hades style={{ marginTop: 8 }} />
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            marginTop: 18,
+                            paddingTop: 16,
+                            borderTopWidth: 1,
+                            borderTopColor: HADES.border,
+                            gap: 16,
+                        }}
+                    >
+                        <View style={{ flex: 1, gap: 6 }}>
+                            <Skeleton width={60} height={12} hades />
+                            <Skeleton width={40} height={19} hades />
+                        </View>
+                        <View style={{ flex: 1, gap: 6 }}>
+                            <Skeleton width={90} height={12} hades />
+                            <Skeleton width={40} height={19} hades />
+                        </View>
+                    </View>
+                </View>
+
+                {/* Meus grupos */}
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        paddingVertical: 14,
+                        paddingHorizontal: 16,
+                        marginBottom: 16,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 13,
+                    }}
+                >
+                    <Skeleton width={44} height={44} borderRadius={13} hades />
+                    <View style={{ flex: 1, gap: 6 }}>
+                        <Skeleton width={100} height={15} hades />
+                        <Skeleton width={140} height={12} hades />
+                    </View>
+                </View>
+            </ScrollView>
         </SafeAreaView>
     );
 }

@@ -1,4 +1,5 @@
 import { buscarSessoesPorGrupo } from "@/services/sessions";
+import { toast } from "@/services/toast";
 import { SessaoFocoRow } from "@/types/sessions";
 import { useCallback, useEffect, useState } from "react";
 
@@ -16,6 +17,7 @@ export const useSessoesGrupo = (groupId?: string | null) => {
         const { data, error } = await buscarSessoesPorGrupo(groupId);
         if (error) {
             console.error("Erro ao buscar sessões de foco:", error);
+            toast.error("Não foi possível carregar as sessões do grupo.");
         } else {
             setSessions((data as SessaoFocoRow[]) || []);
         }
@@ -26,5 +28,5 @@ export const useSessoesGrupo = (groupId?: string | null) => {
         fetchSessions();
     }, [fetchSessions]);
 
-    return { sessions, loading };
+    return { sessions, loading, refresh: fetchSessions };
 };

@@ -7,6 +7,8 @@ import SearchBar from "./SearchBar";
 import StatCard from "./StatCard";
 import TabSelector from "./TabSelector";
 import WheelPicker from "./WheelPicker";
+import { ToastHost } from "./Toast";
+import { ConfirmDialogHost } from "./ConfirmDialog";
 
 export {
   ImagePickerAvatar,
@@ -18,4 +20,6 @@ export {
   StatCard,
   TabSelector,
   WheelPicker,
+  ToastHost,
+  ConfirmDialogHost,
 };

@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Share } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, Share, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ChevronLeft, Share2, Crown, Clock, ListChecks, Trophy, Medal, Flame, BookOpen, Swords } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import Avatar from "@/components/ui/Avatar";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { buscarPerfil } from "@/services/auth";
 import { buscarGamificacao } from "@/services/gamificacao";
 import { APP_BADGES } from "@/constants/badges";
@@ -13,6 +14,7 @@ import { getAvatarColor } from "@/constants/helpers";
 import type { Profile } from "@/types/profile";
 import type { Gamificacao } from "@/types/gamificacao";
 import type { LucideIcon } from "lucide-react-native";
+import { toast } from "@/services/toast";
 
 type PerfilComparavel = {
     profile: Profile;
@@ -36,28 +38,36 @@ export default function CompareProfileScreen() {
     const [eu, setEu] = useState<PerfilComparavel | null>(null);
     const [ele, setEle] = useState<PerfilComparavel | null>(null);
 
+    //Controla o estado do pull-to-refresh
+    const [atualizando, setAtualizando] = useState(false);
+
+    const carregarLado = useCallback(async (id: string): Promise<PerfilComparavel | null> => {
+        const { data: profile } = await buscarPerfil(id);
+        if (!profile) return null;
+        const gamificacao = await buscarGamificacao(id);
+        return { profile, gamificacao };
+    }, []);
+
     useEffect(() => {
         if (!meuId || !userId) return;
-
-        const carregarLado = async (id: string): Promise<PerfilComparavel | null> => {
-            const { data: profile } = await buscarPerfil(id);
-            if (!profile) return null;
-            const gamificacao = await buscarGamificacao(id);
-            return { profile, gamificacao };
-        };
-
         carregarLado(meuId).then(setEu);
         carregarLado(userId).then(setEle);
-    }, [meuId, userId]);
+    }, [meuId, userId, carregarLado]);
+
+    const handleRefresh = async () => {
+        if (!meuId || !userId) return;
+        setAtualizando(true);
+        try {
+            const [novoEu, novoEle] = await Promise.all([carregarLado(meuId), carregarLado(userId)]);
+            setEu(novoEu);
+            setEle(novoEle);
+        } finally {
+            setAtualizando(false);
+        }
+    };
 
     if (!eu || !ele) {
-        return (
-            <SafeAreaView
-                style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}
-            >
-                <ActivityIndicator color={HADES.accentSolid} />
-            </SafeAreaView>
-        );
+        return <CompareProfileSkeleton />;
     }
 
     const corEu = corDoUsuario(eu.profile.nome_usuario);
@@ -85,7 +95,7 @@ export default function CompareProfileScreen() {
     };
 
     const desafiar = () => {
-        Alert.alert("Em breve", "O modo Desafio (1x1) ainda está em desenvolvimento.");
+        toast.info("O modo Desafio (1x1) ainda está em desenvolvimento.", "Em breve");
     };
 
     return (
@@ -114,6 +124,9 @@ export default function CompareProfileScreen() {
                 style={{ flex: 1 }}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
+                refreshControl={
+                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                }
             >
                 {/* VS hero */}
                 <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingVertical: 24 }}>
@@ -246,6 +259,79 @@ export default function CompareProfileScreen() {
                     <Swords size={18} color="#fff" />
                     <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Desafiar {ele.profile.nome_usuario}</Text>
                 </TouchableOpacity>
+            </View>
+        </SafeAreaView>
+    );
+}
+
+function CompareProfileSkeleton() {
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top", "bottom"]}>
+            <View
+                style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 20,
+                    paddingTop: 6,
+                    paddingBottom: 12,
+                }}
+            >
+                <View style={estilos.botaoCircular} />
+                <Skeleton width={50} height={16} hades />
+                <View style={estilos.botaoCircular} />
+            </View>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
+            >
+                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingVertical: 24 }}>
+                    <View style={{ width: 110, alignItems: "center", gap: 10 }}>
+                        <SkeletonCircle size={78} hades />
+                        <Skeleton width={80} height={14} hades />
+                        <Skeleton width={40} height={11} hades />
+                    </View>
+
+                    <View style={{ flex: 1, alignItems: "center", paddingTop: 20, gap: 8 }}>
+                        <Skeleton width={100} height={30} hades />
+                        <Skeleton width={60} height={10} hades />
+                    </View>
+
+                    <View style={{ width: 110, alignItems: "center", gap: 10 }}>
+                        <SkeletonCircle size={78} hades />
+                        <Skeleton width={80} height={14} hades />
+                        <Skeleton width={40} height={11} hades />
+                    </View>
+                </View>
+
+                <View style={{ gap: 20, paddingTop: 4 }}>
+                    {[0, 1, 2, 3, 4].map((i) => (
+                        <View key={i}>
+                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                                <Skeleton width={44} height={18} hades />
+                                <Skeleton width={80} height={10} hades />
+                                <Skeleton width={44} height={18} hades />
+                            </View>
+                            <Skeleton width="100%" height={8} borderRadius={4} hades />
+                        </View>
+                    ))}
+                </View>
+
+                <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: HADES.border }}>
+                    <View style={{ alignItems: "center", marginBottom: 12 }}>
+                        <Skeleton width={130} height={10} hades />
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                        <Skeleton width="100%" height={44} borderRadius={12} hades style={{ flex: 1 }} />
+                        <Skeleton width="100%" height={44} borderRadius={12} hades style={{ flex: 1 }} />
+                    </View>
+                </View>
+            </ScrollView>
+
+            <View style={{ paddingHorizontal: 20, paddingBottom: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: HADES.border }}>
+                <Skeleton width="100%" height={54} borderRadius={15} hades />
             </View>
         </SafeAreaView>
     );

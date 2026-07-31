@@ -5,11 +5,12 @@ import {
     TextInput,
     TouchableOpacity,
     ScrollView,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
 } from "react-native";
+import { toast } from "@/services/toast";
+import { confirm } from "@/services/confirm";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, Save, Trash2 } from "lucide-react-native";
@@ -18,6 +19,7 @@ import { buscarPerfil, buscarUsuarioLogado, salvarDadosPerfil, verificarNomeUsua
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ImagePickerAvatar } from "@/components/ui";
 import { SecaoConfig, LinhaSwitch, LinhaPerigo } from "@/components/cronograma/LinhasConfig";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { Profile } from "@/types/profile";
 
 export default function SettingsScreen() {
@@ -64,7 +66,7 @@ export default function SettingsScreen() {
 
     const handleSave = async () => {
         if (!username.trim() || !realName.trim()) {
-            Alert.alert("Erro", "Nome e nome de usuário são obrigatórios.");
+            toast.error("Nome e nome de usuário são obrigatórios.");
             return;
         }
 
@@ -74,12 +76,12 @@ export default function SettingsScreen() {
             if (username !== profileData?.nome_usuario) {
                 const { data, error: selectError } = await verificarNomeUsuario(username);
                 if (selectError) {
-                    Alert.alert("Erro", "Não foi possível verificar seu nome de usuário.");
+                    toast.error("Não foi possível verificar seu nome de usuário.");
                     setSaving(false);
                     return;
                 }
                 if (data && data.length > 0) {
-                    Alert.alert("Aviso", "Este nome de usuário já está sendo usado por outra pessoa. Escolha outro!");
+                    toast.warning("Este nome de usuário já está sendo usado por outra pessoa. Escolha outro!", "Aviso");
                     setSaving(false);
                     return;
                 }
@@ -94,14 +96,14 @@ export default function SettingsScreen() {
             );
 
             if (result.error) {
-                Alert.alert("Erro", "Não foi possível salvar os dados. " + result.error.message);
+                toast.error("Não foi possível salvar os dados. " + result.error.message);
             } else {
-                Alert.alert("Sucesso", "Perfil atualizado com sucesso!");
+                toast.success("Perfil atualizado com sucesso!");
                 router.back();
             }
         } catch (error) {
             console.error("Erro ao salvar:", error);
-            Alert.alert("Erro", "Não foi possível salvar os dados.");
+            toast.error("Não foi possível salvar os dados.");
         } finally {
             setSaving(false);
         }
@@ -118,33 +120,22 @@ export default function SettingsScreen() {
     };
 
     const handleClearCache = () => {
-        Alert.alert(
-            "Limpar Dados Locais",
-            "Isso apagará suas estatísticas simuladas (heatmap, horas falsas) e o histórico local. Deseja continuar?",
-            [
-                { text: "Cancelar", style: "cancel" },
-                {
-                    text: "Limpar",
-                    style: "destructive",
-                    onPress: async () => {
-                        await AsyncStorage.multiRemove(["@app_preferences_vibration", "@app_test_mode"]);
-                        setVibrationEnabled(true);
-                        setTestModeEnabled(false);
-                        Alert.alert("Sucesso", "Cache limpo. Reinicie o aplicativo para ver o efeito completamente.");
-                    },
-                },
-            ]
-        );
+        confirm({
+            title: "Limpar Dados Locais",
+            message: "Isso apagará suas estatísticas simuladas (heatmap, horas falsas) e o histórico local. Deseja continuar?",
+            confirmText: "Limpar",
+            destructive: true,
+            onConfirm: async () => {
+                await AsyncStorage.multiRemove(["@app_preferences_vibration", "@app_test_mode"]);
+                setVibrationEnabled(true);
+                setTestModeEnabled(false);
+                toast.success("Cache limpo. Reinicie o aplicativo para ver o efeito completamente.");
+            },
+        });
     };
 
     if (loading) {
-        return (
-            <SafeAreaView
-                style={{ flex: 1, backgroundColor: HADES.settingsBg, alignItems: "center", justifyContent: "center" }}
-            >
-                <ActivityIndicator size="large" color={HADES.accentSolid} />
-            </SafeAreaView>
-        );
+        return <SettingsSkeleton />;
     }
 
     return (
@@ -303,6 +294,49 @@ export default function SettingsScreen() {
                     </SecaoConfig>
                 </ScrollView>
             </KeyboardAvoidingView>
+        </SafeAreaView>
+    );
+}
+
+function SettingsSkeleton() {
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.settingsBg }} edges={["top"]}>
+            <View
+                style={{
+                    paddingTop: 6,
+                    paddingHorizontal: 20,
+                    paddingBottom: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                }}
+            >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <Skeleton width={22} height={22} borderRadius={6} hades />
+                    <Skeleton width={140} height={20} hades />
+                </View>
+                <Skeleton width={20} height={20} borderRadius={4} hades />
+            </View>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={{ alignItems: "center", marginBottom: 20 }}>
+                    <SkeletonCircle size={88} hades />
+                </View>
+
+                <Skeleton width={120} height={12} hades style={{ marginBottom: 10, marginLeft: 4 }} />
+
+                <View style={{ gap: 16, marginBottom: 20 }}>
+                    <Skeleton width="100%" height={49} borderRadius={12} hades />
+                    <Skeleton width="100%" height={49} borderRadius={12} hades />
+                </View>
+
+                <Skeleton width="100%" height={64} borderRadius={14} hades style={{ marginBottom: 20 }} />
+                <Skeleton width="100%" height={170} borderRadius={14} hades />
+            </ScrollView>
         </SafeAreaView>
     );
 }

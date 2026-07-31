@@ -51,11 +51,12 @@ export default function BlocoHoje({ bloco, ultimo, onIniciarFoco, onPress }: Pro
         >
             {/* Horário */}
             <Text
+                numberOfLines={1}
                 style={{
                     position: "absolute",
-                    left: -56,
+                    left: -60,
                     top: agora ? 2 : 0,
-                    width: 40,
+                    width: 44,
                     textAlign: "right",
                     fontSize: 12,
                     fontWeight: agora ? "700" : "600",
@@ -113,22 +114,27 @@ export default function BlocoHoje({ bloco, ultimo, onIniciarFoco, onPress }: Pro
                     style={{
                         borderWidth: 1,
                         borderStyle: "dashed",
-                        borderColor: "rgba(255,255,255,0.10)",
+                        borderColor: "rgba(48,209,88,0.35)",
+                        backgroundColor: "rgba(48,209,88,0.06)",
                         borderRadius: 14,
                         paddingVertical: 11,
                         paddingHorizontal: 15,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
                     }}
                 >
-                    <Coffee size={16} color={HADES.textMuted} />
-                    <Text style={{ fontSize: 14, color: HADES.textSecondary, fontWeight: "500" }}>
-                        Descanso
-                    </Text>
-                    <Text style={{ fontSize: 12, color: HADES.textFaint, marginLeft: "auto" }}>
-                        {formatarDuracao(bloco.duracaoMin)}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <Coffee size={16} color={HADES.green} />
+                        <Text style={{ fontSize: 14, color: HADES.textSecondary, fontWeight: "500" }}>
+                            Descanso
+                        </Text>
+                        <Text style={{ fontSize: 12, color: HADES.textFaint, marginLeft: "auto" }}>
+                            {formatarDuracao(bloco.duracaoMin)}
+                        </Text>
+                    </View>
+                    {bloco.conflitaCom && (
+                        <Text style={{ fontSize: 11, color: HADES.amber, marginTop: 6 }}>
+                            Conflita com {bloco.conflitaCom}
+                        </Text>
+                    )}
                 </View>
             ) : agora ? (
                 <LinearGradient
@@ -169,6 +175,11 @@ export default function BlocoHoje({ bloco, ultimo, onIniciarFoco, onPress }: Pro
                     <Text style={{ fontSize: 13, color: HADES.textSecondary, marginTop: 2 }}>
                         {bloco.topico} · {formatarDuracao(bloco.duracaoMin)}
                     </Text>
+                    {bloco.conflitaCom && (
+                        <Text style={{ fontSize: 11, color: HADES.amber, marginTop: 4 }}>
+                            Conflita com {bloco.conflitaCom}
+                        </Text>
+                    )}
 
                     <View
                         style={{
@@ -230,6 +241,11 @@ export default function BlocoHoje({ bloco, ultimo, onIniciarFoco, onPress }: Pro
                         <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 2 }}>
                             {bloco.topico} · {formatarDuracao(bloco.duracaoMin)}
                         </Text>
+                        {bloco.conflitaCom && (
+                            <Text style={{ fontSize: 11, color: HADES.amber, marginTop: 3 }}>
+                                Conflita com {bloco.conflitaCom}
+                            </Text>
+                        )}
                     </View>
 
                     {passado && SELO[bloco.status as keyof typeof SELO] && (

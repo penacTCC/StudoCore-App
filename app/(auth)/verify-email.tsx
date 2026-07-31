@@ -6,7 +6,6 @@ import {
     StatusBar,
     Image,
     ActivityIndicator,
-    Alert,
 } from "react-native";
 
 //Componentes do Expo Router
@@ -23,6 +22,7 @@ import { useEffect, useState } from "react";
 
 //Serviços
 import { confirmarCodigoCadastro, obtemEmailUsuario, reenviarEmailConfirmacao } from "@/services/auth";
+import { toast } from "@/services/toast";
 
 export default function VerifyEmailScreen() {
     const [code, setCode] = useState("");
@@ -36,11 +36,11 @@ export default function VerifyEmailScreen() {
 
     const handleConfirmed = async () => {
         if (code.trim().length !== 6) {
-            Alert.alert("Código incompleto", "Digite o código de 6 dígitos enviado para seu e-mail.");
+            toast.warning("Digite o código de 6 dígitos enviado para seu e-mail.", "Código incompleto");
             return;
         }
         if (!email) {
-            Alert.alert("Erro", "Não foi possível obter o e-mail. Volte e tente novamente.");
+            toast.error("Não foi possível obter o e-mail. Volte e tente novamente.");
             return;
         }
 
@@ -50,7 +50,7 @@ export default function VerifyEmailScreen() {
         const { error } = await confirmarCodigoCadastro(email, code.trim());
 
         if (error) {
-            Alert.alert("Código inválido", "O código digitado está incorreto ou expirou. Tente reenviar.");
+            toast.error("O código digitado está incorreto ou expirou. Tente reenviar.", "Código inválido");
             setIsChecking(false);
             return;
         }
@@ -67,7 +67,7 @@ export default function VerifyEmailScreen() {
         const { email: currentEmail } = await obtemEmailUsuario();
 
         if (!currentEmail) {
-            Alert.alert("Erro", "Não foi possível obter o e-mail. Volte e tente novamente.");
+            toast.error("Não foi possível obter o e-mail. Volte e tente novamente.");
             setIsResending(false);
             return;
         }
@@ -76,10 +76,10 @@ export default function VerifyEmailScreen() {
         const { error } = await reenviarEmailConfirmacao(currentEmail);
 
         if (error) {
-            Alert.alert("Erro ao reenviar", error.message);
+            toast.error(error.message, "Erro ao reenviar");
         } else {
             setCode("");
-            Alert.alert("Código reenviado!", "Um novo código foi enviado para " + currentEmail + ".");
+            toast.success("Um novo código foi enviado para " + currentEmail + ".", "Código reenviado!");
         }
         setIsResending(false);
     };

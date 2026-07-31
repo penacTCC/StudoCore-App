@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 //Componentes do react native
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +17,8 @@ import { HADES } from "@/constants/hades";
 //Componentes do projeto
 import ShareLink from "@/components/ShareLink";
 import { inserirCodigoConvite } from "@/services/grupos";
+import { toast } from "@/services/toast";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 
 type Contato = {
     id: string;
@@ -42,7 +44,12 @@ export default function InviteScreen() {
     //o que também corrige sozinho qualquer valor duplicado que já esteja salvo)
     useEffect(() => {
         if (grupoCode === inviteLink) return;
-        inserirCodigoConvite(grupoId as string, inviteLink);
+        inserirCodigoConvite(grupoId as string, inviteLink).then(({ error }) => {
+            if (error) {
+                console.error("Erro ao salvar código de convite:", error);
+                toast.error("Não foi possível gerar o link de convite.");
+            }
+        });
     }, []);
 
     //Busca os contatos do telefone que tenham número de telefone cadastrado
@@ -90,7 +97,7 @@ export default function InviteScreen() {
             const phoneNumber = formatPhoneNumber(zapNumber);
             enviarConviteWhatsapp(phoneNumber);
         } else {
-            Alert.alert("Número de telefone inválido");
+            toast.warning("Número de telefone inválido");
         }
     };
 
@@ -103,7 +110,7 @@ export default function InviteScreen() {
         }
 
         if (digitos.length < 10) {
-            Alert.alert("Número de telefone inválido");
+            toast.warning("Número de telefone inválido");
             return;
         }
 
@@ -194,7 +201,27 @@ export default function InviteScreen() {
                         Seus Contatos
                     </Text>
 
-                    {carregandoContatos && <ActivityIndicator color={HADES.textMuted} />}
+                    {carregandoContatos && (
+                        <View style={{ gap: 8 }}>
+                            {[0, 1, 2].map((i) => (
+                                <View
+                                    key={i}
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        backgroundColor: HADES.surface,
+                                        borderWidth: 1,
+                                        borderColor: HADES.border,
+                                        padding: 12,
+                                        borderRadius: 14,
+                                    }}
+                                >
+                                    <SkeletonCircle size={36} hades style={{ marginRight: 12 }} />
+                                    <Skeleton width="50%" height={14} hades />
+                                </View>
+                            ))}
+                        </View>
+                    )}
 
                     {!carregandoContatos && permissaoNegada && (
                         <Text style={{ fontSize: 14, color: HADES.textDim }}>

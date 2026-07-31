@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { X, Lightbulb, CheckCheck, Trophy, RotateCw, Lock, Send, Bookmark, Clock, Check } from "lucide-react-native";
@@ -9,6 +9,7 @@ import { salvarSessaoFoco, atualizarSessaoFoco, calculateFocusSessionMinutes } f
 import { syncProfileStatsAfterFocusSession } from "@/services/profileStats";
 import { registrarSessaoConcluida } from "@/services/gamificacao";
 import { registrarOfensivaGrupo } from "@/services/grupos";
+import { toast } from "@/services/toast";
 
 // Helper para misturar qualquer array (Fisher-Yates) sem mutar o original
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -71,7 +72,7 @@ export default function FocusFeedbackModal() {
     const persistFocusSession = async (status: string) => {
         // Impede gravação sem usuário autenticado, porque a tabela exige `user_id`.
         if (!userId) {
-            Alert.alert("Erro", "Usuário não autenticado.");
+            toast.error("Usuário não autenticado.");
             return false;
         }
 
@@ -136,7 +137,7 @@ export default function FocusFeedbackModal() {
 
         if (dbError) {
             console.error("Erro ao salvar sessão:", dbError);
-            Alert.alert("Erro", "Não foi possível salvar a sessão. Tente novamente.");
+            toast.error("Não foi possível salvar a sessão. Tente novamente.");
             return false;
         }
 
@@ -152,7 +153,7 @@ export default function FocusFeedbackModal() {
         if (!showResults) {
             // Passo 1: Avaliar/Validar
             if (!isComplete) {
-                Alert.alert("Incompleto", "Por favor, responda todas as questões.");
+                toast.warning("Por favor, responda todas as questões.", "Incompleto");
                 return;
             }
             const initialStatus = score > 7 ? "salvo" : "pendente";
@@ -161,7 +162,7 @@ export default function FocusFeedbackModal() {
         } else {
             // Passo 2: Salvar ou atualizar sessão no Supabase
             if (!userId) {
-                Alert.alert("Erro", "Usuário não autenticado.");
+                toast.error("Usuário não autenticado.");
                 return;
             }
 
@@ -223,7 +224,7 @@ export default function FocusFeedbackModal() {
 
             if (dbError) {
                 console.error("Erro ao salvar sessão:", dbError);
-                Alert.alert("Erro", "Não foi possível salvar a sessão. Tente novamente.");
+                toast.error("Não foi possível salvar a sessão. Tente novamente.");
                 return;
             }
 

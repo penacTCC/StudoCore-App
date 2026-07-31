@@ -1,4 +1,5 @@
 import { supabase } from "@/repositories/supabase";
+import { toast } from "@/services/toast";
 import type { Gamificacao } from "@/types/gamificacao";
 
 const SELECT_GAMIFICACAO = "user_id, ofensiva, melhor_ofensiva, ultima_data_estudo";
@@ -17,6 +18,7 @@ export const buscarGamificacao = async (userId: string): Promise<Gamificacao | n
 
   if (error) {
     console.error("Erro ao buscar gamificação:", error);
+    toast.error("Não foi possível carregar sua ofensiva.");
     return null;
   }
 

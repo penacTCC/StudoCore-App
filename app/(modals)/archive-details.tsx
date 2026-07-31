@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Platform } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
 import { FileText, Image as ImageIcon, FileUp, Trash2 } from "lucide-react-native";
 import { File, Paths } from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
@@ -13,6 +13,8 @@ import { deleteFileFromB2, getAuthenticatedDownloadUrl } from "@/services/backbl
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { deletaRegistro } from "@/services/archives";
 import { detalheArquivoProps } from "@/types/archives";
+import { toast } from "@/services/toast";
+import { confirm } from "@/services/confirm";
 
 /**
  * Modal (bottom sheet) responsável por exibir os detalhes de um arquivo.
@@ -48,45 +50,36 @@ export default function FileDetailModal({
      * Ela pede uma confirmação antes de realizar a exclusão.
      */
     const handleDelete = () => {
-        // Exibe um alerta nativo pedindo confirmação do usuário
-        Alert.alert(
-            "Deletar Arquivo",
-            "Tem certeza que deseja deletar este arquivo? Esta ação não pode ser desfeita.",
-            [
-                { text: "Cancelar", style: "cancel" }, // Botão de cancelar
-                {
-                    text: "Deletar",
-                    style: "destructive", // Estilo vermelho no iOS
-                    onPress: async () => {
-                        try {
-                            // Deleta o arquivo fisicamente do Backblaze primeiro.
-                            // Se falhar no Backblaze, a execução para aqui e não deleta do Supabase.
-                            if (detalheArquivo.backblaze_file_id && detalheArquivo.storage_path) {
-                                await deleteFileFromB2(
-                                    detalheArquivo.storage_path,
-                                    detalheArquivo.backblaze_file_id
-                                );
-                            }
+        confirm({
+            title: "Deletar Arquivo",
+            message: "Tem certeza que deseja deletar este arquivo? Esta ação não pode ser desfeita.",
+            confirmText: "Deletar",
+            destructive: true,
+            onConfirm: async () => {
+                try {
+                    // Deleta o arquivo fisicamente do Backblaze primeiro.
+                    // Se falhar no Backblaze, a execução para aqui e não deleta do Supabase.
+                    if (detalheArquivo.backblaze_file_id && detalheArquivo.storage_path) {
+                        await deleteFileFromB2(detalheArquivo.storage_path, detalheArquivo.backblaze_file_id);
+                    }
 
-                            // Deleta o registro referente a este arquivo na tabela 'arquivos' do Supabase
-                            const { error } = await deletaRegistro({ arquivoId: detalheArquivo.id });
-                            if (error) throw error; // Se a API retornar erro, cai no catch abaixo
+                    // Deleta o registro referente a este arquivo na tabela 'arquivos' do Supabase
+                    const { error } = await deletaRegistro({ arquivoId: detalheArquivo.id });
+                    if (error) throw error; // Se a API retornar erro, cai no catch abaixo
 
-                            // Mostra alerta de sucesso
-                            Alert.alert("Sucesso", "Arquivo deletado com sucesso!");
+                    // Mostra alerta de sucesso
+                    toast.success("Arquivo deletado com sucesso!");
 
-                            onRefresh();
+                    onRefresh();
 
-                            // Fecha o modal atualizando o estado no componente pai
-                            onClose();
-                        } catch (error: any) {
-                            console.error(error);
-                            Alert.alert("Erro", "Não foi possível deletar o arquivo.");
-                        }
-                    },
-                },
-            ]
-        );
+                    // Fecha o modal atualizando o estado no componente pai
+                    onClose();
+                } catch (error: any) {
+                    console.error(error);
+                    toast.error("Não foi possível deletar o arquivo.");
+                }
+            },
+        });
     };
 
     /**
@@ -100,7 +93,7 @@ export default function FileDetailModal({
 
         const filePath = detalheArquivo?.storage_path;
         if (!filePath) {
-            Alert.alert("Erro", "Caminho do arquivo não encontrado.");
+            toast.error("Caminho do arquivo não encontrado.");
             return;
         }
 
@@ -152,7 +145,7 @@ export default function FileDetailModal({
             }
         } catch (error: any) {
             console.error("Erro ao abrir arquivo:", error);
-            Alert.alert("Erro", "Não foi possível abrir o documento no momento.");
+            toast.error("Não foi possível abrir o documento no momento.");
         } finally {
             setIsOpening(false);
 

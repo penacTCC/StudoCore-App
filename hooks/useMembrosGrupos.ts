@@ -1,4 +1,5 @@
 import { buscarMembrosDosGrupos } from "@/services/grupos";
+import { toast } from "@/services/toast";
 import type { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -22,6 +23,7 @@ export function useMembrosGrupos(grupos: Grupo[]) {
       setMembrosPorGrupo(membros);
     } catch (erro) {
       console.error("Erro inesperado:", erro);
+      toast.error("Não foi possível carregar os membros dos grupos.");
     } finally {
       setCarregando(false);
     }
@@ -33,5 +35,5 @@ export function useMembrosGrupos(grupos: Grupo[]) {
     }, [gruposIds])
   );
 
-  return { membrosPorGrupo, carregando };
+  return { membrosPorGrupo, carregando, recarregar: buscarMembros };
 }

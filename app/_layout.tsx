@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { SplashScreen, Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
 import * as QueryParams from "expo-auth-session/build/QueryParams";
@@ -10,9 +11,12 @@ import { useAuthState } from "@/hooks/useAuthState";
 import { useStatusMembroGrupo } from "@/hooks/useStatusMembroGrupo";
 import { useRouteGuard } from "@/hooks/useRoutGuard";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { ToastHost } from "@/components/ui/Toast";
+import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
 import { HADES } from "@/constants/hades";
 import MedalAlert from "@/components/MedalAlert";
 import { validarSessaoPorTokens } from "@/services/auth";
+import { toast } from "@/services/toast";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -55,6 +59,7 @@ export default function RootLayout() {
                 const { error } = await validarSessaoPorTokens(params.access_token, params.refresh_token);
                 if (error) {
                     console.error("Erro ao validar tokens de recuperação:", error);
+                    toast.error("Este link de recuperação é inválido ou expirou.");
                 }
             }
 
@@ -82,24 +87,28 @@ export default function RootLayout() {
 
     if (!isInitialized || processandoLinkAuth) return <LoadingScreen />
     return (
-        <SafeAreaProvider>
-            <View style={{ flex: 1, backgroundColor: HADES.bg }}>
-                <StatusBar style="light" />
-                <MedalAlert />
-                <Stack
-                    screenOptions={{
-                        headerShown: false,
-                        contentStyle: { backgroundColor: HADES.bg },
-                        animation: "fade",
-                    }}
-                >
-                    <Stack.Screen name="index" />
-                    <Stack.Screen name="(auth)" />
-                    <Stack.Screen name="(tabs)" />
-                    <Stack.Screen name="(groups)" />
-                    <Stack.Screen name="(modals)" options={{ headerShown: false }} />
-                </Stack>
-            </View>
-        </SafeAreaProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaProvider>
+                <View style={{ flex: 1, backgroundColor: HADES.bg }}>
+                    <StatusBar style="light" />
+                    <MedalAlert />
+                    <ToastHost />
+                    <ConfirmDialogHost />
+                    <Stack
+                        screenOptions={{
+                            headerShown: false,
+                            contentStyle: { backgroundColor: HADES.bg },
+                            animation: "fade",
+                        }}
+                    >
+                        <Stack.Screen name="index" />
+                        <Stack.Screen name="(auth)" />
+                        <Stack.Screen name="(tabs)" />
+                        <Stack.Screen name="(groups)" />
+                        <Stack.Screen name="(modals)" options={{ headerShown: false }} />
+                    </Stack>
+                </View>
+            </SafeAreaProvider>
+        </GestureHandlerRootView>
     );
 }

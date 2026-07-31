@@ -4,7 +4,8 @@ export interface Materia {
   usuarioId?: string;
   nomeExibicao: string;
   nomeNormalizado: string;
-  isPadrao: boolean; // true = matéria estática do app, false = criada pelo usuário
+  isPadrao: boolean; // true = matéria global do sistema (usuario_id nulo), false = criada pelo usuário
+  cor: string;
 }
 
 /** Matéria com cor associada para exibição em componentes visuais. */
@@ -15,9 +16,10 @@ export interface MateriaComCor extends Materia {
 /** Linha retornada pelo Supabase na tabela materias_usuario. */
 export interface MateriaUsuarioRow {
   id: string;
-  usuario_id: string;
+  usuario_id: string | null; // NULL = matéria padrão do sistema, visível a todos
   nome_exibicao: string;
   nome_normalizado: string;
+  cor: string;
   created_at: string;
 }
 

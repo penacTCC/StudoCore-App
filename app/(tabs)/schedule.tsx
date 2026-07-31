@@ -1,21 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Settings } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import AbasCronograma from "@/components/cronograma/AbasCronograma";
 import AbaHoje from "@/components/cronograma/AbaHoje";
 import AbaSemana from "@/components/cronograma/AbaSemana";
 import AbaPlanos from "@/components/cronograma/AbaPlanos";
-import {
-    blocosDeHoje,
-    resumoHoje,
-    planosSalvos,
-    blocosDaSemana,
-    resumoSemana,
-} from "@/constants/cronograma-mock";
+import { resumoSemana } from "@/constants/cronograma-mock";
 import type { AbaCronograma, BlocoDoDia, Plano } from "@/types/cronograma";
+import { pegarIntervaloSemanaFormatado } from "@/utils/tempo";
+import { useAuth } from "@/hooks/useAuth";
+import { usePlanos } from "@/hooks/usePlanos";
+import { useAgendaHoje } from "@/hooks/useAgendaHoje";
 
 const DIAS_EXTENSO = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const MESES = [
@@ -27,25 +25,49 @@ function dataPorExtenso(d: Date) {
     return `${DIAS_EXTENSO[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]}`;
 }
 
+/** Horário de fim do bloco, formatado como "11h" ou "11h30" (mesmo estilo do resumo do dia). */
+function calcularFimEm(bloco: BlocoDoDia) {
+    const [h, m] = bloco.horaInicio.split(":").map(Number);
+    const fimMin = h * 60 + m + bloco.duracaoMin;
+    const horaFim = Math.floor(fimMin / 60) % 24;
+    const minFim = fimMin % 60;
+    return minFim === 0 ? `${horaFim}h` : `${horaFim}h${minFim.toString().padStart(2, "0")}`;
+}
+
 export default function ScheduleScreen() {
     const router = useRouter();
+    const { aba: abaAlvo } = useLocalSearchParams<{ aba?: AbaCronograma }>();
+    const { userId } = useAuth();
+    const { planos, carregando: carregandoPlanos, recarregarPlanos } = usePlanos(userId);
+    const { blocos: blocosDeHoje, resumo: resumoHoje, carregando: carregandoHoje, recarregar: recarregarHoje } = useAgendaHoje(userId);
     const [aba, setAba] = useState<AbaCronograma>("hoje");
     const [menuPlanoId, setMenuPlanoId] = useState<string | null>(null);
 
-    // Sem backend ainda: os dados vêm de constants/cronograma-mock.
+    // O plano-editor volta pra cá com `?aba=planos` (via dismissTo) depois de salvar,
+    // pra pousar direto na aba de planos em vez de deixar a última aba visitada.
+    useEffect(() => {
+        if (abaAlvo) {
+            setAba(abaAlvo);
+            router.setParams({ aba: undefined });
+        }
+    }, [abaAlvo]);
+
     const hoje = new Date();
 
     const subtitulo =
         aba === "hoje"
             ? dataPorExtenso(hoje)
             : aba === "semana"
-                ? resumoSemana.intervalo
-                : `${planosSalvos.length} planos salvos`;
+                ? pegarIntervaloSemanaFormatado()
+                : `${planos.length} planos salvos`;
 
-    const abrirEditor = (planoId?: string) =>
+    const abrirEditor = (planoId?: string, aplicarHoje?: boolean) =>
         router.push({
             pathname: "/(modals)/plano-editor",
-            params: planoId ? { planoId } : undefined,
+            params: {
+                ...(planoId ? { planoId } : {}),
+                ...(aplicarHoje ? { aplicarHoje: "1" } : {}),
+            },
         });
 
     const iniciarFoco = (bloco: BlocoDoDia) =>
@@ -55,8 +77,9 @@ export default function ScheduleScreen() {
                 subject: bloco.materia ?? "",
                 content: bloco.topico ?? "",
                 blocoId: bloco.id,
+                origemBloco: bloco.origem ?? "rotina",
                 duracaoMin: bloco.duracaoMin.toString(),
-                fimEm: resumoHoje.proximo.hora,
+                fimEm: calcularFimEm(bloco),
             },
         });
 
@@ -102,23 +125,32 @@ export default function ScheduleScreen() {
                 <AbaHoje
                     blocos={blocosDeHoje}
                     resumo={resumoHoje}
+                    carregando={carregandoHoje}
                     onIniciarFoco={iniciarFoco}
-                    onMontarDia={() => abrirEditor()}
+                    onMontarDia={() => abrirEditor(undefined, true)}
                     onAplicarPlano={() => setAba("planos")}
+                    refreshing={carregandoHoje}
+                    onRefresh={recarregarHoje}
                 />
             )}
 
             {aba === "semana" && (
-                <AbaSemana blocos={blocosDaSemana} resumo={resumoSemana} diaAtual={2} />
+                <AbaSemana resumo={resumoSemana} />
             )}
 
             {aba === "planos" && (
                 <AbaPlanos
-                    planos={planosSalvos}
+                    planos={planos}
+                    userId={userId}
                     menuAbertoId={menuPlanoId}
+                    carregando={carregandoPlanos}
                     onAbrirMenu={setMenuPlanoId}
                     onNovoPlano={() => abrirEditor()}
                     onEditarPlano={(p: Plano) => abrirEditor(p.id)}
+                    onRecarregar={() => {
+                        recarregarPlanos();
+                        recarregarHoje();
+                    }}
                 />
             )}
         </SafeAreaView>

@@ -1,5 +1,5 @@
 //Componentes do Native
-import { View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
+import { View, Text, FlatList, RefreshControl, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
@@ -8,6 +8,7 @@ import GroupCard from "@/components/GroupCard";
 import { HADES } from "@/constants/hades";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 //Componentes Lucide Native
 import { Plus, Users } from "lucide-react-native";
@@ -50,9 +51,7 @@ export default function MyGroupsScreen() {
             </View>
 
             {carregando ? (
-                <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                    <ActivityIndicator size="large" color={HADES.accentSolid} />
-                </View>
+                <MeusGruposSkeleton />
             ) : (
                 <FlatList
                     style={{ flex: 1 }}
@@ -113,5 +112,34 @@ export default function MyGroupsScreen() {
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
+    );
+}
+
+function MeusGruposSkeleton() {
+    return (
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 8 }}>
+            {[0, 1, 2, 3].map((i) => (
+                <View
+                    key={i}
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        overflow: "hidden",
+                        marginBottom: 12,
+                    }}
+                >
+                    <View style={{ flexDirection: "row", padding: 14, alignItems: "center", gap: 14 }}>
+                        <Skeleton width={58} height={58} borderRadius={14} hades />
+                        <View style={{ flex: 1, gap: 8 }}>
+                            <Skeleton width="60%" height={16} hades />
+                            <Skeleton width="85%" height={13} hades />
+                            <Skeleton width={110} height={20} borderRadius={7} hades />
+                        </View>
+                    </View>
+                </View>
+            ))}
+        </View>
     );
 }

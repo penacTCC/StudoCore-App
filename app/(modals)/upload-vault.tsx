@@ -2,7 +2,7 @@ import { useState } from "react";
 import { uploadArquivo } from "@/services/archives";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { Image as FileUp, X } from "lucide-react-native";
 
 //Componentes do Projeto
@@ -16,6 +16,7 @@ import { HADES } from "@/constants/hades";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { useAuth } from "@/hooks/useAuth";
 import { selectedFile } from "@/types/upload";
+import { toast } from "@/services/toast";
 
 //categorias de arquivo
 type FileCategory = "pdf" | "imagem" | "outro";
@@ -79,7 +80,7 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                 gruposIds: gruposSelecionados,
             });
 
-            Alert.alert("Sucesso", "Arquivo enviado com sucesso!");
+            toast.success("Arquivo enviado com sucesso!");
 
             onRefresh?.();
             onClose();
@@ -87,7 +88,7 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
             setSelectedFile(null);
         } catch (error: any) {
             console.error(error);
-            Alert.alert("Erro", error.message || "Não foi possível enviar o arquivo.");
+            toast.error(error.message || "Não foi possível enviar o arquivo.");
         } finally {
             setIsUploading(false);
         }
@@ -168,32 +169,49 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                         Escolha o grupo com quem deseja compartilhar
                     </Text>
 
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        {grupos.map((group) => {
-                            const isSelected = gruposSelecionados.includes(group.id);
+                    {grupos.length === 0 ? (
+                        <View
+                            style={{
+                                backgroundColor: HADES.surfaceOverlay,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                borderRadius: 12,
+                                paddingVertical: 14,
+                                paddingHorizontal: 14,
+                            }}
+                        >
+                            <Text style={{ fontSize: 12.5, color: HADES.textMuted }}>
+                                Você ainda não está em nenhum grupo. Entre em um grupo pra poder compartilhar arquivos com ele.
+                            </Text>
+                        </View>
+                    ) : (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                            {grupos.map((group) => {
+                                const isSelected = gruposSelecionados.includes(group.id);
 
-                            return (
-                                <TouchableOpacity
-                                    key={group.id}
-                                    onPress={() => alternarGrupo(group.id)}
-                                    activeOpacity={0.8}
-                                    style={{
-                                        paddingHorizontal: 16,
-                                        paddingVertical: 8,
-                                        borderRadius: 999,
-                                        marginRight: 8,
-                                        borderWidth: 1,
-                                        backgroundColor: isSelected ? HADES.accentSolid : HADES.surfaceOverlay,
-                                        borderColor: isSelected ? HADES.accentSolid : HADES.border,
-                                    }}
-                                >
-                                    <Text style={{ fontSize: 12, fontWeight: "600", color: isSelected ? "#000" : HADES.textMuted }}>
-                                        {group.nome_grupo}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
+                                return (
+                                    <TouchableOpacity
+                                        key={group.id}
+                                        onPress={() => alternarGrupo(group.id)}
+                                        activeOpacity={0.8}
+                                        style={{
+                                            paddingHorizontal: 16,
+                                            paddingVertical: 8,
+                                            borderRadius: 999,
+                                            marginRight: 8,
+                                            borderWidth: 1,
+                                            backgroundColor: isSelected ? HADES.accentSolid : HADES.surfaceOverlay,
+                                            borderColor: isSelected ? HADES.accentSolid : HADES.border,
+                                        }}
+                                    >
+                                        <Text style={{ fontSize: 12, fontWeight: "600", color: isSelected ? "#000" : HADES.textMuted }}>
+                                            {group.nome_grupo}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    )}
                 </View>
 
                 {/* Upload Button */}

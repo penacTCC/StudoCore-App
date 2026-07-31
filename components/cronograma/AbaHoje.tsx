@@ -1,21 +1,49 @@
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { ArrowRightCircle, Plus, LayoutList } from "lucide-react-native";
 import Svg, { Rect, Line, Circle } from "react-native-svg";
 import { HADES } from "@/constants/hades";
 import BlocoHoje from "@/components/cronograma/BlocoHoje";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import type { BlocoDoDia } from "@/types/cronograma";
 
 type Props = {
     blocos: BlocoDoDia[];
     resumo: { planejado: string; concluido: string; proximo: { materia: string; hora: string } | null };
+    carregando?: boolean;
     onIniciarFoco: (bloco: BlocoDoDia) => void;
     onMontarDia: () => void;
     onAplicarPlano: () => void;
+    refreshing?: boolean;
+    onRefresh?: () => void;
 };
 
-export default function AbaHoje({ blocos, resumo, onIniciarFoco, onMontarDia, onAplicarPlano }: Props) {
+export default function AbaHoje({
+    blocos,
+    resumo,
+    carregando,
+    onIniciarFoco,
+    onMontarDia,
+    onAplicarPlano,
+    refreshing,
+    onRefresh,
+}: Props) {
+    if (carregando) {
+        return <AbaHojeSkeleton />;
+    }
+
     if (blocos.length === 0) {
-        return <DiaVazio onMontarDia={onMontarDia} onAplicarPlano={onAplicarPlano} />;
+        return (
+            <ScrollView
+                contentContainerStyle={{ flexGrow: 1 }}
+                refreshControl={
+                    onRefresh ? (
+                        <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={HADES.accentSolid} />
+                    ) : undefined
+                }
+            >
+                <DiaVazio onMontarDia={onMontarDia} onAplicarPlano={onAplicarPlano} />
+            </ScrollView>
+        );
     }
 
     return (
@@ -71,6 +99,11 @@ export default function AbaHoje({ blocos, resumo, onIniciarFoco, onMontarDia, on
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingTop: 12, paddingBottom: 24, paddingHorizontal: 20 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    onRefresh ? (
+                        <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={HADES.accentSolid} />
+                    ) : undefined
+                }
             >
                 <View style={{ position: "relative", paddingLeft: 56 }}>
                     <View
@@ -93,6 +126,38 @@ export default function AbaHoje({ blocos, resumo, onIniciarFoco, onMontarDia, on
                     ))}
                 </View>
             </ScrollView>
+        </View>
+    );
+}
+
+function AbaHojeSkeleton() {
+    return (
+        <View style={{ flex: 1 }}>
+            <View style={{ paddingTop: 12, paddingBottom: 6, paddingHorizontal: 20, flexDirection: "row", gap: 8 }}>
+                <Skeleton width={130} height={13} hades />
+            </View>
+
+            <View style={{ paddingTop: 12, paddingHorizontal: 20 }}>
+                <View style={{ position: "relative", paddingLeft: 56 }}>
+                    <View
+                        style={{
+                            position: "absolute",
+                            left: 47,
+                            top: 6,
+                            bottom: 6,
+                            width: 2,
+                            backgroundColor: "rgba(255,255,255,0.07)",
+                        }}
+                    />
+                    {[0, 1, 2].map((i) => (
+                        <View key={i} style={{ marginBottom: i === 2 ? 0 : 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                            <Skeleton width={34} height={12} hades style={{ position: "absolute", left: -56 }} />
+                            <SkeletonCircle size={10} hades />
+                            <Skeleton width="100%" height={58} borderRadius={12} hades style={{ flex: 1 }} />
+                        </View>
+                    ))}
+                </View>
+            </View>
         </View>
     );
 }

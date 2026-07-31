@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { getSubjectColor, getTimeAgo } from "@/constants/helpers";
 import Avatar from "@/components/ui/Avatar";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import type { SessaoFocoRow } from "@/types/sessions";
 
 /**
@@ -138,6 +139,15 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
 }
 
 export function FeedVazio({ carregando }: { carregando?: boolean }) {
+    if (carregando) {
+        return (
+            <>
+                <CardSessaoGrupoSkeleton />
+                <CardSessaoGrupoSkeleton style={{ marginTop: 10 }} />
+            </>
+        );
+    }
+
     return (
         <View
             style={{
@@ -150,19 +160,38 @@ export function FeedVazio({ carregando }: { carregando?: boolean }) {
                 alignItems: "center",
             }}
         >
-            {carregando ? (
-                <Text style={{ fontSize: 13.5, color: HADES.textMuted }}>Carregando...</Text>
-            ) : (
-                <>
-                    <Wind size={26} color={HADES.dot} />
-                    <Text style={{ fontSize: 13.5, color: HADES.textMuted, marginTop: 12 }}>
-                        Nenhuma sessão registrada ainda.
-                    </Text>
-                    <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 4 }}>
-                        As sessões dos membros aparecem aqui.
-                    </Text>
-                </>
-            )}
+            <Wind size={26} color={HADES.dot} />
+            <Text style={{ fontSize: 13.5, color: HADES.textMuted, marginTop: 12 }}>
+                Nenhuma sessão registrada ainda.
+            </Text>
+            <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 4 }}>
+                As sessões dos membros aparecem aqui.
+            </Text>
+        </View>
+    );
+}
+
+function CardSessaoGrupoSkeleton({ style }: { style?: object }) {
+    return (
+        <View
+            style={[
+                {
+                    backgroundColor: HADES.surface,
+                    borderWidth: 1,
+                    borderColor: HADES.border,
+                    borderRadius: 16,
+                    padding: 14,
+                    gap: 12,
+                },
+                style,
+            ]}
+        >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+                <SkeletonCircle size={30} hades />
+                <Skeleton width={100} height={13} hades />
+            </View>
+            <Skeleton width="65%" height={13} hades />
+            <Skeleton width="100%" height={32} hades />
         </View>
     );
 }

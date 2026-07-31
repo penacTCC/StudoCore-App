@@ -1,4 +1,5 @@
 import { supabase } from '@/repositories/supabase';
+import { toast } from '@/services/toast';
 import type { Materia, MateriaUsuarioRow, ResultadoMateria, ResultadoDelecao } from '@/types/materias';
 
 /**
@@ -17,26 +18,28 @@ export function normalizarNomeMateria(nome: string): string {
 }
 
 /**
- * Busca todas as matérias customizadas de um usuário no Supabase.
+ * Busca as matérias padrão do sistema (usuario_id nulo) + as customizadas do usuário.
  */
 export async function buscarMateriasUsuario(usuarioId: string): Promise<Materia[]> {
   const { data, error } = await supabase
     .from('materias_usuario')
     .select('*')
-    .eq('usuario_id', usuarioId)
+    .or(`usuario_id.eq.${usuarioId},usuario_id.is.null`)
     .order('nome_exibicao', { ascending: true });
 
   if (error) {
     console.error('Erro ao buscar matérias do usuário:', error.message);
+    toast.error('Não foi possível carregar suas matérias.');
     return [];
   }
 
   return (data as MateriaUsuarioRow[]).map((row) => ({
     id: row.id,
-    usuarioId: row.usuario_id,
+    usuarioId: row.usuario_id ?? undefined,
     nomeExibicao: row.nome_exibicao,
     nomeNormalizado: row.nome_normalizado,
-    isPadrao: false,
+    isPadrao: row.usuario_id === null,
+    cor: row.cor,
   }));
 }
 
@@ -81,10 +84,11 @@ export async function criarMateria(
     sucesso: true,
     materia: {
       id: row.id,
-      usuarioId: row.usuario_id,
+      usuarioId: row.usuario_id ?? undefined,
       nomeExibicao: row.nome_exibicao,
       nomeNormalizado: row.nome_normalizado,
       isPadrao: false,
+      cor: row.cor,
     },
   };
 }
@@ -156,13 +160,14 @@ export async function buscarMateriasComunidade(
 ): Promise<Materia[]> {
   const { data, error } = await supabase
     .from('materias_usuario')
-    .select('id, usuario_id, nome_exibicao, nome_normalizado')
+    .select('id, usuario_id, nome_exibicao, nome_normalizado, cor')
     .neq('usuario_id', usuarioId)
     .order('nome_exibicao', { ascending: true })
     .limit(100);
 
   if (error) {
     console.error('Erro ao buscar matérias da comunidade:', error.message);
+    toast.error('Não foi possível carregar as matérias da comunidade.');
     return [];
   }
 
@@ -184,10 +189,11 @@ export async function buscarMateriasComunidade(
     vistos.add(row.nome_normalizado);
     resultado.push({
       id: row.id,
-      usuarioId: row.usuario_id,
+      usuarioId: row.usuario_id ?? undefined,
       nomeExibicao: row.nome_exibicao,
       nomeNormalizado: row.nome_normalizado,
       isPadrao: false,
+      cor: row.cor,
     });
   }
 

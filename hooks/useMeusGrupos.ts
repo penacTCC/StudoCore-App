@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useFocusEffect } from "expo-router";
 import { carregarMeusGruposLocalmente, salvarMeusGruposLocalmente } from "@/services/armazenamentoOffline";
 import { buscarMeusGrupos } from "@/services/grupos";
+import { toast } from "@/services/toast";
 import type { Grupo } from "@/types/grupos";
 
 export function useMeusGrupos() {
@@ -24,6 +25,7 @@ export function useMeusGrupos() {
       await salvarMeusGruposLocalmente(gruposAtualizados);
     } catch (erro) {
       console.error("Erro ao buscar grupos:", erro);
+      toast.error("Não foi possível carregar seus grupos.");
     } finally {
       setCarregando(false);
       setAtualizando(false);

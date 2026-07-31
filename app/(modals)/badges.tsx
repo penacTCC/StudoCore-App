@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, TouchableOpacity, DeviceEventEmitter } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, DeviceEventEmitter, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { ArrowLeft, Check, Lock, Star } from "lucide-react-native";
@@ -12,6 +12,7 @@ import { BADGE_ICON_MAP as iconMap } from "@/constants/badgeIcons";
 import { loadProfileStats } from "@/services/profileStats";
 import type { UserStats } from "@/types/profile";
 import DetalheMedalhaSheet from "@/components/badges/DetalheMedalhaSheet";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 
 const LEVELS: BadgeLevel[] = ['basico', 'intermediario', 'avancado', 'elite'];
 
@@ -52,6 +53,7 @@ function getCurrentVal(badge: BadgeType, stats: UserStats): number {
 export default function BadgesScreen() {
     const [stats, setStats] = useState<UserStats | null>(null);
     const [selected, setSelected] = useState<BadgeType | null>(null);
+    const [atualizando, setAtualizando] = useState(false);
 
     const loadData = async () => {
         const s = await loadProfileStats();
@@ -69,7 +71,16 @@ export default function BadgesScreen() {
         }, [])
     );
 
-    if (!stats) return null;
+    const handleRefresh = async () => {
+        setAtualizando(true);
+        try {
+            await loadData();
+        } finally {
+            setAtualizando(false);
+        }
+    };
+
+    if (!stats) return <BadgesSkeleton />;
 
     const unlockedCount = stats.badgesUnlocked.length;
     const totalCount = APP_BADGES.length;
@@ -127,7 +138,14 @@ export default function BadgesScreen() {
                 })}
             </View>
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 32 }}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                }
+            >
                 {/* Progresso total */}
                 <View style={{ backgroundColor: HADES.surface, borderWidth: 1, borderColor: HADES.border, borderRadius: 16, padding: 16 }}>
                     <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 13 }}>
@@ -275,6 +293,103 @@ export default function BadgesScreen() {
                 currentVal={selectedCurrentVal}
                 onClose={() => setSelected(null)}
             />
+        </SafeAreaView>
+    );
+}
+
+/** Placeholder da tela de medalhas enquanto as estatísticas ainda não resolveram. */
+function BadgesSkeleton() {
+    return (
+        <SafeAreaView className="flex-1" style={{ backgroundColor: HADES.bg }} edges={["top"]}>
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12 }}>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    activeOpacity={0.7}
+                    style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: HADES.surfaceRaised, alignItems: "center", justifyContent: "center" }}
+                >
+                    <ArrowLeft size={19} color={HADES.textSecondary} />
+                </TouchableOpacity>
+                <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={{ fontSize: 22, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>Medalhas</Text>
+                    <Skeleton width={110} height={13} hades />
+                </View>
+            </View>
+
+            {/* Resumo por nível */}
+            <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingBottom: 10 }}>
+                {[0, 1, 2, 3].map((i) => (
+                    <View
+                        key={i}
+                        style={{
+                            flex: 1,
+                            alignItems: "center",
+                            gap: 6,
+                            paddingVertical: 9,
+                            paddingHorizontal: 4,
+                            borderRadius: 11,
+                            backgroundColor: HADES.surfaceRaised,
+                            borderWidth: 1,
+                            borderColor: HADES.border,
+                        }}
+                    >
+                        <Skeleton width={8} height={8} borderRadius={3} hades />
+                        <Skeleton width={34} height={10} hades />
+                        <Skeleton width={24} height={10} hades />
+                    </View>
+                ))}
+            </View>
+
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+                {/* Progresso total */}
+                <View style={{ backgroundColor: HADES.surface, borderWidth: 1, borderColor: HADES.border, borderRadius: 16, padding: 16 }}>
+                    <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 13 }}>
+                        <View style={{ gap: 6 }}>
+                            <Skeleton width={90} height={12} hades />
+                            <Skeleton width={110} height={13} hades />
+                        </View>
+                        <Skeleton width={54} height={32} hades />
+                    </View>
+                    <Skeleton width="100%" height={10} borderRadius={6} hades />
+                </View>
+
+                {/* Seções por nível */}
+                {[0, 1].map((secao) => (
+                    <View key={secao} style={{ marginTop: 22 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 12 }}>
+                            <Skeleton width={9} height={9} borderRadius={3} hades />
+                            <View style={{ flex: 1, gap: 5 }}>
+                                <Skeleton width={110} height={15} hades />
+                                <Skeleton width={140} height={11} hades />
+                            </View>
+                            <Skeleton width={40} height={18} borderRadius={7} hades />
+                        </View>
+
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 }}>
+                            {[0, 1, 2].map((i) => (
+                                <View
+                                    key={i}
+                                    style={{
+                                        width: "31.5%",
+                                        backgroundColor: HADES.surface,
+                                        borderWidth: 1,
+                                        borderColor: HADES.border,
+                                        borderRadius: 13,
+                                        paddingVertical: 12,
+                                        paddingHorizontal: 6,
+                                        alignItems: "center",
+                                        gap: 8,
+                                    }}
+                                >
+                                    <SkeletonCircle size={38} hades />
+                                    <Skeleton width="80%" height={11} hades />
+                                    <Skeleton width="60%" height={9} hades />
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                ))}
+            </ScrollView>
         </SafeAreaView>
     );
 }

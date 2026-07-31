@@ -1,54 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Alert } from 'react-native';
-import { subjects as materiasPadrao, disciplinasComCores } from '@/constants/mock-data';
-import {
-  buscarMateriasUsuario,
-  normalizarNomeMateria,
-  deletarMateria,
-} from '@/services/materias';
+import { buscarMateriasUsuario, deletarMateria } from '@/services/materias';
 import type { Materia, MateriaComCor } from '@/types/materias';
-
-/** Paleta de cores para matérias customizadas que não têm cor definida no array padrão. */
-const CORES_CUSTOMIZADAS = [
-  '#06b6d4', // cyan
-  '#f97316', // orange
-  '#ec4899', // pink
-  '#14b8a6', // teal
-  '#a855f7', // purple
-  '#ef4444', // red
-  '#84cc16', // lime
-  '#f59e0b', // amber
-  '#6366f1', // indigo
-  '#22d3ee', // sky
-];
-
-/** Gera uma cor determinística baseada no nome normalizado. */
-function corParaNome(nomeNormalizado: string): string {
-  let hash = 0;
-  for (let i = 0; i < nomeNormalizado.length; i++) {
-    hash = nomeNormalizado.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return CORES_CUSTOMIZADAS[Math.abs(hash) % CORES_CUSTOMIZADAS.length];
-}
+import { toast } from '@/services/toast';
+import { confirm } from '@/services/confirm';
 
 /**
- * Hook que une as matérias padrão do app com as matérias customizadas do usuário.
- * Fornece a lista completa, estado de carregamento, cores associadas e funções de gestão.
+ * Hook que busca as matérias padrão do sistema + as customizadas do usuário
+ * (ambas já vêm de materias_usuario, com cor persistida). Fornece a lista
+ * completa, estado de carregamento e funções de gestão.
  */
 export function useMaterias(usuarioId: string | null) {
-  const [materiasCustomizadas, setMateriasCustomizadas] = useState<Materia[]>([]);
+  const [materias, setMaterias] = useState<Materia[]>([]);
   const [carregando, setCarregando] = useState(true);
-
-  // Converte as matérias estáticas para o formato Materia
-  const materiasPadraoFormatadas: Materia[] = useMemo(
-    () =>
-      materiasPadrao.map((nome) => ({
-        nomeExibicao: nome,
-        nomeNormalizado: normalizarNomeMateria(nome),
-        isPadrao: true,
-      })),
-    []
-  );
 
   const carregar = useCallback(async () => {
     if (!usuarioId) {
@@ -58,7 +21,7 @@ export function useMaterias(usuarioId: string | null) {
 
     setCarregando(true);
     const resultado = await buscarMateriasUsuario(usuarioId);
-    setMateriasCustomizadas(resultado);
+    setMaterias(resultado);
     setCarregando(false);
   }, [usuarioId]);
 
@@ -66,36 +29,14 @@ export function useMaterias(usuarioId: string | null) {
     carregar();
   }, [carregar]);
 
-  // Junta padrão + customizadas, removendo duplicatas por nome normalizado
-  const todasMaterias: Materia[] = useMemo(
-    () => [
-      ...materiasPadraoFormatadas,
-      ...materiasCustomizadas.filter(
-        (custom) =>
-          !materiasPadraoFormatadas.some(
-            (padrao) => padrao.nomeNormalizado === custom.nomeNormalizado
-          )
-      ),
-    ],
-    [materiasPadraoFormatadas, materiasCustomizadas]
+  const materiasCustomizadas = useMemo(
+    () => materias.filter((m) => !m.isPadrao),
+    [materias]
   );
 
-  // Versão com cores para componentes visuais (AddBlockModal, profile, etc.)
-  const materiasComCores: MateriaComCor[] = useMemo(
-    () =>
-      todasMaterias.map((materia) => {
-        // Procura no array estático de cores
-        const corPadrao = disciplinasComCores.find(
-          (d) =>
-            normalizarNomeMateria(d.name) === materia.nomeNormalizado
-        );
-        return {
-          ...materia,
-          cor: corPadrao?.color ?? corParaNome(materia.nomeNormalizado),
-        };
-      }),
-    [todasMaterias]
-  );
+  // Já vem com cor persistida no banco; mantido pelo mesmo nome pra não quebrar quem já usa (AddBlockModal, profile, etc.)
+  const materiasComCores: MateriaComCor[] = materias as MateriaComCor[];
+  const todasMaterias = materias;
 
   /**
    * Remove uma matéria customizada com verificação de sessões vinculadas.
@@ -116,41 +57,28 @@ export function useMaterias(usuarioId: string | null) {
       // Se tem sessões vinculadas, perguntar ao usuário
       if (resultado.sessoesVinculadas && resultado.sessoesVinculadas > 0) {
         return new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'Matéria com sessões vinculadas',
-            `${resultado.erro}\n\nDeseja remover mesmo assim? As sessões de foco anteriores serão mantidas.`,
-            [
-              {
-                text: 'Cancelar',
-                style: 'cancel',
-                onPress: () => resolve(false),
-              },
-              {
-                text: 'Remover mesmo assim',
-                style: 'destructive',
-                onPress: async () => {
-                  const forceResult = await deletarMateria(
-                    materiaId,
-                    usuarioId,
-                    nomeExibicao,
-                    true
-                  );
-                  if (forceResult.sucesso) {
-                    await carregar();
-                    resolve(true);
-                  } else {
-                    Alert.alert('Erro', forceResult.erro || 'Não foi possível remover.');
-                    resolve(false);
-                  }
-                },
-              },
-            ]
-          );
+          confirm({
+            title: 'Matéria com sessões vinculadas',
+            message: `${resultado.erro}\n\nDeseja remover mesmo assim? As sessões de foco anteriores serão mantidas.`,
+            confirmText: 'Remover mesmo assim',
+            destructive: true,
+            onCancel: () => resolve(false),
+            onConfirm: async () => {
+              const forceResult = await deletarMateria(materiaId, usuarioId, nomeExibicao, true);
+              if (forceResult.sucesso) {
+                await carregar();
+                resolve(true);
+              } else {
+                toast.error(forceResult.erro || 'Não foi possível remover.');
+                resolve(false);
+              }
+            },
+          });
         });
       }
 
       // Outro tipo de erro
-      Alert.alert('Erro', resultado.erro || 'Não foi possível remover a matéria.');
+      toast.error(resultado.erro || 'Não foi possível remover a matéria.');
       return false;
     },
     [usuarioId, carregar]

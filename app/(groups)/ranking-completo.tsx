@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, findNodeHandle } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Calendar, ChevronDown } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -10,6 +10,7 @@ import PodioRanking, { LinhaRanking } from "@/components/grupo/PodioRanking";
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useRankingHorasGrupo } from "@/hooks/useRankingHorasGrupo";
 import { useAuth } from "@/hooks/useAuth";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 
 export default function RankingCompletoScreen() {
     const { groupId, filtro, grupoNome } = useLocalSearchParams<{
@@ -22,9 +23,20 @@ export default function RankingCompletoScreen() {
         (filtro as LeaderboardFilter) || "semanal"
     );
 
-    const { membros } = useMembrosGrupo({ grupoId: groupId as string });
-    const { rankingMembros } = useRankingHorasGrupo(groupId, periodo, membros);
+    const { membros, recarregar: recarregarMembros } = useMembrosGrupo({ grupoId: groupId as string });
+    const { rankingMembros, carregando } = useRankingHorasGrupo(groupId, periodo, membros);
     const { userId } = useAuth();
+
+    //Controla o estado do pull-to-refresh
+    const [atualizando, setAtualizando] = useState(false);
+    const handleRefresh = async () => {
+        setAtualizando(true);
+        try {
+            await recarregarMembros();
+        } finally {
+            setAtualizando(false);
+        }
+    };
 
     const linhas: LinhaRanking[] = useMemo(
         () =>
@@ -75,7 +87,7 @@ export default function RankingCompletoScreen() {
 
     const medirPosicaoVoce = () => {
         requestAnimationFrame(() => {
-            const scrollNode = findNodeHandle(scrollRef.current);
+            const scrollNode = scrollRef.current?.getNativeScrollRef?.();
             if (!scrollNode) return;
             youNodeRef.current?.measureLayout(
                 scrollNode as any,
@@ -185,13 +197,37 @@ export default function RankingCompletoScreen() {
                     onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}
                     onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
                     scrollEventThrottle={16}
+                    refreshControl={
+                        <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                    }
                 >
+                    {carregando ? (
+                        <RankingCompletoSkeleton />
+                    ) : (
+                    <>
                     <PodioRanking
                         linhas={linhas}
                         formatarMinutos={formatarMinutos}
                         onAbrirMembro={abrirMembro}
                         variante="completa"
                     />
+
+                    {resto.length === 0 && (
+                        <View
+                            style={{
+                                alignItems: "center",
+                                paddingVertical: 24,
+                                paddingHorizontal: 20,
+                            }}
+                        >
+                            <Text style={{ fontSize: 13, color: HADES.textMuted, textAlign: "center" }}>
+                                Só o pódio por enquanto.
+                            </Text>
+                            <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 4, textAlign: "center" }}>
+                                Convide mais gente pro grupo pra ver o ranking crescer.
+                            </Text>
+                        </View>
+                    )}
 
                     <View style={{ flexDirection: "column" }}>
                         {resto.map((linha, i) => {
@@ -286,6 +322,8 @@ export default function RankingCompletoScreen() {
                             );
                         })}
                     </View>
+                    </>
+                    )}
                 </ScrollView>
 
                 {/* Marcador flutuante "Você", só quando sua posição está fora da tela */}
@@ -343,5 +381,53 @@ export default function RankingCompletoScreen() {
                 )}
             </View>
         </SafeAreaView>
+    );
+}
+
+function RankingCompletoSkeleton() {
+    return (
+        <>
+            <View style={{ paddingTop: 22, paddingHorizontal: 4, marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
+                    {[64, 70, 64].map((altura, i) => (
+                        <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                            <SkeletonCircle size={altura} hades />
+                            <Skeleton width={60} height={12} hades style={{ marginTop: 8 }} />
+                            <Skeleton width={40} height={12} hades style={{ marginTop: 4 }} />
+                            <Skeleton
+                                width="100%"
+                                height={i === 1 ? 98 : 52}
+                                borderRadius={12}
+                                hades
+                                style={{ marginTop: 9 }}
+                            />
+                        </View>
+                    ))}
+                </View>
+            </View>
+
+            <View style={{ flexDirection: "column" }}>
+                {[0, 1, 2, 3, 4].map((i) => (
+                    <View
+                        key={i}
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 13,
+                            paddingVertical: 14,
+                            paddingHorizontal: 6,
+                            borderBottomWidth: i === 4 ? 0 : 1,
+                            borderBottomColor: "rgba(255,255,255,0.055)",
+                        }}
+                    >
+                        <Skeleton width={20} height={14} hades />
+                        <SkeletonCircle size={38} hades />
+                        <Skeleton width="45%" height={14} hades />
+                        <View style={{ flex: 1 }} />
+                        <Skeleton width={50} height={14} hades />
+                    </View>
+                ))}
+            </View>
+        </>
     );
 }

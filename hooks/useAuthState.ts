@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DeviceEventEmitter } from 'react-native';
 import { obterSessaoAtual, observarMudancasAuth, perfilEstaCompleto } from '@/services/auth';
+import { toast } from '@/services/toast';
 import type { AuthSession } from '@/types/auth';
 
 export function useAuthState() {
@@ -18,6 +19,7 @@ export function useAuthState() {
       setIsInitialized(true); //só inicia o app se pegar a sessão
     }).catch(err => {
       console.error("RootLayout: Erro ao obter sessão:", err);
+      toast.error("Não foi possível verificar sua sessão. Tente reabrir o app.");
       setIsInitialized(true); // tenta prosseguir mesmo com erro para não travar infinitamente
     });
 

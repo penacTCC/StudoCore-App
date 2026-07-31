@@ -114,6 +114,11 @@ export default function ConfigSessao({
             keyboardShouldPersistTaps="handled"
         >
             <Rotulo texto="MATÉRIA" />
+            {materias.length === 0 && (
+                <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginBottom: 10 }}>
+                    Você ainda não tem matérias cadastradas. Crie a primeira abaixo.
+                </Text>
+            )}
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}

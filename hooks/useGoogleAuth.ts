@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert } from "react-native";
 
 //Componentes do Expo
 import { router, useLocalSearchParams } from "expo-router";
@@ -8,6 +7,7 @@ import * as Linking from "expo-linking";
 
 //Serviços da Aplicação
 import { gerarUrlLoginGoogle, obterSessaoAtual, validarSessaoGoogle, validarSessaoPorTokens } from "@/services/auth";
+import { toast } from "@/services/toast";
 
 const GOOGLE_REDIRECT_URL = "studocore://login";
 
@@ -66,7 +66,7 @@ export function useGoogleAuth() {
         errorDescription?: string | null
     ) => {
         if (error) {
-            Alert.alert("Erro no Google", errorDescription ?? error);
+            toast.error(errorDescription ?? error, "Erro no Google");
             return;
         }
 
@@ -83,7 +83,7 @@ export function useGoogleAuth() {
             }
         } catch (error) {
             console.error("Erro no callback do Google:", error);
-            Alert.alert("Erro", "Não foi possível concluir o login com o Google.");
+            toast.error("Não foi possível concluir o login com o Google.");
         } finally {
             setIsLoading(false);
         }
@@ -118,12 +118,12 @@ export function useGoogleAuth() {
                 await finalizarCallbackGoogle(code, accessToken, refreshToken, error, errorDescription);
 
                 if (!code && !accessToken && !error) {
-                    Alert.alert("Erro no Google", "O Google voltou sem código de autenticação.");
+                    toast.error("O Google voltou sem código de autenticação.", "Erro no Google");
                 }
             }
         } catch (error) {
             console.error("Erro no fluxo do Google:", error);
-            Alert.alert("Erro", "Não foi possível concluir o login com o Google.");
+            toast.error("Não foi possível concluir o login com o Google.");
         } finally {
             setIsLoading(false);
         }

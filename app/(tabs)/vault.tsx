@@ -1,7 +1,17 @@
 import { useState } from "react";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, ScrollView, Modal, LayoutAnimation, Platform, UIManager } from "react-native";
+import {
+    View,
+    Text,
+    TouchableOpacity,
+    ScrollView,
+    Modal,
+    LayoutAnimation,
+    Platform,
+    UIManager,
+    RefreshControl,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FileText, Image as ImageIcon, ChevronRight, ChevronDown, FileUp, Folder } from "lucide-react-native";
 
@@ -13,6 +23,7 @@ import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import SearchBar from "@/components/ui/SearchBar";
 import UploadVaultModal from "@/app/(modals)/upload-vault";
 import FileDetailModal from "@/app/(modals)/archive-details";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 //Funções do Projeto
 import { useArchives } from "@/hooks/useArchives";
@@ -34,8 +45,13 @@ export default function VaultScreen() {
     const { user, userId } = useAuth();
 
     // Chama o hook para buscar os arquivos reais do banco de dados de forma incondicional
-    const { archives, refresh } = useArchives(userId || undefined);
-    const { grupos } = useMeusGrupos();
+    const { archives, isLoading: carregandoArquivos, refresh } = useArchives(userId || undefined);
+    const { grupos, atualizando: atualizandoGrupos, atualizar: atualizarGrupos } = useMeusGrupos();
+
+    const handleRefresh = () => {
+        refresh();
+        atualizarGrupos();
+    };
 
     // Accordion state - stores IDs of open sections
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -122,6 +138,29 @@ export default function VaultScreen() {
         );
     };
 
+    /** Placeholder de um card de arquivo, mostrado enquanto a lista ainda carrega. */
+    const FileCardSkeleton = () => (
+        <View
+            style={{
+                backgroundColor: HADES.surfaceRaised,
+                borderWidth: 1,
+                borderColor: HADES.border,
+                borderRadius: 14,
+                padding: 12,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 10,
+            }}
+        >
+            <Skeleton width={44} height={44} borderRadius={12} hades />
+            <View style={{ flex: 1, gap: 6 }}>
+                <Skeleton width="60%" height={14} hades />
+                <Skeleton width="40%" height={12} hades />
+            </View>
+        </View>
+    );
+
     /**
      * Componente responsável por exibir uma seção do accordion.
      */
@@ -132,6 +171,7 @@ export default function VaultScreen() {
         files,
         icon: SectionIcon = Folder,
         emptyText = "Nenhum arquivo enviado",
+        carregando = false,
     }: {
         id: string;
         title: string;
@@ -139,6 +179,7 @@ export default function VaultScreen() {
         files: any[];
         icon?: any;
         emptyText?: string;
+        carregando?: boolean;
     }) => {
         const isExpanded = expandedSections[id];
 
@@ -203,7 +244,12 @@ export default function VaultScreen() {
                             borderBottomRightRadius: 16,
                         }}
                     >
-                        {files.length > 0 ? (
+                        {carregando && files.length === 0 ? (
+                            <>
+                                <FileCardSkeleton />
+                                <FileCardSkeleton />
+                            </>
+                        ) : files.length > 0 ? (
                             files.map((file) => <FileCard key={file.id} file={file} />)
                         ) : (
                             <View style={{ paddingVertical: 14, alignItems: "center" }}>
@@ -238,6 +284,13 @@ export default function VaultScreen() {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={carregandoArquivos || atualizandoGrupos}
+                        onRefresh={handleRefresh}
+                        tintColor={HADES.accentSolid}
+                    />
+                }
             >
                 {/* Seções dos grupos */}
                 {grupos.map((group: any) => (
@@ -248,6 +301,7 @@ export default function VaultScreen() {
                         subtitle="Arquivos compartilhados no grupo"
                         files={getGroupFiles(group.id)}
                         emptyText={`Nenhum arquivo enviado no ${group.nome_grupo}`}
+                        carregando={carregandoArquivos}
                     />
                 ))}
 
@@ -259,9 +313,10 @@ export default function VaultScreen() {
                     files={myFiles}
                     icon={FileUp}
                     emptyText="Você ainda não enviou nenhum arquivo"
+                    carregando={carregandoArquivos}
                 />
 
-                {filteredFiles.length === 0 && (
+                {!carregandoArquivos && filteredFiles.length === 0 && (
                     <View style={{ alignItems: "center", paddingVertical: 32 }}>
                         <Text style={{ color: HADES.textMuted, fontWeight: "600" }}>Nenhum arquivo encontrado</Text>
                         <Text style={{ fontSize: 13, color: HADES.textDim, marginTop: 4 }}>

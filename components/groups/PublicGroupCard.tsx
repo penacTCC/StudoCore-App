@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, Image, Alert, DeviceEventEmitter } from "react-native";
+import { View, Text, TouchableOpacity, Image, DeviceEventEmitter } from "react-native";
 import { Users, Target } from "lucide-react-native";
 import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
@@ -6,6 +6,7 @@ import { entrarEmGrupoPublico } from "@/services/grupos";
 import { useGruposPublicos } from "@/hooks/useGruposPublicos";
 import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import { CartaoGrupoPublicoProps } from "@/types/grupos";
+import { toast } from "@/services/toast";
 
 /**
  * Card de grupo público com avatar, nome, descrição, membros, meta semanal
@@ -17,7 +18,7 @@ export default function PublicGroupCard({ grupo }: CartaoGrupoPublicoProps) {
     const entrarNoGrupo = async (grupoId: string) => {
         const novoMembro = await entrarEmGrupoPublico(grupoId);
         if (!novoMembro) {
-            Alert.alert("Erro", "Não foi possível entrar no grupo.");
+            toast.error("Não foi possível entrar no grupo.");
             return;
         }
 

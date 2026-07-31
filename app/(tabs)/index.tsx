@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 //Componentes de Native
-import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Image, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronDown, Users, Settings, FolderArchive } from "lucide-react-native";
 
@@ -17,6 +17,7 @@ import MetaGrupo from "@/components/grupo/MetaGrupo";
 import RankingGrupo, { LinhaRanking } from "@/components/grupo/RankingGrupo";
 import CardSessaoGrupo, { FeedVazio } from "@/components/grupo/CardSessaoGrupo";
 import MembrosGrupo, { ConviteDestaque, CtaGruposPublicos, MembroCarrossel } from "@/components/grupo/MembrosGrupo";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 
 //Hooks
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
@@ -50,7 +51,7 @@ export default function GroupScreen() {
     }, [groupId]);
 
     //Pega os membros do grupo
-    const { membros } = useMembrosGrupo({ grupoId: groupId as string });
+    const { membros, carregando: carregandoMembros, recarregar: recarregarMembros } = useMembrosGrupo({ grupoId: groupId as string });
 
     //Pega o usuário atual
     const { userId } = useAuth();
@@ -62,7 +63,10 @@ export default function GroupScreen() {
     const { onlineUsers } = useOnlineUsers(groupId as string);
 
     // Busca apenas as sessões públicas do grupo atual para o feed ao vivo.
-    const { sessions, loading: loadingSessions } = useSessoesFoco(5, groupId as string);
+    const { sessions, loading: loadingSessions, refresh: refreshSessions } = useSessoesFoco(5, groupId as string);
+
+    //Controla o estado do pull-to-refresh
+    const [atualizandoTela, setAtualizandoTela] = useState(false);
 
     //Faz useEffect para pegar as horas semanais do grupo
     useEffect(() => {
@@ -116,6 +120,22 @@ export default function GroupScreen() {
         }
         carregarRankingHoras();
     }, [groupId, leaderboardFilter, membros])
+
+    // Atualiza todos os dados da tela quando o usuário puxa para atualizar.
+    const handleRefresh = useCallback(async () => {
+        if (!groupId) return;
+        setAtualizandoTela(true);
+        try {
+            await Promise.all([
+                buscarGrupoPorId(groupId as string).then(setGroup),
+                horasSemanaisGrupo(groupId as string).then(setHorasSemanaGrupo),
+                recarregarMembros(),
+                refreshSessions(),
+            ]);
+        } finally {
+            setAtualizandoTela(false);
+        }
+    }, [groupId, recarregarMembros, refreshSessions]);
 
     //Cálculo do progresso do grupo
     const metaPorMembro = Number(Array.isArray(grupo?.meta_horas) ? grupo.meta_horas[0] : grupo?.meta_horas) || 0
@@ -172,6 +192,14 @@ export default function GroupScreen() {
                 ...(rank ? { rank: String(rank) } : {}),
             },
         });
+
+    // Só considera carregado quando o grupo e os membros já resolveram — evita
+    // piscar "Nome não encontrado" e um ranking vazio antes da 1ª resposta.
+    const carregandoTela = !grupo || carregandoMembros;
+
+    if (carregandoTela) {
+        return <HomeSkeleton />;
+    }
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -272,6 +300,13 @@ export default function GroupScreen() {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20, paddingTop: 10 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={atualizandoTela}
+                        onRefresh={handleRefresh}
+                        tintColor={HADES.accentSolid}
+                    />
+                }
             >
                 {grupoSozinho && <ConviteDestaque onConvidar={abrirConvite} />}
 
@@ -360,6 +395,127 @@ export default function GroupScreen() {
                 />
 
                 <CtaGruposPublicos onPress={() => router.push("/browse-groups")} />
+            </ScrollView>
+        </SafeAreaView>
+    );
+}
+
+/** Placeholder da home enquanto grupo, membros e ranking ainda não resolveram. */
+function HomeSkeleton() {
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+            <View
+                style={{
+                    paddingTop: 15,
+                    paddingHorizontal: 18,
+                    paddingBottom: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                }}
+            >
+                <Skeleton width={44} height={44} borderRadius={12} hades />
+                <Skeleton width={140} height={21} borderRadius={6} hades style={{ flex: 1 }} />
+                <SkeletonCircle size={38} hades />
+                <SkeletonCircle size={38} hades />
+            </View>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20, paddingTop: 10 }}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Meta do grupo */}
+                <View
+                    style={{
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        paddingVertical: 15,
+                        paddingHorizontal: 16,
+                        marginBottom: 18,
+                        gap: 11,
+                    }}
+                >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                        <Skeleton width={100} height={14} hades />
+                        <Skeleton width={70} height={13} hades />
+                    </View>
+                    <Skeleton width="100%" height={9} borderRadius={5} hades />
+                    <Skeleton width={120} height={12} hades />
+                </View>
+
+                {/* Ranking */}
+                <Skeleton width={90} height={16} hades style={{ marginTop: 15, marginBottom: 14 }} />
+                <View style={{ flexDirection: "row", justifyContent: "center", gap: 14, marginBottom: 16 }}>
+                    <SkeletonCircle size={56} hades />
+                    <SkeletonCircle size={68} hades />
+                    <SkeletonCircle size={56} hades />
+                </View>
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        paddingVertical: 4,
+                        paddingHorizontal: 12,
+                    }}
+                >
+                    {[0, 1].map((i) => (
+                        <View
+                            key={i}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 12,
+                                paddingVertical: 11,
+                                borderBottomWidth: i === 0 ? 1 : 0,
+                                borderBottomColor: "rgba(255,255,255,0.05)",
+                            }}
+                        >
+                            <SkeletonCircle size={38} hades />
+                            <Skeleton width="45%" height={14} hades style={{ flex: 1 }} />
+                            <Skeleton width={40} height={14} hades />
+                        </View>
+                    ))}
+                </View>
+
+                {/* Atividades */}
+                <Skeleton width={110} height={16} hades style={{ marginTop: 22, marginBottom: 12 }} />
+                <View style={{ gap: 10, marginBottom: 22 }}>
+                    {[0, 1].map((i) => (
+                        <View
+                            key={i}
+                            style={{
+                                backgroundColor: HADES.surface,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                borderRadius: 16,
+                                padding: 14,
+                                gap: 12,
+                            }}
+                        >
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+                                <SkeletonCircle size={30} hades />
+                                <Skeleton width={100} height={13} hades />
+                            </View>
+                            <Skeleton width="70%" height={13} hades />
+                            <Skeleton width="100%" height={30} hades />
+                        </View>
+                    ))}
+                </View>
+
+                {/* Membros */}
+                <Skeleton width={100} height={16} hades style={{ marginBottom: 17 }} />
+                <View style={{ flexDirection: "row", gap: 14 }}>
+                    {[0, 1, 2, 3].map((i) => (
+                        <View key={i} style={{ alignItems: "center", gap: 6 }}>
+                            <SkeletonCircle size={54} hades />
+                            <Skeleton width={40} height={10} hades />
+                        </View>
+                    ))}
+                </View>
             </ScrollView>
         </SafeAreaView>
     );

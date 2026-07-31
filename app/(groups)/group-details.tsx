@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ScrollView, Image, Alert, DeviceEventEmitter } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Image, DeviceEventEmitter, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Globe, Lock, Users } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
@@ -7,11 +7,13 @@ import { getAvatarColor } from "@/constants/helpers";
 import Avatar from "@/components/ui/Avatar";
 import { buscarGrupoPorId, entrarEmGrupoPublico, horasSemanaisGrupo } from "@/services/grupos";
 import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useAuth } from "@/hooks/useAuth";
 import { GrupoComTotalMembros } from "@/types/grupos";
+import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { toast } from "@/services/toast";
 
 /** Bloco de estatística no visual HADES (substitui o antigo StatCard). */
 function StatBox({ value, label, valueColor }: { value: string | number; label: string; valueColor: string }) {
@@ -45,33 +47,45 @@ export default function GroupDetailsScreen() {
     const [weeklyGroupHours, setWeeklyGroupHours] = useState(0);
 
     //Pega membros do grupo
-    const { membros } = useMembrosGrupo({ grupoId: groupId });
+    const { membros, recarregar: recarregarMembros } = useMembrosGrupo({ grupoId: groupId });
 
     //Pega o id do usuário logado
     const { userId } = useAuth();
 
+    //Controla o estado do pull-to-refresh
+    const [atualizando, setAtualizando] = useState(false);
+
     //Pega as informações do grupo pelo ID
-    useEffect(() => {
-        const loadGroup = async () => {
-            setIsLoading(true);
-            const fetchedGroup = await buscarGrupoPorId(groupId!);
-            setGroup(fetchedGroup);
-            setIsLoading(false);
-        };
-        loadGroup();
+    const loadGroup = useCallback(async () => {
+        const fetchedGroup = await buscarGrupoPorId(groupId!);
+        setGroup(fetchedGroup);
     }, [groupId]);
+
+    useEffect(() => {
+        setIsLoading(true);
+        loadGroup().finally(() => setIsLoading(false));
+    }, [loadGroup]);
 
     // Busca as horas reais da semana para mostrar o progresso correto nos detalhes do grupo.
-    useEffect(() => {
-        const loadWeeklyProgress = async () => {
-            if (!groupId) return;
+    const loadWeeklyProgress = useCallback(async () => {
+        if (!groupId) return;
 
-            const weeklyHours = await horasSemanaisGrupo(groupId);
-            setWeeklyGroupHours(weeklyHours);
-        };
-
-        loadWeeklyProgress();
+        const weeklyHours = await horasSemanaisGrupo(groupId);
+        setWeeklyGroupHours(weeklyHours);
     }, [groupId]);
+
+    useEffect(() => {
+        loadWeeklyProgress();
+    }, [loadWeeklyProgress]);
+
+    const handleRefresh = async () => {
+        setAtualizando(true);
+        try {
+            await Promise.all([loadGroup(), loadWeeklyProgress(), recarregarMembros()]);
+        } finally {
+            setAtualizando(false);
+        }
+    };
 
     //Pega usuários online no App (A Lista Global)
     const { onlineUsers } = useOnlineUsers(groupId);
@@ -82,14 +96,16 @@ export default function GroupDetailsScreen() {
     // Filtra a lista global para mostrar APENAS quem tá logado, é membro daqui E não é você
     const activeGroupMembers = onlineUsers.filter((id) => id !== userId && memberIds.includes(id));
 
-    if (isLoading || !group) {
+    if (isLoading) {
+        return <GroupDetailsSkeleton />;
+    }
+
+    if (!group) {
         return (
             <SafeAreaView
                 style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}
             >
-                <Text style={{ color: HADES.textMuted }}>
-                    {isLoading ? "Carregando detalhes..." : "Grupo não encontrado"}
-                </Text>
+                <Text style={{ color: HADES.textMuted }}>Grupo não encontrado</Text>
             </SafeAreaView>
         );
     }
@@ -135,6 +151,9 @@ export default function GroupDetailsScreen() {
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                }
             >
                 {/* Banner do grupo */}
                 <View
@@ -263,6 +282,11 @@ export default function GroupDetailsScreen() {
                             </Text>
                         </View>
                     </View>
+                    {membros.length === 0 && (
+                        <Text style={{ fontSize: 12.5, color: HADES.textMuted }}>
+                            Não foi possível carregar os membros deste grupo.
+                        </Text>
+                    )}
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                         {membros.map((member) => (
                             <View
@@ -353,7 +377,7 @@ export default function GroupDetailsScreen() {
                     onPress={async () => {
                         const novoMembro = await entrarEmGrupoPublico(group.id);
                         if (!novoMembro) {
-                            Alert.alert("Erro", "Não foi possível entrar no grupo.");
+                            toast.error("Não foi possível entrar no grupo.");
                             return;
                         }
 
@@ -385,6 +409,123 @@ export default function GroupDetailsScreen() {
                     <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>Entrar neste grupo</Text>
                 </TouchableOpacity>
             </View>
+        </SafeAreaView>
+    );
+}
+
+function GroupDetailsSkeleton() {
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
+            <View
+                style={{
+                    paddingTop: 6,
+                    paddingHorizontal: 20,
+                    paddingBottom: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                }}
+            >
+                <ArrowLeft size={22} color={HADES.textSecondary} />
+                <View style={{ flex: 1, gap: 6 }}>
+                    <Skeleton width="55%" height={18} hades />
+                    <Skeleton width={90} height={13} hades />
+                </View>
+            </View>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
+                showsVerticalScrollIndicator={false}
+            >
+                <View
+                    style={{
+                        backgroundColor: HADES.groupVioletTint,
+                        borderWidth: 1,
+                        borderColor: "rgba(124,92,252,0.22)",
+                        borderRadius: 20,
+                        padding: 18,
+                        marginBottom: 16,
+                    }}
+                >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                        <SkeletonCircle size={72} hades style={{ borderRadius: 18 }} />
+                        <View style={{ flex: 1, gap: 8 }}>
+                            <Skeleton width={110} height={13} hades />
+                            <Skeleton width="90%" height={13} hades />
+                            <Skeleton width="70%" height={13} hades />
+                        </View>
+                    </View>
+                </View>
+
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+                    {[0, 1, 2].map((i) => (
+                        <View
+                            key={i}
+                            style={{
+                                flex: 1,
+                                backgroundColor: HADES.surface,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                borderRadius: 14,
+                                paddingVertical: 14,
+                                paddingHorizontal: 12,
+                                alignItems: "center",
+                                gap: 8,
+                            }}
+                        >
+                            <Skeleton width={30} height={20} hades />
+                            <Skeleton width={50} height={11} hades />
+                        </View>
+                    ))}
+                </View>
+
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        padding: 14,
+                        marginBottom: 16,
+                    }}
+                >
+                    <Skeleton width={130} height={14} hades style={{ marginBottom: 12 }} />
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                        {[0, 1, 2].map((i) => (
+                            <View
+                                key={i}
+                                style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 7,
+                                    borderRadius: 12,
+                                    backgroundColor: HADES.surfaceOverlay,
+                                }}
+                            >
+                                <SkeletonCircle size={30} hades />
+                                <Skeleton width={70} height={13} hades />
+                            </View>
+                        ))}
+                    </View>
+                </View>
+
+                <View
+                    style={{
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 16,
+                        padding: 14,
+                    }}
+                >
+                    <Skeleton width={150} height={14} hades style={{ marginBottom: 12 }} />
+                    <Skeleton width="100%" height={10} borderRadius={5} hades />
+                    <Skeleton width={130} height={12} hades style={{ marginTop: 8 }} />
+                </View>
+            </ScrollView>
         </SafeAreaView>
     );
 }

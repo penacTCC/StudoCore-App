@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { View, Text, TouchableOpacity, Alert, AppState } from "react-native";
+import { View, Text, TouchableOpacity, AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Play } from "lucide-react-native";
 import * as Notifications from "expo-notifications";
 
 import { HADES } from "@/constants/hades";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { CONFIG_POMODORO_PADRAO } from "@/constants/foco";
 import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
@@ -22,6 +23,7 @@ import type { ArquivoDetalhe } from "@/types/archives";
 import type { SessaoFocoRow, SessionCardItem, MemberSession } from "@/types/sessions";
 import { salvarSessaoFoco, atualizarSessaoFoco, fetchFocusSession, calculateFocusSessionMinutes, insertTabSessaoMembros, fetchSessionMembers, updateTabSessaoMembros } from "@/services/sessions";
 import { FaixaBlocoCronograma, FaixaSessaoRestaurada } from "@/components/focus/PecasFoco";
+import { toast } from "@/services/toast";
 import type { ConfigPomodoro, ContextoBloco, FocusState, FaseFoco, ModoFoco } from "@/types/foco";
 
 // Configurar o comportamento das notificações (necessário para mostrar enquanto o app está aberto)
@@ -110,9 +112,9 @@ export default function FocusScreen() {
     const faseDuracaoRef = useRef<number>(0);
 
     const { userId, user } = useAuth();
-    const { pendingSessions } = useSessoesUsuario(userId);
+    const { pendingSessions, loading: carregandoSessoesPendentes } = useSessoesUsuario(userId);
     const { archives } = useArchives(userId || undefined);
-    const { materias, recarregarMaterias } = useMaterias(userId);
+    const { materias, recarregarMaterias, carregando: carregandoMaterias } = useMaterias(userId);
     const params = useLocalSearchParams();
     const router = useRouter();
     const navigation = useNavigation();
@@ -209,6 +211,7 @@ export default function FocusScreen() {
     }, [navigation, recarregarMaterias]);
 
     const bloqueadoPorFeedback = pendingSessions.length > 0 && !params.reviewSessionId;
+    const carregandoConfig = carregandoMaterias || carregandoSessoesPendentes;
 
     // Carrega o grupo atual a partir dos parâmetros da rota ou do último grupo salvo localmente.
     useEffect(() => {
@@ -270,6 +273,7 @@ export default function FocusScreen() {
         if (params.blocoId && params.subject) {
             setContexto({
                 blocoId: params.blocoId as string,
+                origem: params.origemBloco === "plano" ? "plano" : "rotina",
                 materia: params.subject as string,
                 topico: (params.content as string) || "",
                 fimEm: (params.fimEm as string) || "",
@@ -282,7 +286,7 @@ export default function FocusScreen() {
                 setConfigPomodoro((c) => ({ ...c, focoMin: duracao }));
             }
         }
-    }, [params.blocoId, params.subject, params.content, params.fimEm, params.duracaoMin]);
+    }, [params.blocoId, params.origemBloco, params.subject, params.content, params.fimEm, params.duracaoMin]);
 
     // Auto-start for review sessions
     useEffect(() => {
@@ -394,9 +398,9 @@ export default function FocusScreen() {
     const startSession = async () => {
         //Verifica preenchimento de dados obrigatorios
         if (!selectedSubject || !specificContent.trim()) {
-            Alert.alert(
-                "Incompleto",
-                "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar."
+            toast.warning(
+                "Por favor, selecione uma matéria e informe o conteúdo específico antes de iniciar.",
+                "Incompleto"
             );
             return;
         }
@@ -459,6 +463,8 @@ export default function FocusScreen() {
             questoes_acertadas: 0,
             is_public: isPublicSession,
             status: "ativo",
+            bloco_rotina_id: contexto?.origem === "rotina" ? contexto.blocoId : null,
+            bloco_plano_id: contexto?.origem === "plano" ? contexto.blocoId : null,
             ultimo_inicio: new Date().toISOString(),
             concluido_em: null,
         });
@@ -483,6 +489,7 @@ export default function FocusScreen() {
             const nowIso = new Date().toISOString();
             if (!session?.id) {
                 console.error("Nemhuma sessão foi encontrada:", session);
+                toast.error("Não foi possível retomar a sessão.");
                 return;
             }
             if (modo === "cronometro") {
@@ -496,6 +503,7 @@ export default function FocusScreen() {
                 });
                 if (updateError) {
                     console.error("Erro ao atualizar sessão ao retomar:", updateError);
+                    toast.error("Não foi possível retomar a sessão.");
                     return;
                 }
                 const { data: refreshedSession } = await fetchFocusSession(session.id);
@@ -510,6 +518,7 @@ export default function FocusScreen() {
                     });
                     if (updateMemberError) {
                         console.error("Erro ao atualizar membro ao retomar:", updateMemberError);
+                        toast.error("Não foi possível sincronizar sua sessão com o grupo.");
                         return;
                     }
 
@@ -536,10 +545,14 @@ export default function FocusScreen() {
             // Pausar: salva os segundos acumulados e para o interval
             if (!session?.id) return;
 
-            await atualizarSessaoFoco(session.id, {
+            const { error: pauseError } = await atualizarSessaoFoco(session.id, {
                 status: "pausado",
-                tempo_minutos: newUserTimer, // em segundos
+                tempo_minutos: await calculateFocusSessionMinutes(newUserTimer),
             });
+            if (pauseError) {
+                console.error("Erro ao pausar sessão:", pauseError);
+                toast.error("Não foi possível pausar a sessão.");
+            }
 
             if (isPublicSession) {
                 const { error: updateMemberError } = await updateTabSessaoMembros(userId || "", session.id, {
@@ -548,6 +561,7 @@ export default function FocusScreen() {
                 });
                 if (updateMemberError) {
                     console.error("Erro ao pausar membro:", updateMemberError);
+                    toast.error("Não foi possível sincronizar sua sessão com o grupo.");
                     return;
                 }
             }
@@ -681,7 +695,9 @@ export default function FocusScreen() {
                         </Text>
                     </View>
 
-                    {bloqueadoPorFeedback ? (
+                    {carregandoConfig ? (
+                        <FocusConfigSkeleton />
+                    ) : bloqueadoPorFeedback ? (
                         <BloqueioFeedback
                             sessoes={pendingSessions}
                             onResponder={abrirFormulario}
@@ -786,5 +802,51 @@ export default function FocusScreen() {
                 }}
             />
         </SafeAreaView>
+    );
+}
+
+/** Esqueleto da tela de configuração de sessão (matéria, conteúdo, visibilidade/preset), exibido enquanto matérias e sessões pendentes ainda carregam. */
+function FocusConfigSkeleton() {
+    return (
+        <>
+            <View style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
+                <View
+                    style={{
+                        flexDirection: "row",
+                        backgroundColor: HADES.surface,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        borderRadius: 12,
+                        padding: 4,
+                        gap: 4,
+                    }}
+                >
+                    <Skeleton height={38} borderRadius={9} hades style={{ flex: 1 }} />
+                    <Skeleton height={38} borderRadius={9} hades style={{ flex: 1 }} />
+                </View>
+            </View>
+
+            <View style={{ flex: 1, paddingHorizontal: 20 }}>
+                <Skeleton width={70} height={11} hades style={{ marginBottom: 12 }} />
+                <View style={{ flexDirection: "row", gap: 9, marginBottom: 24 }}>
+                    <Skeleton width={90} height={38} borderRadius={12} hades />
+                    <Skeleton width={110} height={38} borderRadius={12} hades />
+                    <Skeleton width={80} height={38} borderRadius={12} hades />
+                </View>
+
+                <Skeleton width={150} height={11} hades style={{ marginBottom: 12 }} />
+                <Skeleton height={49} borderRadius={13} hades />
+
+                <Skeleton width={90} height={11} hades style={{ marginTop: 26, marginBottom: 12 }} />
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                    <Skeleton height={90} borderRadius={14} hades style={{ flex: 1 }} />
+                    <Skeleton height={90} borderRadius={14} hades style={{ flex: 1 }} />
+                </View>
+            </View>
+
+            <View style={{ paddingTop: 12, paddingHorizontal: 20, paddingBottom: 12 }}>
+                <Skeleton height={54} borderRadius={15} hades />
+            </View>
+        </>
     );
 }

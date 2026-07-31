@@ -2,6 +2,7 @@ import { DeviceEventEmitter } from 'react-native';
 import { APP_BADGES } from '@/constants/badges';
 import { supabase } from '@/repositories/supabase';
 import { buscarUsuarioLogado } from '@/services/auth';
+import { toast } from '@/services/toast';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { UserStats } from '@/types/profile';
 
@@ -115,6 +116,7 @@ export const loadProfileStats = async (): Promise<UserStats> => {
         };
     } catch (e) {
         console.error('Erro ao ler estatísticas do Supabase:', e);
+        toast.error("Não foi possível carregar suas estatísticas.");
         return DEFAULT_STATS;
     }
 };
@@ -141,6 +143,7 @@ export const syncProfileStatsAfterFocusSession = async (userId: string): Promise
         // Interrompe a sincronização se o banco não conseguir devolver as sessões necessárias para o cálculo.
         if (sessionsError) {
             console.error('Erro ao sincronizar sessões do perfil:', sessionsError);
+            toast.error("Não foi possível atualizar suas estatísticas.");
             return null;
         }
 
@@ -240,6 +243,7 @@ export const syncProfileStatsAfterFocusSession = async (userId: string): Promise
         // Retorna nulo se a escrita do perfil falhar, mas deixa a sessão já salva no banco.
         if (profileError) {
             console.error('Erro ao sincronizar perfil após sessão:', profileError);
+            toast.error("Não foi possível atualizar suas estatísticas.");
             return null;
         }
 
@@ -252,6 +256,7 @@ export const syncProfileStatsAfterFocusSession = async (userId: string): Promise
         return await loadProfileStats();
     } catch (error) {
         console.error('Erro inesperado ao sincronizar estatísticas:', error);
+        toast.error("Não foi possível atualizar suas estatísticas.");
         return null;
     }
 };
@@ -264,7 +269,11 @@ export const updateFavoriteSubject = async (subject: string): Promise<UserStats>
     const { data: authData } = await buscarUsuarioLogado();
     const userId = authData?.user?.id;
     if (userId) {
-        await supabase.from('profiles').update({ materia_favorita: subject }).eq('id', userId);
+        const { error } = await supabase.from('profiles').update({ materia_favorita: subject }).eq('id', userId);
+        if (error) {
+            console.error('Erro ao salvar matéria favorita:', error);
+            toast.error("Não foi possível salvar a matéria favorita.");
+        }
     }
     return await loadProfileStats();
 };
@@ -277,7 +286,11 @@ export const updateWeeklyGoal = async (hours: number): Promise<UserStats> => {
     const userId = authData?.user?.id;
     if (userId) {
         const minSemana = Math.round(hours * 60);
-        await supabase.from('profiles').update({ minutos_semana: minSemana }).eq('id', userId);
+        const { error } = await supabase.from('profiles').update({ minutos_semana: minSemana }).eq('id', userId);
+        if (error) {
+            console.error('Erro ao salvar meta semanal:', error);
+            toast.error("Não foi possível salvar a meta semanal.");
+        }
     }
     return await loadProfileStats();
 };

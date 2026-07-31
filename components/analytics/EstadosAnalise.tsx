@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, View, Text, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Flame, Clock, Target, Lock, BarChart3, PieChart, Rocket, Play } from "lucide-react-native";
+import { Flame, Clock, Target, Lock, BarChart3, PieChart, Rocket, Play, Users, Swords } from "lucide-react-native";
 
 import { CartaoMetrica, CORES } from "@/components/analytics/GraficosAnalise";
 
@@ -211,6 +211,83 @@ export function EstadoVazioPessoal({ cor, aoIniciarSessao }: { cor: string; aoIn
                     </View>
                 ))}
             </View>
+        </Animated.View>
+    );
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// GRUPO · sem nenhum grupo
+// ════════════════════════════════════════════════════════════════════════
+export function EstadoSemGrupo({ cor, aoVerGrupos }: { cor: string; aoVerGrupos: () => void }) {
+    const estiloEntrada = useEntradaAnimada();
+
+    return (
+        <Animated.View style={[estiloEntrada, { paddingTop: 8, alignItems: "center" }]}>
+            <LinearGradient
+                colors={[comAlfa(cor, 0.85), cor]}
+                start={{ x: 0.15, y: 0 }}
+                end={{ x: 0.85, y: 1 }}
+                style={{
+                    width: 66,
+                    height: 66,
+                    borderRadius: 20,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginTop: 8,
+                    marginBottom: 20,
+                }}
+            >
+                <Users size={30} color="#0b0c10" />
+            </LinearGradient>
+
+            <Text className="text-center text-xl font-bold tracking-[-0.4px] text-white">
+                Você ainda não tem um grupo
+            </Text>
+            <Text className="mt-2 max-w-[270px] text-center text-[13.5px] leading-[19.5px] text-[#8a8d96]">
+                Entre em um grupo de estudos ou crie o seu pra acompanhar o ranking, a meta semanal e a ofensiva de todo mundo aqui.
+            </Text>
+
+            <TouchableOpacity
+                onPress={aoVerGrupos}
+                activeOpacity={0.85}
+                className="mt-6 flex-row items-center justify-center gap-2 rounded-2xl px-[26px] py-[15px]"
+                style={{ backgroundColor: cor }}
+            >
+                <Swords size={17} color="#0b0c10" />
+                <Text className="text-[15px] font-bold text-[#0b0c10]">Ver grupos</Text>
+            </TouchableOpacity>
+        </Animated.View>
+    );
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// GRUPO · sem sessões no período selecionado
+// ════════════════════════════════════════════════════════════════════════
+export function EstadoGrupoSemDadosPeriodo({ nomeGrupo }: { nomeGrupo: string }) {
+    const estiloEntrada = useEntradaAnimada();
+
+    return (
+        <Animated.View
+            style={[
+                estiloEntrada,
+                {
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.06)",
+                    backgroundColor: "#0d0e12",
+                    borderRadius: 16,
+                    paddingVertical: 28,
+                    paddingHorizontal: 20,
+                },
+            ]}
+        >
+            <BarChart3 size={24} color={CORES.textoFraco} />
+            <Text className="mt-3 text-center text-[13.5px] text-[#8a8d96]">
+                {nomeGrupo ? `Ninguém em "${nomeGrupo}" registrou sessões nesse período.` : "Ninguém registrou sessões nesse período."}
+            </Text>
+            <Text className="mt-1 text-center text-xs text-[#5f636c]">
+                Troque o período ou volte quando o grupo tiver estudado.
+            </Text>
         </Animated.View>
     );
 }
