@@ -28,7 +28,6 @@ import type { ConfigPomodoro, ContextoBloco, FocusState, FaseFoco, ModoFoco } fr
 // Configurar o comportamento das notificações (necessário para mostrar enquanto o app está aberto)
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
-        shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
         shouldShowBanner: true,
