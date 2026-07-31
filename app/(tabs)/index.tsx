@@ -22,7 +22,7 @@ import MembrosGrupo, { ConviteDestaque, CtaGruposPublicos, MembroCarrossel } fro
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
-import { useSessoesFoco } from "@/hooks/useSessoesFoco";
+import { useSessoesAoVivo, useSessoesFoco } from "@/hooks/useSessoesFoco";
 import { buscarGrupoPorId, horasSemanaisGrupo } from "@/services/grupos";
 import { buscarRankingHorasMembros } from "@/services/ranking";
 import { RankingMembroComPerfil } from "@/types/ranking";
@@ -61,8 +61,16 @@ export default function GroupScreen() {
     //Pega a quantidade de usuários online
     const { onlineUsers } = useOnlineUsers(groupId as string);
 
-    // Busca apenas as sessões públicas do grupo atual para o feed ao vivo.
+    /*
+      O feed da home mostra quem está focando agora e, quando não há ninguém, cai no
+      histórico de sessões encerradas para a tela não ficar vazia.
+    */
+    const { sessoes: sessoesAoVivo, loading: loadingAoVivo } = useSessoesAoVivo(5, groupId as string);
     const { sessions, loading: loadingSessions } = useSessoesFoco(5, groupId as string);
+
+    const mostrandoAoVivo = sessoesAoVivo.length > 0;
+    const sessoesDoFeed = mostrandoAoVivo ? sessoesAoVivo : sessions;
+    const carregandoFeed = loadingAoVivo || loadingSessions;
 
     //Faz useEffect para pegar as horas semanais do grupo
     useEffect(() => {
@@ -320,15 +328,18 @@ export default function GroupScreen() {
                         >
                             Atividades
                         </Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                            <View
-                                style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.green }}
-                            />
-                            <Text style={{ fontSize: 11, color: HADES.green, fontWeight: "600" }}>ao vivo</Text>
-                        </View>
+                        {/* O selo só aparece quando o feed é de fato o ao vivo; no histórico ele mentia. */}
+                        {mostrandoAoVivo && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                                <View
+                                    style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.green }}
+                                />
+                                <Text style={{ fontSize: 11, color: HADES.green, fontWeight: "600" }}>ao vivo</Text>
+                            </View>
+                        )}
                     </View>
 
-                    {sessions.length > 0 && (
+                    {sessoesDoFeed.length > 0 && (
                         <TouchableOpacity
                             onPress={() => router.push({ pathname: "/detailing", params: { groupId: groupId as string } })}
                             activeOpacity={0.7}
@@ -342,12 +353,12 @@ export default function GroupScreen() {
                 </View>
 
                 <View style={{ gap: 10, marginBottom: 22 }}>
-                    {loadingSessions ? (
+                    {carregandoFeed ? (
                         <FeedVazio carregando />
-                    ) : sessions.length === 0 ? (
+                    ) : sessoesDoFeed.length === 0 ? (
                         <FeedVazio />
                     ) : (
-                        sessions.slice(0, 2).map((session) => (
+                        sessoesDoFeed.slice(0, 2).map((session) => (
                             <CardSessaoGrupo key={session.id} sessao={session} />
                         ))
                     )}

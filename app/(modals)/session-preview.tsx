@@ -17,9 +17,8 @@ import {
 
 import { HADES } from "@/constants/hades";
 import { getSubjectColor } from "@/constants/helpers";
-import { buscarSessoesRecentes, fetchSessionById, fetchSessionMembers } from "@/services/sessions";
+import { fetchSessionById, fetchSessionMembers } from "@/services/sessions";
 import { useIncentivos } from "@/hooks/useIncentivos";
-import { useAuth } from "@/hooks/useAuth";
 import type { MemberSession, SessionCardItem } from "@/types/sessions";
 
 type Participante = {
@@ -52,7 +51,6 @@ function formatarCronometro(totalSegundos: number) {
 }
 
 export default function SessionPreviewScreen() {
-    const { userId } = useAuth();
     const params = useLocalSearchParams<{ sessionId?: string; session?: string; variante?: string; isPublic?: string }>();
     const [sessao, setSessao] = useState<SessionCardItem | null>(null);
     const [participantes, setParticipantes] = useState<Participante[]>([]);
@@ -112,13 +110,17 @@ export default function SessionPreviewScreen() {
                     sessaoEncontrada = data as SessionCardItem | null;
                 }
 
+                if (!ativo) return;
+
+                /*
+                  Antes, sem id, a tela caía em `buscarSessoesRecentes(1)` e abria uma sessão
+                  qualquer — o que escondeu por muito tempo o fato de que os cards do feed nunca
+                  passavam o `sessionId`. Agora, sem id, é erro explícito.
+                */
                 if (!sessaoEncontrada) {
-                    const { data, error } = await buscarSessoesRecentes(1);
-                    if (error) throw error;
-                    sessaoEncontrada = (data?.[0] as SessionCardItem | undefined) ?? null;
+                    setErro("Não foi possível abrir essa sessão.");
                 }
 
-                if (!ativo) return;
                 setSessao(sessaoEncontrada);
 
                 if (!sessaoEncontrada) {
@@ -347,7 +349,9 @@ export default function SessionPreviewScreen() {
                                 {participantes.map((p) => {
                                     const forcasRecebidas = contarPara(p.id);
                                     const jaTorciPorEle = euMandeiPara(p.id);
-                                    const posso = podeTorcerPor(p.id);
+                                    // Torcer só faz sentido com a sessão rolando: mandar força para
+                                    // quem terminou de estudar há horas não incentiva ninguém.
+                                    const posso = podeTorcerPor(p.id) && !estaConcluida;
 
                                     return (
                                         <View key={p.id} style={estilos.participanteCard}>

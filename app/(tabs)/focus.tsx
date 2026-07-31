@@ -530,8 +530,30 @@ export default function FocusScreen() {
 
 
         if (insertError) {
-            console.warn("Erro ao adicionar membro na sessão:", insertError);
-            return;
+            /*
+              23505 é a violação da constraint (sessao_id, membro_id): já existe linha para
+              essa pessoa nessa sessão. Isso não é falha — acontece ao reentrar numa sessão
+              que já foi aberta antes, ou ao entrar na sessão que a própria pessoa criou (o
+              anfitrião já entra como membro ao criar). Antes o `return` abortava aqui e a
+              pessoa ficava presa sem nunca virar `active`; agora só reativamos a presença.
+
+              O `tempo_segundos` fica de fora de propósito, para não zerar o que já foi
+              acumulado por quem está retomando.
+            */
+            if (insertError.code === "23505") {
+                const { error: reativarError } = await updateTabSessaoMembros(userId, sessionData.id, {
+                    status: "ativo",
+                    ultimo_inicio: new Date().toISOString(),
+                });
+
+                if (reativarError) {
+                    console.warn("Erro ao reativar membro na sessão:", reativarError);
+                    return;
+                }
+            } else {
+                console.warn("Erro ao adicionar membro na sessão:", insertError);
+                return;
+            }
         }
 
         // carregar dados dos membros da sessão para mostrar no carrossel

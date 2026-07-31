@@ -34,7 +34,8 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
             onPress={() =>
                 router.push({
                     pathname: "/session-preview",
-                    params: { isPublic: String(sessao.is_public) },
+                    // Sem o id a prévia abria sempre a última sessão encerrada, não a que foi tocada.
+                    params: { sessionId: sessao.id, isPublic: String(sessao.is_public) },
                 })
             }
             style={{

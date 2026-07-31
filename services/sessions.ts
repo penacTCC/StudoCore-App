@@ -170,6 +170,89 @@ export const buscarSessoesRecentes = async (limit: number = 20, groupId?: string
     return result;
 };
 
+// ───── SELECT (feed ao vivo: quem está focando agora) ─────
+/**
+ * Sessões que ainda estão acontecendo, para o feed "ao vivo" da home.
+ *
+ * Diferente de `buscarSessoesRecentes`, que é um feed de destaques do passado
+ * (`status = 'salvo'` só é gravado no encerramento, junto com `concluido_em`).
+ *
+ * O corte de tempo usa `created_at` porque é `timestamptz` na definição da tabela,
+ * enquanto `ultimo_inicio` foi adicionada depois sem migration e hoje volta com fuso
+ * errado (aparece no futuro e gera cronômetro negativo). É rolante em vez de "hoje"
+ * para não descartar quem começou perto da meia-noite.
+ */
+export const buscarSessoesAoVivo = async (limit: number = 20, groupId?: string | null) => {
+    // Sessão abandonada (app fechado à força) fica 'ativo' para sempre: o corte evita fantasma.
+    const horasDeValidade = 12;
+    const limiteDeTempo = new Date(Date.now() - horasDeValidade * 60 * 60 * 1000).toISOString();
+
+    const montarQuery = () => {
+        let query = supabase
+            .from("sessoes_foco")
+            .select(`
+                *,
+                profiles:user_id (
+                    nome_real,
+                    nome_usuario,
+                    foto_usuario
+                )
+            `)
+            // Sessão privada é estudo solo: não entra no feed de ninguém.
+            .eq("is_public", true)
+            .in("status", ["ativo", "pausado"])
+            .is("concluido_em", null)
+            .gt("created_at", limiteDeTempo);
+
+        if (groupId) {
+            query = query.eq("grupo_id", groupId);
+        }
+
+        return query.order("created_at", { ascending: false }).limit(limit);
+    };
+
+    const result = await montarQuery();
+
+    // Mesmo fallback de `buscarSessoesRecentes`: se `grupo_id` ainda não existe no remoto,
+    // restringe pelos membros do grupo em vez de quebrar a tela.
+    if (result.error && groupId && isMissingGroupColumnError(result.error)) {
+        const { data: members, error: membersError } = await supabase
+            .from("membros")
+            .select("user_id")
+            .eq("grupo_id", groupId);
+
+        if (membersError) {
+            return { data: null, error: membersError };
+        }
+
+        const memberIds = (members || []).map((member) => member.user_id);
+
+        if (memberIds.length === 0) {
+            return { data: [], error: null };
+        }
+
+        return await supabase
+            .from("sessoes_foco")
+            .select(`
+                *,
+                profiles:user_id (
+                    nome_real,
+                    nome_usuario,
+                    foto_usuario
+                )
+            `)
+            .eq("is_public", true)
+            .in("status", ["ativo", "pausado"])
+            .is("concluido_em", null)
+            .gt("created_at", limiteDeTempo)
+            .in("user_id", memberIds)
+            .order("created_at", { ascending: false })
+            .limit(limit);
+    }
+
+    return result;
+};
+
 // ───── SELECT (sessões de um usuário específico) ─────
 export const buscarSessoesPorUsuario = async (userId: string, limit?: number) => {
     const query = supabase
