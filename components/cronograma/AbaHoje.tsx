@@ -11,6 +11,7 @@ type Props = {
     resumo: { planejado: string; concluido: string; proximo: { materia: string; hora: string } | null };
     carregando?: boolean;
     onIniciarFoco: (bloco: BlocoDoDia) => void;
+    onAbrirAcoes: (bloco: BlocoDoDia) => void;
     onMontarDia: () => void;
     onAplicarPlano: () => void;
     refreshing?: boolean;
@@ -22,6 +23,7 @@ export default function AbaHoje({
     resumo,
     carregando,
     onIniciarFoco,
+    onAbrirAcoes,
     onMontarDia,
     onAplicarPlano,
     refreshing,
@@ -122,6 +124,7 @@ export default function AbaHoje({
                             bloco={bloco}
                             ultimo={i === blocos.length - 1}
                             onIniciarFoco={onIniciarFoco}
+                            onPress={onAbrirAcoes}
                         />
                     ))}
                 </View>

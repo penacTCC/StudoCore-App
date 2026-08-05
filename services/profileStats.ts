@@ -3,7 +3,7 @@ import { APP_BADGES } from '@/constants/badges';
 import { supabase } from '@/repositories/supabase';
 import { buscarUsuarioLogado } from '@/services/auth';
 import { toast } from '@/services/toast';
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STATUS_SESSAO_FINALIZADA, segundosContabilizados } from '@/services/sessions';
 import { UserStats } from '@/types/profile';
 
 const DEFAULT_STATS: UserStats = {
@@ -45,7 +45,9 @@ export const loadProfileStats = async (): Promise<UserStats> => {
         const { data: sessions } = await supabase
             .from('sessoes_foco')
             .select('tempo_minutos, created_at, disciplina')
-            .eq('user_id', userId);
+            .eq('user_id', userId)
+            // Sessão em andamento tem tempo parcial: só entra depois de encerrada.
+            .in('status', STATUS_SESSAO_FINALIZADA);
 
         // Aggregate sessions into YYYY-MM-DD
         const studyHistory: Record<string, number> = {};
@@ -134,11 +136,14 @@ export const syncProfileStatsAfterFocusSession = async (userId: string): Promise
             .eq('id', userId)
             .maybeSingle();
 
-        // Busca todas as sessões do usuário para recalcular horas, questões e quantidade de sessões de forma idempotente.
+        // Busca as sessões do usuário para recalcular horas, questões e quantidade de sessões de forma idempotente.
+        // Só as já encerradas entram: numa sessão em andamento o `tempo_minutos` gravado é
+        // parcial, e contá-lo aqui fazia o perfil divergir do total exibido no grupo.
         const { data: sessions, error: sessionsError } = await supabase
             .from('sessoes_foco')
-            .select('tempo_minutos, questoes_respondidas, data_sessao, created_at')
-            .eq('user_id', userId);
+            .select('tempo_minutos, questoes_respondidas, questoes_externas, data_sessao, created_at')
+            .eq('user_id', userId)
+            .in('status', STATUS_SESSAO_FINALIZADA);
 
         // Interrompe a sincronização se o banco não conseguir devolver as sessões necessárias para o cálculo.
         if (sessionsError) {
@@ -177,7 +182,7 @@ export const syncProfileStatsAfterFocusSession = async (userId: string): Promise
                 acc.totalMinutes += session.tempo_minutos || 0;
 
                 // Soma todas as questões respondidas para medalhas e estatísticas gerais.
-                acc.totalQuestions += session.questoes_respondidas || 0;
+                acc.totalQuestions += (session.questoes_respondidas || 0) + (session.questoes_externas || 0);
 
                 // Soma apenas sessões da semana atual para medalhas de meta semanal.
                 if (sessionDate >= weekStart) {
@@ -309,14 +314,8 @@ export const addStudyHours = async (timerSeconds: number, currentSubject: string
         const userId = authData?.user?.id;
         if (!userId) return null;
 
-        const testPref = await AsyncStorage.getItem('@app_test_mode');
-        const isTestMode = testPref === 'true';
-
-        // O divisor define quanto tempo vale 1 hora. 
-        // Em TestMode (ligado nas config), 10s cravados = 1 hora no DB
-        // Em Prod, 3600 = 1 hora
-        const divisor = isTestMode ? 10 : 3600;
-        const calculatedHours = timerSeconds / divisor;
+        // Mesma escala do resto do app: em modo de testes 10s cravados valem 1 hora.
+        const calculatedHours = (await segundosContabilizados(timerSeconds)) / 3600;
 
         if (calculatedHours <= 0) return null;
 

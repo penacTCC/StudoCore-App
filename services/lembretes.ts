@@ -1,6 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { supabase } from "@/repositories/supabase";
-import type { BlocoPlano, BlocoRotina } from "@/types/cronograma";
+import { preferenciasDoUsuarioAtual } from "@/services/preferencias";
+import type { BlocoPlano, BlocoRotina, PreferenciasCronograma } from "@/types/cronograma";
 
 const CANAL_ANDROID = "lembretes-cronograma";
 
@@ -12,6 +13,25 @@ async function garantirCanalAndroid() {
         name: "Lembretes do cronograma",
         importance: Notifications.AndroidImportance.HIGH,
     });
+}
+
+function paraMinutosDoDia(hora: string) {
+    const [h, m] = hora.split(":").map(Number);
+    return h * 60 + m;
+}
+
+/**
+ * A janela de "não perturbar" pode virar a meia-noite (ex.: 22:00–07:00), então
+ * quando o início é maior que o fim o teste passa a ser "fora do intervalo".
+ */
+function dentroDoNaoPerturbar(hora: number, minuto: number, prefs: PreferenciasCronograma) {
+    if (!prefs.naoPerturbar) return false;
+
+    const alvo = hora * 60 + minuto;
+    const inicio = paraMinutosDoDia(prefs.naoPerturbarInicio);
+    const fim = paraMinutosDoDia(prefs.naoPerturbarFim);
+
+    return inicio <= fim ? alvo >= inicio && alvo < fim : alvo >= inicio || alvo < fim;
 }
 
 async function garantirPermissao(): Promise<boolean> {
@@ -76,16 +96,25 @@ function tituloECorpo(materia: string | null, topico: string | null, antecedenci
 /** Cancela (se houver) e reagenda o lembrete recorrente semanal de um bloco da rotina. */
 export async function sincronizarLembreteRotina(bloco: BlocoRotina): Promise<void> {
     await cancelarLembreteRotina(bloco.id);
-    if (!bloco.notificar || !bloco.antecedencia_min || bloco.tipo !== "estudo") return;
+    if (!bloco.notificar || bloco.tipo !== "estudo") return;
+
+    const prefs = await preferenciasDoUsuarioAtual();
+    if (!prefs.notificacoesAtivas) return;
+
+    // Sem antecedência no bloco, vale a antecedência padrão das preferências.
+    const antecedencia = bloco.antecedencia_min ?? prefs.antecedenciaMin;
+    if (!antecedencia) return;
+
     if (!(await garantirPermissao())) return;
     await garantirCanalAndroid();
 
     const materia = await nomeDaMateria(bloco.materia_id);
-    const { weekday, hour, minute } = paraDisparoSemanal(bloco.dia_semana, bloco.hora_inicio, bloco.antecedencia_min);
+    const { weekday, hour, minute } = paraDisparoSemanal(bloco.dia_semana, bloco.hora_inicio, antecedencia);
+    if (dentroDoNaoPerturbar(hour, minute, prefs)) return;
 
     await Notifications.scheduleNotificationAsync({
         content: {
-            ...tituloECorpo(materia, bloco.topico, bloco.antecedencia_min),
+            ...tituloECorpo(materia, bloco.topico, antecedencia),
             data: { tipo: "rotina", blocoId: bloco.id },
         },
         trigger: {
@@ -123,18 +152,24 @@ export async function sincronizarLembretesPlano(
 
     if (plano.agenda_tipo === "nenhuma") return;
 
-    const blocosNotificaveis = blocos.filter((b) => b.notificar && b.antecedencia_min && b.tipo === "estudo");
+    const prefs = await preferenciasDoUsuarioAtual();
+    if (!prefs.notificacoesAtivas) return;
+
+    const antecedenciaDe = (b: BlocoPlano) => b.antecedencia_min ?? prefs.antecedenciaMin;
+    const blocosNotificaveis = blocos.filter((b) => b.notificar && b.tipo === "estudo" && antecedenciaDe(b) > 0);
     if (blocosNotificaveis.length === 0) return;
     if (!(await garantirPermissao())) return;
     await garantirCanalAndroid();
 
     for (const bloco of blocosNotificaveis) {
+        const antecedencia = antecedenciaDe(bloco);
         const materia = await nomeDaMateria(bloco.materia_id);
-        const conteudo = tituloECorpo(materia, bloco.topico, bloco.antecedencia_min!);
+        const conteudo = tituloECorpo(materia, bloco.topico, antecedencia);
 
         if (plano.agenda_tipo === "data" && plano.agenda_data) {
-            const disparo = calcularDataDisparo(plano.agenda_data, bloco.hora_inicio, bloco.antecedencia_min!);
+            const disparo = calcularDataDisparo(plano.agenda_data, bloco.hora_inicio, antecedencia);
             if (disparo.getTime() <= Date.now()) continue; // já passou — não agenda no passado
+            if (dentroDoNaoPerturbar(disparo.getHours(), disparo.getMinutes(), prefs)) continue;
 
             await Notifications.scheduleNotificationAsync({
                 content: { ...conteudo, data: { tipo: "plano", blocoId: bloco.id } },
@@ -146,7 +181,8 @@ export async function sincronizarLembretesPlano(
             });
         } else if (plano.agenda_tipo === "fixado" && plano.agenda_dias) {
             for (const dia of plano.agenda_dias) {
-                const { weekday, hour, minute } = paraDisparoSemanal(dia, bloco.hora_inicio, bloco.antecedencia_min!);
+                const { weekday, hour, minute } = paraDisparoSemanal(dia, bloco.hora_inicio, antecedencia);
+                if (dentroDoNaoPerturbar(hour, minute, prefs)) continue;
                 await Notifications.scheduleNotificationAsync({
                     content: { ...conteudo, data: { tipo: "plano", blocoId: bloco.id } },
                     trigger: {
@@ -165,4 +201,52 @@ export async function sincronizarLembretesPlano(
 export async function cancelarLembretesPlano(planoId: string, blocoIds: string[]): Promise<void> {
     const idsSet = new Set(blocoIds);
     await cancelarPorFiltro((d) => d.tipo === "plano" && idsSet.has(d.blocoId as string));
+}
+
+/** Derruba todos os lembretes do cronograma (rotina e planos) deste aparelho. */
+export async function cancelarTodosLembretesCronograma(): Promise<void> {
+    await cancelarPorFiltro((d) => d.tipo === "rotina" || d.tipo === "plano");
+}
+
+/**
+ * Reagenda do zero todos os lembretes do usuário.
+ *
+ * Chamado quando muda uma preferência que vale pra fila inteira — desligar as
+ * notificações, mexer na antecedência padrão ou na janela de não perturbar.
+ * Sem isso, a preferência só passaria a valer no próximo bloco editado, e
+ * "desligar as notificações" não desligava nada do que já estava agendado.
+ */
+export async function ressincronizarTodosLembretes(usuarioId: string): Promise<void> {
+    await cancelarTodosLembretesCronograma();
+
+    const prefs = await preferenciasDoUsuarioAtual();
+    if (!prefs.notificacoesAtivas) return;
+
+    const [rotina, planos] = await Promise.all([
+        supabase.from("rotina_semanal_blocos").select("*").eq("usuario_id", usuarioId),
+        supabase
+            .from("planos")
+            .select("id, agenda_tipo, agenda_dias, agenda_data, planos_blocos(*)")
+            .eq("usuario_id", usuarioId)
+            .neq("agenda_tipo", "nenhuma"),
+    ]);
+
+    if (rotina.error) console.error("Erro ao reagendar lembretes da rotina:", rotina.error.message);
+    if (planos.error) console.error("Erro ao reagendar lembretes dos planos:", planos.error.message);
+
+    for (const bloco of ((rotina.data as BlocoRotina[] | null) ?? [])) {
+        await sincronizarLembreteRotina(bloco);
+    }
+
+    type PlanoAgendado = {
+        id: string;
+        agenda_tipo: "fixado" | "data" | "nenhuma";
+        agenda_dias: number[] | null;
+        agenda_data: string | null;
+        planos_blocos: BlocoPlano[];
+    };
+
+    for (const plano of ((planos.data as PlanoAgendado[] | null) ?? [])) {
+        await sincronizarLembretesPlano(plano, plano.planos_blocos ?? []);
+    }
 }

@@ -298,6 +298,33 @@ export const editarBlocoPlano = async (bloco: BlocoPlano) => {
 };
 
 /** Exclui um bloco de um plano. */
+/**
+ * Empurra o horário de um bloco de plano em `minutos`.
+ *
+ * Atenção: o bloco pertence ao plano, então isso vale para todos os dias em que
+ * esse plano se aplica — quem chama precisa deixar isso claro pro usuário.
+ */
+export const adiarBlocoPlano = async (blocoId: string, minutos: number) => {
+    const { data: atual, error: erroBusca } = await supabase
+        .from("planos_blocos")
+        .select("*")
+        .eq("id", blocoId)
+        .maybeSingle();
+
+    if (erroBusca || !atual) return { error: erroBusca ?? new Error("Bloco não encontrado") };
+
+    const linha = atual as BlocoPlano;
+    const [h, m] = linha.hora_inicio.split(":").map(Number);
+    const totalMin = (h * 60 + m + minutos + 1440) % 1440;
+    const hora_inicio = `${Math.floor(totalMin / 60).toString().padStart(2, "0")}:${(totalMin % 60)
+        .toString()
+        .padStart(2, "0")}`;
+
+    const { error } = await supabase.from("planos_blocos").update({ hora_inicio }).eq("id", blocoId);
+    if (!error) await ressincronizarLembretesDoPlano(linha.plano_id);
+    return { error };
+};
+
 export const excluirBlocoPlano = async (blocoId: string) => {
     const { error } = await supabase.from("planos_blocos").delete().eq("id", blocoId);
     return { error };

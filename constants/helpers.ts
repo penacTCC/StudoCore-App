@@ -4,6 +4,31 @@ export function getAvatarColor(index: number): string {
     return avatarColors[index % avatarColors.length];
 }
 
+/** Deriva a cor de identidade (avatar/banner) de um nome, igual ao usado em components/ui/Avatar.tsx. */
+export function getIdentityColor(nome?: string | null): string {
+    return getAvatarColor(nome ? nome.charCodeAt(0) % 5 : 0);
+}
+
+export function getInitials(nome?: string | null): string {
+    if (!nome) return "?";
+    return nome.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase();
+}
+
+// "objetivo" vem da picklist fixa do onboarding (ver app/(auth)/onboarding-profile.tsx) —
+// reaproveitado como bio do perfil até o app ter um campo de bio livre.
+const OBJETIVO_LABELS: Record<string, string> = {
+    vestibular: "Passar em um vestibular",
+    enem: "Gabaritar o ENEM",
+    concurso: "Passar em um concurso público",
+    escola: "Ir bem nas provas da escola/faculdade",
+    autodidata: "Aprender por conta própria",
+};
+
+export function getBioFromObjetivo(objetivo?: string | null): string | null {
+    if (!objetivo) return null;
+    return OBJETIVO_LABELS[objetivo] ?? objetivo;
+}
+
 export function getSubjectColor(subject: string) {
     switch (subject) {
         case "Mathematics":

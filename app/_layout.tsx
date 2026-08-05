@@ -10,12 +10,15 @@ import * as QueryParams from "expo-auth-session/build/QueryParams";
 import { useAuthState } from "@/hooks/useAuthState";
 import { useStatusMembroGrupo } from "@/hooks/useStatusMembroGrupo";
 import { useRouteGuard } from "@/hooks/useRoutGuard";
+import { useForcasRecebidas } from "@/hooks/useForcasRecebidas";
+import { useRecuperarSessoesAbandonadas } from "@/hooks/useRecuperarSessoesAbandonadas";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { ToastHost } from "@/components/ui/Toast";
 import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
 import { HADES } from "@/constants/hades";
 import MedalAlert from "@/components/MedalAlert";
 import { validarSessaoPorTokens } from "@/services/auth";
+import { carregarModoTeste } from "@/services/modoTeste";
 import { toast } from "@/services/toast";
 
 SplashScreen.preventAutoHideAsync();
@@ -29,6 +32,18 @@ export default function RootLayout() {
 
     //Busca se o usuário tem um grupo
     const { membro, parametrosUltimoGrupo } = useStatusMembroGrupo(session, isInitialized);
+
+    // Escuta as forças que chegam pro usuário e notifica localmente (sem push remoto/FCM).
+    useForcasRecebidas(session?.user?.id);
+
+    // Fecha sessões de foco que ficaram abertas de um fechamento forçado do app.
+    useRecuperarSessoesAbandonadas(session?.user?.id);
+
+    // Carrega a escala do modo de testes uma vez: os cronômetros ao vivo a consultam
+    // durante o render, onde não dá pra esperar o AsyncStorage (ver services/modoTeste.ts).
+    useEffect(() => {
+        carregarModoTeste();
+    }, []);
 
     //Roteia o usuário para as telas
     useRouteGuard({

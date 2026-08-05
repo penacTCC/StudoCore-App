@@ -1,20 +1,20 @@
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/repositories/supabase";
-import { SessaoFocoInsert, MemberSession, SessaoFocoRow } from "@/types/sessions";
-import { pegarIntervaloSemanaAtual } from "@/utils/tempo";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SessaoFocoInsert, MemberSession, SessaoFocoRow, SessionCardItem } from "@/types/sessions";
+import { paraDataISO, pegarIntervaloSemanaAtual } from "@/utils/tempo";
+import { escalarSegundos, garantirFatorCarregado } from "@/services/modoTeste";
 
-const TEST_MODE_KEY = "@app_test_mode";
-
-const isMissingGroupColumnError = (error: any) => {
-    // O Postgres usa 42703 quando uma coluna referenciada na query ainda não existe.
-    const isDatabaseMissingColumn = error?.code === "42703" && String(error?.message || "").includes("grupo_id");
-
-    // O PostgREST usa PGRST204 quando a coluna ainda não apareceu no schema cache da API.
-    const isSchemaCacheMissingColumn = error?.code === "PGRST204" && String(error?.message || "").includes("grupo_id");
-
-    // Qualquer uma das duas respostas significa que precisamos cair no payload sem `grupo_id`.
-    return isDatabaseMissingColumn || isSchemaCacheMissingColumn;
+/**
+ * `true` quando o erro é "essa coluna não existe" para a coluna informada — 42703 vem do
+ * Postgres e PGRST204 do PostgREST, quando a coluna ainda não apareceu no schema cache.
+ * Serve para o app continuar funcionando num banco que ainda não recebeu a migration.
+ */
+const isMissingColumnError = (error: any, coluna: string) => {
+    const mensagem = String(error?.message || "");
+    return ["42703", "PGRST204"].includes(error?.code) && mensagem.includes(coluna);
 };
+
+const isMissingGroupColumnError = (error: any) => isMissingColumnError(error, "grupo_id");
 
 const removeGroupIdFromPayload = <T extends Partial<SessaoFocoInsert>>(payload: T) => {
     // Cria uma cópia para não mutar o objeto original recebido pela tela ou hook.
@@ -28,24 +28,30 @@ const removeGroupIdFromPayload = <T extends Partial<SessaoFocoInsert>>(payload: 
 };
 
 /**
+ * Converte os segundos reais do cronômetro nos segundos que vão para o banco — a mesma
+ * escala do modo de testes que todo o resto do app aplica (ver services/modoTeste.ts).
+ * Use sempre que gravar `tab_sessao_membros.tempo_segundos`.
+ */
+export const segundosContabilizados = async (segundosReais: number) => {
+    await garantirFatorCarregado();
+    return escalarSegundos(segundosReais);
+};
+
+/**
  * Calcula a duração persistida da sessão a partir dos segundos reais do cronômetro.
  * No modo normal, 60 segundos viram 1 minuto; no modo teste, 10 segundos viram 60 minutos.
+ *
+ * Zero segundos devolve zero: o piso de 1 minuto vale para uma sessão curta de verdade,
+ * mas aplicá-lo a uma sessão sem tempo nenhum inventava minutos que ninguém estudou —
+ * era como um pomodoro solo acabava somando mais minutos do que o relógio marcou.
  */
 export const calculateFocusSessionMinutes = async (timerSeconds: number) => {
-    // Lê a preferência local usada pela tela de configurações para ativar o modo teste.
-    const testModeValue = await AsyncStorage.getItem(TEST_MODE_KEY);
+    const contabilizados = await segundosContabilizados(timerSeconds);
 
-    // Converte o valor persistido em booleano explícito para evitar truthy acidental.
-    const isTestModeEnabled = testModeValue === "true";
-
-    // Protege o cálculo contra valores inválidos vindos de params ou restauração de sessão.
-    const safeSeconds = Number.isFinite(timerSeconds) && timerSeconds > 0 ? timerSeconds : 0;
-
-    // No modo teste, cada segundo vale 6 minutos, então 10s fecham exatamente 60min.
-    const calculatedMinutes = isTestModeEnabled ? safeSeconds * 6 : safeSeconds / 60;
+    if (contabilizados === 0) return 0;
 
     // Arredonda para o inteiro mais próximo porque a coluna `tempo_minutos` é INTEGER.
-    return Math.max(1, Math.round(calculatedMinutes));
+    return Math.max(1, Math.round(contabilizados / 60));
 };
 
 // ───── INSERT ─────
@@ -102,9 +108,83 @@ export const fetchSessionById = async (id: string) => {
         .maybeSingle();
 };
 
+/**
+ * Compila no feed as linhas de uma mesma execução de plano (matérias diferentes, mesmo
+ * `execucao_id` — ver app/(tabs)/focus.tsx) num único card, somando tempo/questões e
+ * juntando os nomes das matérias. Linhas sem `execucao_id` passam direto, um card cada,
+ * como sempre foi. Só usado no feed histórico/finalizado — o feed ao vivo
+ * (`buscarSessoesAoVivo`) não compila, porque só a matéria atual fica com status "ativo"
+ * enquanto a execução roda; as anteriores já viraram "salvo" e não fazem sentido juntar
+ * antes da execução inteira acabar.
+ */
+export const compilarSessoesPorExecucao = (linhas: SessionCardItem[]): SessionCardItem[] => {
+    const semExecucao: SessionCardItem[] = [];
+    const porExecucao = new Map<string, SessionCardItem[]>();
+
+    for (const linha of linhas) {
+        if (!linha.execucao_id) {
+            semExecucao.push(linha);
+            continue;
+        }
+        const grupo = porExecucao.get(linha.execucao_id) ?? [];
+        grupo.push(linha);
+        porExecucao.set(linha.execucao_id, grupo);
+    }
+
+    const compiladas: SessionCardItem[] = [...semExecucao];
+
+    for (const grupo of porExecucao.values()) {
+        if (grupo.length === 1) {
+            compiladas.push(grupo[0]);
+            continue;
+        }
+
+        // A linha mais recente representa o card (a última matéria estudada na execução).
+        const [representante] = [...grupo].sort((a, b) => b.created_at.localeCompare(a.created_at));
+        const materias = [...new Set(grupo.map((linha) => linha.disciplina))];
+        const disciplinaCompilada = materias.length <= 2 ? materias.join(" e ") : `${materias[0]} +${materias.length - 1}`;
+
+        compiladas.push({
+            ...representante,
+            disciplina: disciplinaCompilada,
+            conteudo_especifico: materias.join(", "),
+            tempo_minutos: grupo.reduce((soma, linha) => soma + (linha.tempo_minutos ?? 0), 0),
+            questoes_respondidas: grupo.reduce((soma, linha) => soma + (linha.questoes_respondidas ?? 0), 0),
+            questoes_acertadas: grupo.reduce((soma, linha) => soma + (linha.questoes_acertadas ?? 0), 0),
+            questoes_externas: grupo.reduce((soma, linha) => soma + (linha.questoes_externas ?? 0), 0),
+            acertos_externos: grupo.reduce((soma, linha) => soma + (linha.acertos_externos ?? 0), 0),
+            materiasCompiladas: materias.length,
+        });
+    }
+
+    return compiladas.sort((a, b) => b.created_at.localeCompare(a.created_at));
+};
+
+// ───── SELECT (todas as matérias de uma execução de plano, pra prévia/quiz combinado) ─────
+export const buscarSessoesPorExecucao = async (execucaoId: string) => {
+    const { data, error } = await supabase
+        .from("sessoes_foco")
+        .select(`
+            *,
+            profiles:user_id (
+                nome_real,
+                nome_usuario,
+                foto_usuario
+            )
+        `)
+        .eq("execucao_id", execucaoId)
+        .order("created_at", { ascending: true });
+
+    return { data: (data || []) as SessionCardItem[], error };
+};
+
 // ───── SELECT (feed público, só sessões públicas, status salvo e score > 7) ─────
-export const buscarSessoesRecentes = async (limit: number = 20, groupId?: string | null) => {
-    // Monta a query base do feed: apenas sessões públicas, salvas e com bom desempenho no quiz.
+const buscarSessoesRecentesBrutas = async (limit: number = 20, groupId?: string | null) => {
+    // Monta a query base do feed: apenas sessões públicas e salvas. O filtro de bom
+    // desempenho no quiz (>70% de acerto) é aplicado depois de compilar (ver
+    // buscarSessoesRecentes), porque numa execução de plano cada matéria vira sua própria
+    // linha com poucas questões — um corte fixo em "questoes_acertadas > 7" excluiria até
+    // quem acertou tudo, já que a nota fica dividida entre as matérias.
     let query = supabase
         .from("sessoes_foco")
         .select(`
@@ -116,8 +196,7 @@ export const buscarSessoesRecentes = async (limit: number = 20, groupId?: string
             )
         `)
         .eq("is_public", true)
-        .eq("status", "salvo")
-        .gt("questoes_acertadas", 7);
+        .eq("status", "salvo");
 
     // Quando a tela informa o grupo, o feed fica restrito às sessões daquele grupo específico.
     if (groupId) {
@@ -161,7 +240,6 @@ export const buscarSessoesRecentes = async (limit: number = 20, groupId?: string
             `)
             .eq("is_public", true)
             .eq("status", "salvo")
-            .gt("questoes_acertadas", 7)
             .in("user_id", memberIds)
             .order("created_at", { ascending: false })
             .limit(limit);
@@ -169,6 +247,31 @@ export const buscarSessoesRecentes = async (limit: number = 20, groupId?: string
 
     // Retorna a query principal quando o schema já tem `grupo_id`.
     return result;
+};
+
+/** "Destaque" = mais de 70% de acerto no quiz (equivale ao corte antigo de >7 em 10). */
+export const ehSessaoDestaque = (sessao: Pick<SessionCardItem, "questoes_respondidas" | "questoes_acertadas">) =>
+    sessao.questoes_respondidas > 0 && sessao.questoes_acertadas / sessao.questoes_respondidas > 0.7;
+
+/**
+ * Feed de atividades encerradas do grupo.
+ *
+ * O corte de "destaque" era aplicado aqui como **filtro**, e escondia a maior parte do que
+ * o grupo de fato estudou: quem pulava o quiz ficava com `questoes_respondidas = 0` e a
+ * sessão nunca aparecia — nem na home, nem na tela de detalhamento. Uma sessão em grupo
+ * recém-encerrada simplesmente sumia. Agora o destaque é só uma marcação no card
+ * (`destaque`), e o feed mostra tudo que foi concluído.
+ */
+export const buscarSessoesRecentes = async (limit: number = 20, groupId?: string | null) => {
+    const { data, error } = await buscarSessoesRecentesBrutas(limit, groupId);
+    if (error || !data) return { data, error };
+
+    const compiladas = compilarSessoesPorExecucao(data as SessionCardItem[]).map((sessao) => ({
+        ...sessao,
+        destaque: ehSessaoDestaque(sessao),
+    }));
+
+    return { data: compiladas, error: null };
 };
 
 // ───── SELECT (feed ao vivo: quem está focando agora) ─────
@@ -273,8 +376,135 @@ export const buscarSessoesPorUsuario = async (userId: string, limit?: number) =>
     return await (limit !== undefined ? query.limit(limit) : query);
 };
 
-//dataAtual
-const dataAtual = new Date().toISOString().split('T')[0]
+/**
+ * Uma sessão só entra em totais, ranking e estatísticas depois de terminar: enquanto ela
+ * está "ativo"/"pausado" o `tempo_minutos` gravado é parcial (o encerramento é que escreve
+ * o valor final). Isso também garante o que a sessão pública promete — o tempo dela só é
+ * contabilizado quando acaba, não enquanto o grupo ainda está focando.
+ */
+export const STATUS_SESSAO_FINALIZADA = ["salvo", "pendente"];
+
+/**
+ * Grava no banco o tempo de foco que a sessão acumulou até agora, sem encerrá-la.
+ *
+ * Serve de batimento cardíaco: enquanto a pessoa foca, o app chama isto de tempos em tempos
+ * (ver app/(tabs)/focus.tsx). Duas coisas dependem disso:
+ *
+ * 1. Se o app for morto — bateria, force stop, o sistema recuperando memória —, o tempo já
+ *    estudado está no banco. Antes, o `tempo_minutos` só era escrito ao pausar, trocar de
+ *    fase ou encerrar: uma sessão de uma hora morta antes do primeiro descanso ficava
+ *    registrada como zero, e a hora estudada simplesmente sumia.
+ * 2. `ultimo_inicio` volta a ser recente, e é isso que distingue uma sessão viva de uma
+ *    abandonada em `fecharSessoesAbandonadas`.
+ *
+ * O tempo é sempre ABSOLUTO (o total desde o início), nunca um incremento, então repetir a
+ * chamada não infla nada. `ultimo_inicio` é reescrito junto de propósito: os cronômetros ao
+ * vivo somam "acumulado + tempo desde `ultimo_inicio`" (ver utils/tempo.ts), e regravar só
+ * o acumulado faria o feed contar o mesmo trecho duas vezes.
+ */
+export const registrarProgressoSessao = async (params: {
+    sessaoId: string;
+    sessaoGrupoId?: string | null;
+    userId?: string | null;
+    segundosDeFoco: number;
+    ehPublica: boolean;
+}) => {
+    const agoraIso = new Date().toISOString();
+
+    const { error } = await supabase
+        .from("sessoes_foco")
+        .update({
+            tempo_minutos: await calculateFocusSessionMinutes(params.segundosDeFoco),
+            ultimo_inicio: agoraIso,
+        })
+        .eq("id", params.sessaoId);
+
+    if (error) {
+        console.warn("Erro ao registrar o progresso da sessão:", error);
+    }
+
+    if (params.ehPublica && params.sessaoGrupoId && params.userId) {
+        await updateTabSessaoMembros(params.userId, params.sessaoGrupoId, {
+            tempo_segundos: params.segundosDeFoco,
+            ultimo_inicio: agoraIso,
+        });
+    }
+};
+
+/** Sem batimento por este tempo, a sessão é considerada abandonada. */
+const MINUTOS_ATE_ABANDONO = 15;
+
+/**
+ * Fecha as sessões que ficaram "ativo"/"pausado" para sempre porque o app morreu antes de
+ * encerrá-las.
+ *
+ * Elas eram um problema dos dois lados: o tempo estudado nunca entrava nas estatísticas
+ * (só status "salvo"/"pendente" contam) e a pessoa continuava aparecendo "focando agora"
+ * no feed do grupo sem estar. O feed tinha um remendo — ignorar sessões abertas há mais de
+ * 12h —, que escondia o fantasma sem devolver o tempo a ninguém.
+ *
+ * Uma sessão com tempo estudado vira "pendente", que é o estado que o app já conhece: ela
+ * conta nas estatísticas e aparece como formulário a preencher. Sem tempo nenhum, vira
+ * "salvo" com zero — não há o que perguntar sobre uma sessão que não chegou a acontecer.
+ *
+ * `idsEmAndamento` são as sessões que este aparelho ainda está tocando (ver o snapshot em
+ * services/armazenamentoOffline.ts): elas nunca podem ser fechadas por aqui. A janela de
+ * silêncio protege o resto — uma sessão que ainda recebe batimento, mesmo de outro
+ * aparelho, tem `ultimo_inicio` recente e não é tocada.
+ */
+export const fecharSessoesAbandonadas = async (userId: string, idsEmAndamento: string[] = []) => {
+    const limite = new Date(Date.now() - MINUTOS_ATE_ABANDONO * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+        .from("sessoes_foco")
+        .select("id, tempo_minutos, ultimo_inicio, created_at")
+        .eq("user_id", userId)
+        .in("status", ["ativo", "pausado"])
+        .is("concluido_em", null);
+
+    if (error) {
+        console.warn("Erro ao procurar sessões abandonadas:", error);
+        return { fechadas: 0 };
+    }
+
+    const abandonadas = (data || []).filter((sessao) => {
+        if (idsEmAndamento.includes(sessao.id)) return false;
+        // `created_at` cobre a sessão que morreu antes do primeiro batimento.
+        return (sessao.ultimo_inicio || sessao.created_at) < limite;
+    });
+
+    if (abandonadas.length === 0) return { fechadas: 0 };
+
+    const agoraIso = new Date().toISOString();
+
+    await Promise.all(
+        abandonadas.map((sessao) =>
+            atualizarSessaoFoco(sessao.id, {
+                status: sessao.tempo_minutos > 0 ? "pendente" : "salvo",
+                concluido_em: agoraIso,
+            })
+        )
+    );
+
+    /*
+      A participação em grupo é fechada pela mesma régua de silêncio, e não pelos ids das
+      sessões acima: quem entrou na sessão de outra pessoa tem a participação amarrada à
+      sessão do ANFITRIÃO, não à sua própria linha. Filtrar pelos ids só limparia o rastro
+      de quem criou a sessão, deixando os convidados eternamente "focando" na tela do grupo.
+    */
+    const { error: erroMembros } = await supabase
+        .from("tab_sessao_membros")
+        .update({ status: "concluido" })
+        .eq("membro_id", userId)
+        .neq("status", "concluido")
+        .lt("ultimo_inicio", limite);
+
+    if (erroMembros) {
+        console.warn("Erro ao fechar participações abandonadas:", erroMembros);
+    }
+
+    return { fechadas: abandonadas.length };
+};
 
 //Cálculo do tempo total de hoje, das sessões de foco
 export const tempoTotalSessoesFoco = async (groupId?: string) => {
@@ -284,12 +514,17 @@ export const tempoTotalSessoesFoco = async (groupId?: string) => {
         totalMinutos: 0,
     };
 
-    const {data, error} = await supabase 
+    // Data resolvida no fuso local e a cada chamada: como constante de módulo em UTC, o
+    // "hoje" ficava congelado no horário em que o app abriu e já virava o dia seguinte às 21h.
+    const dataAtual = paraDataISO(new Date());
+
+    const {data, error} = await supabase
         .from("sessoes_foco")
         .select('tempo_minutos')
         .eq('grupo_id', groupId)
         .eq('data_sessao', dataAtual)
-    
+        .in('status', STATUS_SESSAO_FINALIZADA)
+
     if(error) {
         console.log(error) 
         return {
@@ -326,14 +561,16 @@ export const tempoTotalSessoesFocoOntem = async (groupId?: string) => {
     const hoje = new Date()
     ontem.setDate(hoje.getDate() - 1)
 
-    const diaOntem = ontem.toISOString().split('T')[0]
+    const diaOntem = paraDataISO(ontem)
 
-    const {data, error} = await supabase 
+    const {data, error} = await supabase
         .from("sessoes_foco")
         .select('tempo_minutos')
         .eq('grupo_id', groupId)
         .eq('data_sessao', diaOntem)
-    
+        .in('status', STATUS_SESSAO_FINALIZADA)
+
+
     if(error) {
         console.log(error) 
         return 0
@@ -346,7 +583,7 @@ export const tempoTotalSessoesFocoOntem = async (groupId?: string) => {
 }
 
 //Buscar sessões do Grupo
-export const buscarSessoesPorGrupo = async (groupId: string, limit?: number) => {
+const buscarSessoesPorGrupoBrutas = async (groupId: string, limit?: number) => {
     const query = supabase
         .from("sessoes_foco")
         .select("*")
@@ -354,6 +591,12 @@ export const buscarSessoesPorGrupo = async (groupId: string, limit?: number) => 
         .order("created_at", { ascending: false });
 
     return await (limit !== undefined ? query.limit(limit) : query);
+};
+
+export const buscarSessoesPorGrupo = async (groupId: string, limit?: number) => {
+    const { data, error } = await buscarSessoesPorGrupoBrutas(groupId, limit);
+    if (error || !data) return { data, error };
+    return { data: compilarSessoesPorExecucao(data as SessionCardItem[]), error: null };
 };
 
 export const insertTabSessaoMembros = async (memberData: MemberSession) => {
@@ -372,6 +615,25 @@ export const fetchSessionMembers = async (sessaoId: string) => {
     return { data, error };
 }
 
+/**
+ * Passa o papel de anfitrião para outra pessoa que ainda está na sessão e rebaixa quem
+ * chamou — usado quando o anfitrião encerra a sessão dele mas os colegas continuam.
+ *
+ * A escolha do sucessor e a permissão ficam no banco (RPC `transferir_anfitriao_sessao`,
+ * SECURITY DEFINER) porque a RLS de `tab_sessao_membros` só permite que cada um atualize a
+ * própria linha. Devolve o id de quem assumiu, ou `null` quando não sobrou ninguém.
+ */
+export const transferirAnfitriaoDaSessao = async (sessaoId: string) => {
+    const { data, error } = await supabase.rpc("transferir_anfitriao_sessao", { p_sessao_id: sessaoId });
+
+    if (error) {
+        console.error("Erro ao transferir o anfitrião da sessão:", error);
+        return { novoAnfitriaoId: null as string | null, error };
+    }
+
+    return { novoAnfitriaoId: (data as string | null) ?? null, error: null };
+};
+
 export const updateTabSessaoMembros = async (userid: string, sessaoid: string, updates: Partial<MemberSession>) => {
     const { data, error } = await supabase
         .from('tab_sessao_membros')
@@ -380,6 +642,176 @@ export const updateTabSessaoMembros = async (userid: string, sessaoid: string, u
         .eq('sessao_id', sessaoid);
     return { data, error };
 }
+
+/*
+  Contador que dá um nome único a cada canal, pelo mesmo motivo do
+  services/incentivos.ts: a mesma sessão pode ser observada por mais de uma tela ao mesmo
+  tempo (foco ativo, colegas focando, prévia da sessão), e o supabase-js reaproveita canais
+  pelo nome — adicionar callbacks a um canal que já passou pelo `subscribe()` estoura.
+*/
+let contadorDeCanaisMembros = 0;
+
+/**
+ * Escuta em tempo real as mudanças de progresso dos membros de uma sessão (pausar, retomar,
+ * concluir, entrar). O payload de INSERT/UPDATE/DELETE do Postgres não traz o JOIN com
+ * `profiles`, então quem chama deve refazer o fetch (`fetchSessionMembers`) para atualizar a
+ * lista — o callback aqui só avisa que algo mudou.
+ * @returns função de cleanup que remove o canal.
+ */
+export const observarMembrosDaSessao = (sessaoId: string, aoMudar: () => void) => {
+    contadorDeCanaisMembros += 1;
+
+    const canal: RealtimeChannel = supabase
+        .channel(`tab_sessao_membros:${sessaoId}:${contadorDeCanaisMembros}`)
+        .on(
+            "postgres_changes",
+            {
+                event: "*",
+                schema: "public",
+                table: "tab_sessao_membros",
+                filter: `sessao_id=eq.${sessaoId}`,
+            },
+            () => aoMudar()
+        );
+
+    canal.subscribe();
+
+    return () => {
+        supabase.removeChannel(canal);
+    };
+};
+
+/* Mesmo motivo do contador de canais de membros: a home escuta o feed ao vivo e o feed de
+   destaques ao mesmo tempo, e o supabase-js reaproveita canais pelo nome. */
+let contadorDeCanaisSessoes = 0;
+
+/**
+ * Escuta em tempo real as sessões de foco de um grupo — é o que faz uma sessão pública
+ * aparecer no feed dos colegas no momento em que ela começa, sem precisar sair e voltar da
+ * tela. Também cobre pausa/retomada/encerramento, porque todas passam por UPDATE na mesma
+ * linha.
+ *
+ * O payload não traz o JOIN com `profiles`, então quem chama deve refazer o fetch; o
+ * callback só avisa que algo mudou. Sem `grupoId` o canal não é aberto (feed pessoal não
+ * tem o que sincronizar entre pessoas).
+ *
+ * @returns função de cleanup que remove o canal.
+ */
+export const observarSessoesDoGrupo = (grupoId: string, aoMudar: () => void) => {
+    contadorDeCanaisSessoes += 1;
+
+    const canal: RealtimeChannel = supabase
+        .channel(`sessoes_foco:${grupoId}:${contadorDeCanaisSessoes}`)
+        .on(
+            "postgres_changes",
+            {
+                event: "*",
+                schema: "public",
+                table: "sessoes_foco",
+                filter: `grupo_id=eq.${grupoId}`,
+            },
+            () => aoMudar()
+        );
+
+    canal.subscribe();
+
+    return () => {
+        supabase.removeChannel(canal);
+    };
+};
+
+/**
+ * Observa UMA sessão específica em tempo real.
+ *
+ * Serve ao pomodoro em grupo: os participantes precisam saber na hora quando o cronograma
+ * publicado muda (o anfitrião esticou o foco, pulou um descanso) ou quando a sessão é
+ * encerrada. `observarSessoesDoGrupo` não cobre esse caso — quem entra numa sessão pública
+ * pode nem estar no mesmo grupo, e assinar o grupo inteiro traria ruído de todas as outras
+ * sessões acontecendo ao mesmo tempo.
+ *
+ * @returns função de cleanup que remove o canal.
+ */
+export const observarSessao = (sessaoId: string, aoMudar: (linha: SessaoFocoRow) => void) => {
+    contadorDeCanaisSessoes += 1;
+
+    const canal: RealtimeChannel = supabase
+        .channel(`sessao:${sessaoId}:${contadorDeCanaisSessoes}`)
+        .on(
+            "postgres_changes",
+            {
+                event: "UPDATE",
+                schema: "public",
+                table: "sessoes_foco",
+                filter: `id=eq.${sessaoId}`,
+            },
+            (payload) => aoMudar(payload.new as SessaoFocoRow)
+        );
+
+    canal.subscribe();
+
+    return () => {
+        supabase.removeChannel(canal);
+    };
+};
+
+/**
+ * Reescreve o cronograma publicado de uma sessão.
+ *
+ * Usado quando o anfitrião muda o combinado no meio do caminho — esticar o foco em 5
+ * minutos, pular um descanso. Em vez de mandar "avance agora" para cada participante (que
+ * quem estivesse offline no instante certo perderia), reescrevemos a fila: todo mundo
+ * recalcula a posição a partir dela e chega à mesma resposta, mesmo quem só voltou depois.
+ *
+ * O início da fila não se move — é a origem de todo o cálculo. O que muda é a duração dos
+ * itens.
+ */
+export const republicarFilaDaSessao = async (sessaoId: string, fila: unknown[]) => {
+    const { error } = await supabase.from("sessoes_foco").update({ fila }).eq("id", sessaoId);
+
+    if (error) {
+        console.warn("Erro ao republicar o cronograma da sessão:", error);
+    }
+
+    return { error };
+};
+
+/**
+ * Registra que um bloco do cronograma foi cumprido sem passar pelo cronômetro
+ * (estudou no caderno, na aula, etc.).
+ *
+ * Grava uma sessão comum já concluída, amarrada ao bloco — assim o mesmo cálculo
+ * que já existe passa a enxergar o tempo: o bloco vira "cumprido" na aba Hoje e
+ * os minutos entram no "Realizado" da semana, sem nenhuma regra nova.
+ */
+export const registrarBlocoComoFeito = async (params: {
+    userId: string;
+    disciplina: string;
+    conteudo: string | null;
+    minutos: number;
+    origem: "rotina" | "plano";
+    blocoId: string;
+    planoId?: string | null;
+}) => {
+    const agora = new Date().toISOString();
+
+    const { error } = await supabase.from("sessoes_foco").insert({
+        user_id: params.userId,
+        disciplina: params.disciplina || "Estudo Geral",
+        conteudo_especifico: params.conteudo || "Marcado como feito",
+        tempo_minutos: params.minutos,
+        questoes_respondidas: 0,
+        questoes_acertadas: 0,
+        is_public: false,
+        status: "salvo",
+        bloco_rotina_id: params.origem === "rotina" ? params.blocoId : null,
+        bloco_plano_id: params.origem === "plano" ? params.blocoId : null,
+        plano_id: params.planoId ?? null,
+        ultimo_inicio: agora,
+        concluido_em: agora,
+    });
+
+    return { error };
+};
 
 //Busca as sessões de um dia específico do usuário (usado pra calcular o status dos blocos da aba Hoje)
 export const buscarSessoesDoDia = async (userId: string, dataISO: string) => {
@@ -391,16 +823,20 @@ export const buscarSessoesDoDia = async (userId: string, dataISO: string) => {
     return { data: data as SessaoFocoRow[] | null, error };
 }
 
-//Busca sessões da semana atual (segunda a domingo) do usuário
-export const buscarSessoesSemana = async (userId: string) => {
-    const { inicio, fim } = pegarIntervaloSemanaAtual();
-
+//Busca as sessões do usuário num intervalo de datas (inclusivo nas duas pontas)
+export const buscarSessoesPeriodo = async (userId: string, inicioISO: string, fimISO: string) => {
     const { data, error } = await supabase
         .from('sessoes_foco')
         .select('*')
         .eq('user_id', userId)
-        .gte('data_sessao', inicio)
-        .lte('data_sessao', fim)
+        .gte('data_sessao', inicioISO)
+        .lte('data_sessao', fimISO)
         .order('created_at', { ascending: false });
     return { data: data as SessaoFocoRow[] | null, error };
+}
+
+//Busca sessões da semana atual (segunda a domingo) do usuário
+export const buscarSessoesSemana = async (userId: string) => {
+    const { inicio, fim } = pegarIntervaloSemanaAtual();
+    return buscarSessoesPeriodo(userId, inicio, fim);
 }

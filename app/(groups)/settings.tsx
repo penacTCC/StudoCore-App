@@ -24,6 +24,7 @@ import {
     buscarMembrosGrupo,
     contarMembrosGrupo,
     excluirGrupoAtual,
+    sairDoGrupo,
 } from "@/services/grupos";
 import type { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 import { toast } from "@/services/toast";
@@ -142,14 +143,17 @@ export default function GroupSettingsScreen() {
         if (salvo) fecharModal();
     };
 
+    /** Devolve `true` só quando o grupo foi mesmo apagado — a navegação depende disso. */
     const excluirGrupo = async () => {
-        if (!groupId) return;
+        if (!groupId) return false;
         const { error } = await excluirGrupoAtual(groupId as string);
 
         if (error) {
             toast.error(error.message, "Erro ao excluir grupo");
-            return;
+            return false;
         }
+
+        return true;
     };
 
     const alternarPrivacidadeLocal = (valor: boolean) => {
@@ -173,19 +177,54 @@ export default function GroupSettingsScreen() {
         });
     };
 
+    /**
+     * Tira o usuário do grupo de verdade (RPC `sair_do_grupo`) e só então navega.
+     *
+     * Antes daqui, nada disto acontecia: os dois caminhos de saída apenas fechavam o modal
+     * e chamavam o router, então quem "saía" continuava no grupo e o sucessor escolhido
+     * nunca virava administrador.
+     */
+    const executarSaida = async (sucessorId?: string | null) => {
+        if (!groupId) return;
+
+        setSalvando(true);
+        const { error } = await sairDoGrupo(groupId as string, sucessorId);
+        setSalvando(false);
+
+        if (error) {
+            toast.error(error.message, "Não foi possível sair do grupo");
+            return;
+        }
+
+        setModalTransferenciaAdmin(false);
+        /*
+          `replace` porque o grupo pode ter deixado de existir (último membro saiu): manter
+          esta tela na pilha deixaria o usuário voltar para as configurações de um grupo do
+          qual ele não faz mais parte.
+        */
+        router.replace("/(groups)");
+    };
+
     const handleLeaveGroup = () => {
-        if ((qtdMembros ?? 0) > 1) {
+        // Só o administrador precisa passar o bastão; membro comum sai direto.
+        const souAdmin = membros.some((membro) => membro.user_id === userId && membro.administrador);
+
+        if (souAdmin && (qtdMembros ?? 0) > 1) {
             setNovoAdminId(null);
             setModalTransferenciaAdmin(true);
             return;
         }
 
+        const ehUltimoMembro = (qtdMembros ?? 0) <= 1;
+
         confirm({
             title: "Sair do Grupo",
-            message: `Tem certeza que deseja sair do ${grupo?.nome_grupo}? O grupo será apagado após esta ação.`,
+            message: ehUltimoMembro
+                ? `Tem certeza que deseja sair do ${grupo?.nome_grupo}? Como você é a última pessoa, o grupo será apagado após esta ação.`
+                : `Tem certeza que deseja sair do ${grupo?.nome_grupo}?`,
             confirmText: "Sair",
             destructive: true,
-            onConfirm: () => router.push("/(groups)"),
+            onConfirm: () => executarSaida(null),
         });
     };
 
@@ -202,11 +241,7 @@ export default function GroupSettingsScreen() {
             message: `${novoAdmin?.userData?.nome_usuario ?? "Este membro"} será o novo admin antes de você sair do grupo.`,
             confirmText: "Confirmar",
             destructive: true,
-            onConfirm: () => {
-                setModalTransferenciaAdmin(false);
-                // TODO: chamar backend para transferir admin e remover o usuário atual do grupo.
-                router.replace("/(groups)");
-            },
+            onConfirm: () => executarSaida(novoAdminId),
         });
     };
 
@@ -217,8 +252,9 @@ export default function GroupSettingsScreen() {
             confirmText: "Excluir",
             destructive: true,
             onConfirm: async () => {
-                await excluirGrupo();
-                router.push("/(groups)");
+                // Navegar mesmo quando o delete falha era o que fazia o grupo "sumir" da
+                // tela e reaparecer na lista logo depois.
+                if (await excluirGrupo()) router.replace("/(groups)");
             },
         });
     };

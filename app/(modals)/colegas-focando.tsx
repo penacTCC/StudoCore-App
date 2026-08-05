@@ -6,7 +6,8 @@ import { ChevronLeft, HandMetal, MessageCircle } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { useIncentivos } from "@/hooks/useIncentivos";
-import { fetchSessionMembers } from "@/services/sessions";
+import { useSessionMembers } from "@/hooks/useSessionMembers";
+import { tempoAoVivoDoMembro } from "@/utils/tempo";
 import type { MemberSession } from "@/types/sessions";
 
 const formatarTempo = (segundos: number) => {
@@ -22,52 +23,41 @@ const formatarTempo = (segundos: number) => {
     return `${minutos.toString().padStart(2, "0")}:${segundosRestantes.toString().padStart(2, "0")}`;
 };
 
+/** mm:ss do cooldown restante — nunca passa de 20min, então minutos sempre cabem em 2 dígitos. */
+const formatarCooldown = (segundos: number) => {
+    const m = Math.floor(segundos / 60);
+    const s = segundos % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+};
+
 export default function ColegasFocandoScreen() {
     const router = useRouter();
     const { userId } = useAuth();
     const { materia, conteudo, sessionId } = useLocalSearchParams<{ materia?: string; conteudo?: string; sessionId?: string }>();
-    const [members, setMembers] = useState<MemberSession[]>([]);
 
     const idDaSessao = Array.isArray(sessionId) ? sessionId[0] : sessionId;
 
-    // Tick local de 1s: antes o tempo vinha de um fetch único e ficava congelado na tela.
-    const [tick, setTick] = useState(0);
+    // Membros sincronizados em tempo real (ver hooks/useSessionMembers).
+    const { members } = useSessionMembers(idDaSessao);
+
+    // Tick de 1s só para repintar a tela: o tempo em si é sempre recalculado a partir do
+    // acumulado do membro + `ultimo_inicio` (ver tempoAoVivoDoMembro), nunca somado ao tick.
+    const [, setTick] = useState(0);
     useEffect(() => {
         const id = setInterval(() => setTick((t) => t + 1), 1000);
         return () => clearInterval(id);
     }, []);
 
-    useEffect(() => {
-        const carregarMembros = async () => {
-            if (!idDaSessao) {
-                setMembers([]);
-                return;
-            }
-
-            const { data, error } = await fetchSessionMembers(idDaSessao);
-            if (error) {
-                console.error("Erro ao carregar membros da sessão:", error);
-                setMembers([]);
-                return;
-            }
-
-            setMembers((data || []) as MemberSession[]);
-            // O tick reinicia junto com os dados para não somar duas vezes o mesmo tempo.
-            setTick(0);
-        };
-
-        carregarMembros();
-    }, [idDaSessao]);
-
     // A força é individual: cada colega da lista pode receber a sua.
-    const { enviandoPara, contarPara, euMandeiPara, podeTorcerPor, alternarPara } = useIncentivos(idDaSessao);
+    const { enviandoPara, contarPara, podeTorcerPor, cooldownRestante, enviarForca } = useIncentivos(idDaSessao);
 
+    // Quem já encerrou não é "em pausa": o contador dizia que a pessoa ainda estava na
+    // sessão, parada, quando na verdade ela tinha saído.
     const focando = members.filter((member) => member.status === "ativo").length;
-    const emPausa = members.length - focando;
+    const emPausa = members.filter((member) => member.status === "pausado").length;
 
-    /** Tempo do membro somado ao tick local — só avança para quem está de fato focando. */
-    const tempoDoMembro = (member: MemberSession) =>
-        (member.tempo_segundos || 0) + (member.status === "ativo" ? tick : 0);
+    /** Tempo real do membro: o acumulado dele mais o que passou desde o último início. */
+    const tempoDoMembro = (member: MemberSession) => tempoAoVivoDoMembro(member);
 
     const tempoCombinado = members.reduce((total, member) => total + tempoDoMembro(member), 0);
 
@@ -156,10 +146,10 @@ export default function ColegasFocandoScreen() {
                                     tempo={formatarTempo(tempoDoMembro(member))}
                                     emFoco={member.status === "ativo"}
                                     podeTorcer={podeTorcerPor(member.membro_id)}
-                                    jaTorci={euMandeiPara(member.membro_id)}
+                                    cooldownSegundos={cooldownRestante(member.membro_id)}
                                     forcasRecebidas={contarPara(member.membro_id)}
-                                    torcendo={!!enviandoPara}
-                                    onTorcer={() => alternarPara(member.membro_id)}
+                                    torcendo={enviandoPara === member.membro_id}
+                                    onTorcer={() => enviarForca(member.membro_id)}
                                 />
                             );
                         })
@@ -209,7 +199,7 @@ function LinhaColega({
     emFoco,
     voce = false,
     podeTorcer = false,
-    jaTorci = false,
+    cooldownSegundos = 0,
     forcasRecebidas = 0,
     torcendo = false,
     onTorcer,
@@ -222,11 +212,12 @@ function LinhaColega({
     emFoco: boolean;
     voce?: boolean;
     podeTorcer?: boolean;
-    jaTorci?: boolean;
+    cooldownSegundos?: number;
     forcasRecebidas?: number;
     torcendo?: boolean;
     onTorcer?: () => void;
 }) {
+    const emCooldown = cooldownSegundos > 0;
     return (
         <View
             style={{
@@ -320,7 +311,7 @@ function LinhaColega({
                 <TouchableOpacity
                     activeOpacity={0.7}
                     onPress={onTorcer}
-                    disabled={torcendo}
+                    disabled={torcendo || emCooldown}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     style={{
                         flexDirection: "row",
@@ -329,15 +320,23 @@ function LinhaColega({
                         paddingHorizontal: 9,
                         paddingVertical: 7,
                         borderRadius: 10,
-                        backgroundColor: jaTorci ? "rgba(255,154,0,0.12)" : HADES.surfaceRaised,
+                        backgroundColor: HADES.surfaceRaised,
                         borderWidth: 1,
-                        borderColor: jaTorci ? "rgba(255,154,0,0.35)" : HADES.borderStrong,
-                        opacity: torcendo ? 0.6 : 1,
+                        borderColor: HADES.borderStrong,
+                        opacity: torcendo ? 0.6 : emCooldown ? 0.5 : 1,
                     }}
                 >
-                    <HandMetal size={15} color={HADES.accentSolid} fill={jaTorci ? HADES.accentSolid : "none"} />
-                    {forcasRecebidas > 0 && (
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: HADES.accentSolid }}>{forcasRecebidas}</Text>
+                    {emCooldown ? (
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: HADES.textMuted, fontVariant: ["tabular-nums"] }}>
+                            {formatarCooldown(cooldownSegundos)}
+                        </Text>
+                    ) : (
+                        <>
+                            <HandMetal size={15} color={HADES.accentSolid} />
+                            {forcasRecebidas > 0 && (
+                                <Text style={{ fontSize: 12, fontWeight: "700", color: HADES.accentSolid }}>{forcasRecebidas}</Text>
+                            )}
+                        </>
                     )}
                 </TouchableOpacity>
             )}

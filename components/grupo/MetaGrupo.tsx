@@ -54,9 +54,6 @@ export default function MetaGrupo({ percentual, horasFeitas, metaTotal, metaPorM
 
                 <Barra largura="100%" cor={HADES.green} />
 
-                <Text style={{ fontSize: 12, color: "#7fae91", marginTop: 9 }}>
-                    O grupo todo mandou bem. Bora manter o ritmo. 🔥
-                </Text>
             </View>
         );
     }

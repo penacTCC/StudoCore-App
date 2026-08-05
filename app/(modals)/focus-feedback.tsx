@@ -1,15 +1,25 @@
-import { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { X, Lightbulb, CheckCheck, Trophy, RotateCw, Lock, Send, Bookmark, Clock, Check } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
-import { salvarSessaoFoco, atualizarSessaoFoco, calculateFocusSessionMinutes } from "@/services/sessions";
+import { salvarSessaoFoco, atualizarSessaoFoco, calculateFocusSessionMinutes, buscarSessoesPorExecucao } from "@/services/sessions";
 import { syncProfileStatsAfterFocusSession } from "@/services/profileStats";
 import { registrarSessaoConcluida } from "@/services/gamificacao";
 import { registrarOfensivaGrupo } from "@/services/grupos";
+import { buscarPerfil } from "@/services/auth";
+import { gerarQuizIA } from "@/services/quizIA";
 import { toast } from "@/services/toast";
+import type { QuizPergunta } from "@/types/quiz";
+import type { SessionCardItem } from "@/types/sessions";
+import { usePreferencias } from "@/hooks/usePreferencias";
+import { salvarAnotacoes } from "@/services/anotacoes";
+import FormAnotacoes from "@/components/sessao/FormAnotacoes";
+import { ANOTACOES_VAZIAS, type AnotacoesSessao } from "@/types/anotacoes";
+
+const MAX_QUESTOES_EXECUCAO = 15;
 
 // Helper para misturar qualquer array (Fisher-Yates) sem mutar o original
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -21,27 +31,46 @@ const shuffleArray = <T,>(array: T[]): T[] => {
     return newArray;
 };
 
+/** Idade em anos completos a partir da data de nascimento do perfil (null se ausente/inválida). */
+const calcularIdade = (dataNascimento?: string | null): number | null => {
+    if (!dataNascimento) return null;
+    const nascimento = new Date(dataNascimento);
+    if (Number.isNaN(nascimento.getTime())) return null;
+
+    const hoje = new Date();
+    let idade = hoje.getFullYear() - nascimento.getFullYear();
+    const aindaNaoFezAniversario =
+        hoje.getMonth() < nascimento.getMonth() ||
+        (hoje.getMonth() === nascimento.getMonth() && hoje.getDate() < nascimento.getDate());
+    if (aindaNaoFezAniversario) idade -= 1;
+
+    return idade;
+};
+
 export default function FocusFeedbackModal() {
     const router = useRouter();
     const params = useLocalSearchParams();
+    const modo = (params.modo as string) || "cronometro";
+    // Presente quando a sessão veio de um encadeamento de plano com mais de uma matéria
+    // (ver app/(tabs)/focus.tsx) — o quiz combina todas elas em vez de uma matéria só.
+    const execucaoId = (params.execucaoId as string) || null;
 
     // Pega o ID do usuário para salvar no Supabase
     const { userId } = useAuth();
 
-    // Estado das 10 respostas
-    const [answers, setAnswers] = useState<Record<number, string | null>>({
-        1: null, 2: null, 3: null, 4: null, 5: null,
-        6: null, 7: null, 8: null, 9: null, 10: null
-    });
+    // Respostas dadas pelo usuário, por id de questão. Começa vazio porque a quantidade de
+    // questões varia (10 numa sessão normal, até 15 numa execução de plano combinada).
+    const [answers, setAnswers] = useState<Record<number, string | null>>({});
 
     // Mostra as respotas corretas e erradas após o "Enviar"
     const [showResults, setShowResults] = useState(false);
 
-    const isComplete = Object.values(answers).every(val => val !== null);
-    const answeredCount = Object.values(answers).filter(val => val !== null).length;
+    // Linhas de sessoes_foco da execução (uma por matéria) — só populado quando execucaoId
+    // existe, pra distribuir os acertos de volta pra cada matéria ao salvar o resultado.
+    const [linhasExecucao, setLinhasExecucao] = useState<SessionCardItem[]>([]);
 
-    // Substitua este array com as suas perguntas reais do banco de dados (adicione o 'correctAnswer')
-    const contentQuestions = [
+    // Quiz fixo de fallback: usado quando a IA falha, ou (por enquanto) em sessões pomodoro.
+    const perguntasGenericas: QuizPergunta[] = [
         { id: 1, text: "Qual é o resultado da soma de 1/2 e 1/4?", options: ["3/4", "1/6", "2/6", "1/8"], correctAnswer: "3/4" },
         { id: 2, text: "Qual a forma irredutível da fração 8/12?", options: ["2/3", "4/6", "3/4", "1/2"], correctAnswer: "2/3" },
         { id: 3, text: "Qual destas frações é a maior?", options: ["2/5", "1/3", "3/4", "4/7"], correctAnswer: "3/4" },
@@ -54,20 +83,148 @@ export default function FocusFeedbackModal() {
         { id: 10, text: "Se eu comi 3/8 de uma pizza, que fração da pizza sobrou?", options: ["5/8", "3/8", "1/8", "8/8"], correctAnswer: "5/8" },
     ];
 
-    // Aqui geramos e guardamos no STATE a versão embaralhada das opções.
-    // Usar o useState com função (() => ...) garante que o sorteio só vai acontecer UMA ÚNICA VEZ
-    // quando a tela de Quiz abrir. Ao clicar e a tela atualizar pra mostrar a resposta com cor verde
-    // as opções NÂO vão mudar de lugar de novo.
-    const [shuffledQuestions] = useState(() =>
-        contentQuestions.map(q => ({
-            ...q,
-            options: shuffleArray(q.options)
-        }))
-    );
+    // Aqui guardamos no STATE a versão final (e já embaralhada) das perguntas. Começa `null`
+    // porque no modo cronômetro elas vêm da IA (assíncrono); só troca UMA VEZ, quando a
+    // geração termina, para as opções não mudarem de lugar depois que o usuário já respondeu.
+    const [shuffledQuestions, setShuffledQuestions] = useState<QuizPergunta[] | null>(null);
+    const [carregandoQuiz, setCarregandoQuiz] = useState(true);
+    const perguntasAtuais = shuffledQuestions ?? [];
+
+    useEffect(() => {
+        let cancelado = false;
+
+        const aplicarPerguntas = (perguntas: QuizPergunta[]) => {
+            if (cancelado) return;
+            setShuffledQuestions(perguntas.map((pergunta) => ({ ...pergunta, options: shuffleArray(pergunta.options) })));
+            setCarregandoQuiz(false);
+        };
+
+        const carregarQuiz = async () => {
+            // Pomodoro mantém o quiz fixo por enquanto — a IA entra só no modo cronômetro.
+            if ((modo === "pomodoro" && !execucaoId) || !userId) {
+                aplicarPerguntas(perguntasGenericas);
+                return;
+            }
+
+            const { data: perfil } = await buscarPerfil(userId);
+            const perfilComum = {
+                idade: calcularIdade(perfil?.data_nascimento),
+                objetivo: perfil?.objetivo ?? null,
+                nivelEnsino: perfil?.nivel_ensino ?? null,
+                ritmoEstudo: perfil?.ritmo_estudo ?? null,
+                dificuldade: perfil?.dificuldade ?? null,
+            };
+
+            if (execucaoId) {
+                // Encadeamento de plano: busca cada matéria estudada e combina num quiz só.
+                const { data: linhas, error } = await buscarSessoesPorExecucao(execucaoId);
+                if (!cancelado) setLinhasExecucao(linhas);
+
+                if (error || linhas.length === 0) {
+                    aplicarPerguntas(perguntasGenericas);
+                    return;
+                }
+
+                const { data: perguntasGeradas } = await gerarQuizIA({
+                    ...perfilComum,
+                    maxQuestoes: MAX_QUESTOES_EXECUCAO,
+                    materias: linhas.map((linha) => ({
+                        materia: linha.disciplina,
+                        conteudo: linha.conteudo_especifico || "",
+                        minutosEstudados: linha.tempo_minutos,
+                    })),
+                });
+
+                aplicarPerguntas(perguntasGeradas ?? perguntasGenericas);
+                return;
+            }
+
+            const { data: perguntasGeradas } = await gerarQuizIA({
+                ...perfilComum,
+                materias: [{
+                    materia: (params.subject as string) || "Estudo Geral",
+                    conteudo: (params.content as string) || "",
+                }],
+            });
+
+            // Falha ou resposta vazia da IA nunca pode travar o encerramento da sessão.
+            aplicarPerguntas(perguntasGeradas ?? perguntasGenericas);
+        };
+
+        carregarQuiz();
+        return () => {
+            cancelado = true;
+        };
+        // Roda uma única vez, ao abrir a tela: o quiz não pode trocar no meio da resposta.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const isComplete = !!shuffledQuestions && perguntasAtuais.every((q) => answers[q.id] != null);
+    const answeredCount = perguntasAtuais.filter((q) => answers[q.id] != null).length;
+    const totalQuestoes = perguntasAtuais.length || 10;
 
     const [saving, setSaving] = useState(false);
     // Guarda o ID da sessão assim que ela é inserida no banco (evita duplicatas ao refazer)
     const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+
+    /*
+      Etapa opcional de anotações, mostrada depois que a sessão já foi gravada.
+      Fica atrás da preferência "Anotar ao fim da sessão" (app/(modals)/settings.tsx):
+      quem prefere anotar depois desliga e escreve pela sessão salva, em
+      app/(modals)/detalhes-sessao.tsx — os dois caminhos usam o mesmo formulário.
+    */
+    const { prefs } = usePreferencias(userId);
+    const [etapaAnotacoes, setEtapaAnotacoes] = useState(false);
+    const [anotacoes, setAnotacoes] = useState<AnotacoesSessao>(ANOTACOES_VAZIAS);
+    const [salvandoAnotacoes, setSalvandoAnotacoes] = useState(false);
+    // Numa execução de plano são várias linhas (uma por matéria); a anotação vale pra todas.
+    const [idsParaAnotar, setIdsParaAnotar] = useState<string[]>([]);
+
+    /** Fecha a sessão: abre a etapa de anotações se estiver ligada, senão volta direto. */
+    const concluirFluxo = (ids: (string | null | undefined)[]) => {
+        const validos = ids.filter((id): id is string => !!id);
+        if (prefs.anotarAposQuiz && validos.length > 0) {
+            setIdsParaAnotar(validos);
+            setEtapaAnotacoes(true);
+            return;
+        }
+        router.back();
+    };
+
+    const salvarEtapaAnotacoes = async () => {
+        setSalvandoAnotacoes(true);
+        const resultados = await Promise.all(idsParaAnotar.map((id) => salvarAnotacoes(id, anotacoes)));
+        setSalvandoAnotacoes(false);
+
+        if (resultados.some((resultado) => !resultado.sucesso)) {
+            toast.error("Não foi possível salvar suas anotações.");
+            return;
+        }
+        router.back();
+    };
+
+    /**
+     * Distribui o resultado do quiz combinado de volta pra cada matéria da execução: cada
+     * linha de sessoes_foco (uma por matéria) recebe só as questões e acertos que são dela,
+     * em vez de um único total genérico. O tempo de cada matéria já foi salvo durante a
+     * execução (ver app/(tabs)/focus.tsx) — aqui só atualiza questões/status.
+     */
+    const salvarResultadoNaExecucao = async (status: string) => {
+        const resultados = await Promise.all(
+            linhasExecucao.map((linha) => {
+                const questoesDaMateria = perguntasAtuais.filter((q) => q.materia === linha.disciplina);
+                const acertosDaMateria = questoesDaMateria.filter((q) => answers[q.id] === q.correctAnswer).length;
+
+                return atualizarSessaoFoco(linha.id, {
+                    questoes_respondidas: questoesDaMateria.length,
+                    questoes_acertadas: acertosDaMateria,
+                    status,
+                });
+            })
+        );
+
+        return resultados.every((resultado) => !resultado.error);
+    };
 
     const persistFocusSession = async (status: string) => {
         // Impede gravação sem usuário autenticado, porque a tabela exige `user_id`.
@@ -79,12 +236,26 @@ export default function FocusFeedbackModal() {
         // Liga o estado de salvamento para bloquear múltiplos cliques durante a escrita no banco.
         setSaving(true);
 
+        const groupId = (params.groupId as string) || null;
+
+        if (execucaoId) {
+            const sucesso = await salvarResultadoNaExecucao(status);
+            setSaving(false);
+
+            if (!sucesso) {
+                toast.error("Não foi possível salvar a sessão. Tente novamente.");
+                return false;
+            }
+
+            await syncProfileStatsAfterFocusSession(userId);
+            await registrarSessaoConcluida(userId);
+            if (groupId) await registrarOfensivaGrupo(groupId);
+            return true;
+        }
+
         // Converte os segundos reais do cronômetro para os minutos que serão gravados no banco.
         const durationSecs = Number(params.duration) || 0;
         const sessionMinutes = await calculateFocusSessionMinutes(durationSecs);
-
-        // Mantém o vínculo da sessão com o grupo atual para isolar feed e progresso por grupo.
-        const groupId = (params.groupId as string) || null;
 
         // Usa o ID vindo do Brain ou o ID recém-criado nesta tela para atualizar em vez de duplicar.
         const existingId = (params.sessionId as string) || savedSessionId;
@@ -102,7 +273,7 @@ export default function FocusFeedbackModal() {
             // Atualiza o registro existente com as respostas atuais e o status escolhido.
             const { error } = await atualizarSessaoFoco(existingId, {
                 grupo_id: groupId,
-                questoes_respondidas: shuffledQuestions.length,
+                questoes_respondidas: perguntasAtuais.length,
                 questoes_acertadas: score,
                 status,
                 tempo_minutos: totalMinutes,
@@ -116,7 +287,7 @@ export default function FocusFeedbackModal() {
                 disciplina: params.subject as string || "Estudo Geral",
                 conteudo_especifico: params.content as string || "Sessão livre",
                 tempo_minutos: sessionMinutes,
-                questoes_respondidas: shuffledQuestions.length,
+                questoes_respondidas: perguntasAtuais.length,
                 questoes_acertadas: score,
                 is_public: params.isPublic === "true",
                 status,
@@ -156,7 +327,7 @@ export default function FocusFeedbackModal() {
                 toast.warning("Por favor, responda todas as questões.", "Incompleto");
                 return;
             }
-            const initialStatus = score > 7 ? "salvo" : "pendente";
+            const initialStatus = isHighScore ? "salvo" : "pendente";
             const saved = await persistFocusSession(initialStatus);
             if (saved) setShowResults(true); // Muda pra tela de review do gabarito
         } else {
@@ -168,14 +339,31 @@ export default function FocusFeedbackModal() {
 
             setSaving(true);
 
+            const groupId = (params.groupId as string) || null;
+
+            if (execucaoId) {
+                const sucesso = await salvarResultadoNaExecucao(status);
+                setSaving(false);
+
+                if (!sucesso) {
+                    toast.error("Não foi possível salvar a sessão. Tente novamente.");
+                    return;
+                }
+
+                await syncProfileStatsAfterFocusSession(userId);
+                await registrarSessaoConcluida(userId);
+                if (groupId) await registrarOfensivaGrupo(groupId);
+
+                concluirFluxo(linhasExecucao.map((linha) => linha.id));
+                return;
+            }
+
             // Converte os segundos reais do cronômetro para os minutos que serão gravados no banco.
             const durationSecs = Number(params.duration) || 0;
             const sessionMinutes = await calculateFocusSessionMinutes(durationSecs);
 
-            // Mantém o vínculo da sessão com o grupo atual para isolar feed e progresso por grupo.
-            const groupId = (params.groupId as string) || null;
-
             let dbError = null;
+            let idRecemInserido: string | null = null;
 
             // Usa o ID de um param (sessão de revisão/refazer vindo do Brain Hub)
             // OU o ID que foi guardado ao salvar pela primeira vez nesta sessão
@@ -191,7 +379,7 @@ export default function FocusFeedbackModal() {
 
                 const { error } = await atualizarSessaoFoco(existingId, {
                     grupo_id: groupId,
-                    questoes_respondidas: shuffledQuestions.length,
+                    questoes_respondidas: perguntasAtuais.length,
                     questoes_acertadas: score,
                     status: status,
                     tempo_minutos: totalMinutes,
@@ -205,7 +393,7 @@ export default function FocusFeedbackModal() {
                     disciplina: params.subject as string || "Estudo Geral",
                     conteudo_especifico: params.content as string || "Sessão livre",
                     tempo_minutos: sessionMinutes,
-                    questoes_respondidas: shuffledQuestions.length,
+                    questoes_respondidas: perguntasAtuais.length,
                     questoes_acertadas: score,
                     is_public: params.isPublic === "true",
                     status: status,
@@ -216,7 +404,12 @@ export default function FocusFeedbackModal() {
                 if (!error && data) {
                     // Guarda o ID para que um eventual "refazer" não insira duplicata
                     const inserted = (data as any)[0];
-                    if (inserted?.id) setSavedSessionId(inserted.id);
+                    if (inserted?.id) {
+                        setSavedSessionId(inserted.id);
+                        // Guardado também numa variável local: o setState só vale no próximo
+                        // render, e a etapa de anotações precisa do ID agora.
+                        idRecemInserido = inserted.id;
+                    }
                 }
             }
 
@@ -233,7 +426,7 @@ export default function FocusFeedbackModal() {
             await registrarSessaoConcluida(userId);
             if (groupId) await registrarOfensivaGrupo(groupId);
 
-            router.back();
+            concluirFluxo([existingId, idRecemInserido]);
         }
     };
 
@@ -243,11 +436,77 @@ export default function FocusFeedbackModal() {
     };
 
     // Conta quantos acertos teve no geral só para mostrar ao usuário um resumo (opcional)
-    const score = shuffledQuestions.reduce((acc, curr) => {
+    const score = perguntasAtuais.reduce((acc, curr) => {
         return answers[curr.id] === curr.correctAnswer ? acc + 1 : acc;
     }, 0);
 
-    const isHighScore = score > 7;
+    // "Bom desempenho" = mais de 70% de acerto (equivale ao corte antigo de >7 em 10).
+    const isHighScore = totalQuestoes > 0 && score / totalQuestoes > 0.7;
+
+    /*
+      Etapa final opcional. A sessão JÁ está gravada quando esta tela aparece — pular aqui
+      não perde nada do estudo, só deixa as anotações pra depois.
+    */
+    if (etapaAnotacoes) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top", "bottom"]}>
+                <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 }}>
+                    <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
+                        Como foi essa sessão?
+                    </Text>
+                    <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 4 }}>
+                        Anote agora enquanto está fresco. Dá pra editar depois pelo Banco de dados.
+                    </Text>
+                </View>
+
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <FormAnotacoes
+                        anotacoes={anotacoes}
+                        aoMudar={(campo, valor) => setAnotacoes((atual) => ({ ...atual, [campo]: valor }))}
+                        bloqueado={salvandoAnotacoes}
+                    />
+                </ScrollView>
+
+                <View style={{ paddingHorizontal: 20, paddingBottom: 12, paddingTop: 8, gap: 4 }}>
+                    <TouchableOpacity
+                        onPress={salvarEtapaAnotacoes}
+                        disabled={salvandoAnotacoes}
+                        activeOpacity={0.85}
+                        style={{
+                            height: 50,
+                            borderRadius: 14,
+                            backgroundColor: HADES.accentSolid,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            opacity: salvandoAnotacoes ? 0.6 : 1,
+                        }}
+                    >
+                        {salvandoAnotacoes ? (
+                            <ActivityIndicator color="#000" />
+                        ) : (
+                            <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>Salvar anotações</Text>
+                        )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => router.back()}
+                        disabled={salvandoAnotacoes}
+                        activeOpacity={0.7}
+                        style={{ paddingVertical: 14, alignItems: "center" }}
+                    >
+                        <Text style={{ fontSize: 14.5, fontWeight: "500", color: HADES.textMuted }}>
+                            Anotar depois
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top", "bottom"]}>
@@ -272,11 +531,11 @@ export default function FocusFeedbackModal() {
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                         <Text style={{ fontSize: 11.5, color: HADES.textFaint, fontWeight: "700", letterSpacing: 0.7 }}>PROGRESSO</Text>
                         <Text style={{ fontSize: 12.5, color: isComplete ? HADES.accentSolid : HADES.text, fontWeight: "700" }}>
-                            {answeredCount} <Text style={{ color: HADES.textFaint, fontWeight: "600" }}>/ 10</Text>
+                            {answeredCount} <Text style={{ color: HADES.textFaint, fontWeight: "600" }}>/ {totalQuestoes}</Text>
                         </Text>
                     </View>
                     <View style={{ height: 6, borderRadius: 3, backgroundColor: HADES.surfaceOverlay, overflow: "hidden" }}>
-                        <View style={{ height: "100%", width: `${(answeredCount / 10) * 100}%`, backgroundColor: HADES.accentSolid, borderRadius: 3 }} />
+                        <View style={{ height: "100%", width: `${(answeredCount / totalQuestoes) * 100}%`, backgroundColor: HADES.accentSolid, borderRadius: 3 }} />
                     </View>
                 </View>
             )}
@@ -287,7 +546,19 @@ export default function FocusFeedbackModal() {
                 showsVerticalScrollIndicator={false}
             >
                 {!showResults ? (
-                    isComplete ? (
+                    carregandoQuiz ? (
+                        <View style={{ alignItems: "center", paddingVertical: 6, paddingBottom: 22 }}>
+                            <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: HADES.accentTint, alignItems: "center", justifyContent: "center" }}>
+                                <ActivityIndicator color={HADES.accentSolid} />
+                            </View>
+                            <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text, marginTop: 15, letterSpacing: -0.2 }}>
+                                Gerando seu quiz personalizado…
+                            </Text>
+                            <Text style={{ fontSize: 13.5, color: HADES.textMuted, marginTop: 7, textAlign: "center", lineHeight: 19, paddingHorizontal: 18 }}>
+                                Estamos montando perguntas sobre o que você acabou de estudar.
+                            </Text>
+                        </View>
+                    ) : isComplete ? (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: HADES.accentTint, borderWidth: 1, borderColor: HADES.accentTintBorder, borderRadius: 12, padding: 14, marginBottom: 16 }}>
                             <CheckCheck size={18} color={HADES.accentSolid} />
                             <Text style={{ flex: 1, fontSize: 13, color: HADES.textSecondary, lineHeight: 18 }}>
@@ -317,7 +588,7 @@ export default function FocusFeedbackModal() {
                             {isHighScore ? <Trophy size={40} color={HADES.green} /> : <RotateCw size={38} color={HADES.red} />}
                         </View>
                         <Text style={{ fontSize: 23, fontWeight: "800", color: isHighScore ? HADES.green : HADES.red, marginTop: 16, letterSpacing: -0.4 }}>
-                            {isHighScore ? `Você acertou ${score} de 10!` : `Você acertou ${score} de 10`}
+                            {isHighScore ? `Você acertou ${score} de ${totalQuestoes}!` : `Você acertou ${score} de ${totalQuestoes}`}
                         </Text>
                         <Text style={{ fontSize: 14, color: isHighScore ? "#7fae91" : "#b98089", marginTop: 7, textAlign: "center", lineHeight: 20 }}>
                             {isHighScore ? "Conteúdo dominado. Mandou muito bem. 🔥" : "Faltou pouco. Uma revisada rápida agora e o conteúdo gruda de vez. 💪"}
@@ -327,7 +598,7 @@ export default function FocusFeedbackModal() {
 
                 {/* Questões */}
                 <View style={{ gap: 14 }}>
-                    {shuffledQuestions.map((question) => {
+                    {perguntasAtuais.map((question) => {
                         const selected = answers[question.id];
                         const isCorrectlyAnswered = selected === question.correctAnswer;
 
@@ -449,9 +720,15 @@ export default function FocusFeedbackModal() {
                             borderWidth: isComplete ? 0 : 1, borderColor: HADES.border,
                         }}
                     >
-                        {isComplete ? <Send size={18} color="#000" /> : <Lock size={16} color={HADES.textDim} />}
+                        {carregandoQuiz ? (
+                            <ActivityIndicator size="small" color={HADES.textDim} />
+                        ) : isComplete ? (
+                            <Send size={18} color="#000" />
+                        ) : (
+                            <Lock size={16} color={HADES.textDim} />
+                        )}
                         <Text style={{ fontSize: isComplete ? 16 : 15, fontWeight: "700", color: isComplete ? "#000" : HADES.textDim }}>
-                            {isComplete ? "Enviar Respostas" : "Responda as 10 Questões"}
+                            {carregandoQuiz ? "Gerando quiz…" : isComplete ? "Enviar Respostas" : `Responda as ${totalQuestoes} Questões`}
                         </Text>
                     </TouchableOpacity>
                 ) : isHighScore ? (
@@ -468,7 +745,7 @@ export default function FocusFeedbackModal() {
                     <>
                         <TouchableOpacity
                             onPress={() => {
-                                setAnswers({ 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null, 8: null, 9: null, 10: null });
+                                setAnswers({});
                                 setShowResults(false);
                             }}
                             activeOpacity={0.8}

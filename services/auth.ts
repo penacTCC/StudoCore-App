@@ -86,6 +86,57 @@ export const salvarDadosPerfil = async (
   });
 };
 
+//Atualizar os campos editáveis do perfil (tela de editar perfil)
+export type DadosEdicaoPerfil = {
+  nomeReal: string;
+  nomeUsuario: string;
+  bio: string | null;
+  fotoUsuario: string | null;
+  perfilPublico: boolean;
+  mostrarOfensiva: boolean;
+};
+
+/**
+ * UPDATE (e não upsert como no onboarding): aqui a linha já existe, e um upsert
+ * apagaria os campos de preferência que esta tela não edita.
+ */
+export const atualizarPerfil = async (userId: string, dados: DadosEdicaoPerfil) => {
+  return await supabase
+    .from("profiles")
+    .update({
+      nome_real: dados.nomeReal.trim(),
+      nome_usuario: dados.nomeUsuario.trim(),
+      bio: dados.bio?.trim() || null,
+      foto_usuario: dados.fotoUsuario,
+      perfil_publico: dados.perfilPublico,
+      mostrar_ofensiva: dados.mostrarOfensiva,
+    })
+    .eq("id", userId);
+};
+
+/**
+ * Exclusão definitiva da conta de quem está logado.
+ *
+ * Roda na Edge Function `excluir-conta` porque apagar de auth.users exige a service role
+ * key; o id vem do JWT lá dentro, então o app não consegue pedir a exclusão de terceiros.
+ * Depois de apagar, a sessão local ainda existe: o signOut abaixo é o que devolve o app
+ * para a tela de login.
+ */
+export const excluirConta = async (): Promise<{ error: string | null }> => {
+  const { data, error } = await supabase.functions.invoke("excluir-conta");
+
+  if (error) {
+    console.warn("Erro ao excluir conta:", error);
+    return { error: "Não foi possível excluir a conta. Tente de novo em instantes." };
+  }
+  if (data && data.ok === false) {
+    return { error: data.error ?? "Não foi possível excluir a conta." };
+  }
+
+  await supabase.auth.signOut();
+  return { error: null };
+};
+
 //Cadastrar novo usuário
 export const cadastrarUsuario = async (
   email: string,

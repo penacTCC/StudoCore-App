@@ -11,7 +11,12 @@ export const CONFIG_POMODORO_PADRAO: ConfigPomodoro = {
     descansoCurtoMin: 5,
     descansoLongoMin: 15,
     ciclosAteLongo: 4,
+    qtdPomodoros: 4,
 };
+
+/** Faixa do seletor de quantidade de pomodoros — mesma de novo-bloco-plano.tsx. */
+export const QTD_POMODOROS_MIN = 1;
+export const QTD_POMODOROS_MAX = 12;
 
 /** Cores dos avatares de colegas na sessão pública. */
 export const CORES_AVATAR = ["#1f9d63", "#7c5cfc", "#e08a1e", "#3b82f6", "#f0556b"];

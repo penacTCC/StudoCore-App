@@ -326,7 +326,7 @@ export default function PlanoEditorScreen() {
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: HADES.surface }}>
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
             <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
                 {/* Alça */}
                 <View style={{ paddingTop: 12, paddingBottom: 4, alignItems: "center" }}>
@@ -363,7 +363,7 @@ export default function PlanoEditorScreen() {
                         <View
                             style={{
                                 flex: 1,
-                                backgroundColor: HADES.bg,
+                                backgroundColor: HADES.surfaceRaised,
                                 borderWidth: 1,
                                 borderColor: HADES.borderStrong,
                                 borderRadius: 12,
@@ -393,7 +393,7 @@ export default function PlanoEditorScreen() {
                                 gap: 6,
                                 height: 50,
                                 paddingHorizontal: 12,
-                                backgroundColor: HADES.bg,
+                                backgroundColor: HADES.surfaceRaised,
                                 borderWidth: 1,
                                 borderColor: HADES.borderStrong,
                                 borderRadius: 12,
@@ -486,7 +486,7 @@ export default function PlanoEditorScreen() {
                     {itensAgrupados.length === 0 && (
                         <View
                             style={{
-                                backgroundColor: HADES.surface,
+                                backgroundColor: HADES.surfaceRaised,
                                 borderWidth: 1,
                                 borderColor: HADES.border,
                                 borderRadius: 14,
@@ -597,7 +597,7 @@ export default function PlanoEditorScreen() {
 
 function PlanoEditorSkeleton() {
     return (
-        <View style={{ flex: 1, backgroundColor: HADES.surface }}>
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
             <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
                 <View style={{ paddingTop: 12, paddingBottom: 4, alignItems: "center" }}>
                     <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: HADES.dot }} />
@@ -688,7 +688,7 @@ function LinhaBloco({
     return (
         <View
             style={{
-                backgroundColor: HADES.bg,
+                backgroundColor: HADES.surfaceRaised,
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.08)",
                 borderRadius: 13,
@@ -749,7 +749,7 @@ function CartaoSessao({
     return (
         <View
             style={{
-                backgroundColor: HADES.bg,
+                backgroundColor: HADES.surfaceRaised,
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.08)",
                 borderRadius: 13,
@@ -823,7 +823,7 @@ function CartaoSessao({
                                             borderRadius: 4,
                                             backgroundColor: descanso ? HADES.green : bloco.cor ?? HADES.accentSolid,
                                             borderWidth: 2,
-                                            borderColor: HADES.bg,
+                                            borderColor: HADES.surfaceRaised,
                                         }}
                                     />
                                     {descanso ? (
@@ -962,7 +962,7 @@ function BotaoAdicionar({
                 borderRadius: 12,
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.10)",
-                backgroundColor: HADES.bg,
+                backgroundColor: HADES.surfaceRaised,
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",

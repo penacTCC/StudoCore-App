@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DeviceEventEmitter } from 'react-native';
-import { carregarUltimoGrupoLocalmente } from '@/services/armazenamentoOffline';
-import { buscarGrupoPorId, usuarioParticipaDeGrupo } from '@/services/grupos';
+import { carregarUltimoGrupoLocalmente, limparUltimoGrupoLocalmente } from '@/services/armazenamentoOffline';
+import { buscarGrupoPorId, usuarioParticipaDeGrupo, usuarioParticipaDoGrupo } from '@/services/grupos';
 import { Session } from '@supabase/supabase-js';
 import { ParametrosUltimoGrupo } from '@/types/grupos';
 
@@ -30,14 +30,22 @@ export function useStatusMembroGrupo(session: Session | null, inicializado: bool
         let parametrosParaSalvar: ParametrosUltimoGrupo | null = null;
 
         if (ultimoGrupoId) {
-          const grupo = await buscarGrupoPorId(ultimoGrupoId);
-          if (grupo) {
-            parametrosParaSalvar = {
-              groupId: grupo.id,
-              groupName: grupo.nome_grupo,
-              groupPhoto: grupo.foto_grupo,
-              groupGoal: grupo.meta_horas
-            };
+          // O id fica salvo no aparelho, não na conta: sem validar a participação, ao trocar
+          // de conta a pessoa caía direto nas tabs do grupo de quem usou o app antes.
+          const participaDoUltimo = await usuarioParticipaDoGrupo(session.user.id, ultimoGrupoId);
+
+          if (!participaDoUltimo) {
+            await limparUltimoGrupoLocalmente();
+          } else {
+            const grupo = await buscarGrupoPorId(ultimoGrupoId);
+            if (grupo) {
+              parametrosParaSalvar = {
+                groupId: grupo.id,
+                groupName: grupo.nome_grupo,
+                groupPhoto: grupo.foto_grupo,
+                groupGoal: grupo.meta_horas
+              };
+            }
           }
         }
 

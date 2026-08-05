@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, RefreshControl } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Timer, Layers, Search, Play, Edit, Trash2, SlidersHorizontal, Check } from "lucide-react-native";
+import { ChevronRight, AlertCircle, BookOpen, Clock, Timer, Layers, Search, Play, Edit, Trash2, SlidersHorizontal, Check } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
 import { formatarHoras } from "@/lib/analytics";
 import { SessaoFocoRow } from "@/types/sessions";
+import { taxaDeAcerto, totalQuestoes } from "@/utils/estatisticasSessao";
 import { EstadoPoucosDadosPessoal, EstadoVazioPessoal, EstadoSemGrupo, EstadoGrupoSemDadosPeriodo } from "@/components/analytics/EstadosAnalise";
 import {
     SeletorEscopo,
@@ -36,7 +37,10 @@ import {
 } from "@/components/analytics/GraficosAnalise";
 
 type BrainTab = "database" | "analytics";
-type SelectedForm = SessaoFocoRow | null | "pending-tab";
+/** Aba aberta do Banco de dados: `null` = salvos, "pending-tab" = pendentes.
+ *  (Antes esse estado também guardava a sessão do bottom sheet, que virou a tela
+ *  app/(modals)/detalhes-sessao.tsx.) */
+type SelectedForm = null | "pending-tab";
 
 const BRAIN_TABS = [
     { key: "database", label: "Banco de dados" },
@@ -140,10 +144,6 @@ export default function BrainScreen() {
         }
     };
 
-    const calcularAcerto = (acertadas: number, respondidas: number) => {
-        if (respondidas === 0) return 0;
-        return Math.round((acertadas / respondidas) * 100);
-    };
 
     const obterCorMateria = (disciplina: string) => {
         const materia = materiasComCores.find((m) => m.nomeExibicao === disciplina);
@@ -232,7 +232,7 @@ export default function BrainScreen() {
         const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
         const sessoesDeHoje = sessoesUsuario.filter((s) => s.data_sessao === hojeStr);
         const minutosHoje = sessoesDeHoje.reduce((acc, s) => acc + (s.tempo_minutos ?? 0), 0);
-        const questoesHoje = sessoesDeHoje.reduce((acc, s) => acc + (s.questoes_respondidas ?? 0), 0);
+        const questoesHoje = sessoesDeHoje.reduce((acc, s) => acc + totalQuestoes(s), 0);
         const acertosHoje = sessoesDeHoje.reduce((acc, s) => acc + (s.questoes_acertadas ?? 0), 0);
         return {
             horasHoje: formatarHoras(minutosHoje),
@@ -251,11 +251,6 @@ export default function BrainScreen() {
                         <Text style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
                             {brainTab === "analytics" ? "Análise" : "Banco de dados"}
                         </Text>
-                        {brainTab === "database" && (
-                            <Text style={{ fontSize: 12.5, color: HADES.textDim, marginTop: 3 }}>
-                                Formulários das suas sessões
-                            </Text>
-                        )}
                     </View>
                     {brainTab === "database" && (
                         <TouchableOpacity
@@ -324,25 +319,6 @@ export default function BrainScreen() {
                         <BancoDadosSkeleton />
                       ) : (
                         <>
-                        {/* Headers por período */}
-                        <View style={{ marginBottom: 16 }}>
-                            <View style={{ marginBottom: 14 }}>
-                                <Text style={{ fontSize: 11.5, fontWeight: "700", color: HADES.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
-                                    ESSA SEMANA
-                                </Text>
-                                <Text style={{ fontSize: 15, fontWeight: "700", color: HADES.text }}>
-                                    {sessoesAgrupadasPorPeriodo.essaSemana} formulário{sessoesAgrupadasPorPeriodo.essaSemana !== 1 ? "s" : ""}
-                                </Text>
-                            </View>
-                            <View>
-                                <Text style={{ fontSize: 11.5, fontWeight: "700", color: HADES.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
-                                    ESSE MÊS
-                                </Text>
-                                <Text style={{ fontSize: 15, fontWeight: "700", color: HADES.text }}>
-                                    {sessoesAgrupadasPorPeriodo.esseMs} formulário{sessoesAgrupadasPorPeriodo.esseMs !== 1 ? "s" : ""}
-                                </Text>
-                            </View>
-                        </View>
 
                         {/* Contadores */}
                         <View style={{ flexDirection: "row", gap: 10, marginBottom: 18 }}>
@@ -451,20 +427,20 @@ export default function BrainScreen() {
                                 <View
                                     style={{
                                         backgroundColor: selectedForm === null ? HADES.accentSolid : (selectedForm === "pending-tab" ? "#1a1b20" : HADES.surfaceOverlay),
-                                        borderRadius: 6,
-                                        paddingVertical: 3,
-                                        paddingHorizontal: 7,
-                                        minWidth: 28,
+                                        borderRadius: 7,
+                                        paddingVertical: 2,
+                                        paddingHorizontal: 8,
+                                        minWidth: 26,
                                         alignItems: "center",
                                         justifyContent: "center",
                                     }}
                                 >
                                     <Text
                                         style={{
-                                            fontSize: 11,
-                                            fontWeight: "700",
-                                            color: selectedForm === null ? "#000" : (selectedForm === "pending-tab" ? HADES.textMuted : HADES.textMuted),
-                                            lineHeight: 1.2,
+                                            fontSize: 12,
+                                            fontWeight: "800",
+                                            lineHeight: 18,
+                                            color: selectedForm === null ? "#000" : HADES.textSecondary,
                                         }}
                                     >
                                         {savedSessions.length}
@@ -495,21 +471,21 @@ export default function BrainScreen() {
                                 </Text>
                                 <View
                                     style={{
-                                        backgroundColor: selectedForm === "pending-tab" ? HADES.red : "rgba(240,85,107,0.12)",
-                                        borderRadius: 6,
-                                        paddingVertical: 3,
-                                        paddingHorizontal: 7,
-                                        minWidth: 28,
+                                        backgroundColor: selectedForm === "pending-tab" ? HADES.red : "rgba(240,85,107,0.18)",
+                                        borderRadius: 7,
+                                        paddingVertical: 2,
+                                        paddingHorizontal: 8,
+                                        minWidth: 26,
                                         alignItems: "center",
                                         justifyContent: "center",
                                     }}
                                 >
                                     <Text
                                         style={{
-                                            fontSize: 11,
-                                            fontWeight: "700",
+                                            fontSize: 12,
+                                            fontWeight: "800",
+                                            lineHeight: 18,
                                             color: selectedForm === "pending-tab" ? "#fff" : HADES.red,
-                                            lineHeight: 1.2,
                                         }}
                                     >
                                         {pendingSessions.length}
@@ -526,9 +502,6 @@ export default function BrainScreen() {
                         >
                             {selectedForm === "pending-tab" && (
                                 <>
-                                    <Text style={{ fontSize: 12.5, color: HADES.textDim, lineHeight: 1.5, marginBottom: 16 }}>
-                                        Sessões encerradas sem formulário. Elas <Text style={{ color: HADES.text, fontWeight: "600" }}>não contam</Text> para suas horas até você responder.
-                                    </Text>
                                     <View style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                         {pendingSessions.map((form, idx) => (
                                             <View
@@ -592,22 +565,19 @@ export default function BrainScreen() {
                                                 </View>
                                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14, paddingLeft: 19 }}>
                                                     <TouchableOpacity
-                                                        onPress={() => {
-                                                            if (!selectedForm || typeof selectedForm === "string") return;
-                                                            const formData = form;
-                                                            setSelectedForm(null);
+                                                        onPress={() =>
                                                             router.push({
                                                                 pathname: "/(modals)/focus-feedback",
                                                                 params: {
-                                                                    sessionId: formData.id,
-                                                                    subject: formData.disciplina,
-                                                                    content: formData.conteudo_especifico || "",
-                                                                    oldDuration: formData.tempo_minutos.toString(),
+                                                                    sessionId: form.id,
+                                                                    subject: form.disciplina,
+                                                                    content: form.conteudo_especifico || "",
+                                                                    oldDuration: form.tempo_minutos.toString(),
                                                                     duration: "0",
-                                                                    isPublic: formData.is_public.toString(),
+                                                                    isPublic: form.is_public.toString(),
                                                                 }
-                                                            });
-                                                        }}
+                                                            })
+                                                        }
                                                         activeOpacity={0.85}
                                                         style={{
                                                             flex: 1,
@@ -641,9 +611,6 @@ export default function BrainScreen() {
                                                         <Trash2 size={15} color={HADES.textSecondary} />
                                                     </TouchableOpacity>
                                                 </View>
-                                                <Text style={{ fontSize: 11, color: "#a76a75", marginTop: 10, paddingLeft: 19 }}>
-                                                    Expira em 5 dias — depois a sessão é descartada
-                                                </Text>
                                             </View>
                                         ))}
                                     </View>
@@ -668,7 +635,12 @@ export default function BrainScreen() {
                                                     {grupo.forms.map((form, formIdx) => (
                                                         <TouchableOpacity
                                                             key={form.id}
-                                                            onPress={() => setSelectedForm(form)}
+                                                            onPress={() =>
+                                                                router.push({
+                                                                    pathname: "/(modals)/detalhes-sessao",
+                                                                    params: { sessaoId: form.id },
+                                                                })
+                                                            }
                                                             activeOpacity={0.75}
                                                             style={{
                                                                 backgroundColor: HADES.surface,
@@ -708,25 +680,20 @@ export default function BrainScreen() {
                                                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                                                                     <Layers size={12} color="#5f636c" />
                                                                     <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
-                                                                        {form.questoes_respondidas ?? 0} questões
+                                                                        {totalQuestoes(form)} questões
                                                                     </Text>
                                                                 </View>
-                                                                <View
+                                                                <Text
                                                                     style={{
                                                                         marginLeft: "auto",
-                                                                        backgroundColor: obterCorAcerto(calcularAcerto(form.questoes_acertadas, form.questoes_respondidas)),
-                                                                        borderRadius: 6,
-                                                                        paddingVertical: 3,
-                                                                        paddingHorizontal: 7,
-                                                                        minWidth: 35,
-                                                                        alignItems: "center",
-                                                                        justifyContent: "center",
+                                                                        fontSize: 13,
+                                                                        fontWeight: "800",
+                                                                        letterSpacing: -0.2,
+                                                                        color: obterCorAcerto(taxaDeAcerto(form)),
                                                                     }}
                                                                 >
-                                                                    <Text style={{ fontSize: 10.5, fontWeight: "700", color: "#fff", lineHeight: 1.2 }}>
-                                                                        {calcularAcerto(form.questoes_acertadas, form.questoes_respondidas)}%
-                                                                    </Text>
-                                                                </View>
+                                                                    {taxaDeAcerto(form)}%
+                                                                </Text>
                                                             </View>
                                                         </TouchableOpacity>
                                                     ))}
@@ -754,7 +721,7 @@ export default function BrainScreen() {
                                             <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.textSecondary, marginBottom: 8 }}>
                                                 Seu banco está vazio
                                             </Text>
-                                            <Text style={{ fontSize: 13, color: HADES.textDim, lineHeight: 1.55, textAlign: "center", paddingHorizontal: 20, marginBottom: 12 }}>
+                                            <Text style={{ fontSize: 13, color: HADES.textDim, lineHeight: 20, textAlign: "center", paddingHorizontal: 20, marginBottom: 12 }}>
                                                 Ao encerrar uma sessão de foco você responde um formulário — ele fica guardado aqui.
                                             </Text>
                                             <TouchableOpacity
@@ -903,177 +870,6 @@ export default function BrainScreen() {
                 )}
             </ScrollView>
 
-            {/* ── MODAL: Ação no Formulário ──────────────────── */}
-            <Modal
-                visible={!!selectedForm && typeof selectedForm !== "string"}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setSelectedForm(null)}
-            >
-                <View
-                    className="flex-1 justify-end"
-                    style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
-                >
-                    <View
-                        style={{
-                            width: "100%",
-                            backgroundColor: HADES.surface,
-                            borderTopWidth: 1,
-                            borderTopColor: "rgba(255,255,255,0.08)",
-                            borderTopLeftRadius: 24,
-                            borderTopRightRadius: 24,
-                            padding: 24,
-                            paddingBottom: 32,
-                        }}
-                    >
-                        {/* Header */}
-                        <View
-                            style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                marginBottom: 24,
-                            }}
-                        >
-                            <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 16 }}>
-                                <View
-                                    style={{
-                                        width: 48,
-                                        height: 48,
-                                        borderRadius: 24,
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        backgroundColor:
-                                            selectedForm && typeof selectedForm !== "string" && selectedForm?.status === 'pendente'
-                                                ? "rgba(240,85,107,0.12)"
-                                                : "rgba(48,209,88,0.12)",
-                                    }}
-                                >
-                                    {selectedForm && typeof selectedForm !== "string" && selectedForm?.status === 'pendente' ? (
-                                        <AlertCircle size={24} color={HADES.red} />
-                                    ) : (
-                                        <BookOpen size={24} color={HADES.green} />
-                                    )}
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                    <Text
-                                        style={{ fontSize: 19, fontWeight: "700", color: HADES.text, marginBottom: 3 }}
-                                    >
-                                        {selectedForm && typeof selectedForm !== "string" ? selectedForm.disciplina : ""}
-                                    </Text>
-                                    <Text style={{ fontSize: 13, color: HADES.textMuted }} numberOfLines={2}>
-                                        {selectedForm && typeof selectedForm !== "string" ? selectedForm.conteudo_especifico : ""}
-                                    </Text>
-                                </View>
-                            </View>
-                            <TouchableOpacity
-                                onPress={() => setSelectedForm(null)}
-                                style={{
-                                    width: 30,
-                                    height: 30,
-                                    borderRadius: 15,
-                                    backgroundColor: HADES.surfaceOverlay,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                }}
-                            >
-                                <X size={16} color={HADES.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Botões */}
-                        <View className="gap-3">
-                            <TouchableOpacity
-                                onPress={() => {
-                                    if (!selectedForm || typeof selectedForm === "string") return;
-                                    const form = selectedForm;
-                                    setSelectedForm(null);
-                                    router.push({
-                                        pathname: "/(tabs)/focus",
-                                        params: {
-                                            reviewSessionId: form.id,
-                                            subject: form.disciplina,
-                                            content: form.conteudo_especifico || "",
-                                            oldDuration: form.tempo_minutos.toString(),
-                                            isPublic: form.is_public.toString(),
-                                            autoStart: 'true'
-                                        }
-                                    });
-                                }}
-                                activeOpacity={0.85}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 8,
-                                    height: 52,
-                                    borderRadius: 14,
-                                    backgroundColor: HADES.accentSolid,
-                                }}
-                            >
-                                <Clock size={20} color="#000" />
-                                <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>
-                                    Sessão de revisão
-                                </Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                onPress={() => {
-                                    if (!selectedForm || typeof selectedForm === "string") return;
-                                    const form = selectedForm;
-                                    setSelectedForm(null);
-                                    router.push({
-                                        pathname: "/(modals)/focus-feedback",
-                                        params: {
-                                            sessionId: form.id,
-                                            subject: form.disciplina,
-                                            content: form.conteudo_especifico || "",
-                                            oldDuration: form.tempo_minutos.toString(),
-                                            duration: "0",
-                                            isPublic: form.is_public.toString(),
-                                        }
-                                    });
-                                }}
-                                activeOpacity={0.85}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 8,
-                                    height: 52,
-                                    borderRadius: 14,
-                                    backgroundColor: HADES.surfaceRaised,
-                                    borderWidth: 1,
-                                    borderColor: "rgba(255,255,255,0.10)",
-                                }}
-                            >
-                                <RefreshCw size={20} color={HADES.textSecondary} />
-                                <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.textSecondary }}>
-                                    Refazer agora
-                                </Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                onPress={() => setSelectedForm(null)}
-                                activeOpacity={0.7}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 8,
-                                    paddingVertical: 14,
-                                    marginTop: 4,
-                                }}
-                            >
-                                <ArrowLeft size={20} color={HADES.textMuted} />
-                                <Text style={{ fontSize: 15, fontWeight: "500", color: HADES.textMuted }}>
-                                    Voltar
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
         </SafeAreaView>
     );
 }

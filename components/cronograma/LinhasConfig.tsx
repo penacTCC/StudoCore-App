@@ -41,8 +41,6 @@ function Linha({ children, ultima }: { children: ReactNode; ultima?: boolean }) 
                 flexDirection: "row",
                 alignItems: "center",
                 padding: 14,
-                borderBottomWidth: ultima ? 0 : 1,
-                borderBottomColor: HADES.borderSettings,
             }}
         >
             {children}
@@ -68,11 +66,13 @@ export function LinhaStepper({
     return (
         <Linha ultima={ultima}>
             <Text style={{ flex: 1, fontSize: 14, color: HADES.text }}>{rotulo}</Text>
+            {/* Mais claro que o cartão, não mais escuro: o controle é o que se
+                toca, então ele avança em direção ao usuário em vez de afundar. */}
             <View
                 style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    backgroundColor: HADES.settingsInset,
+                    backgroundColor: HADES.settingsSwitchOff,
                     borderRadius: 9,
                 }}
             >
@@ -127,8 +127,6 @@ export function LinhaSwitch({
                 flexDirection: "row",
                 alignItems: descricao ? "flex-start" : "center",
                 padding: 14,
-                borderBottomWidth: ultima ? 0 : 1,
-                borderBottomColor: HADES.borderSettings,
                 opacity: travado ? 0.5 : 1,
             }}
         >
@@ -199,8 +197,6 @@ export function LinhaEscolha({
                 flexDirection: "row",
                 alignItems: "center",
                 padding: 14,
-                borderBottomWidth: ultima ? 0 : 1,
-                borderBottomColor: HADES.borderSettings,
             }}
         >
             <Text style={{ flex: 1, fontSize: 14, color: HADES.text }}>{rotulo}</Text>
@@ -243,8 +239,6 @@ export function LinhaPerigo({
                 alignItems: descricao ? "flex-start" : "center",
                 gap: 12,
                 padding: 14,
-                borderBottomWidth: ultima ? 0 : 1,
-                borderBottomColor: HADES.borderSettings,
             }}
         >
             {icone && (

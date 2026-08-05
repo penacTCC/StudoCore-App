@@ -30,6 +30,12 @@ type Props = {
     totalCiclos: number;
     contexto: ContextoBloco | null;
     autoFoco: boolean;
+    /**
+     * `false` para quem entrou numa sessão em grupo: esticar o foco e pular o descanso
+     * reescrevem o cronograma de todos os participantes, então ficam só com quem criou a
+     * sessão. Quem entrou segue o ritmo combinado (e pode encerrar a qualquer momento).
+     */
+    podeControlarCronograma?: boolean;
     colegas: string[] | null;
     /** Quantas pessoas mandaram força para esta sessão. */
     incentivosRecebidos?: number;
@@ -187,6 +193,7 @@ function TelaPomodoroFoco({
     totalCiclos,
     contexto,
     incentivosRecebidos,
+    podeControlarCronograma,
     onPausar,
     onEncerrar,
     onEstender,
@@ -289,7 +296,7 @@ function TelaPomodoroFoco({
                     <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>Pausar</Text>
                 </TouchableOpacity>
 
-                {!contexto && (
+                {!contexto && podeControlarCronograma !== false && (
                     <TouchableOpacity
                         onPress={onEstender}
                         activeOpacity={0.85}
@@ -320,6 +327,7 @@ function TelaDescanso({
     textoRelogio,
     progressoFase,
     autoFoco,
+    podeControlarCronograma,
     onPularDescanso,
     onEncerrar,
 }: Props) {
@@ -376,31 +384,44 @@ function TelaDescanso({
                             marginBottom: 8,
                         }}
                     >
-                        <Repeat size={14} color="#6b8f78" />
-                        <Text style={{ fontSize: 13, color: "#7fae91" }}>O próximo foco começa sozinho</Text>
                     </View>
                 )}
             </View>
 
             <View style={{ paddingTop: 16, paddingHorizontal: 24, paddingBottom: 12, gap: 12 }}>
-                <TouchableOpacity
-                    onPress={onPularDescanso}
-                    activeOpacity={0.85}
-                    style={{
-                        height: 60,
-                        borderRadius: 16,
-                        backgroundColor: "rgba(52,199,89,0.14)",
-                        borderWidth: 1,
-                        borderColor: "rgba(52,199,89,0.35)",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 9,
-                    }}
-                >
-                    <SkipForward size={19} color={VERDE} />
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: VERDE_CLARO }}>Pular descanso</Text>
-                </TouchableOpacity>
+                {podeControlarCronograma !== false ? (
+                    <TouchableOpacity
+                        onPress={onPularDescanso}
+                        activeOpacity={0.85}
+                        style={{
+                            height: 60,
+                            borderRadius: 16,
+                            backgroundColor: "rgba(52,199,89,0.14)",
+                            borderWidth: 1,
+                            borderColor: "rgba(52,199,89,0.35)",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 9,
+                        }}
+                    >
+                        <SkipForward size={19} color={VERDE} />
+                        <Text style={{ fontSize: 16, fontWeight: "700", color: VERDE_CLARO }}>Pular descanso</Text>
+                    </TouchableOpacity>
+                ) : (
+                    // Quem entrou na sessão não encurta o descanso do grupo — mas precisa
+                    // saber por que o botão não está ali.
+                    <Text
+                        style={{
+                            fontSize: 13,
+                            color: "#5f7a68",
+                            textAlign: "center",
+                            paddingVertical: 18,
+                        }}
+                    >
+                        O descanso acaba junto para todo mundo.
+                    </Text>
+                )}
 
                 <TouchableOpacity
                     onPress={onEncerrar}

@@ -11,14 +11,14 @@ function Cabecalho({ desbloqueadas, total, onVerTodas }: { desbloqueadas: number
                 flexDirection: "row",
                 alignItems: "baseline",
                 justifyContent: "space-between",
-                marginBottom: onVerTodas ? 16 : 14,
+                marginBottom: 16,
             }}
         >
             <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
-                <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
+                <Text style={{ fontSize: 11.5, fontWeight: "700", color: HADES.textMuted, letterSpacing: 0.8, textTransform: "uppercase" }}>
                     Medalhas
                 </Text>
-                <Text style={{ fontSize: 12, color: HADES.textFaint }}>
+                <Text style={{ fontSize: 11.5, color: HADES.textDim }}>
                     {desbloqueadas}/{total}
                 </Text>
             </View>
@@ -29,10 +29,10 @@ function Cabecalho({ desbloqueadas, total, onVerTodas }: { desbloqueadas: number
                     style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                    <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>
-                        Ver todas
+                    <Text style={{ fontSize: 11.5, color: HADES.textMuted, fontWeight: "600" }}>
+                        Ver Todas
                     </Text>
-                    <ChevronRight size={15} color={HADES.textMuted} />
+                    <ChevronRight size={14} color={HADES.textMuted} />
                 </TouchableOpacity>
             )}
         </View>
@@ -41,24 +41,22 @@ function Cabecalho({ desbloqueadas, total, onVerTodas }: { desbloqueadas: number
 
 type Props = {
     recentes: BadgeType[];
-    proximas: { badge: BadgeType; progress: number }[];
+    /** Quando omitido, a seção "Próximas a conquistar" não é exibida (perfil de outro usuário). */
+    proximas?: { badge: BadgeType; progress: number }[];
     desbloqueadas: number;
     total: number;
-    onVerTodas: () => void;
+    onVerTodas?: () => void;
+    /** Colunas da grade de medalhas recentes: 3 no próprio perfil, 4 no de outro usuário. */
+    colunas?: 3 | 4;
 };
 
-export default function CardMedalhas({ recentes, proximas, desbloqueadas, total, onVerTodas }: Props) {
+export default function CardMedalhas({ recentes, proximas, desbloqueadas, total, onVerTodas, colunas = 3 }: Props) {
+    const largura = colunas === 4 ? "25%" : "33.33%";
+    const diametro = colunas === 4 ? 46 : 48;
+    const iconSize = colunas === 4 ? 21 : 23;
+
     return (
-        <View
-            style={{
-                backgroundColor: HADES.surface,
-                borderWidth: 1,
-                borderColor: HADES.border,
-                borderRadius: 16,
-                padding: 16,
-                marginBottom: 16,
-            }}
-        >
+        <View>
             <Cabecalho desbloqueadas={desbloqueadas} total={total} onVerTodas={onVerTodas} />
 
             {recentes.length === 0 ? (
@@ -73,12 +71,12 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
                         const BadgeIcon = iconMap[badge.icon] || Star;
                         const cor = BADGE_LEVEL_COLORS[badge.level];
                         return (
-                            <View key={badge.id} style={{ width: "33.33%", alignItems: "center", gap: 7 }}>
+                            <View key={badge.id} style={{ width: largura, alignItems: "center", gap: 7 }}>
                                 <View
                                     style={{
-                                        width: 44,
-                                        height: 44,
-                                        borderRadius: 22,
+                                        width: diametro,
+                                        height: diametro,
+                                        borderRadius: diametro / 2,
                                         backgroundColor: `${cor}24`,
                                         borderWidth: 1,
                                         borderColor: `${cor}59`,
@@ -86,7 +84,7 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
                                         justifyContent: "center",
                                     }}
                                 >
-                                    <BadgeIcon size={21} color={cor} />
+                                    <BadgeIcon size={iconSize} color={cor} />
                                 </View>
                                 <Text
                                     style={{
@@ -106,19 +104,11 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
                 </View>
             )}
 
-            {proximas.length > 0 && (
+            {proximas && proximas.length > 0 && (
                 <>
-                    <View
-                        style={{
-                            height: 1,
-                            backgroundColor: HADES.border,
-                            marginTop: 18,
-                            marginBottom: 16,
-                        }}
-                    />
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 14 }}>
-                        <Target size={14} color={HADES.textMuted} />
-                        <Text style={{ fontSize: 12.5, color: HADES.textSecondary, fontWeight: "600" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginTop: 20, marginBottom: 14 }}>
+                        <Target size={13} color={HADES.textMuted} />
+                        <Text style={{ fontSize: 12, color: HADES.textMuted, fontWeight: "600" }}>
                             Próximas a conquistar
                         </Text>
                     </View>
@@ -180,22 +170,13 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
     );
 }
 
-/** Card de medalhas para quem ainda não conquistou nenhuma. */
+/** Seção de medalhas para quem ainda não conquistou nenhuma (perfil próprio: convida a agir). */
 export function CardMedalhasVazio({ primeira, total }: { primeira: BadgeType | undefined; total: number }) {
     const BadgeIcon = primeira ? iconMap[primeira.icon] || Star : Star;
     const cor = primeira ? BADGE_LEVEL_COLORS[primeira.level] : HADES.textMuted;
 
     return (
-        <View
-            style={{
-                backgroundColor: HADES.surface,
-                borderWidth: 1,
-                borderColor: HADES.border,
-                borderRadius: 16,
-                padding: 16,
-                marginBottom: 16,
-            }}
-        >
+        <View>
             <Cabecalho desbloqueadas={0} total={total} />
 
             <View
@@ -203,9 +184,9 @@ export function CardMedalhasVazio({ primeira, total }: { primeira: BadgeType | u
                     flexDirection: "row",
                     alignItems: "center",
                     gap: 13,
-                    backgroundColor: HADES.bg,
                     borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.07)",
+                    borderStyle: "dashed",
+                    borderColor: HADES.borderDashed,
                     borderRadius: 13,
                     padding: 14,
                 }}
@@ -223,18 +204,51 @@ export function CardMedalhasVazio({ primeira, total }: { primeira: BadgeType | u
                     <BadgeIcon size={19} color={cor} />
                 </View>
                 <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>
+                    <Text style={{ fontSize: 13.5, fontWeight: "600", color: HADES.text }}>
                         {primeira?.name ?? "Primeira Sessão"}
                     </Text>
-                    <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 2 }}>
+                    <Text style={{ fontSize: 11.5, color: HADES.textFaint, marginTop: 2 }}>
                         Sua primeira medalha está a uma sessão de distância
                     </Text>
                 </View>
             </View>
+        </View>
+    );
+}
 
-            <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 12, textAlign: "center" }}>
-                Comece a estudar para desbloquear as {total} medalhas.
-            </Text>
+/** Seção de medalhas vazia ao ver o perfil de outra pessoa: só informa, não convida a agir. */
+export function CardMedalhasVazioOutro({ total }: { total: number }) {
+    return (
+        <View>
+            <Cabecalho desbloqueadas={0} total={total} />
+            <View
+                style={{
+                    alignItems: "center",
+                    gap: 10,
+                    borderWidth: 1,
+                    borderStyle: "dashed",
+                    borderColor: HADES.borderDashed,
+                    borderRadius: 13,
+                    paddingVertical: 22,
+                    paddingHorizontal: 20,
+                }}
+            >
+                <View
+                    style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: HADES.surfaceOverlay,
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    <Star size={19} color={HADES.textDim} />
+                </View>
+                <Text style={{ fontSize: 12.5, color: HADES.textMuted, textAlign: "center", lineHeight: 18 }}>
+                    Nenhuma medalha conquistada ainda.{"\n"}A jornada está só começando.
+                </Text>
+            </View>
         </View>
     );
 }

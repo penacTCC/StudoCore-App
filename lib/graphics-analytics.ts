@@ -16,6 +16,7 @@ import { ComecoSemana, membrosRankingAnalytics, PontoSerieDia } from "@/types/an
 import { PeriodoAnalise, QuestoesMembroGrupo } from "@/components/analytics/GraficosAnalise";
 import { buscarSessoesPorUsuario } from "@/services/sessions";
 import { toast } from "@/services/toast";
+import { totalAcertos, totalQuestoes } from "@/utils/estatisticasSessao";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { useMembrosGrupos } from "@/hooks/useMembrosGrupos";
 import { buscarMembrosGrupo, horasSemanaisGrupo } from "@/services/grupos";
@@ -166,8 +167,9 @@ export function useGraficosAnalytics(
     }));
 
     //Quantidade de questões respondidas no período selecionado, para cálculo percentual
-    const qtdQuestoesTotais = sessoesDoPeriodoAtual.reduce((acumulador, item) => acumulador + (item.questoes_respondidas ?? 0), 0);
-    const qtdQuestoesCorretas = sessoesDoPeriodoAtual.reduce((acumulador, item) => acumulador + (item.questoes_acertadas ?? 0), 0);
+    //Soma quiz + formulários externos já corrigidos (ver utils/estatisticasSessao.ts).
+    const qtdQuestoesTotais = sessoesDoPeriodoAtual.reduce((acumulador, item) => acumulador + totalQuestoes(item), 0);
+    const qtdQuestoesCorretas = sessoesDoPeriodoAtual.reduce((acumulador, item) => acumulador + totalAcertos(item), 0);
     const qtdQuestoesErradas = qtdQuestoesTotais - qtdQuestoesCorretas
     const pctAcerto = qtdQuestoesTotais > 0 ? Math.round((qtdQuestoesCorretas / qtdQuestoesTotais) * 100): 0
 
@@ -317,8 +319,8 @@ export function useGraficosAnalytics(
 
         for (const sessao of sessoesGrupoNoPeriodo) {
             const atual = porUsuario.get(sessao.user_id) ?? { total: 0, acertadas: 0 }
-            atual.total += sessao.questoes_respondidas ?? 0
-            atual.acertadas += sessao.questoes_acertadas ?? 0
+            atual.total += totalQuestoes(sessao)
+            atual.acertadas += totalAcertos(sessao)
             porUsuario.set(sessao.user_id, atual)
         }
 

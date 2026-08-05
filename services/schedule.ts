@@ -53,6 +53,26 @@ export const moverBlocoRotina = async (blocoId: string, diaSemana: number) => {
     return { error }
 }
 
+/** Empurra o horário de início do bloco em `minutos`, mantendo a duração. */
+export const adiarBlocoRotina = async (blocoId: string, minutos: number) => {
+    const { data: atual, error: erroBusca } = await buscarBlocoPorId(blocoId);
+    if (erroBusca || !atual) return { error: erroBusca ?? new Error("Bloco não encontrado") };
+
+    const [h, m] = atual.hora_inicio.split(":").map(Number);
+    const totalMin = (h * 60 + m + minutos + 1440) % 1440;
+    const hora_inicio = `${Math.floor(totalMin / 60).toString().padStart(2, "0")}:${(totalMin % 60)
+        .toString()
+        .padStart(2, "0")}`;
+
+    const { error } = await supabase
+        .from("rotina_semanal_blocos")
+        .update({ hora_inicio })
+        .eq("id", blocoId);
+
+    if (!error) sincronizarLembreteRotina({ ...atual, hora_inicio });
+    return { error };
+};
+
 //Excluir bloco de estudos da rotina semanal
 export const excluirBlocoRotina = async (blocoId: string) => {
     const { error } = await supabase

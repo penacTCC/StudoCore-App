@@ -15,6 +15,9 @@ export default function ModalsLayout() {
             <Stack.Screen name="cronograma-config" options={{ presentation: "modal" }} />
             <Stack.Screen name="novo-bloco" options={{ presentation: "modal" }} />
             <Stack.Screen name="novo-bloco-plano" options={{ presentation: "modal" }} />
+            <Stack.Screen name="editar-perfil" options={{ presentation: "modal" }} />
+            <Stack.Screen name="detalhes-sessao" options={{ presentation: "card" }} />
+            <Stack.Screen name="corrigir-anexo" options={{ presentation: "modal" }} />
         </Stack>
     );
 }

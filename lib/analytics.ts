@@ -1,4 +1,5 @@
 import { SessaoFocoRow } from "@/types/sessions";
+import { totalQuestoes } from "@/utils/estatisticasSessao";
 import {MateriaDistribuicao, AnalisePessoal, ComecoSemana, PontoSerieDia, ParDiaSemana} from "@/types/analytics"
 
 // Paleta usada para colorir as fatias de "distribuição por matéria".
@@ -363,7 +364,7 @@ export function calcularAnalisePessoal(
         // Esta semana
         if (comecoSemanaMs(data, comecoSemana) === comecoDessaSemana) {
             minutosEstaSemana += sessao.tempo_minutos || 0;
-            questoesEstaSemana += sessao.questoes_respondidas || 0;
+            questoesEstaSemana += totalQuestoes(sessao);
             diasEstaSemana.add(chaveDiaLocal(data));
 
             const materia = sessao.disciplina || "Outros";
@@ -373,7 +374,7 @@ export function calcularAnalisePessoal(
         // Semana passada
         if (tempo >= comecoSemanaAnterior && tempo <= fimSemanaAnterior) {
             minutosSemanaPasada += sessao.tempo_minutos || 0;
-            questoesSemanaPasada += sessao.questoes_respondidas || 0;
+            questoesSemanaPasada += totalQuestoes(sessao);
             diasSemanaPasada.add(chaveDiaLocal(data));
         }
     }

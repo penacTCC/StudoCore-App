@@ -3,12 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
-import {
-    SecaoConfig,
-    LinhaStepper,
-    LinhaSwitch,
-    LinhaEscolha,
-} from "@/components/cronograma/LinhasConfig";
+import { SecaoConfig, LinhaStepper, LinhaSwitch } from "@/components/cronograma/LinhasConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { usePreferencias } from "@/hooks/usePreferencias";
 
@@ -135,13 +130,6 @@ export default function CronogramaConfigScreen() {
                 </SecaoConfig>
 
                 <SecaoConfig titulo="CRONOGRAMA">
-                    <LinhaEscolha
-                        rotulo="Início da semana"
-                        valor={prefs.inicioSemana === "segunda" ? "Segunda" : "Domingo"}
-                        onPress={() =>
-                            ajustar("inicioSemana", prefs.inicioSemana === "segunda" ? "domingo" : "segunda")
-                        }
-                    />
                     <LinhaStepper
                         rotulo="Duração padrão do bloco"
                         valor={`${prefs.duracaoPadraoBlocoMin}min`}

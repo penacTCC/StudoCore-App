@@ -1,5 +1,8 @@
 export type TipoBloco = "estudo" | "descanso" | "outro";
 
+/** Qual fonte colocou o bloco naquele dia (ver services/agenda.ts). */
+export type OrigemBloco = "rotina" | "plano";
+
 export type StatusBloco = "cumprido" | "parcial" | "furado" | "agora" | "futuro";
 
 export type Bloco = {
@@ -41,6 +44,9 @@ export type BlocoDoDia = Bloco & {
     restanteMin?: number;
     /** De onde esse bloco do dia veio — decide em qual FK gravar a sessão de foco. */
     origem?: "rotina" | "plano";
+    /** Presente quando origem === "plano" — usado pra encadear a sessão pelos demais
+     *  blocos do mesmo plano hoje (ver ItemFila em types/foco.ts). */
+    planoId?: string;
 };
 
 export type AgendaPlano =
@@ -97,12 +103,15 @@ export type NovoBlocoPlano = Omit<BlocoPlano, "id">;
 export type BlocoSemana = {
     id: string;
     dia: number; // 0 = segunda
-    /** Offset em minutos a partir das 8h — a grade começa às 8h. */
+    /** Offset em minutos a partir do início da janela desenhada na grade. */
     inicioMin: number;
     duracaoMin: number;
     rotulo: string;
     cor: string;
     tipo: TipoBloco;
+    /** De onde o bloco veio naquele dia. Bloco de plano não é editável na semana:
+     *  ele pertence ao plano, não àquele dia. */
+    origem: OrigemBloco;
 };
 
 export type AbaCronograma = "hoje" | "semana" | "planos";
@@ -119,6 +128,9 @@ export type BlocoListaDia = {
     duracaoRotulo: string;
     cor: string;
     tipo: TipoBloco;
+    origem: OrigemBloco;
+    /** Nome do plano que colocou esse bloco no dia. Só quando origem === "plano". */
+    nomePlano?: string;
 };
 
 export type PreferenciasCronograma = {
@@ -138,8 +150,9 @@ export type PreferenciasCronograma = {
     somFimFoco: boolean;
     vibrar: boolean;
     manterTelaLigada: boolean;
-    inicioSemana: "domingo" | "segunda";
     duracaoPadraoBlocoMin: number;
     duracaoPadraoDescansoMin: number;
     contarDescansoComoEstudado: boolean;
+    /** Se ligado, o fim do quiz abre a etapa de anotações da sessão (pulável). */
+    anotarAposQuiz: boolean;
 };

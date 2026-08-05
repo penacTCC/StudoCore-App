@@ -1,11 +1,31 @@
+import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { Globe, Lock, Flame, Clock, BadgeCheck, Wind } from "lucide-react-native";
+import { Globe, Lock, Flame, Clock, BadgeCheck, Pause, Wind } from "lucide-react-native";
 import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { getSubjectColor, getTimeAgo } from "@/constants/helpers";
+import { tempoAoVivoDaSessao } from "@/utils/tempo";
 import Avatar from "@/components/ui/Avatar";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import type { SessaoFocoRow } from "@/types/sessions";
+
+/** "1h 30m" para sessões encerradas; "12:34" enquanto a sessão ainda corre. */
+function formatarDuracaoDoCard(segundos: number, aoVivo: boolean) {
+    const totalSegundos = Math.max(0, Math.floor(segundos));
+
+    if (aoVivo) {
+        const h = Math.floor(totalSegundos / 3600);
+        const m = Math.floor((totalSegundos % 3600) / 60);
+        const s = totalSegundos % 60;
+        const doisDigitos = (n: number) => n.toString().padStart(2, "0");
+        return h > 0 ? `${h}:${doisDigitos(m)}:${doisDigitos(s)}` : `${doisDigitos(m)}:${doisDigitos(s)}`;
+    }
+
+    const minutosTotais = Math.round(totalSegundos / 60);
+    const horas = Math.floor(minutosTotais / 60);
+    const minutos = minutosTotais % 60;
+    return horas === 0 ? `${minutos}m` : minutos === 0 ? `${horas}h` : `${horas}h ${minutos}m`;
+}
 
 /**
  * Card de sessão no feed da home do grupo, no visual HADES.
@@ -16,18 +36,25 @@ import type { SessaoFocoRow } from "@/types/sessions";
 export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
     const nome = sessao.profiles?.nome_real || sessao.profiles?.nome_usuario || "Usuário";
     const corMateria = getSubjectColor(sessao.disciplina);
-    const verificado = sessao.questoes_acertadas > 7;
     const publica = sessao.is_public;
     const estaConcluida = Boolean(sessao.concluido_em || sessao.status === "concluido" || sessao.status === "salvo");
+    const emAndamento = !estaConcluida && (sessao.status === "ativo" || sessao.status === "pausado");
+    const focandoAgora = emAndamento && sessao.status === "ativo";
 
-    const horas = Math.floor(sessao.tempo_minutos / 60);
-    const minutos = sessao.tempo_minutos % 60;
-    const duracao = horas === 0 ? `${minutos}m` : minutos === 0 ? `${horas}h` : `${horas}h ${minutos}m`;
+    /*
+      Tick de 1s só para repintar enquanto a sessão corre — o tempo em si sempre sai de
+      `tempoAoVivoDaSessao` (acumulado no banco + o que passou desde `ultimo_inicio`), nunca
+      de um contador local. Numa sessão pausada ou encerrada o valor não muda, então não há
+      intervalo rodando: um feed com vários cards antigos não fica repintando à toa.
+    */
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        if (!focandoAgora) return;
+        const id = setInterval(() => setTick((t) => t + 1), 1000);
+        return () => clearInterval(id);
+    }, [focandoAgora]);
 
-    const horario = new Date(sessao.created_at).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-    });
+    const duracao = formatarDuracaoDoCard(tempoAoVivoDaSessao(sessao), emAndamento);
 
     return (
         <TouchableOpacity
@@ -57,24 +84,45 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
                 </View>
 
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    {estaConcluida && (
+                    {estaConcluida ? (
+                        // O selo de destaque (>70% no quiz) era um filtro que sumia com todo
+                        // o resto do feed; agora é só esta marcação (ver services/sessions.ts).
                         <View
                             style={{
                                 flexDirection: "row",
                                 alignItems: "center",
                                 gap: 4,
-                                backgroundColor: HADES.surfaceOverlay,
+                                backgroundColor: sessao.destaque ? "rgba(255,154,0,0.10)" : HADES.surfaceOverlay,
                                 borderRadius: 7,
                                 paddingVertical: 3,
                                 paddingHorizontal: 8,
                             }}
                         >
-                            <BadgeCheck size={11} color={HADES.textMuted} />
-                            <Text style={{ fontSize: 10.5, color: HADES.textMuted, fontWeight: "600" }}>
-                                Sessão concluída
-                            </Text>
+                            <BadgeCheck size={11} color={sessao.destaque ? HADES.accentSolid : HADES.textMuted} />
                         </View>
-                    )}
+                    ) : emAndamento ? (
+                        // Pausa e descanso do pomodoro chegam aqui como `status = 'pausado'`:
+                        // o card não pode anunciar "focando" enquanto o cronômetro está parado.
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 4,
+                                backgroundColor: focandoAgora ? "rgba(52,199,89,0.10)" : HADES.surfaceOverlay,
+                                borderRadius: 7,
+                                paddingVertical: 3,
+                                paddingHorizontal: 8,
+                            }}
+                        >
+                            {focandoAgora ? (
+                                <View
+                                    style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.green }}
+                                />
+                            ) : (
+                                <Pause size={11} color={HADES.textMuted} />
+                            )}
+                        </View>
+                    ) : null}
                     <View
                         style={{
                             flexDirection: "row",
@@ -91,15 +139,6 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
                         ) : (
                             <Lock size={11} color={HADES.textMuted} />
                         )}
-                        <Text
-                            style={{
-                                fontSize: 10.5,
-                                color: publica ? HADES.accentSolid : HADES.textMuted,
-                                fontWeight: "600",
-                            }}
-                        >
-                            {publica ? "Pública" : "Privada"}
-                        </Text>
                     </View>
                 </View>
             </View>
@@ -139,7 +178,7 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
                             marginTop: 1,
                         }}
                     >
-                        DURAÇÃO
+                        {emAndamento ? "TEMPO DE FOCO" : "DURAÇÃO"}
                     </Text>
                 </View>
 
@@ -148,12 +187,16 @@ export default function CardSessaoGrupo({ sessao }: { sessao: SessaoFocoRow }) {
                         <Clock size={13} color={HADES.textFaint} />
                         <Text style={{ fontSize: 12.5, color: HADES.textMuted }}>{getTimeAgo(sessao.created_at)}</Text>
                     </View>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                        <Flame size={14} color={HADES.accentSolid} />
-                        <Text style={{ fontSize: 12.5, color: HADES.textSecondary, fontWeight: "600" }}>
-                            {sessao.questoes_acertadas}/{sessao.questoes_respondidas}
-                        </Text>
-                    </View>
+                    {/* O quiz só existe depois do encerramento: numa sessão em andamento o
+                        placar seria sempre 0/0. */}
+                    {!emAndamento && (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                            <Flame size={14} color={HADES.accentSolid} />
+                            <Text style={{ fontSize: 12.5, color: HADES.textSecondary, fontWeight: "600" }}>
+                                {sessao.questoes_acertadas}/{sessao.questoes_respondidas}
+                            </Text>
+                        </View>
+                    )}
                 </View>
             </View>
         </TouchableOpacity>

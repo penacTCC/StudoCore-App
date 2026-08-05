@@ -15,6 +15,9 @@ export type Grupo = {
   ultima_data_estudo: string | null;
 };
 
+// Retorno da RPC registrar_ofensiva_grupo — estado da ofensiva coletiva depois do recálculo.
+export type OfensivaGrupo = Pick<Grupo, 'meta_horas' | 'ofensiva' | 'melhor_ofensiva' | 'ultima_data_estudo'>;
+
 export type CartaoGrupoPublico = {
     id: string;
     nome_grupo: string;

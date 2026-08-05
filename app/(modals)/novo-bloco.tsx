@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import WheelPicker from "@/components/ui/WheelPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
+import { usePreferencias } from "@/hooks/usePreferencias";
 import { salvarBlocoRotina, editarBlocoRotina, buscarBlocoPorId } from "@/services/schedule";
 import { toast } from "@/services/toast";
 
@@ -44,6 +45,7 @@ export default function NovoBlocoScreen() {
     const modoEdicao = !!blocoId;
     const {userId} = useAuth()
     const { materiasComCores } = useMaterias(userId);
+    const { prefs, carregando: carregandoPrefs } = usePreferencias(userId);
     const [diaIndex, setDiaIndex] = useState(dia ? Number(dia) : 1);
 
     const [materiaId, setMateriaId] = useState<string | undefined>(undefined);
@@ -72,6 +74,23 @@ export default function NovoBlocoScreen() {
             setMateriaId(materiasComCores[0].id);
         }
     }, [materiaId, materiasComCores]);
+
+    /*
+      Bloco novo nasce com as durações e a antecedência definidas nas preferências
+      do cronograma. Em modo edição não faz nada: lá quem manda é o bloco salvo.
+    */
+    useEffect(() => {
+        if (modoEdicao || carregandoPrefs) return;
+
+        const horas = Math.floor(prefs.duracaoPadraoBlocoMin / 60);
+        setHorasIdx(indiceMaisProximo(HORAS, horas));
+        setMinutosIdx(indiceMaisProximo(MINUTOS_DURACAO, prefs.duracaoPadraoBlocoMin % 60));
+
+        setLembreteAtivo(prefs.notificacoesAtivas && prefs.antecedenciaMin > 0);
+        if (prefs.antecedenciaMin > 0) {
+            setLembreteIdx(indiceMaisProximo(MINUTOS_LEMBRETE, prefs.antecedenciaMin));
+        }
+    }, [modoEdicao, carregandoPrefs, prefs.duracaoPadraoBlocoMin, prefs.antecedenciaMin, prefs.notificacoesAtivas]);
 
     // Modo edição: carrega o bloco existente e preenche o formulário.
     useEffect(() => {
@@ -137,7 +156,7 @@ export default function NovoBlocoScreen() {
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: HADES.surface }}>
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
             <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
                 {/* Alça */}
                 <View style={{ paddingTop: 12, paddingBottom: 4, alignItems: "center" }}>
@@ -200,7 +219,7 @@ export default function NovoBlocoScreen() {
                                     style={{
                                         alignItems: "center",
                                         justifyContent: "center",
-                                        backgroundColor: selecionado ? HADES.accentTint : HADES.bg,
+                                        backgroundColor: selecionado ? HADES.accentTint : HADES.surfaceRaised,
                                         borderWidth: selecionado ? 1.5 : 1,
                                         borderColor: selecionado ? HADES.accentSolid : HADES.borderStrong,
                                         borderRadius: 18,
@@ -256,7 +275,7 @@ export default function NovoBlocoScreen() {
                                         flexDirection: "row",
                                         alignItems: "center",
                                         gap: 7,
-                                        backgroundColor: selecionada ? `${m.cor}29` : HADES.bg,
+                                        backgroundColor: selecionada ? `${m.cor}29` : HADES.surfaceRaised,
                                         borderWidth: selecionada ? 1.5 : 1,
                                         borderColor: selecionada ? m.cor : HADES.borderStrong,
                                         borderRadius: 18,
@@ -282,7 +301,7 @@ export default function NovoBlocoScreen() {
                     {/* Tópico */}
                     <View
                         style={{
-                            backgroundColor: HADES.bg,
+                            backgroundColor: HADES.surfaceRaised,
                             borderWidth: 1,
                             borderColor: HADES.borderStrong,
                             borderRadius: 12,
@@ -302,7 +321,7 @@ export default function NovoBlocoScreen() {
                     {/* Início */}
                     <View
                         style={{
-                            backgroundColor: HADES.bg,
+                            backgroundColor: HADES.surfaceRaised,
                             borderWidth: 1,
                             borderColor: HADES.borderStrong,
                             borderRadius: 12,
@@ -320,7 +339,7 @@ export default function NovoBlocoScreen() {
                             style={{
                                 flexDirection: "row",
                                 alignItems: "center",
-                                backgroundColor: HADES.surface,
+                                backgroundColor: HADES.surfaceOverlay,
                                 borderRadius: 9,
                             }}
                         >
@@ -369,7 +388,7 @@ export default function NovoBlocoScreen() {
                     </Text>
                     <View
                         style={{
-                            backgroundColor: HADES.bg,
+                            backgroundColor: HADES.surfaceRaised,
                             borderWidth: 1,
                             borderColor: HADES.borderStrong,
                             borderRadius: 14,
@@ -392,7 +411,7 @@ export default function NovoBlocoScreen() {
                     {/* Lembrete */}
                     <View
                         style={{
-                            backgroundColor: HADES.bg,
+                            backgroundColor: HADES.surfaceRaised,
                             borderWidth: 1,
                             borderColor: HADES.borderStrong,
                             borderRadius: 14,
@@ -519,7 +538,7 @@ export default function NovoBlocoScreen() {
 
 function NovoBlocoSkeleton() {
     return (
-        <View style={{ flex: 1, backgroundColor: HADES.surface }}>
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
             <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
                 <View style={{ paddingTop: 12, paddingBottom: 4, alignItems: "center" }}>
                     <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: HADES.dot }} />

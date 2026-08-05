@@ -1,23 +1,25 @@
 import { useState, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, DeviceEventEmitter, RefreshControl } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, DeviceEventEmitter, RefreshControl, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LogOut, Settings, Maximize2, Users, ChevronRight } from "lucide-react-native";
+import {
+    LogOut, Settings, Maximize2, Users, ChevronRight,
+    Image as ImageIcon, Flame, Pencil, PartyPopper, Plus, Trash2,
+} from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
 import { APP_BADGES, BadgeType } from "@/constants/badges";
-import { getAvatarColor } from "@/constants/helpers";
+import { getIdentityColor, getBioFromObjetivo } from "@/constants/helpers";
 import { loadProfileStats, updateFavoriteSubject, updateWeeklyGoal } from "@/services/profileStats";
 import { buscarGamificacao } from "@/services/gamificacao";
 import { UserStats } from "@/types/profile";
-import { buscarPerfil, buscarUsuarioLogado, deslogarUsuario } from "@/services/auth";
+import { buscarPerfil, buscarUsuarioLogado, deslogarUsuario, excluirConta } from "@/services/auth";
 import type { AuthUser } from "@/types/auth";
 import type { Profile } from "@/types/profile";
-import CartaoIdentidade from "@/components/profile/CartaoIdentidade";
+import { AvatarComOfensiva, BannerPerfil } from "@/components/profile/PerfilBanner";
 import CardMedalhas, { CardMedalhasVazio } from "@/components/profile/CardMedalhas";
-import CardEstatisticas from "@/components/profile/CardEstatisticas";
-import PrimeirosPassos, { HeatmapVazio } from "@/components/profile/PrimeirosPassos";
+import MetaSemanalVazia, { HeatmapVazio } from "@/components/profile/PrimeirosPassos";
 import { GradeHeatmap, LegendaHeatmap } from "@/components/profile/Heatmap";
 import {
     ModalMetaSemanal,
@@ -28,6 +30,17 @@ import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
 
+const BANNER_H = 176;
+const AVATAR_SIZE = 100;
+
+const sechStyle = {
+    fontSize: 11.5,
+    fontWeight: "700" as const,
+    color: HADES.textMuted,
+    letterSpacing: 0.8,
+    textTransform: "uppercase" as const,
+};
+
 function getBadgeProgress(badge: BadgeType, stats: UserStats): number {
     switch (badge.requirementType) {
         case 'hours':       return Math.min(stats.totalHours / badge.requirementValue, 1);
@@ -36,6 +49,23 @@ function getBadgeProgress(badge: BadgeType, stats: UserStats): number {
         case 'sessions':    return Math.min(stats.totalSessions / badge.requirementValue, 1);
         default: return 0;
     }
+}
+
+function Divider() {
+    return <View style={{ height: 1, backgroundColor: HADES.border, marginVertical: 22 }} />;
+}
+
+function StatColuna({ Icone, valor, rotulo, apagado }: { Icone?: typeof Flame; valor: string; rotulo: string; apagado?: boolean }) {
+    const cor = apagado ? "#3a3d45" : HADES.text;
+    return (
+        <View style={{ flex: 1, alignItems: "center" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                {Icone && <Icone size={16} color={cor} />}
+                <Text style={{ fontSize: 21, fontWeight: "700", color: cor, letterSpacing: -0.5 }}>{valor}</Text>
+            </View>
+            <Text style={{ fontSize: 11, color: HADES.textFaint, marginTop: 3 }}>{rotulo}</Text>
+        </View>
+    );
 }
 
 export default function ProfileScreen() {
@@ -49,6 +79,7 @@ export default function ProfileScreen() {
     const [selectedDayInfo, setSelectedDayInfo] = useState<{ date: Date; hours: number } | null>(null);
     const [melhorOfensiva, setMelhorOfensiva] = useState(0);
     const [ofensivaAtual, setOfensivaAtual] = useState(0);
+    const [excluindoConta, setExcluindoConta] = useState(false);
 
     const { userId } = useAuth();
     const { materiasComCores, recarregarMaterias } = useMaterias(userId);
@@ -165,6 +196,38 @@ export default function ProfileScreen() {
         });
     };
 
+    /**
+     * Exclusão de conta: dois avisos antes de chamar o servidor, porque não existe desfazer —
+     * o primeiro conta o que some, o segundo é a confirmação final. Quem apaga é a Edge
+     * Function `excluir-conta` (ver services/auth.ts); o signOut lá dentro devolve o app
+     * pro login sozinho, então aqui não há navegação a fazer.
+     */
+    const handleDeleteAccount = () => {
+        confirm({
+            title: "Excluir conta",
+            message:
+                "Isso apaga para sempre seu perfil, sessões de foco, ofensivas, medalhas e a participação nos seus grupos. Não dá para desfazer.",
+            confirmText: "Continuar",
+            destructive: true,
+            onConfirm: () => {
+                confirm({
+                    title: "Tem certeza absoluta?",
+                    message: "Sua conta e todos os seus dados serão excluídos agora.",
+                    confirmText: "Excluir para sempre",
+                    destructive: true,
+                    onConfirm: async () => {
+                        setExcluindoConta(true);
+                        const { error } = await excluirConta();
+                        if (error) {
+                            setExcluindoConta(false);
+                            toast.error(error);
+                        }
+                    },
+                });
+            },
+        });
+    };
+
     const handleSubjectSelect = async (subjectName: string) => {
         const updated = await updateFavoriteSubject(subjectName);
         setStats(updated);
@@ -196,14 +259,10 @@ export default function ProfileScreen() {
         ? new Date(sessionUser.created_at).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
         : 'Carregando...';
 
-    const renderInitials = (name: string) => {
-        if (!name) return "US";
-        return name.slice(0, 2).toUpperCase();
-    };
-
     if (!stats) return <ProfileSkeleton />; // Aguarda dados para não bugar a UI
 
     const progressPercent = Math.min((stats.weeklyCurrent / stats.weeklyGoal) * 100, 100);
+    const metaAtingida = stats.weeklyCurrent >= stats.weeklyGoal;
 
     const abrirMeta = () => {
         setTempGoalValue(String(stats.weeklyGoal));
@@ -224,121 +283,198 @@ export default function ProfileScreen() {
     const corMateriaFavorita =
         materiasComCores.find((d) => d.nomeExibicao === stats.favoriteSubject)?.cor ?? HADES.subjectBlue;
 
+    const corIdentidade = getIdentityColor(profileData?.nome_usuario);
+    // A bio escrita na tela de editar perfil manda; sem ela, o objetivo do onboarding serve de texto.
+    const bio = profileData?.bio?.trim() || getBioFromObjetivo(profileData?.objetivo);
+
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
-            {/* Header */}
-            <View
-                style={{
-                    paddingTop: 6,
-                    paddingHorizontal: 20,
-                    paddingBottom: 14,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                }}
-            >
-                <Text style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
-                    Perfil
-                </Text>
-                <TouchableOpacity
-                    onPress={() => router.push("/(modals)/settings")}
-                    activeOpacity={0.8}
-                    style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 19,
-                        backgroundColor: HADES.surfaceRaised,
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
-                >
-                    <Settings size={18} color={HADES.textSecondary} />
-                </TouchableOpacity>
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
+            {/* Banner + avatar sobreposto, fixos no topo */}
+            <View style={{ height: BANNER_H }}>
+                <BannerPerfil
+                    altura={BANNER_H}
+                    cor={corIdentidade}
+                    iniciais={(profileData?.nome_usuario ?? "US").slice(0, 2).toUpperCase()}
+                    foto={profileData?.foto_usuario}
+                />
+
+                <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 2 }}>
+                        <TouchableOpacity
+                            onPress={() => router.push("/(modals)/editar-perfil")}
+                            activeOpacity={0.8}
+                            style={{
+                                flexDirection: "row", alignItems: "center", gap: 6,
+                                backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 9,
+                                paddingVertical: 7, paddingHorizontal: 11,
+                            }}
+                        >
+                            <ImageIcon size={14} color="#fff" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => router.push("/(modals)/settings")}
+                            activeOpacity={0.8}
+                            style={{
+                                width: 36, height: 36, borderRadius: 18,
+                                backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center",
+                            }}
+                        >
+                            <Settings size={16} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                </SafeAreaView>
+
+                <View style={{ position: "absolute", left: 0, right: 0, bottom: -(AVATAR_SIZE / 2 + 4), alignItems: "center" }}>
+                    <AvatarComOfensiva
+                        tamanho={AVATAR_SIZE}
+                        foto={profileData?.foto_usuario}
+                        nome={profileData?.nome_usuario}
+                        ofensiva={ofensivaAtual}
+                        mostrarOfensiva={!usuarioNovo && (profileData?.mostrar_ofensiva ?? true)}
+                        badgeEditar={usuarioNovo}
+                        onPress={() => router.push("/(modals)/editar-perfil")}
+                    />
+                </View>
             </View>
 
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+                contentContainerStyle={{ paddingTop: AVATAR_SIZE / 2 + 18, paddingBottom: 28, paddingHorizontal: 20 }}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                     <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
                 }
             >
-                <CartaoIdentidade
-                    nome={profileData?.nome_usuario || "Usuário Convite"}
-                    desde={`Desde ${joinDate}`}
-                    foto={profileData?.foto_usuario ?? null}
-                    iniciais={renderInitials(profileData?.nome_usuario ?? "")}
-                    corAvatar={
-                        profileData?.nome_usuario
-                            ? getAvatarColor(profileData.nome_usuario.charCodeAt(0) % 5)
-                            : getAvatarColor(0)
-                    }
-                    ofensiva={ofensivaAtual}
-                    novo={usuarioNovo}
-                    metaAtual={stats.weeklyCurrent}
-                    metaAlvo={stats.weeklyGoal}
-                    progressoPercent={progressPercent}
-                    onEditarMeta={abrirMeta}
-                />
+                {/* Identidade */}
+                <View style={{ alignItems: "center" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <Text style={{ fontSize: 22, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
+                            {profileData?.nome_usuario || "Usuário Convite"}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => router.push("/(modals)/editar-perfil")}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <Pencil size={16} color={HADES.textMuted} />
+                        </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: 12.5, color: HADES.textFaint, marginTop: 4 }}>
+                        Desde {joinDate}
+                    </Text>
+                    {bio ? (
+                        <Text style={{ fontSize: 13, color: HADES.textSecondary, lineHeight: 19, marginTop: 10, textAlign: "center", maxWidth: 280 }}>
+                            {bio}
+                        </Text>
+                    ) : usuarioNovo ? (
+                        <TouchableOpacity
+                            onPress={() => router.push("/(modals)/editar-perfil")}
+                            activeOpacity={0.8}
+                            style={{
+                                flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12,
+                                borderWidth: 1, borderStyle: "dashed", borderColor: HADES.borderDashed,
+                                borderRadius: 10, paddingVertical: 8, paddingHorizontal: 13,
+                            }}
+                        >
+                            <Plus size={12} color={HADES.textMuted} />
+                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>Adicionar bio</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <Text style={{ fontSize: 13, color: HADES.textDim, fontStyle: "italic", marginTop: 10 }}>
+                            Ainda sem bio.
+                        </Text>
+                    )}
+                </View>
 
-                {usuarioNovo && (
-                    <PrimeirosPassos
-                        onDefinirMeta={abrirMeta}
-                        onPrimeiraSessao={() => router.push("/(tabs)/focus")}
-                        onEntrarGrupo={() => router.push("/(groups)")}
-                    />
-                )}
+                {/* Estatísticas rápidas */}
+                <View
+                    style={{
+                        flexDirection: "row", alignItems: "stretch", marginTop: 22, paddingVertical: 16,
+                        
+                    }}
+                >
+                    <StatColuna valor={`${stats.totalHours}h`} rotulo="estudadas" apagado={usuarioNovo} />
+                    <View style={{ width: 1, backgroundColor: HADES.border }} />
+                    <StatColuna valor={stats.totalQuestions.toLocaleString("pt-BR")} rotulo="questões" apagado={usuarioNovo} />
+                    <View style={{ width: 1, backgroundColor: HADES.border }} />
+                    <StatColuna Icone={Flame} valor={String(melhorOfensiva)} rotulo="melhor ofensiva" apagado={usuarioNovo} />
+                </View>
 
-                {/* Histórico de contribuições */}
+                {/* Meta semanal */}
+                <View style={{ marginTop: 22 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                        <Text style={sechStyle}>Meta semanal</Text>
+                        {!usuarioNovo && (
+                            <TouchableOpacity
+                                onPress={abrirMeta}
+                                activeOpacity={0.7}
+                                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {usuarioNovo ? (
+                        <MetaSemanalVazia onDefinirMeta={abrirMeta} />
+                    ) : (
+                        <TouchableOpacity onPress={abrirMeta} activeOpacity={0.85}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                                <View style={{ flex: 1, height: 9, borderRadius: 5, backgroundColor: HADES.surfaceOverlay, overflow: "hidden" }}>
+                                    <View
+                                        style={{
+                                            height: "100%", width: `${progressPercent}%`, borderRadius: 5,
+                                            backgroundColor: metaAtingida ? HADES.green : HADES.accentSolid,
+                                        }}
+                                    />
+                                </View>
+                                <Text style={{ fontSize: 13.5, color: HADES.text, fontWeight: "700", flexShrink: 0 }}>
+                                    {stats.weeklyCurrent}h{" "}
+                                    <Text style={{ color: HADES.textDim, fontWeight: "500" }}>/ {stats.weeklyGoal}h</Text>
+                                </Text>
+                            </View>
+                            {metaAtingida ? (
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 9 }}>
+                                    <PartyPopper size={13} color={HADES.green} />
+                                    <Text style={{ fontSize: 12, color: HADES.green, fontWeight: "600" }}>
+                                        Meta semanal atingida! Parabéns!
+                                    </Text>
+                                </View>
+                            ) : (
+                                <Text style={{ fontSize: 12, color: HADES.textMuted, marginTop: 9 }}>
+                                    Faltam <Text style={{ color: HADES.text, fontWeight: "600" }}>{stats.weeklyGoal - stats.weeklyCurrent} horas</Text> para atingir sua meta!
+                                </Text>
+                            )}
+                        </TouchableOpacity>
+                    )}
+                </View>
+                <Divider />
+
+                {/* Histórico */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                    <Text style={sechStyle}>Histórico</Text>
+                    {!usuarioNovo && (
+                        <TouchableOpacity
+                            onPress={() => setShowHeatmapModal(true)}
+                            activeOpacity={0.8}
+                            style={{
+                                flexDirection: "row", alignItems: "center", gap: 4,
+                                backgroundColor: HADES.surfaceOverlay, borderRadius: 8,
+                                paddingVertical: 5, paddingHorizontal: 10,
+                            }}
+                        >
+                            <Maximize2 size={11} color={HADES.textSecondary} />
+                            <Text style={{ fontSize: 11.5, color: HADES.textSecondary, fontWeight: "600" }}>Expandir</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+
                 {usuarioNovo ? (
                     <HeatmapVazio>
                         <GradeHeatmap colunas={heatmapMatrix.columns} monthPositions={[]} />
                     </HeatmapVazio>
                 ) : (
-                    <View
-                        style={{
-                            backgroundColor: HADES.surface,
-                            borderWidth: 1,
-                            borderColor: HADES.border,
-                            borderRadius: 16,
-                            padding: 16,
-                            marginBottom: 16,
-                        }}
-                    >
-                        <View
-                            style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                marginBottom: 16,
-                            }}
-                        >
-                            <Text
-                                style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}
-                            >
-                                Histórico
-                            </Text>
-                            <TouchableOpacity
-                                onPress={() => setShowHeatmapModal(true)}
-                                activeOpacity={0.8}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 4,
-                                    backgroundColor: HADES.surfaceOverlay,
-                                    borderRadius: 8,
-                                    paddingVertical: 5,
-                                    paddingHorizontal: 10,
-                                }}
-                            >
-                                <Maximize2 size={12} color={HADES.textSecondary} />
-                                <Text style={{ fontSize: 12, color: HADES.textSecondary, fontWeight: "600" }}>
-                                    Expandir
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
+                    <>
                         <GradeHeatmap
                             colunas={heatmapMatrix.columns}
                             monthPositions={heatmapMatrix.monthPositions}
@@ -351,8 +487,9 @@ export default function ProfileScreen() {
                             }}
                         />
                         <LegendaHeatmap />
-                    </View>
+                    </>
                 )}
+                <Divider />
 
                 {/* Medalhas */}
                 {usuarioNovo ? (
@@ -364,49 +501,47 @@ export default function ProfileScreen() {
                         desbloqueadas={stats.badgesUnlocked.length}
                         total={APP_BADGES.length}
                         onVerTodas={() => router.push('/(modals)/badges')}
+                        colunas={3}
                     />
                 )}
 
-                {/* Estatísticas gerais */}
+                {/* Matéria favorita */}
                 {!usuarioNovo && (
-                    <CardEstatisticas
-                        totalHoras={stats.totalHours}
-                        totalQuestoes={stats.totalQuestions}
-                        melhorOfensiva={melhorOfensiva}
-                        materiaFavorita={stats.favoriteSubject}
-                        corMateria={corMateriaFavorita}
-                        onEditarMateria={() => setShowSubjectModal(true)}
-                    />
+                    <>
+                        <Divider />
+                        <TouchableOpacity
+                            onPress={() => setShowSubjectModal(true)}
+                            activeOpacity={0.8}
+                            style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+                        >
+                            <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: corMateriaFavorita }} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 15, fontWeight: "700", color: corMateriaFavorita }} numberOfLines={1}>
+                                    {stats.favoriteSubject}
+                                </Text>
+                                <Text style={{ fontSize: 11.5, color: HADES.textFaint, marginTop: 1 }}>
+                                    Matéria favorita
+                                </Text>
+                            </View>
+                            <ChevronRight size={17} color={HADES.textDim} />
+                        </TouchableOpacity>
+                    </>
                 )}
+                <Divider />
 
                 {/* Meus Grupos */}
                 <TouchableOpacity
                     onPress={() => router.push("/(groups)")}
-                    activeOpacity={0.85}
-                    style={{
-                        backgroundColor: HADES.surface,
-                        borderWidth: 1,
-                        borderColor: HADES.border,
-                        borderRadius: 16,
-                        paddingVertical: 14,
-                        paddingHorizontal: 16,
-                        marginBottom: 16,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 13,
-                    }}
+                    activeOpacity={0.7}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 13 }}
                 >
                     <View
                         style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 13,
-                            backgroundColor: HADES.groupVioletTint,
-                            alignItems: "center",
-                            justifyContent: "center",
+                            width: 40, height: 40, borderRadius: 12,
+                            backgroundColor: HADES.groupVioletTint, alignItems: "center", justifyContent: "center",
                         }}
                     >
-                        <Users size={22} color={HADES.groupViolet} />
+                        <Users size={20} color={HADES.groupViolet} />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.text }}>
@@ -424,15 +559,11 @@ export default function ProfileScreen() {
                     onPress={handleSignOut}
                     activeOpacity={0.85}
                     style={{
-                        height: 50,
-                        borderRadius: 14,
-                        borderWidth: 1,
-                        borderColor: "rgba(240,85,107,0.3)",
+                        height: 48, borderRadius: 13,
+                        borderWidth: 1, borderColor: "rgba(240,85,107,0.3)",
                         backgroundColor: "rgba(240,85,107,0.07)",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8,
+                        flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                        marginTop: 20,
                     }}
                 >
                     <LogOut size={17} color={HADES.red} />
@@ -440,6 +571,36 @@ export default function ProfileScreen() {
                         Sair da conta
                     </Text>
                 </TouchableOpacity>
+
+                {/* Excluir conta */}
+                <TouchableOpacity
+                    onPress={handleDeleteAccount}
+                    disabled={excluindoConta}
+                    activeOpacity={0.85}
+                    style={{
+                        height: 44, borderRadius: 13,
+                        flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                        marginTop: 10,
+                        opacity: excluindoConta ? 0.6 : 1,
+                    }}
+                >
+                    {excluindoConta ? (
+                        <ActivityIndicator size="small" color={HADES.textMuted} />
+                    ) : (
+                        <Trash2 size={15} color={HADES.textMuted} />
+                    )}
+                    <Text style={{ fontSize: 13.5, fontWeight: "600", color: HADES.textMuted }}>
+                        {excluindoConta ? "Excluindo conta…" : "Excluir minha conta"}
+                    </Text>
+                </TouchableOpacity>
+                <Text
+                    style={{
+                        fontSize: 11.5, color: HADES.textDim, textAlign: "center",
+                        marginTop: 6, paddingHorizontal: 24, lineHeight: 17,
+                    }}
+                >
+                    A exclusão é permanente e apaga todos os seus dados de estudo.
+                </Text>
             </ScrollView>
 
             <SheetMateriaFavorita
@@ -472,84 +633,58 @@ export default function ProfileScreen() {
                     setSelectedDayInfo(null);
                 }}
             />
-        </SafeAreaView>
+        </View>
     );
 }
 
 /** Placeholder da tela de perfil enquanto as estatísticas ainda não resolveram. */
 function ProfileSkeleton() {
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
-            <View
-                style={{
-                    paddingTop: 6,
-                    paddingHorizontal: 20,
-                    paddingBottom: 14,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                }}
-            >
-                <Text style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
-                    Perfil
-                </Text>
-                <SkeletonCircle size={38} hades />
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
+            <View style={{ height: BANNER_H, backgroundColor: HADES.surfaceRaised }}>
+                <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingTop: 2 }}>
+                        <SkeletonCircle size={36} hades />
+                    </View>
+                </SafeAreaView>
+                <View style={{ position: "absolute", left: 0, right: 0, bottom: -(AVATAR_SIZE / 2 + 4), alignItems: "center" }}>
+                    <View style={{ borderRadius: 999, borderWidth: 4, borderColor: HADES.bg }}>
+                        <SkeletonCircle size={AVATAR_SIZE} hades />
+                    </View>
+                </View>
             </View>
 
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+                contentContainerStyle={{ paddingTop: AVATAR_SIZE / 2 + 18, paddingBottom: 28, paddingHorizontal: 20 }}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Cartão de identidade */}
-                <View
-                    style={{
-                        backgroundColor: HADES.surface,
-                        borderWidth: 1,
-                        borderColor: HADES.border,
-                        borderRadius: 16,
-                        padding: 18,
-                        marginBottom: 16,
-                    }}
-                >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-                        <SkeletonCircle size={60} hades />
-                        <View style={{ flex: 1, gap: 8 }}>
-                            <Skeleton width="55%" height={19} hades />
-                            <Skeleton width="35%" height={12.5} hades />
-                        </View>
-                    </View>
-                    <View style={{ height: 1, backgroundColor: HADES.border, marginVertical: 16 }} />
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
-                        <Skeleton width={100} height={13} hades />
-                        <Skeleton width={70} height={14} hades />
-                    </View>
-                    <Skeleton width="100%" height={9} borderRadius={5} hades />
-                    <Skeleton width={150} height={12.5} hades style={{ marginTop: 9 }} />
+                <View style={{ alignItems: "center", gap: 8 }}>
+                    <Skeleton width={140} height={22} hades />
+                    <Skeleton width={110} height={13} hades />
                 </View>
 
-                {/* Histórico */}
                 <View
                     style={{
-                        backgroundColor: HADES.surface,
-                        borderWidth: 1,
-                        borderColor: HADES.border,
-                        borderRadius: 16,
-                        padding: 16,
-                        marginBottom: 16,
+                        flexDirection: "row", marginTop: 22, paddingVertical: 16,
+                        borderTopWidth: 1, borderBottomWidth: 1, borderColor: HADES.border, gap: 16,
                     }}
                 >
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            marginBottom: 16,
-                        }}
-                    >
-                        <Skeleton width={90} height={16} hades />
-                        <Skeleton width={82} height={24} borderRadius={8} hades />
-                    </View>
+                    {[0, 1, 2].map((i) => (
+                        <View key={i} style={{ flex: 1, alignItems: "center", gap: 6 }}>
+                            <Skeleton width={40} height={21} hades />
+                            <Skeleton width={60} height={11} hades />
+                        </View>
+                    ))}
+                </View>
+
+                <View style={{ marginTop: 22 }}>
+                    <Skeleton width={100} height={12} hades style={{ marginBottom: 14 }} />
+                    <Skeleton width="100%" height={9} borderRadius={5} hades />
+                </View>
+
+                <View style={{ marginTop: 22 }}>
+                    <Skeleton width={90} height={12} hades style={{ marginBottom: 14 }} />
                     <View style={{ flexDirection: "row", gap: 4 }}>
                         {Array.from({ length: 14 }).map((_, col) => (
                             <View key={col} style={{ gap: 4 }}>
@@ -561,84 +696,18 @@ function ProfileSkeleton() {
                     </View>
                 </View>
 
-                {/* Medalhas */}
-                <View
-                    style={{
-                        backgroundColor: HADES.surface,
-                        borderWidth: 1,
-                        borderColor: HADES.border,
-                        borderRadius: 16,
-                        padding: 16,
-                        marginBottom: 16,
-                    }}
-                >
-                    <Skeleton width={90} height={16} hades style={{ marginBottom: 16 }} />
+                <View style={{ marginTop: 22 }}>
+                    <Skeleton width={90} height={12} hades style={{ marginBottom: 16 }} />
                     <View style={{ flexDirection: "row", gap: 12 }}>
                         {[0, 1, 2].map((i) => (
                             <View key={i} style={{ flex: 1, alignItems: "center", gap: 7 }}>
-                                <SkeletonCircle size={44} hades />
+                                <SkeletonCircle size={48} hades />
                                 <Skeleton width="80%" height={11} hades />
                             </View>
                         ))}
                     </View>
                 </View>
-
-                {/* Estatísticas */}
-                <View
-                    style={{
-                        backgroundColor: HADES.surface,
-                        borderWidth: 1,
-                        borderColor: HADES.border,
-                        borderRadius: 16,
-                        padding: 16,
-                        marginBottom: 16,
-                    }}
-                >
-                    <Skeleton width={150} height={12} hades />
-                    <Skeleton width={100} height={38} hades style={{ marginTop: 8 }} />
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            marginTop: 18,
-                            paddingTop: 16,
-                            borderTopWidth: 1,
-                            borderTopColor: HADES.border,
-                            gap: 16,
-                        }}
-                    >
-                        <View style={{ flex: 1, gap: 6 }}>
-                            <Skeleton width={60} height={12} hades />
-                            <Skeleton width={40} height={19} hades />
-                        </View>
-                        <View style={{ flex: 1, gap: 6 }}>
-                            <Skeleton width={90} height={12} hades />
-                            <Skeleton width={40} height={19} hades />
-                        </View>
-                    </View>
-                </View>
-
-                {/* Meus grupos */}
-                <View
-                    style={{
-                        backgroundColor: HADES.surface,
-                        borderWidth: 1,
-                        borderColor: HADES.border,
-                        borderRadius: 16,
-                        paddingVertical: 14,
-                        paddingHorizontal: 16,
-                        marginBottom: 16,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 13,
-                    }}
-                >
-                    <Skeleton width={44} height={44} borderRadius={13} hades />
-                    <View style={{ flex: 1, gap: 6 }}>
-                        <Skeleton width={100} height={15} hades />
-                        <Skeleton width={140} height={12} hades />
-                    </View>
-                </View>
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }

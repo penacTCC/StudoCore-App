@@ -3,6 +3,12 @@ export type Profile = {
     nome_usuario: string | null;
     nome_real: string | null;
     foto_usuario: string | null;
+    /** Bio escrita pelo usuário na tela de editar perfil. Cai no `objetivo` quando vazia. */
+    bio?: string | null;
+    /** Deixa outras pessoas verem as estatísticas no perfil de membro. */
+    perfil_publico?: boolean | null;
+    /** Exibe o selo de dias seguidos no avatar. */
+    mostrar_ofensiva?: boolean | null;
     data_nascimento?: string | null;
     objetivo?: string | null;
     nivel_ensino?: string | null;

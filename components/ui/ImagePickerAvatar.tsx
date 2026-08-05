@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { View, Text, Image, TouchableOpacity } from "react-native";
 import { Plus, Users } from "lucide-react-native";
-import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "@/constants/colors";
 import { HADES } from "@/constants/hades";
-import { uploadArquivoBucket } from "@/services/supabaseStorage";
+import { escolherEEnviarImagem } from "@/services/imagens";
 import { toast } from "@/services/toast";
 
 type ImagePickerAvatarProps = {
@@ -43,41 +42,17 @@ export default function ImagePickerAvatar({
     }, [defaultImage]);
 
     const selectImage = async () => {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.5,
-                base64: true,
-            });
+        const { uriLocal, publicUrl, error, cancelado } = await escolherEEnviarImagem(bucket);
+        if (cancelado) return;
 
-            if (result.canceled) return;
+        if (uriLocal) setImagePreview(uriLocal);
 
-            const imageUri = result.assets[0].uri;
-            setImagePreview(imageUri);
-
-            const base64 = result.assets[0].base64;
-            if (!base64) {
-                console.log("Erro: base64 da imagem não foi gerado.");
-                return;
-            }
-
-            const fileExt = imageUri.split(".").pop() || "jpg";
-            const fileName = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`;
-
-            //Faz upload da imagem no bucket do Supabase
-            const { publicUrl, error } = await uploadArquivoBucket({ fileName, base64, fileExt, bucket });
-
-            if (error || !publicUrl) {
-                toast.error(JSON.stringify(error), "Erro ao enviar imagem");
-                return;
-            }
-
-            onImageUploaded(publicUrl);
-        } catch (error) {
-            toast.error(JSON.stringify(error), "Erro ao selecionar imagem");
+        if (error || !publicUrl) {
+            toast.error(error ?? "Erro ao enviar imagem");
+            return;
         }
+
+        onImageUploaded(publicUrl);
     };
 
     return (

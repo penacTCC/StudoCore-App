@@ -1,6 +1,7 @@
 import { supabase } from "@/repositories/supabase";
 import { toast } from "@/services/toast";
-import type { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
+import type { Grupo, MembroGrupoComPerfil, OfensivaGrupo } from "@/types/grupos";
+import { STATUS_SESSAO_FINALIZADA } from "@/services/sessions";
 
 /**
  * Função para contar quantos membros tem um grupo específico, usando o ID do grupo.
@@ -148,6 +149,19 @@ export const usuarioParticipaDeGrupo = async (userId: string) => {
   return !!member;
 };
 
+// Confere se o usuário participa de UM grupo específico. Usado pra validar o "último grupo"
+// guardado no aparelho antes de mandar a pessoa direto pras tabs dele.
+export const usuarioParticipaDoGrupo = async (userId: string, grupoId: string) => {
+  const { data: membro } = await supabase
+    .from('membros')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('grupo_id', grupoId)
+    .maybeSingle();
+
+  return !!membro;
+};
+
 //Insere grupo na tabela grupos
 export const inserirGrupo = async (nome: string, descricao: string, publico: boolean, metaSemanal: number, linkConvite: string, urlImagem: string | null) => {
   return await supabase
@@ -260,12 +274,45 @@ export const atualizarDadosGrupo = async (grupo: Grupo) => {
     .single();
 }
 
-//Exclusão de um grupo
+/**
+ * Exclusão de um grupo pelo administrador.
+ *
+ * Passa por RPC (`excluir_grupo`, SECURITY DEFINER) e não por um `delete()` direto porque
+ * `grupos` não tem política de DELETE: com RLS ligada, um delete sem política não dá erro,
+ * só não apaga nada — o botão "Excluir Grupo" dizia ter funcionado e o grupo continuava lá.
+ */
 export const excluirGrupoAtual = async (groupId: string) => {
-  return await supabase
-    .from('grupos')
-    .delete()
-    .match({ id: groupId })
+  const { error } = await supabase.rpc('excluir_grupo', { p_grupo_id: groupId });
+
+  if (error) {
+    console.error('Erro ao excluir grupo:', error);
+  }
+
+  return { error };
+}
+
+/**
+ * Tira quem chamou do grupo, promovendo `novoAdminId` a administrador antes de sair.
+ *
+ * A regra toda mora no banco (RPC `sair_do_grupo`, SECURITY DEFINER) porque `membros` não
+ * tem política de UPDATE nem de DELETE: pelo client ninguém consegue promover outra pessoa
+ * nem apagar o próprio vínculo. Passar o sucessor é opcional — sem ele, o banco promove
+ * quem está no grupo há mais tempo, para o grupo nunca ficar sem administrador.
+ *
+ * Devolve `novoAdminId: null` quando o último membro saiu e o grupo foi apagado junto.
+ */
+export const sairDoGrupo = async (grupoId: string, novoAdminId?: string | null) => {
+  const { data, error } = await supabase.rpc('sair_do_grupo', {
+    p_grupo_id: grupoId,
+    p_novo_admin_id: novoAdminId ?? null,
+  });
+
+  if (error) {
+    console.error('Erro ao sair do grupo:', error);
+    return { novoAdminId: null as string | null, error };
+  }
+
+  return { novoAdminId: (data as string | null) ?? null, error: null };
 }
 
 const obterSemanaAtual = () => {
@@ -299,6 +346,7 @@ export const horasSemanaisGrupo = async (groupId: string) => {
     .from('sessoes_foco')
     .select('tempo_minutos')
     .eq("grupo_id", groupId)
+    .in("status", STATUS_SESSAO_FINALIZADA)
     .gte("data_sessao", inicio)
     .lte("data_sessao", fim);
 
@@ -322,6 +370,7 @@ export const horasSemanaisGrupo = async (groupId: string) => {
         .from('sessoes_foco')
         .select('tempo_minutos')
         .in("user_id", membrosIds)
+        .in("status", STATUS_SESSAO_FINALIZADA)
         .gte("data_sessao", inicio)
         .lte("data_sessao", fim);
 
@@ -353,9 +402,6 @@ export const horasSemanaisGrupo = async (groupId: string) => {
   return totalMinutes / 60
 }
 
-// Formata a data pro formato aaaa-mm-dd usado em data_sessao (mesma convenção de services/gamificacao.ts).
-const paraDataISO = (data: Date) => data.toISOString().split("T")[0];
-
 /**
  * Recalcula e persiste a ofensiva coletiva do grupo: um dia só conta se a soma de
  * minutos estudados por TODOS os membros naquele dia bater a cota diária "justa"
@@ -367,65 +413,15 @@ const paraDataISO = (data: Date) => data.toISOString().split("T")[0];
  * Deve ser chamada depois de toda sessão salva com grupo_id, pra recontar a cota
  * do dia à medida que as sessões dos membros forem chegando.
  */
-export const registrarOfensivaGrupo = async (grupoId: string) => {
-  const { data: grupo, error: erroGrupo } = await supabase
-    .from('grupos')
-    .select('meta_horas, ofensiva, melhor_ofensiva, ultima_data_estudo')
-    .eq('id', grupoId)
-    .single();
-
-  if (erroGrupo || !grupo) {
-    console.error("Erro ao buscar grupo para ofensiva:", erroGrupo);
-    return null;
-  }
-
-  const hojeStr = paraDataISO(new Date());
-
-  // Cota do dia já contabilizada — nada a recalcular.
-  if (grupo.ultima_data_estudo === hojeStr) {
-    return grupo;
-  }
-
-  const qtdMembros = await contarMembrosGrupo(grupoId);
-  if (qtdMembros === 0) return grupo;
-
-  // Fração diária da meta semanal do grupo, em minutos.
-  const metaDiariaMinutos = ((grupo.meta_horas * qtdMembros) / 7) * 60;
-
-  const { data: sessoesHoje, error: erroSessoes } = await supabase
-    .from('sessoes_foco')
-    .select('tempo_minutos')
-    .eq('grupo_id', grupoId)
-    .eq('data_sessao', hojeStr);
-
-  if (erroSessoes) {
-    console.error("Erro ao buscar sessões de hoje do grupo:", erroSessoes);
-    return grupo;
-  }
-
-  const minutosHoje = sessoesHoje?.reduce((total, sessao) => total + (sessao.tempo_minutos ?? 0), 0) ?? 0;
-
-  // Ainda não bateu a cota do dia — espera mais sessões dos membros chegarem.
-  if (minutosHoje < metaDiariaMinutos) return grupo;
-
-  const ontem = new Date();
-  ontem.setDate(ontem.getDate() - 1);
-  const ontemStr = paraDataISO(ontem);
-
-  const estudouOntem = grupo.ultima_data_estudo === ontemStr;
-  const novaOfensiva = estudouOntem ? grupo.ofensiva + 1 : 1;
-  const novaMelhorOfensiva = Math.max(grupo.melhor_ofensiva, novaOfensiva);
-
+export const registrarOfensivaGrupo = async (grupoId: string): Promise<OfensivaGrupo | null> => {
+  // A regra roda no banco (migration 20260803190000_rpc_ofensiva_grupo): a policy de
+  // UPDATE de `grupos` só libera o admin, então o update feito daqui pelo membro comum
+  // afetava 0 linhas e o .single() estourava PGRST116. Na RPC (SECURITY DEFINER) qualquer
+  // membro dispara o recálculo e a leitura + escrita acontecem na mesma transação, sem
+  // corrida entre dois membros terminando sessão ao mesmo tempo.
   const { data, error } = await supabase
-    .from('grupos')
-    .update({
-      ofensiva: novaOfensiva,
-      melhor_ofensiva: novaMelhorOfensiva,
-      ultima_data_estudo: hojeStr,
-    })
-    .eq('id', grupoId)
-    .select('meta_horas, ofensiva, melhor_ofensiva, ultima_data_estudo')
-    .single();
+    .rpc('registrar_ofensiva_grupo', { p_grupo_id: grupoId })
+    .maybeSingle<OfensivaGrupo>();
 
   if (error) {
     console.error("Erro ao registrar ofensiva do grupo:", error);

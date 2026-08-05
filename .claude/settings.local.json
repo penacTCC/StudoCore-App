@@ -8,5 +8,9 @@
       "Bash(flatpak-spawn --host bash -c \"which watchman && watchman watch-del-all\")",
       "Bash(npx tsc *)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
+  "enableAllProjectMcpServers": true
 }

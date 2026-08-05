@@ -1,3 +1,4 @@
+
 /** Formata minutos como "1h30" ou "45m". */
 export function formatarDuracao(min: number) {
     if (min < 60) return `${min}m`;
@@ -14,12 +15,109 @@ export function paraDataISO(data: Date) {
     return `${ano}-${mes}-${dia}`;
 }
 
-/** Segunda-feira da semana atual — base de todo o resto dos cálculos de semana aqui. */
+/**
+ * Converte um timestamp vindo do Postgres em milissegundos.
+ *
+ * Colunas `timestamp with time zone` voltam com fuso ("...Z" ou "...+00:00") e o `Date`
+ * do JS já as lê certo. Já as colunas `timestamp without time zone` voltam sem marcador
+ * nenhum, e aí o JS as interpreta como horário *local* — como o app grava tudo com
+ * `toISOString()` (UTC), isso empurrava o início da sessão para o futuro e produzia
+ * cronômetro negativo. Quando não há marcador, portanto, assumimos UTC.
+ */
+export function paraTimestampMs(valor?: string | null): number | null {
+    if (!valor) return null;
+
+    const temFuso = /(Z|[+-]\d{2}:?\d{2})$/.test(valor.trim());
+    const ms = new Date(temFuso ? valor : `${valor.trim().replace(" ", "T")}Z`).getTime();
+
+    return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * Segundos decorridos desde `timestamp` até agora, nunca negativo — usado pelos cronômetros
+ * ao vivo (sessão de foco, membros da sessão em grupo).
+ */
+export function segundosDesde(timestamp?: string | null): number {
+    const inicioMs = paraTimestampMs(timestamp);
+    if (inicioMs === null) return 0;
+
+    return Math.max(0, Math.floor((Date.now() - inicioMs) / 1000));
+}
+
+/**
+ * Tempo ao vivo de um participante de sessão em grupo, em segundos.
+ *
+ * `tempo_segundos` em `tab_sessao_membros` é um acumulado congelado: só é regravado quando
+ * a pessoa pausa ou encerra. Enquanto ela está focando, o que passou desde `ultimo_inicio`
+ * ainda não está lá — por isso o valor ao vivo é o acumulado MAIS esse trecho. Somar um
+ * contador local que nasce zerado quando a tela abre, como era feito antes, mostrava o
+ * tempo desde que você abriu a tela, não o tempo que a pessoa estudou.
+ *
+ * Sempre em tempo de relógio real: a escala do modo de testes NÃO entra aqui. Este é um
+ * cronômetro ao vivo, que precisa bater com o relógio de quem está focando — quando ele era
+ * multiplicado, o tempo dos colegas disparava, e um acumulado gravado enquanto o modo estava
+ * ligado continuava inflado depois de desligá-lo.
+ */
+export function tempoAoVivoDoMembro(membro: {
+    tempo_segundos?: number | null;
+    ultimo_inicio?: string | null;
+    status?: string | null;
+}): number {
+    const acumulado = Math.max(0, Math.floor(membro.tempo_segundos || 0));
+
+    if (membro.status !== "ativo") return acumulado;
+
+    return acumulado + segundosDesde(membro.ultimo_inicio);
+}
+
+/**
+ * Tempo ao vivo de uma sessão de foco, em segundos — mesma ideia de `tempoAoVivoDoMembro`,
+ * só que lendo a linha de `sessoes_foco` (é o que o feed do grupo tem em mãos).
+ *
+ * `tempo_minutos` é o acumulado congelado: começa em 0 e só é regravado quando a sessão
+ * pausa, entra em descanso do pomodoro ou encerra. Enquanto o status é "ativo", o trecho
+ * decorrido desde `ultimo_inicio` ainda não está lá — mostrar só `tempo_minutos`, como o
+ * card fazia, deixava toda sessão em andamento parada em "0m" no feed.
+ *
+ * Sessão encerrada devolve o valor gravado e para de andar.
+ */
+export function tempoAoVivoDaSessao(sessao: {
+    tempo_minutos?: number | null;
+    ultimo_inicio?: string | null;
+    status?: string | null;
+    concluido_em?: string | null;
+}): number {
+    const acumulado = Math.max(0, Math.floor(sessao.tempo_minutos || 0)) * 60;
+
+    if (sessao.concluido_em || sessao.status !== "ativo") return acumulado;
+
+    return acumulado + segundosDesde(sessao.ultimo_inicio);
+}
+
+/** Segunda-feira da semana que contém `data` — a semana sempre começa na segunda. */
+export function pegarSegundaDaSemana(data: Date) {
+    const diaSemanaJS = data.getDay(); // 0 = domingo ... 6 = sábado
+    const diasDesdeSegunda = (diaSemanaJS + 6) % 7;
+    return new Date(data.getFullYear(), data.getMonth(), data.getDate() - diasDesdeSegunda);
+}
+
 function pegarSegundaDaSemanaAtual() {
-    const hoje = new Date();
-    const diaSemanaJS = hoje.getDay(); // 0 = domingo ... 6 = sábado
-    const diasDesdeSegunda = (diaSemanaJS + 6) % 7; // 0 = segunda ... 6 = domingo
-    return new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - diasDesdeSegunda);
+    return pegarSegundaDaSemana(new Date());
+}
+
+/** Soma (ou subtrai) semanas a partir de uma segunda-feira. */
+export function somarSemanas(segunda: Date, delta: number) {
+    return new Date(segunda.getFullYear(), segunda.getMonth(), segunda.getDate() + delta * 7);
+}
+
+/** Soma (ou subtrai) dias, sem cair em UTC. */
+export function somarDias(data: Date, delta: number) {
+    return new Date(data.getFullYear(), data.getMonth(), data.getDate() + delta);
+}
+
+/** As 7 datas ISO (segunda a domingo) da semana que começa em `segunda`. */
+export function pegarDatasDaSemana(segunda: Date): string[] {
+    return Array.from({ length: 7 }, (_, i) => paraDataISO(somarDias(segunda, i)));
 }
 
 /** 0 = segunda ... 6 = domingo — mesma convenção de dia_semana da rotina. */
@@ -38,19 +136,34 @@ export function pegarIntervaloSemanaAtual() {
     return { inicio: paraDataISO(segunda), fim: paraDataISO(domingo) };
 }
 
-const LETRAS_DIA_SEMANA = ["S", "T", "Q", "Q", "S", "S", "D"]; // seg, ter, qua, qui, sex, sáb, dom
+const LETRAS_POR_DIA_JS = ["D", "S", "T", "Q", "Q", "S", "S"]; // indexado por getDay(): 0 = domingo
+const NOMES_CURTOS_POR_DIA_JS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
 const MESES_ABREV = [
     "janeiro", "fevereiro", "março", "abril", "maio", "junho",
     "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
 ];
 
-/** Letra + dia do mês de cada dia (segunda a domingo) da semana atual, pro cabeçalho da grade. */
-export function pegarDiasDaSemanaAtual() {
-    const segunda = pegarSegundaDaSemanaAtual();
+/**
+ * Os 7 dias da semana que começa em `inicio`, na ordem em que devem ser
+ * desenhados. `diaSemana` é a convenção do banco (0 = segunda), pra converter a
+ * coluna da tela de volta pro dado ao criar ou mover um bloco.
+ */
+export function pegarDiasDaSemana(inicio: Date) {
     return Array.from({ length: 7 }, (_, i) => {
-        const dia = new Date(segunda.getFullYear(), segunda.getMonth(), segunda.getDate() + i);
-        return { letra: LETRAS_DIA_SEMANA[i], numero: dia.getDate() };
+        const dia = somarDias(inicio, i);
+        return {
+            letra: LETRAS_POR_DIA_JS[dia.getDay()],
+            nomeCurto: NOMES_CURTOS_POR_DIA_JS[dia.getDay()],
+            numero: dia.getDate(),
+            dataISO: paraDataISO(dia),
+            diaSemana: (dia.getDay() + 6) % 7,
+        };
     });
+}
+
+/** Os 7 dias da semana atual (começando na segunda), pro cabeçalho da grade. */
+export function pegarDiasDaSemanaAtual() {
+    return pegarDiasDaSemana(pegarSegundaDaSemanaAtual());
 }
 
 const DIAS_SEMANA_EXTENSO = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
@@ -70,12 +183,15 @@ export function pegarProximosDias(qtd: number) {
 }
 
 /** Ex.: "28–31 de julho" (mesmo mês) ou "28 de julho – 3 de agosto" (virando o mês). */
-export function pegarIntervaloSemanaFormatado() {
-    const segunda = pegarSegundaDaSemanaAtual();
-    const domingo = new Date(segunda.getFullYear(), segunda.getMonth(), segunda.getDate() + 6);
+export function formatarIntervaloSemana(inicio: Date) {
+    const fim = somarDias(inicio, 6);
 
-    if (segunda.getMonth() === domingo.getMonth()) {
-        return `${segunda.getDate()}–${domingo.getDate()} de ${MESES_ABREV[domingo.getMonth()]}`;
+    if (inicio.getMonth() === fim.getMonth()) {
+        return `${inicio.getDate()}–${fim.getDate()} de ${MESES_ABREV[fim.getMonth()]}`;
     }
-    return `${segunda.getDate()} de ${MESES_ABREV[segunda.getMonth()]} – ${domingo.getDate()} de ${MESES_ABREV[domingo.getMonth()]}`;
+    return `${inicio.getDate()} de ${MESES_ABREV[inicio.getMonth()]} – ${fim.getDate()} de ${MESES_ABREV[fim.getMonth()]}`;
+}
+
+export function pegarIntervaloSemanaFormatado() {
+    return formatarIntervaloSemana(pegarSegundaDaSemanaAtual());
 }

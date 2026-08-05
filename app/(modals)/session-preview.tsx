@@ -17,9 +17,11 @@ import {
 
 import { HADES } from "@/constants/hades";
 import { getSubjectColor } from "@/constants/helpers";
-import { fetchSessionById, fetchSessionMembers } from "@/services/sessions";
+import { fetchSessionById, buscarSessoesPorExecucao, compilarSessoesPorExecucao } from "@/services/sessions";
+import { tempoAoVivoDoMembro } from "@/utils/tempo";
 import { useIncentivos } from "@/hooks/useIncentivos";
-import type { MemberSession, SessionCardItem } from "@/types/sessions";
+import { useSessionMembers } from "@/hooks/useSessionMembers";
+import type { SessionCardItem } from "@/types/sessions";
 
 type Participante = {
     /** id do usuário: é quem recebe a força quando alguém torce por ele. */
@@ -50,12 +52,52 @@ function formatarCronometro(totalSegundos: number) {
     return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+/** mm:ss do cooldown restante — nunca passa de 20min, então minutos sempre cabem em 2 dígitos. */
+function formatarCooldown(segundos: number) {
+    const m = Math.floor(segundos / 60);
+    const s = segundos % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
 export default function SessionPreviewScreen() {
     const params = useLocalSearchParams<{ sessionId?: string; session?: string; variante?: string; isPublic?: string }>();
     const [sessao, setSessao] = useState<SessionCardItem | null>(null);
-    const [participantes, setParticipantes] = useState<Participante[]>([]);
     const [carregando, setCarregando] = useState(true);
     const [erro, setErro] = useState<string | null>(null);
+
+    // Membros sincronizados em tempo real (ver hooks/useSessionMembers).
+    const { members } = useSessionMembers(sessao?.id);
+
+    // Tick de 1s só para repintar: o tempo vem sempre de tempoAoVivoDoMembro.
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setTick((t) => t + 1), 1000);
+        return () => clearInterval(id);
+    }, []);
+
+    const participantes = useMemo<Participante[]>(() => {
+        const cores = ["#1f9d63", "#7c5cfc", "#1f9aa8", "#e08a1e", "#d0455e"];
+
+        return members.map((membro, index) => {
+            const profile = membro.profiles as { nome_usuario?: string | null; nome_real?: string | null } | undefined;
+            const nome = profile?.nome_usuario || profile?.nome_real || "Usuário";
+            const inicial = nome.charAt(0).toUpperCase();
+
+            return {
+                id: membro.membro_id,
+                nome,
+                inicial,
+                cor: cores[index % cores.length],
+                topico: membro.sessoes_foco?.conteudo_especifico || sessao?.conteudo_especifico || "Foco",
+                // Acumulado + tempo desde o último início (ver utils/tempo.ts).
+                tempoSegundos: tempoAoVivoDoMembro(membro),
+                ativo: membro.status === "ativo",
+                host: membro.funcao === "anfitriao" || membro.membro_id === sessao?.user_id,
+            };
+        });
+        // `tick` entra de propósito: força o recálculo do tempo ao vivo a cada segundo.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [members, sessao?.conteudo_especifico, sessao?.user_id, tick]);
 
     const sessionParam = useMemo(() => {
         const raw = Array.isArray(params.session) ? params.session[0] : params.session;
@@ -65,13 +107,6 @@ export default function SessionPreviewScreen() {
     const privada = sessao ? !sessao.is_public : params.isPublic === "false";
     const corMateria = getSubjectColor(sessao?.disciplina || "Estudo Geral");
 
-    // Cronômetros locais para dar sensação de "ao vivo".
-    const [tick, setTick] = useState(0);
-    useEffect(() => {
-        const id = setInterval(() => setTick((t) => t + 1), 1000);
-        return () => clearInterval(id);
-    }, []);
-
     // Torcida da sessão inteira, com contagem por participante. Fica fora dos early
     // returns por causa das regras de hooks. Sessão privada é estudo solo e não tem
     // torcida, então nem consulta nem abre canal de realtime à toa.
@@ -80,9 +115,9 @@ export default function SessionPreviewScreen() {
         torcedores,
         enviandoPara,
         contarPara,
-        euMandeiPara,
         podeTorcerPor,
-        alternarPara,
+        cooldownRestante,
+        enviarForca,
     } = useIncentivos(privada ? null : sessao?.id);
 
     useEffect(() => {
@@ -91,7 +126,6 @@ export default function SessionPreviewScreen() {
         const carregarSessao = async () => {
             setCarregando(true);
             setErro(null);
-            setParticipantes([]);
 
             try {
                 let sessaoEncontrada: SessionCardItem | null = null;
@@ -110,6 +144,21 @@ export default function SessionPreviewScreen() {
                     sessaoEncontrada = data as SessionCardItem | null;
                 }
 
+                /*
+                  Execução de plano com mais de uma matéria: a linha encontrada acima é só a
+                  ÚLTIMA matéria estudada (cada uma vira sua própria linha, ver
+                  app/(tabs)/focus.tsx). Busca o grupo inteiro e compila, senão a prévia
+                  mostraria só um pedaço da sessão (a última matéria, não o total).
+                */
+                if (sessaoEncontrada?.execucao_id) {
+                    const { data: linhasDaExecucao, error: erroExecucao } = await buscarSessoesPorExecucao(
+                        sessaoEncontrada.execucao_id
+                    );
+                    if (!erroExecucao && linhasDaExecucao.length > 0) {
+                        sessaoEncontrada = compilarSessoesPorExecucao(linhasDaExecucao)[0] ?? sessaoEncontrada;
+                    }
+                }
+
                 if (!ativo) return;
 
                 /*
@@ -126,32 +175,6 @@ export default function SessionPreviewScreen() {
                 if (!sessaoEncontrada) {
                     setCarregando(false);
                     return;
-                }
-
-                const { data: membrosData, error: membrosError } = await fetchSessionMembers(sessaoEncontrada.id);
-                if (!ativo) return;
-
-                if (membrosError) {
-                    setParticipantes([]);
-                } else {
-                    const participantesMapeados: Participante[] = (membrosData || []).map((membro: MemberSession, index: number) => {
-                        const profile = membro.profiles as { nome_usuario?: string | null; nome_real?: string | null } | undefined;
-                        const nome = profile?.nome_usuario || profile?.nome_real || "Usuário";
-                        const inicial = nome.charAt(0).toUpperCase();
-                        const cores = ["#1f9d63", "#7c5cfc", "#1f9aa8", "#e08a1e", "#d0455e"];
-
-                        return {
-                            id: membro.membro_id,
-                            nome,
-                            inicial,
-                            cor: cores[index % cores.length],
-                            topico: membro.sessoes_foco?.conteudo_especifico || sessaoEncontrada?.conteudo_especifico || "Foco",
-                            tempoSegundos: membro.tempo_segundos ?? 0,
-                            ativo: membro.status === "ativo",
-                            host: membro.funcao === "anfitriao" || membro.membro_id === sessaoEncontrada?.user_id,
-                        };
-                    });
-                    setParticipantes(participantesMapeados);
                 }
             } catch (error) {
                 console.warn("Erro ao carregar prévia da sessão:", error);
@@ -215,9 +238,6 @@ export default function SessionPreviewScreen() {
     const horaInicio = sessao.ultimo_inicio ? new Date(sessao.ultimo_inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : new Date(sessao.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     const ofensiva = sessao.questoes_acertadas || 0;
 
-    // A torcida vem dos incentivos de verdade — antes contava membros da sessão, que é outra coisa.
-    const torcidaNomes = torcedores.length > 0 ? torcedores.slice(0, 3).join(", ") : "Ainda ninguém mandou força";
-    const torcedoresRestantes = Math.max(0, torcedores.length - 2);
     const statusTexto = estaConcluida
         ? "Sessão concluída"
         : `${privada ? "está focando" : "abriu esta sessão"} · há ${abertaHaMin} min`;
@@ -268,9 +288,6 @@ export default function SessionPreviewScreen() {
                                 <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>{hostNome}</Text>
                                 <BadgeCheck size={16} color={HADES.subjectBlue} />
                             </View>
-                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 1 }}>
-                                {statusTexto}
-                            </Text>
                         </View>
                         {privada ? (
                             <View style={estilos.badgePrivada}>
@@ -311,7 +328,7 @@ export default function SessionPreviewScreen() {
                                 <Flame size={16} color={HADES.accentSolid} />
                                 <Text style={estilos.statValor}>{ofensiva}</Text>
                             </View>
-                            <Text style={estilos.statRotulo}>OFENSIVA</Text>
+                            <Text style={estilos.statRotulo}>QUESTÕES</Text>
                         </View>
                     </View>
                 </View>
@@ -348,7 +365,7 @@ export default function SessionPreviewScreen() {
                             <View style={{ gap: 9 }}>
                                 {participantes.map((p) => {
                                     const forcasRecebidas = contarPara(p.id);
-                                    const jaTorciPorEle = euMandeiPara(p.id);
+                                    const cooldownSegundos = cooldownRestante(p.id);
                                     // Torcer só faz sentido com a sessão rolando: mandar força para
                                     // quem terminou de estudar há horas não incentiva ninguém.
                                     const posso = podeTorcerPor(p.id) && !estaConcluida;
@@ -376,10 +393,10 @@ export default function SessionPreviewScreen() {
                                                 </Text>
                                             </View>
                                             <View style={{ alignItems: "flex-end" }}>
-                                                {/* O tick local só avança para quem está de fato focando: antes o
-                                                    cronômetro de um membro pausado continuava subindo na tela. */}
+                                                {/* Já é o tempo ao vivo: quem está pausado fica congelado no
+                                                    acumulado dele, quem está focando conta desde o último início. */}
                                                 <Text style={estilos.cronometro}>
-                                                    {formatarCronometro(p.tempoSegundos + (p.ativo ? tick : 0))}
+                                                    {formatarCronometro(p.tempoSegundos)}
                                                 </Text>
                                                 <Text style={{ fontSize: 11, color: p.ativo ? HADES.green : HADES.textMuted, marginTop: 1 }}>
                                                     {p.ativo ? "em foco" : "em pausa"}
@@ -389,23 +406,26 @@ export default function SessionPreviewScreen() {
                                             {/* Cada participante recebe força individualmente; some no próprio card. */}
                                             {posso && (
                                                 <TouchableOpacity
-                                                    onPress={() => alternarPara(p.id)}
-                                                    disabled={!!enviandoPara}
+                                                    onPress={() => enviarForca(p.id)}
+                                                    disabled={!!enviandoPara || cooldownSegundos > 0}
                                                     activeOpacity={0.7}
                                                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                                     style={[
                                                         estilos.botaoForcaMembro,
-                                                        jaTorciPorEle && estilos.botaoForcaMembroAtivo,
-                                                        !!enviandoPara && { opacity: 0.6 },
+                                                        (!!enviandoPara || cooldownSegundos > 0) && { opacity: 0.6 },
                                                     ]}
                                                 >
-                                                    <HandMetal
-                                                        size={15}
-                                                        color={HADES.accentSolid}
-                                                        fill={jaTorciPorEle ? HADES.accentSolid : "none"}
-                                                    />
-                                                    {forcasRecebidas > 0 && (
-                                                        <Text style={estilos.botaoForcaMembroTexto}>{forcasRecebidas}</Text>
+                                                    {cooldownSegundos > 0 ? (
+                                                        <Text style={{ fontSize: 11, fontWeight: "700", color: HADES.textMuted, fontVariant: ["tabular-nums"] }}>
+                                                            {formatarCooldown(cooldownSegundos)}
+                                                        </Text>
+                                                    ) : (
+                                                        <>
+                                                            <HandMetal size={15} color={HADES.accentSolid} />
+                                                            {forcasRecebidas > 0 && (
+                                                                <Text style={estilos.botaoForcaMembroTexto}>{forcasRecebidas}</Text>
+                                                            )}
+                                                        </>
                                                     )}
                                                 </TouchableOpacity>
                                             )}
@@ -424,41 +444,7 @@ export default function SessionPreviewScreen() {
                         )}
 
                         {/* Torcida: quem está de fora acompanhando e mandando força. */}
-                        <View style={estilos.secaoHeader}>
-                            <Text style={estilos.secaoTitulo}>Torcida</Text>
-                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>
-                                {totalIncentivos === 1 ? "1 força enviada" : `${totalIncentivos} forças enviadas`}
-                            </Text>
-                        </View>
-                        <View style={estilos.torcidaCard}>
-                            {torcedores.length > 0 && (
-                                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                                    {torcedores.slice(0, 2).map((nome, index) => (
-                                        <View
-                                            key={`${nome}-${index}`}
-                                            style={[
-                                                estilos.avatarPilha,
-                                                { backgroundColor: index === 0 ? "#e08a1e" : "#d0455e" },
-                                                index > 0 && { marginLeft: -10 },
-                                            ]}
-                                        >
-                                            <Text style={estilos.avatarPilhaTexto}>{nome.charAt(0).toUpperCase()}</Text>
-                                        </View>
-                                    ))}
-                                    {torcedoresRestantes > 0 && (
-                                        <View style={[estilos.avatarPilha, { backgroundColor: HADES.surfaceOverlay, marginLeft: -10 }]}>
-                                            <Text style={[estilos.avatarPilhaTexto, { color: HADES.textMuted, fontSize: 11 }]}>
-                                                +{torcedoresRestantes}
-                                            </Text>
-                                        </View>
-                                    )}
-                                </View>
-                            )}
-                            <Text style={{ flex: 1, fontSize: 13, color: HADES.textSecondary }} numberOfLines={1}>
-                                {torcidaNomes}
-                            </Text>
-                            <HandMetal size={18} color={HADES.accentSolid} />
-                        </View>
+                        
 
                         {/* Explicação da ação */}
                         <View style={estilos.avisoCardAccent}>
@@ -763,10 +749,6 @@ const estilos = StyleSheet.create({
         backgroundColor: HADES.surfaceRaised,
         borderWidth: 1,
         borderColor: HADES.borderStrong,
-    },
-    botaoForcaMembroAtivo: {
-        backgroundColor: "rgba(255,154,0,0.12)",
-        borderColor: "rgba(255,154,0,0.35)",
     },
     botaoForcaMembroTexto: {
         fontSize: 12,

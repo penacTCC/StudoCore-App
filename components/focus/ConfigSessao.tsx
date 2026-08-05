@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, TouchableOpacity, TextInput } from "react-native";
 import { Timer, AlarmClock, Plus, Globe, Lock, Info } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
-import { PRESETS_POMODORO } from "@/constants/foco";
+import { PRESETS_POMODORO, QTD_POMODOROS_MIN, QTD_POMODOROS_MAX } from "@/constants/foco";
 import type { ConfigPomodoro, ModoFoco } from "@/types/foco";
 import type { Materia } from "@/types/materias";
 
@@ -292,7 +292,7 @@ export default function ConfigSessao({
                             rotulo="Foco"
                             valor={`${config.focoMin}min`}
                             onDiminuir={() =>
-                                onChangeConfig({ ...config, focoMin: Math.max(5, config.focoMin - 5) })
+                                onChangeConfig({ ...config, focoMin: Math.max(1, config.focoMin - 1) })
                             }
                             onAumentar={() =>
                                 onChangeConfig({ ...config, focoMin: Math.min(180, config.focoMin + 5) })
@@ -317,7 +317,6 @@ export default function ConfigSessao({
                         <Stepper
                             rotulo="Ciclos até o longo"
                             valor={`${config.ciclosAteLongo}`}
-                            ultima
                             onDiminuir={() =>
                                 onChangeConfig({
                                     ...config,
@@ -331,6 +330,29 @@ export default function ConfigSessao({
                                 })
                             }
                         />
+                        <Stepper
+                            rotulo="Quantidade de pomodoros"
+                            valor={`${config.qtdPomodoros}`}
+                            ultima
+                            onDiminuir={() =>
+                                onChangeConfig({
+                                    ...config,
+                                    qtdPomodoros: Math.max(QTD_POMODOROS_MIN, config.qtdPomodoros - 1),
+                                })
+                            }
+                            onAumentar={() =>
+                                onChangeConfig({
+                                    ...config,
+                                    qtdPomodoros: Math.min(QTD_POMODOROS_MAX, config.qtdPomodoros + 1),
+                                })
+                            }
+                        />
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 4, marginBottom: 16 }}>
+                        <Info size={14} color={HADES.textDim} style={{ marginTop: 1 }} />
+                        <Text style={{ fontSize: 12, color: HADES.textMuted, lineHeight: 17, flex: 1 }}>
+                            Depois do último pomodoro, a sessão encerra sozinha e abre o quiz.
+                        </Text>
                     </View>
 
                     <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 4 }}>

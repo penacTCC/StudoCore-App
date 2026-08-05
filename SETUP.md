@@ -86,3 +86,47 @@ npx expo run:android
 Isso regenera a pasta `android/` com o módulo novo linkado e reinstala o app no
 dispositivo. Sem isso, o app abre normalmente mas dá erro do tipo
 `Cannot find native module ExpoXxx` ao tentar usar a funcionalidade nova.
+
+## 9. Notificação do "mandar força" — sem Firebase
+
+O botão "mandar força" notifica a pessoa **sem push remoto e sem Firebase**. O caminho é:
+
+1. O app chama a Edge Function `mandar-forca`, que checa o cooldown de 20min e insere a
+   linha em `incentivos`.
+2. O app de quem vai receber está com um canal de Realtime aberto o tempo todo
+   (`useForcasRecebidas`, montado no `_layout`), filtrado por `destinatario_id`.
+3. Chegou o INSERT, o próprio aparelho dispara uma **notificação local**
+   (`services/notificacoesForca.ts`), no canal Android `forca-recebida`.
+
+Não precisa de `google-services.json`, nem de credencial FCM no EAS, nem de push token
+guardado no banco. Só da permissão de notificação, que o app já pede.
+
+**A Edge Function precisa estar deployada** — sem ela o botão responde 404, nada é inserido
+e não acontece nem notificação nem cooldown:
+
+```bash
+npx supabase login
+npx supabase functions deploy mandar-forca --project-ref vrcxocwxfslwnajjrwkh
+```
+
+E a constraint antiga de "1 força por sessão" precisa estar fora, senão o 2º dos 3 cliques
+já falha. É idempotente, pode rodar no SQL Editor sem medo:
+
+```sql
+ALTER TABLE public.incentivos DROP CONSTRAINT IF EXISTS incentivos_unicos;
+```
+
+Cooldown: até **3 forças a cada 15 minutos** por par (quem manda, quem recebe), contados em
+janela móvel — a 4ª só libera quando a 1ª das 3 completa 15min. A regra vive na Edge
+Function (`supabase/functions/mandar-forca/index.ts`); `hooks/useIncentivos.ts` só espelha
+ela pra desabilitar o botão com contagem regressiva.
+
+**Limite:** a notificação só aparece com o app rodando (em primeiro plano, ou pouco depois
+de ir pro segundo plano, enquanto o socket do Realtime sobrevive). Com o app fechado, a
+força continua registrada e aparece na torcida quando a pessoa abrir o app — o que ela não
+recebe é o "toque" na hora.
+
+Para que a notificação chegue com o app **fechado**, aí não tem jeito: no Android o único
+canal de entrega é o FCM (Google Play Services), então seria preciso configurar Firebase +
+credenciais no EAS e voltar a guardar um push token — ver
+https://docs.expo.dev/push-notifications/fcm-credentials/

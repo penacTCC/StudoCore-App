@@ -257,12 +257,6 @@ export default function BadgesScreen() {
                                             >
                                                 {badge.name}
                                             </Text>
-                                            <Text
-                                                numberOfLines={2}
-                                                style={{ fontSize: 9, lineHeight: 11.5, textAlign: "center", color: HADES.textDim, minHeight: 22 }}
-                                            >
-                                                {badge.description}
-                                            </Text>
 
                                             {isUnlocked ? (
                                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 6, paddingVertical: 2, paddingLeft: 5, paddingRight: 6, backgroundColor: circleBg }}>

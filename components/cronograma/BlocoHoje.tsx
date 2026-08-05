@@ -110,7 +110,9 @@ export default function BlocoHoje({ bloco, ultimo, onIniciarFoco, onPress }: Pro
 
             {/* Card */}
             {descanso ? (
-                <View
+                <TouchableOpacity
+                    onPress={() => onPress?.(bloco)}
+                    activeOpacity={0.8}
                     style={{
                         borderWidth: 1,
                         borderStyle: "dashed",
@@ -135,7 +137,7 @@ export default function BlocoHoje({ bloco, ultimo, onIniciarFoco, onPress }: Pro
                             Conflita com {bloco.conflitaCom}
                         </Text>
                     )}
-                </View>
+                </TouchableOpacity>
             ) : agora ? (
                 <LinearGradient
                     colors={["rgba(255,122,47,0.10)", "rgba(255,122,47,0.03)"]}

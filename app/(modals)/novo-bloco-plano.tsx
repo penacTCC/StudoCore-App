@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -8,7 +8,9 @@ import { HADES, CORES_PLANO } from "@/constants/hades";
 import WheelPicker from "@/components/ui/WheelPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
+import { usePreferencias } from "@/hooks/usePreferencias";
 import { formatarDuracao } from "@/utils/tempo";
+import { gerarSequenciaPomodoro } from "@/utils/pomodoroSequence";
 import { toast } from "@/services/toast";
 
 const HORAS = ["0", "1", "2", "3", "4"];
@@ -24,9 +26,6 @@ const HORAS_DIA = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, 
 const MINUTOS_5 = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 
 // Sem service de preferências ainda — mesmos valores padrão de cronograma-config.tsx.
-const DESCANSO_CURTO_MIN = 5;
-const DESCANSO_LONGO_MIN = 15;
-const CICLOS_ATE_LONGO = 4;
 
 function paraHoraMin(totalMin: number) {
     const h = Math.floor((totalMin + 1440) / 60) % 24;
@@ -71,6 +70,7 @@ export default function NovoBlocoPlanoScreen() {
     const ehDescanso = tipoBloco === "descanso";
     const { userId } = useAuth();
     const { materiasComCores } = useMaterias(userId);
+    const { prefs, carregando: carregandoPrefs } = usePreferencias(userId);
 
     const [modo, setModo] = useState<"pomodoros" | "unico">(ehDescanso ? "unico" : "pomodoros");
 
@@ -86,6 +86,13 @@ export default function NovoBlocoPlanoScreen() {
     const [qtdIdx, setQtdIdx] = useState(3); // "4"
     const [duracaoPomodoroIdx, setDuracaoPomodoroIdx] = useState(25 - DURACAO_POMODORO_MIN); // "25"
     const [inserirDescansos, setInserirDescansos] = useState(true);
+
+    /*
+      Bloco único de estudo já sai com um descanso emendado atrás, na duração
+      definida nas preferências — no modo "pomodoros" isso já acontecia, e ficar
+      manual só aqui obrigava o usuário a criar o descanso na mão toda vez.
+    */
+    const [emendarDescanso, setEmendarDescanso] = useState(true);
 
     const [lembreteAtivo, setLembreteAtivo] = useState(true);
     const [lembreteIdx, setLembreteIdx] = useState(2);
@@ -117,25 +124,56 @@ export default function NovoBlocoPlanoScreen() {
         }
     }, [materiaId, materiasComCores]);
 
+    /*
+      Semeia o formulário com as preferências do cronograma, uma vez só, quando
+      elas chegam do banco. Depois disso o que vale é o que o usuário mexeu na
+      tela — por isso o ref, e não um efeito que reaplica a cada render.
+    */
+    const semeado = useRef(false);
+    useEffect(() => {
+        if (carregandoPrefs || semeado.current) return;
+        semeado.current = true;
+
+        const duracaoPadrao = ehDescanso ? prefs.duracaoPadraoDescansoMin : prefs.duracaoPadraoBlocoMin;
+        setHorasIdx(indiceMaisProximo(HORAS, Math.floor(duracaoPadrao / 60)));
+        setMinutosIdx(indiceMaisProximo(MINUTOS_DURACAO, duracaoPadrao % 60));
+
+        setDuracaoPomodoroIdx(indiceMaisProximo(DURACAO_POMODORO, prefs.focoMin));
+
+        setLembreteAtivo(prefs.notificacoesAtivas && prefs.antecedenciaMin > 0);
+        if (prefs.antecedenciaMin > 0) {
+            setLembreteIdx(indiceMaisProximo(MINUTOS_LEMBRETE, prefs.antecedenciaMin));
+        }
+    }, [carregandoPrefs, ehDescanso, prefs]);
+
     const qtdPomodoros = Number(QTD_POMODOROS[qtdIdx]);
     const duracaoPomodoro = Number(DURACAO_POMODORO[duracaoPomodoroIdx]);
 
-    // Sequência de pomodoros + descansos, calculada a partir do horário de início.
+    // Sequência de pomodoros + descansos (algoritmo compartilhado com o pomodoro solo em
+    // focus.tsx), só adicionando aqui o horário de início de cada item pra exibição.
     const sequencia = useMemo<ItemSequencia[]>(() => {
-        const itens: ItemSequencia[] = [];
         let cursor = inicioMin;
-        for (let i = 0; i < qtdPomodoros; i++) {
-            itens.push({ tipo: "estudo", duracaoMin: duracaoPomodoro, inicioMin: cursor });
-            cursor += duracaoPomodoro;
-            if (inserirDescansos && i < qtdPomodoros - 1) {
-                const ehLongo = (i + 1) % CICLOS_ATE_LONGO === 0;
-                const duracaoDescanso = ehLongo ? DESCANSO_LONGO_MIN : DESCANSO_CURTO_MIN;
-                itens.push({ tipo: "descanso", duracaoMin: duracaoDescanso, inicioMin: cursor, ehLongo });
-                cursor += duracaoDescanso;
-            }
-        }
-        return itens;
-    }, [inicioMin, qtdPomodoros, duracaoPomodoro, inserirDescansos]);
+        return gerarSequenciaPomodoro({
+            qtdPomodoros,
+            duracaoPomodoroMin: duracaoPomodoro,
+            inserirDescansos,
+            descansoCurtoMin: prefs.descansoCurtoMin,
+            descansoLongoMin: prefs.descansoLongoMin,
+            ciclosAteLongo: prefs.ciclosAteLongo,
+        }).map((item) => {
+            const comInicio = { ...item, inicioMin: cursor };
+            cursor += item.duracaoMin;
+            return comInicio;
+        });
+    }, [
+        inicioMin,
+        qtdPomodoros,
+        duracaoPomodoro,
+        inserirDescansos,
+        prefs.descansoCurtoMin,
+        prefs.descansoLongoMin,
+        prefs.ciclosAteLongo,
+    ]);
 
     const fimSessaoMin = sequencia.length > 0
         ? sequencia[sequencia.length - 1].inicioMin + sequencia[sequencia.length - 1].duracaoMin
@@ -213,6 +251,22 @@ export default function NovoBlocoPlanoScreen() {
                 notificar: lembreteAtivo,
                 antecedenciaMin: lembreteAtivo ? Number(MINUTOS_LEMBRETE[lembreteIdx]) : null,
             }];
+
+            if (!ehDescanso && emendarDescanso && prefs.duracaoPadraoDescansoMin > 0) {
+                blocosNovos.push({
+                    id: `novo-${Date.now()}-descanso`,
+                    persistido: false,
+                    horaInicio: paraHoraMin(fimMin),
+                    duracaoMin: prefs.duracaoPadraoDescansoMin,
+                    tipo: "descanso" as const,
+                    materiaId: undefined,
+                    materia: undefined,
+                    topico: undefined,
+                    cor: undefined,
+                    notificar: false,
+                    antecedenciaMin: null,
+                });
+            }
         }
 
         const rascunhoAtualizado = JSON.stringify({ ...dados, blocos: [...dados.blocos, ...blocosNovos] });
@@ -232,7 +286,7 @@ export default function NovoBlocoPlanoScreen() {
         : !duracaoInvalida && (ehDescanso || !!materiaId);
 
     return (
-        <View style={{ flex: 1, backgroundColor: modo === "pomodoros" ? HADES.bg : HADES.surface }}>
+        <View style={{ flex: 1, backgroundColor: HADES.bg }}>
             <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
                 {/* Alça */}
                 <View style={{ paddingTop: 12, paddingBottom: 4, alignItems: "center" }}>
@@ -268,7 +322,7 @@ export default function NovoBlocoPlanoScreen() {
                     <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
                         <View
                             style={{
-                                backgroundColor: HADES.surface,
+                                backgroundColor: HADES.surfaceRaised,
                                 borderWidth: 1,
                                 borderColor: HADES.borderStrong,
                                 borderRadius: 11,
@@ -372,7 +426,7 @@ export default function NovoBlocoPlanoScreen() {
                                                 flexDirection: "row",
                                                 alignItems: "center",
                                                 gap: 7,
-                                                backgroundColor: selecionada ? `${m.cor}29` : (modo === "pomodoros" ? HADES.surface : HADES.bg),
+                                                backgroundColor: selecionada ? `${m.cor}29` : HADES.surfaceRaised,
                                                 borderWidth: selecionada ? 1.5 : 1,
                                                 borderColor: selecionada ? m.cor : HADES.borderStrong,
                                                 borderRadius: 18,
@@ -398,7 +452,7 @@ export default function NovoBlocoPlanoScreen() {
                             {/* Tópico */}
                             <View
                                 style={{
-                                    backgroundColor: modo === "pomodoros" ? HADES.surface : HADES.bg,
+                                    backgroundColor: HADES.surfaceRaised,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 12,
@@ -434,7 +488,7 @@ export default function NovoBlocoPlanoScreen() {
                             </Text>
                             <View
                                 style={{
-                                    backgroundColor: HADES.surface,
+                                    backgroundColor: HADES.surfaceRaised,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 14,
@@ -479,7 +533,7 @@ export default function NovoBlocoPlanoScreen() {
                             {/* Descansos */}
                             <View
                                 style={{
-                                    backgroundColor: HADES.surface,
+                                    backgroundColor: HADES.surfaceRaised,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 14,
@@ -525,7 +579,7 @@ export default function NovoBlocoPlanoScreen() {
                             {/* Lembrete */}
                             <View
                                 style={{
-                                    backgroundColor: HADES.surface,
+                                    backgroundColor: HADES.surfaceRaised,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 14,
@@ -582,7 +636,7 @@ export default function NovoBlocoPlanoScreen() {
                                             style={{
                                                 flexDirection: "row",
                                                 alignItems: "center",
-                                                backgroundColor: HADES.bg,
+                                                backgroundColor: HADES.surfaceOverlay,
                                                 borderRadius: 9,
                                             }}
                                         >
@@ -698,7 +752,7 @@ export default function NovoBlocoPlanoScreen() {
                                                     />
                                                     <View
                                                         style={{
-                                                            backgroundColor: HADES.surface,
+                                                            backgroundColor: HADES.surfaceOverlay,
                                                             borderWidth: 1,
                                                             borderColor: HADES.border,
                                                             borderRadius: 10,
@@ -773,7 +827,7 @@ export default function NovoBlocoPlanoScreen() {
                             {/* Início */}
                             <View
                                 style={{
-                                    backgroundColor: HADES.bg,
+                                    backgroundColor: HADES.surfaceRaised,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 12,
@@ -791,7 +845,7 @@ export default function NovoBlocoPlanoScreen() {
                                     style={{
                                         flexDirection: "row",
                                         alignItems: "center",
-                                        backgroundColor: HADES.surface,
+                                        backgroundColor: HADES.surfaceOverlay,
                                         borderRadius: 9,
                                     }}
                                 >
@@ -840,7 +894,7 @@ export default function NovoBlocoPlanoScreen() {
                             </Text>
                             <View
                                 style={{
-                                    backgroundColor: HADES.bg,
+                                    backgroundColor: HADES.surfaceRaised,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 14,
@@ -860,10 +914,58 @@ export default function NovoBlocoPlanoScreen() {
                                 </View>
                             </View>
 
+                            {/* Descanso emendado */}
+                            {!ehDescanso && (
+                                <View
+                                    style={{
+                                        backgroundColor: HADES.surfaceRaised,
+                                        borderWidth: 1,
+                                        borderColor: HADES.borderStrong,
+                                        borderRadius: 14,
+                                        marginTop: 14,
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        padding: 13,
+                                    }}
+                                >
+                                    <Coffee size={16} color={HADES.green} style={{ marginRight: 10 }} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>
+                                            Descanso depois
+                                        </Text>
+                                        <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 2 }}>
+                                            {formatarDuracao(prefs.duracaoPadraoDescansoMin)}, das configurações
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        onPress={() => setEmendarDescanso((v) => !v)}
+                                        activeOpacity={0.8}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        style={{
+                                            width: 44,
+                                            height: 27,
+                                            borderRadius: 14,
+                                            backgroundColor: emendarDescanso ? HADES.accentSolid : HADES.trackOff,
+                                            justifyContent: "center",
+                                        }}
+                                    >
+                                        <View
+                                            style={{
+                                                width: 21,
+                                                height: 21,
+                                                borderRadius: 11,
+                                                backgroundColor: "#fff",
+                                                marginLeft: emendarDescanso ? 20 : 3,
+                                            }}
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
                             {/* Lembrete */}
                             <View
                                 style={{
-                                    backgroundColor: HADES.bg,
+                                    backgroundColor: HADES.surfaceRaised,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 14,
@@ -1045,7 +1147,7 @@ export default function NovoBlocoPlanoScreen() {
                             <View style={{ flex: 1 }}>
                                 <View
                                     style={{
-                                        backgroundColor: HADES.bg,
+                                        backgroundColor: HADES.surfaceOverlay,
                                         borderWidth: 1,
                                         borderColor: HADES.borderStrong,
                                         borderRadius: 20,
@@ -1071,7 +1173,7 @@ export default function NovoBlocoPlanoScreen() {
                             <View style={{ flex: 1 }}>
                                 <View
                                     style={{
-                                        backgroundColor: HADES.bg,
+                                        backgroundColor: HADES.surfaceOverlay,
                                         borderWidth: 1,
                                         borderColor: HADES.borderStrong,
                                         borderRadius: 20,
@@ -1164,7 +1266,7 @@ export default function NovoBlocoPlanoScreen() {
                             style={{
                                 position: "relative",
                                 marginTop: 20,
-                                backgroundColor: HADES.bg,
+                                backgroundColor: HADES.surfaceOverlay,
                                 borderWidth: 1,
                                 borderColor: HADES.borderStrong,
                                 borderRadius: 16,
@@ -1195,7 +1297,7 @@ export default function NovoBlocoPlanoScreen() {
                                     flexDirection: "row",
                                     alignItems: "center",
                                     gap: 6,
-                                    backgroundColor: HADES.bg,
+                                    backgroundColor: HADES.surfaceOverlay,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 16,
@@ -1210,7 +1312,7 @@ export default function NovoBlocoPlanoScreen() {
                                 onPress={() => aplicarInicioRapido(15)}
                                 activeOpacity={0.8}
                                 style={{
-                                    backgroundColor: HADES.bg,
+                                    backgroundColor: HADES.surfaceOverlay,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 16,
@@ -1224,7 +1326,7 @@ export default function NovoBlocoPlanoScreen() {
                                 onPress={() => aplicarInicioRapido(30)}
                                 activeOpacity={0.8}
                                 style={{
-                                    backgroundColor: HADES.bg,
+                                    backgroundColor: HADES.surfaceOverlay,
                                     borderWidth: 1,
                                     borderColor: HADES.borderStrong,
                                     borderRadius: 16,

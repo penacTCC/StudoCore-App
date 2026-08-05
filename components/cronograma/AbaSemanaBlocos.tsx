@@ -9,11 +9,11 @@ import Animated, {
     type SharedValue,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { Plus, Trash2, Coffee } from "lucide-react-native";
+import { Plus, Trash2, Coffee, Pin } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
-import { diasDaSemanaLista } from "@/constants/cronograma-mock";
 import type { BlocoListaDia } from "@/types/cronograma";
 import { confirm } from "@/services/confirm";
+import { toast } from "@/services/toast";
 
 const LARGURA_COLUNA = 158;
 const GAP_COLUNA = 12;
@@ -21,8 +21,8 @@ const PADDING_HORIZONTAL = 20;
 
 type Props = {
     blocos: BlocoListaDia[];
-    totais: { materia: string; cor: string; total: string }[];
-    totalSemanal: string;
+    /** Rótulos das colunas na ordem em que a semana é desenhada (respeita "início da semana"). */
+    rotulosDias: string[];
     conflitos: Map<string, string>;
     onAdicionarBloco: (dia: number) => void;
     onEditarBloco: (blocoId: string) => void;
@@ -32,8 +32,7 @@ type Props = {
 
 export default function AbaSemanaBlocos({
     blocos,
-    totais,
-    totalSemanal,
+    rotulosDias,
     conflitos,
     onAdicionarBloco,
     onEditarBloco,
@@ -71,6 +70,18 @@ export default function AbaSemanaBlocos({
         });
     };
 
+    /*
+      Bloco que veio de um plano pertence ao plano, não àquele dia: arrastar ou
+      apagar aqui mudaria o plano inteiro, em todos os dias em que ele vale. Então
+      a semana só o exibe, e manda editar no lugar certo.
+    */
+    const avisarBlocoDePlano = (nomePlano?: string) =>
+        toast.info(
+            nomePlano
+                ? `Esse bloco vem do plano "${nomePlano}". Edite pela aba Planos.`
+                : "Esse bloco vem de um plano. Edite pela aba Planos."
+        );
+
     return (
         <View style={{ flex: 1 }}>
             <Animated.ScrollView
@@ -83,7 +94,7 @@ export default function AbaSemanaBlocos({
                 onScroll={aoRolar}
                 scrollEventThrottle={16}
             >
-                {diasDaSemanaLista.map((dia, i) => (
+                {rotulosDias.map((dia, i) => (
                     <View key={dia} style={{ width: LARGURA_COLUNA }}>
                         <ColunaCabecalho dia={dia} indice={i} colunaAlvo={colunaAlvo} />
 
@@ -112,21 +123,10 @@ export default function AbaSemanaBlocos({
                                             )
                                         }
                                         onMover={onMoverBloco}
+                                        onAvisarPlano={avisarBlocoDePlano}
                                     />
                                 ))}
 
-                            {blocos.filter((b) => b.dia === i).length === 0 && (
-                                <Text
-                                    style={{
-                                        fontSize: 11.5,
-                                        color: HADES.textFaint,
-                                        textAlign: "center",
-                                        marginBottom: 8,
-                                    }}
-                                >
-                                    Sem blocos neste dia
-                                </Text>
-                            )}
 
                             <TouchableOpacity
                                 onPress={() => onAdicionarBloco(i)}
@@ -147,59 +147,6 @@ export default function AbaSemanaBlocos({
                     </View>
                 ))}
             </Animated.ScrollView>
-
-            {/* Total semanal */}
-            <View
-                style={{
-                    borderTopWidth: 1,
-                    borderTopColor: "rgba(255,255,255,0.07)",
-                    paddingTop: 14,
-                    paddingBottom: 10,
-                    paddingHorizontal: 20,
-                }}
-            >
-                <Text
-                    style={{
-                        fontSize: 11,
-                        color: HADES.textFaint,
-                        fontWeight: "700",
-                        letterSpacing: 0.8,
-                        marginBottom: 10,
-                    }}
-                >
-                    TOTAL SEMANAL · {totalSemanal.toUpperCase()}
-                </Text>
-                {totais.length === 0 ? (
-                    <Text style={{ fontSize: 12, color: HADES.textFaint }}>
-                        Adicione blocos de estudo pra ver o total por matéria aqui.
-                    </Text>
-                ) : (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                        {totais.map((t) => (
-                            <View
-                                key={t.materia}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 7,
-                                    backgroundColor: HADES.surface,
-                                    borderWidth: 1,
-                                    borderColor: HADES.border,
-                                    borderRadius: 18,
-                                    paddingVertical: 7,
-                                    paddingHorizontal: 12,
-                                }}
-                            >
-                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.cor }} />
-                                <Text style={{ fontSize: 12, color: HADES.textSecondary, fontWeight: "600" }}>
-                                    {t.materia}
-                                </Text>
-                                <Text style={{ fontSize: 12, color: t.cor, fontWeight: "700" }}>{t.total}</Text>
-                            </View>
-                        ))}
-                    </ScrollView>
-                )}
-            </View>
         </View>
     );
 }
@@ -263,6 +210,7 @@ function CartaoBlocoArrastavel({
     onEditar,
     onExcluir,
     onMover,
+    onAvisarPlano,
 }: {
     bloco: BlocoListaDia;
     scrollX: SharedValue<number>;
@@ -272,11 +220,13 @@ function CartaoBlocoArrastavel({
     onEditar: (blocoId: string) => void;
     onExcluir: () => void;
     onMover: (blocoId: string, novoDia: number) => void;
+    onAvisarPlano: (nomePlano?: string) => void;
 }) {
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
     const escala = useSharedValue(1);
     const arrastando = useSharedValue(false);
+    const doPlano = bloco.origem === "plano";
 
     const soltar = (novoDia: number) => {
         if (novoDia !== bloco.dia) {
@@ -285,6 +235,7 @@ function CartaoBlocoArrastavel({
     };
 
     const gesto = Gesture.Pan()
+        .enabled(!doPlano)
         .activateAfterLongPress(280)
         .onStart(() => {
             arrastando.value = true;
@@ -344,7 +295,11 @@ function CartaoBlocoArrastavel({
                     estiloAnimado,
                 ]}
             >
-                <Pressable onPress={() => onEditar(bloco.id)}>
+                <Pressable
+                    onPress={() =>
+                        doPlano ? onAvisarPlano(bloco.nomePlano) : onEditar(bloco.id.split(":")[1])
+                    }
+                >
                     <View
                         style={{
                             flexDirection: "row",
@@ -398,13 +353,25 @@ function CartaoBlocoArrastavel({
                                 {bloco.horaInicio}
                             </Text>
                         )}
-                        <TouchableOpacity
-                            onPress={onExcluir}
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                            <Trash2 size={14} color={HADES.textFaint} />
-                        </TouchableOpacity>
+                        {doPlano ? (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                                <Pin size={11} color={HADES.textFaint} />
+                                <Text
+                                    numberOfLines={1}
+                                    style={{ fontSize: 10, color: HADES.textFaint, maxWidth: 74 }}
+                                >
+                                    {bloco.nomePlano ?? "Plano"}
+                                </Text>
+                            </View>
+                        ) : (
+                            <TouchableOpacity
+                                onPress={onExcluir}
+                                activeOpacity={0.7}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <Trash2 size={14} color={HADES.textFaint} />
+                            </TouchableOpacity>
+                        )}
                     </View>
                     {conflitaCom && (
                         <Text style={{ fontSize: 11, color: HADES.amber, marginTop: 8 }}>

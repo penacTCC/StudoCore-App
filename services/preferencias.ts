@@ -19,10 +19,10 @@ export const PADRAO_PREFERENCIAS: PreferenciasCronograma = {
     somFimFoco: true,
     vibrar: true,
     manterTelaLigada: false,
-    inicioSemana: "segunda",
     duracaoPadraoBlocoMin: 50,
     duracaoPadraoDescansoMin: 10,
     contarDescansoComoEstudado: false,
+    anotarAposQuiz: true,
 };
 
 /** Linha de `preferencias_cronograma` — chaves batem com as colunas da tabela. */
@@ -48,6 +48,7 @@ type PreferenciasRow = {
     duracao_padrao_bloco_min: number;
     duracao_padrao_descanso_min: number;
     contar_descanso_como_estudado: boolean;
+    anotar_apos_quiz: boolean;
 };
 
 function paraPreferencias(row: PreferenciasRow): PreferenciasCronograma {
@@ -68,10 +69,10 @@ function paraPreferencias(row: PreferenciasRow): PreferenciasCronograma {
         somFimFoco: row.som_fim_foco,
         vibrar: row.vibrar,
         manterTelaLigada: row.manter_tela_ligada,
-        inicioSemana: row.inicio_semana,
         duracaoPadraoBlocoMin: row.duracao_padrao_bloco_min,
         duracaoPadraoDescansoMin: row.duracao_padrao_descanso_min,
         contarDescansoComoEstudado: row.contar_descanso_como_estudado,
+        anotarAposQuiz: row.anotar_apos_quiz ?? true,
     };
 }
 
@@ -94,10 +95,13 @@ function paraRow(usuarioId: string, prefs: PreferenciasCronograma): Preferencias
         som_fim_foco: prefs.somFimFoco,
         vibrar: prefs.vibrar,
         manter_tela_ligada: prefs.manterTelaLigada,
-        inicio_semana: prefs.inicioSemana,
+        // A escolha domingo/segunda foi removida do app; a coluna continua no
+        // banco e é preenchida com o único valor que o cronograma usa.
+        inicio_semana: "segunda",
         duracao_padrao_bloco_min: prefs.duracaoPadraoBlocoMin,
         duracao_padrao_descanso_min: prefs.duracaoPadraoDescansoMin,
         contar_descanso_como_estudado: prefs.contarDescansoComoEstudado,
+        anotar_apos_quiz: prefs.anotarAposQuiz,
     };
 }
 
@@ -132,5 +136,39 @@ export async function salvarPreferencias(
         console.error("Erro ao salvar preferências de cronograma:", error.message);
         return { sucesso: false, erro: "Não foi possível salvar as preferências." };
     }
+
+    cache = { usuarioId, prefs, expiraEm: Date.now() + VALIDADE_CACHE_MS };
     return { sucesso: true };
+}
+
+/*
+  Cache curto das preferências do usuário logado.
+
+  Existe porque os services de lembrete consultam as preferências uma vez por
+  bloco ao reagendar — sem isso, salvar um plano de 12 blocos viraria 12 idas ao
+  banco só pra reler a mesma linha.
+*/
+const VALIDADE_CACHE_MS = 30_000;
+let cache: { usuarioId: string; prefs: PreferenciasCronograma; expiraEm: number } | null = null;
+
+export function invalidarCachePreferencias() {
+    cache = null;
+}
+
+/**
+ * Preferências do usuário logado, do jeito que os services precisam (eles não
+ * recebem `usuarioId` em toda chamada). Devolve os padrões se não houver sessão.
+ */
+export async function preferenciasDoUsuarioAtual(): Promise<PreferenciasCronograma> {
+    const { data } = await supabase.auth.getUser();
+    const usuarioId = data.user?.id;
+    if (!usuarioId) return PADRAO_PREFERENCIAS;
+
+    if (cache && cache.usuarioId === usuarioId && cache.expiraEm > Date.now()) {
+        return cache.prefs;
+    }
+
+    const prefs = await buscarPreferencias(usuarioId);
+    cache = { usuarioId, prefs, expiraEm: Date.now() + VALIDADE_CACHE_MS };
+    return prefs;
 }

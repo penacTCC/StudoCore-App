@@ -1,11 +1,16 @@
 import { useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { resolverAgendaDoDia } from "@/services/agenda";
+import { resolverAgendaDoDia, type BlocoAgenda } from "@/services/agenda";
+import { carregarAgendaLocalmente, salvarAgendaLocalmente } from "@/services/armazenamentoOffline";
 import { buscarSessoesDoDia } from "@/services/sessions";
 import { useMaterias } from "@/hooks/useMaterias";
 import { formatarDuracao, paraDataISO } from "@/utils/tempo";
 import { encontrarConflitos, somarMinutosSemSobreposicao } from "@/utils/conflitos";
 import type { BlocoDoDia, StatusBloco } from "@/types/cronograma";
+import type { SessaoFocoRow } from "@/types/sessions";
+
+/** O que fica guardado no aparelho por dia — a agenda resolvida e as sessões dele. */
+type AgendaEmCache = { agenda: BlocoAgenda[]; sessoes: SessaoFocoRow[] };
 
 /** Bloco de estudo com pelo menos 90% do tempo registrado conta como "cumprido". */
 const LIMIAR_CUMPRIDO = 0.9;
@@ -32,33 +37,35 @@ export type ResumoHoje = {
 };
 
 /**
- * Resolve a agenda de hoje (dia específico > plano fixado > rotina, via
+ * Resolve a agenda de um dia (dia específico > plano fixado > rotina, via
  * `resolverAgendaDoDia`) e calcula o status de cada bloco comparando com a
- * hora atual e com as sessões de foco já registradas hoje contra aquele
+ * hora atual e com as sessões de foco já registradas naquele dia contra aquele
  * bloco específico (bloco_rotina_id/bloco_plano_id).
+ *
+ * `dataISO` é opcional: sem ela, é hoje. Com ela, dá pra folhear a agenda de
+ * qualquer dia — num dia passado tudo já venceu, num dia futuro nada começou.
  */
-export function useAgendaHoje(userId: string | null | undefined) {
+export function useAgendaHoje(userId: string | null | undefined, dataISO?: string) {
     const { materiasComCores } = useMaterias(userId ?? null);
     const [blocos, setBlocos] = useState<BlocoDoDia[]>([]);
     const [resumo, setResumo] = useState<ResumoHoje>({ planejado: "0m", concluido: "0m", proximo: null });
     const [carregando, setCarregando] = useState(true);
 
-    const carregar = useCallback(async () => {
-        if (!userId) {
-            setBlocos([]);
-            setCarregando(false);
-            return;
-        }
-        setCarregando(true);
-
-        const hojeISO = paraDataISO(new Date());
-        const [agenda, { data: sessoesHoje }] = await Promise.all([
-            resolverAgendaDoDia(userId, hojeISO),
-            buscarSessoesDoDia(userId, hojeISO),
-        ]);
-
+    /** Transforma agenda + sessões nos blocos e no resumo que a tela mostra. */
+    const montar = useCallback(
+        (agenda: BlocoAgenda[], sessoesDoDia: SessaoFocoRow[], diaAlvo: string, hojeISO: string) => {
         const materiaPorId = new Map(materiasComCores.map((m) => [m.id, m]));
-        const nowMin = agoraEmMinutos();
+        /*
+          O relógio só corre no dia de hoje. Num dia que já passou, todo bloco é
+          julgado como vencido (cumprido/parcial/furado conforme o que foi
+          estudado); num dia que ainda vem, todo bloco é futuro.
+        */
+        const nowMin =
+            diaAlvo === hojeISO
+                ? agoraEmMinutos()
+                : diaAlvo < hojeISO
+                    ? Number.POSITIVE_INFINITY
+                    : Number.NEGATIVE_INFINITY;
 
         // Conflitos só fazem sentido dentro da mesma fonte do dia (rotina OU
         // um único plano — resolverAgendaDoDia já garante que só uma vale).
@@ -92,7 +99,7 @@ export function useAgendaHoje(userId: string | null | undefined) {
             // andamento (barrinha "agora") quanto pro que já passou (selo cumprido/
             // parcial/furado): só conta o que o usuário efetivamente estudou.
             const minutosFeitos = ehEstudo
-                ? (sessoesHoje ?? []).reduce((soma, s) => {
+                ? sessoesDoDia.reduce((soma, s) => {
                     const pertence =
                         (bloco.origem === "rotina" && s.bloco_rotina_id === bloco.id) ||
                         (bloco.origem === "plano" && s.bloco_plano_id === bloco.id);
@@ -132,6 +139,7 @@ export function useAgendaHoje(userId: string | null | undefined) {
                 cor: materia?.cor,
                 notificar: bloco.notificar,
                 origem: bloco.origem,
+                planoId: bloco.planoId,
                 status,
                 progresso,
                 restanteMin,
@@ -146,8 +154,46 @@ export function useAgendaHoje(userId: string | null | undefined) {
             concluido: formatarDuracao(concluidoMin),
             proximo,
         });
+        },
+        [materiasComCores]
+    );
+
+    const carregar = useCallback(async () => {
+        if (!userId) {
+            setBlocos([]);
+            setCarregando(false);
+            return;
+        }
+        setCarregando(true);
+
+        const hojeISO = paraDataISO(new Date());
+        const diaAlvo = dataISO ?? hojeISO;
+
+        /*
+          Sem rede, a tela ficava em branco. O cache local do último carregamento
+          desse mesmo dia entra primeiro, só pra ter o que mostrar; a resposta da
+          rede chega depois e sobrescreve. O cálculo é o mesmo nos dois caminhos.
+        */
+        const cache = await carregarAgendaLocalmente<AgendaEmCache>(userId, diaAlvo);
+        if (cache) {
+            montar(cache.agenda, cache.sessoes, diaAlvo, hojeISO);
+            setCarregando(false);
+        }
+
+        const [agenda, { data: sessoesHoje }] = await Promise.all([
+            resolverAgendaDoDia(userId, diaAlvo),
+            buscarSessoesDoDia(userId, diaAlvo),
+        ]);
+
+        salvarAgendaLocalmente<AgendaEmCache>(userId, diaAlvo, {
+            agenda,
+            sessoes: sessoesHoje ?? [],
+        });
+
+        montar(agenda, sessoesHoje ?? [], diaAlvo, hojeISO);
         setCarregando(false);
-    }, [userId, materiasComCores]);
+    }, [userId, montar, dataISO]);
+
 
     useFocusEffect(
         useCallback(() => {

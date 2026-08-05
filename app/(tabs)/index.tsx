@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 //Componentes de Native
 import { View, Text, TouchableOpacity, ScrollView, Image, RefreshControl } from "react-native";
@@ -63,8 +63,10 @@ export default function GroupScreen() {
     const { onlineUsers } = useOnlineUsers(groupId as string);
 
     /*
-      O feed da home mostra quem está focando agora e, quando não há ninguém, cai no
-      histórico de sessões encerradas para a tela não ficar vazia.
+      O feed da home junta quem está focando agora com as sessões já encerradas, em vez de
+      escolher um ou outro: antes, uma única sessão ao vivo (inclusive uma esquecida
+      aberta) fazia a home mostrar SÓ o feed ao vivo, e a sessão que o usuário acabara de
+      encerrar não aparecia — só aparecia em "ver todas as atividades".
     */
     const { sessoes: sessoesAoVivo, loading: loadingAoVivo, refresh: refreshAoVivo } = useSessoesAoVivo(5, groupId as string);
     const { sessions, loading: loadingSessions, refresh: refreshSessions } = useSessoesFoco(5, groupId as string);
@@ -72,8 +74,20 @@ export default function GroupScreen() {
     //Controla o estado do pull-to-refresh
     const [atualizandoTela, setAtualizandoTela] = useState(false);
 
-    const mostrandoAoVivo = sessoesAoVivo.length > 0;
-    const sessoesDoFeed = mostrandoAoVivo ? sessoesAoVivo : sessions;
+    const sessoesDoFeed = useMemo(() => {
+        // A mesma sessão pode estar nas duas listas por um instante (ela acabou de encerrar
+        // e o feed ao vivo ainda não voltou): o ao vivo tem prioridade e o id evita repetir.
+        const idsAoVivo = new Set(sessoesAoVivo.map((sessao) => sessao.id));
+        return [...sessoesAoVivo, ...sessions.filter((sessao) => !idsAoVivo.has(sessao.id))];
+    }, [sessoesAoVivo, sessions]);
+
+    const sessoesVisiveis = sessoesDoFeed.slice(0, 2);
+
+    // O selo só vale para o que está de fato na tela: com o feed misto, ter uma sessão ao
+    // vivo fora das duas primeiras não é motivo para anunciar "ao vivo".
+    const mostrandoAoVivo = sessoesVisiveis.some(
+        (sessao) => !sessao.concluido_em && (sessao.status === "ativo" || sessao.status === "pausado")
+    );
     const carregandoFeed = loadingAoVivo || loadingSessions;
 
     //Faz useEffect para pegar as horas semanais do grupo
@@ -394,7 +408,7 @@ export default function GroupScreen() {
                     ) : sessoesDoFeed.length === 0 ? (
                         <FeedVazio />
                     ) : (
-                        sessoesDoFeed.slice(0, 2).map((session) => (
+                        sessoesVisiveis.map((session) => (
                             <CardSessaoGrupo key={session.id} sessao={session} />
                         ))
                     )}
