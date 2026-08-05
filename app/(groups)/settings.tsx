@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 
@@ -29,6 +29,7 @@ import {
 import type { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
+import { limparUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 
 type ModalEdicao = "dados" | "meta" | "convite" | null;
 
@@ -150,6 +151,22 @@ export default function GroupSettingsScreen() {
         if (salvo) fecharModal();
     };
 
+    /**
+     * Avisa o resto do app de que a participação em grupos mudou.
+     *
+     * Só entrar em grupo emitia `groupMembershipChanged`; sair e excluir não emitiam nada.
+     * O `useStatusMembroGrupo` seguia então com `membro: true` e com o id do grupo morto em
+     * `@last_group_id`, e o guard mandava para as tabs de um grupo que não existe mais — era
+     * de lá que vinha o "Erro ao buscar grupo".
+     *
+     * Limpando o id e emitindo o evento, o guard reavalia e escolhe o destino sozinho:
+     * `no-group` para quem ficou sem grupo nenhum, e a lista para quem ainda tem outros.
+     */
+    const avisarMudancaDeParticipacao = async () => {
+        await limparUltimoGrupoLocalmente();
+        DeviceEventEmitter.emit("groupMembershipChanged");
+    };
+
     /** Devolve `true` só quando o grupo foi mesmo apagado — a navegação depende disso. */
     const excluirGrupo = async () => {
         if (!groupId) return false;
@@ -204,10 +221,14 @@ export default function GroupSettingsScreen() {
         }
 
         setModalTransferenciaAdmin(false);
+        await avisarMudancaDeParticipacao();
         /*
           `replace` porque o grupo pode ter deixado de existir (último membro saiu): manter
           esta tela na pilha deixaria o usuário voltar para as configurações de um grupo do
           qual ele não faz mais parte.
+
+          Sai da tela imediatamente; se este era o último grupo, o guard leva daqui para o
+          `no-group` assim que o `membro` reavaliado chegar.
         */
         router.replace("/(groups)");
     };
@@ -259,7 +280,10 @@ export default function GroupSettingsScreen() {
             onConfirm: async () => {
                 // Navegar mesmo quando o delete falha era o que fazia o grupo "sumir" da
                 // tela e reaparecer na lista logo depois.
-                if (await excluirGrupo()) router.replace("/(groups)");
+                if (!(await excluirGrupo())) return;
+
+                await avisarMudancaDeParticipacao();
+                router.replace("/(groups)");
             },
         });
     };
