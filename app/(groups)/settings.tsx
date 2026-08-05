@@ -49,6 +49,13 @@ export default function GroupSettingsScreen() {
     const [modalTransferenciaAdmin, setModalTransferenciaAdmin] = useState(false);
     const [novoAdminId, setNovoAdminId] = useState<string | null>(null);
 
+    /*
+      Membro comum também chega nesta tela — é por aqui que ele sai do grupo. Tudo que só o
+      administrador pode fazer (trocar foto, editar nome/meta, mexer em privacidade, excluir
+      o grupo) é escondido a partir daqui; sobra a identidade do grupo e o "Sair do grupo".
+    */
+    const souAdmin = membros.some((membro) => membro.user_id === userId && membro.administrador);
+
     //useEffect para buscar todas as informações do grupo
     useEffect(() => {
         if (!groupId) return;
@@ -207,8 +214,6 @@ export default function GroupSettingsScreen() {
 
     const handleLeaveGroup = () => {
         // Só o administrador precisa passar o bastão; membro comum sai direto.
-        const souAdmin = membros.some((membro) => membro.user_id === userId && membro.administrador);
-
         if (souAdmin && (qtdMembros ?? 0) > 1) {
             setNovoAdminId(null);
             setModalTransferenciaAdmin(true);
@@ -630,61 +635,78 @@ export default function GroupSettingsScreen() {
                     <>
                         {/* Identidade do grupo */}
                         <View style={{ alignItems: "center", marginBottom: 8, marginTop: 2 }}>
-                            <ImagePickerAvatar
-                                bucket="images"
-                                defaultImage={imageUrl ?? undefined}
-                                onImageUploaded={(url) => setImageUrl(url)}
-                                hades
-                            />
+                            {souAdmin ? (
+                                <ImagePickerAvatar
+                                    bucket="images"
+                                    defaultImage={imageUrl ?? undefined}
+                                    onImageUploaded={(url) => setImageUrl(url)}
+                                    hades
+                                />
+                            ) : (
+                                /* Mesmo tamanho do seletor (w-32) e a margem que o wrapper dele traz. */
+                                <View style={{ marginBottom: 32, marginTop: 8 }}>
+                                    <Avatar foto={imageUrl} nome={grupo?.nome_grupo} size={128} />
+                                </View>
+                            )}
                             <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text }}>
                                 {grupo?.nome_grupo ?? "Grupo"}
                             </Text>
                             <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 2 }}>
-                                Criado por você em {grupo?.created_at ? formatarData(grupo.created_at) : "-"}
+                                {/* Dizia "Criado por você" para qualquer um: com membro comum na tela, viraria mentira. */}
+                                Criado em {grupo?.created_at ? formatarData(grupo.created_at) : "-"}
                             </Text>
                         </View>
 
-                        <SecaoConfig titulo="GERAL">
-                            <LinhaEscolha
-                                rotulo="Nome e descrição"
-                                valor={grupo?.nome_grupo ?? "—"}
-                                onPress={() => abrirModal("dados")}
-                            />
-                            <LinhaEscolha
-                                rotulo="Meta semanal"
-                                valor={`${grupo?.meta_horas ?? 0}h`}
-                                onPress={() => abrirModal("meta")}
-                                ultima
-                            />
-                        </SecaoConfig>
+                        {souAdmin && (
+                            <>
+                                <SecaoConfig titulo="GERAL">
+                                    <LinhaEscolha
+                                        rotulo="Nome e descrição"
+                                        valor={grupo?.nome_grupo ?? "—"}
+                                        onPress={() => abrirModal("dados")}
+                                    />
+                                    <LinhaEscolha
+                                        rotulo="Meta semanal"
+                                        valor={`${grupo?.meta_horas ?? 0}h`}
+                                        onPress={() => abrirModal("meta")}
+                                        ultima
+                                    />
+                                </SecaoConfig>
 
-                        <SecaoConfig titulo="PRIVACIDADE E ACESSO">
-                            <LinhaSwitch
-                                rotulo="Grupo público"
-                                descricao="Qualquer pessoa pode encontrar"
-                                ligado={isPublic}
-                                onToggle={() => alternarPrivacidadeLocal(!isPublic)}
-                            />
-                            <LinhaEscolha
-                                rotulo="Link de convite"
-                                valor={grupo?.codigo_convite || "Nenhum código"}
-                                onPress={() => abrirModal("convite")}
-                                ultima
-                            />
-                        </SecaoConfig>
+                                <SecaoConfig titulo="PRIVACIDADE E ACESSO">
+                                    <LinhaSwitch
+                                        rotulo="Grupo público"
+                                        descricao="Qualquer pessoa pode encontrar"
+                                        ligado={isPublic}
+                                        onToggle={() => alternarPrivacidadeLocal(!isPublic)}
+                                    />
+                                    <LinhaEscolha
+                                        rotulo="Link de convite"
+                                        valor={grupo?.codigo_convite || "Nenhum código"}
+                                        onPress={() => abrirModal("convite")}
+                                        ultima
+                                    />
+                                </SecaoConfig>
+                            </>
+                        )}
 
                         <SecaoConfig titulo="ZONA DE PERIGO">
+                            {/* `ultima` migra para o "Sair" quando o excluir não renderiza, senão a
+                                última linha da seção fica com a borda inferior sobrando. */}
                             <LinhaPerigo
                                 rotulo="Sair do grupo"
                                 icone={<LogOut size={16} color={HADES.red} />}
                                 onPress={handleLeaveGroup}
+                                ultima={!souAdmin}
                             />
-                            <LinhaPerigo
-                                rotulo="Excluir grupo"
-                                icone={<Trash2 size={16} color={HADES.red} />}
-                                onPress={handleDeleteGroup}
-                                ultima
-                            />
+                            {souAdmin && (
+                                <LinhaPerigo
+                                    rotulo="Excluir grupo"
+                                    icone={<Trash2 size={16} color={HADES.red} />}
+                                    onPress={handleDeleteGroup}
+                                    ultima
+                                />
+                            )}
                         </SecaoConfig>
                     </>
                 )}

@@ -56,9 +56,6 @@ export default function GroupScreen() {
     //Pega o usuário atual
     const { userId } = useAuth();
 
-    //Verifica se o usuário atual é o administrador
-    const isAdmin = membros.some(member => member.user_id === userId && member.administrador);
-
     //Pega a quantidade de usuários online
     const { onlineUsers } = useOnlineUsers(groupId as string);
 
@@ -294,29 +291,33 @@ export default function GroupScreen() {
                     <FolderArchive size={18} color={HADES.textSecondary} />
                 </TouchableOpacity>
 
-                {isAdmin && (
-                    <TouchableOpacity
-                        onPress={() =>
-                            router.push({
-                                pathname: "/(groups)/settings",
-                                params: {
-                                    groupId
-                                }
-                            })
-                        }
-                        activeOpacity={0.8}
-                        style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 19,
-                            backgroundColor: HADES.surfaceRaised,
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <Settings size={18} color={HADES.textSecondary} />
-                    </TouchableOpacity>
-                )}
+                {/*
+                  Sem gate de admin: esta é a única porta para "Sair do grupo", e escondê-la
+                  de quem não é administrador deixava o membro comum preso no grupo sem
+                  nenhuma saída pela interface. A tela de configurações esconde por conta
+                  própria o que é exclusivo do administrador.
+                */}
+                <TouchableOpacity
+                    onPress={() =>
+                        router.push({
+                            pathname: "/(groups)/settings",
+                            params: {
+                                groupId
+                            }
+                        })
+                    }
+                    activeOpacity={0.8}
+                    style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: HADES.surfaceRaised,
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    <Settings size={18} color={HADES.textSecondary} />
+                </TouchableOpacity>
             </View>
 
             <ScrollView
