@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Timer, Layers, Search } from "lucide-react-native";
+import { ChevronRight, X, AlertCircle, BookOpen, Clock, RefreshCw, ArrowLeft, Timer, Layers, Search, Play, Edit, Trash2, SlidersHorizontal, Check } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
@@ -10,6 +10,7 @@ import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { useGraficosAnalytics } from "@/lib/graphics-analytics";
 import { useAnalisePessoal } from "@/hooks/useAnalisePessoal";
 import { useAuth } from "@/hooks/useAuth";
+import { useMaterias } from "@/hooks/useMaterias";
 import { formatarHoras } from "@/lib/analytics";
 import { SessaoFocoRow } from "@/types/sessions";
 import { EstadoPoucosDadosPessoal, EstadoVazioPessoal, EstadoSemGrupo, EstadoGrupoSemDadosPeriodo } from "@/components/analytics/EstadosAnalise";
@@ -63,6 +64,7 @@ export default function BrainScreen() {
     const { userId } = useAuth();
     const [selectedForm, setSelectedForm] = useState<SelectedForm>(null);
     const router = useRouter();
+    const { materiasComCores } = useMaterias(userId);
 
     // Uma única leitura alimenta as duas abas: `analise` (números da aba Análise,
     // escopo pessoal) e as sessões cruas (aba Banco de dados).
@@ -119,6 +121,101 @@ export default function BrainScreen() {
         }
     }, [refreshAnalisePessoal, refreshGraficos]);
 
+    const formatarData = (dataSessao: string) => {
+        try {
+            const [ano, mes, dia] = dataSessao.split('-');
+            const data = new Date(`${ano}-${mes}-${dia}`);
+            const hoje = new Date();
+            const amanhaString = new Date(hoje.getTime() + 86400000).toISOString().split('T')[0];
+            const ontemString = new Date(hoje.getTime() - 86400000).toISOString().split('T')[0];
+            const hojeString = hoje.toISOString().split('T')[0];
+
+            if (dataSessao === hojeString) return "Hoje";
+            if (dataSessao === ontemString) return "Ontem";
+            if (dataSessao === amanhaString) return "Amanhã";
+
+            return data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('de ', '').replace('.', '');
+        } catch {
+            return dataSessao;
+        }
+    };
+
+    const calcularAcerto = (acertadas: number, respondidas: number) => {
+        if (respondidas === 0) return 0;
+        return Math.round((acertadas / respondidas) * 100);
+    };
+
+    const obterCorMateria = (disciplina: string) => {
+        const materia = materiasComCores.find((m) => m.nomeExibicao === disciplina);
+        return materia?.cor ?? "#4d94ff";
+    };
+
+    const obterCorAcerto = (pct: number) => {
+        if (pct > 70) return HADES.green;
+        if (pct <= 40) return HADES.red;
+        return "#f5a623";
+    };
+
+    const sessoesAgrupadasPorPeriodo = useMemo(() => {
+        const hoje = new Date();
+        const umaSemanaAtras = new Date(hoje.getTime() - 7 * 86400000);
+        const umMesAtras = new Date(hoje.getTime() - 30 * 86400000);
+
+        const todasSessoes = [...savedSessions, ...pendingSessions];
+
+        const essaSemana = todasSessoes.filter((s) => {
+            const data = new Date(`${s.data_sessao}T00:00:00`);
+            return data >= umaSemanaAtras;
+        }).length;
+
+        const esseMs = todasSessoes.filter((s) => {
+            const data = new Date(`${s.data_sessao}T00:00:00`);
+            return data >= umMesAtras;
+        }).length;
+
+        return { essaSemana, esseMs };
+    }, [savedSessions, pendingSessions]);
+
+    const sessoesAgrupadasPorPeriodoDetalhado = useMemo(() => {
+        const hoje = new Date();
+        const inicioSemana = new Date(hoje.getTime() - 7 * 86400000);
+        const inicioMes = new Date(hoje.getTime() - 30 * 86400000);
+
+        const grupos: { label: string; forms: typeof savedSessions }[] = [];
+
+        const estaSemana = savedSessions.filter((s) => {
+            const data = new Date(`${s.data_sessao}T00:00:00`);
+            return data >= inicioSemana;
+        });
+
+        if (estaSemana.length > 0) {
+            grupos.push({ label: "Esta semana", forms: estaSemana });
+        }
+
+        const otherMonths = savedSessions.filter((s) => {
+            const data = new Date(`${s.data_sessao}T00:00:00`);
+            return data < inicioSemana && data >= inicioMes;
+        });
+
+        if (otherMonths.length > 0) {
+            const mesAtual = inicioMes.toLocaleDateString("pt-BR", { month: "long" });
+            const mesCapitalizado =
+                mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1);
+            grupos.push({ label: mesCapitalizado, forms: otherMonths });
+        }
+
+        const muitoAntigo = savedSessions.filter((s) => {
+            const data = new Date(`${s.data_sessao}T00:00:00`);
+            return data < inicioMes;
+        });
+
+        if (muitoAntigo.length > 0) {
+            grupos.push({ label: "Anterior", forms: muitoAntigo });
+        }
+
+        return grupos;
+    }, [savedSessions]);
+
     // Estado da aba Pessoal (cheio / poucos dados / vazio) — baseado em quantos
     // dias distintos o usuário já registrou sessão, em todo o histórico (não só
     // no período selecionado no SeletorPeriodo).
@@ -149,9 +246,34 @@ export default function BrainScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
             {/* Header */}
             <View style={{ paddingTop: 6, paddingHorizontal: 20, paddingBottom: 14 }}>
-                <Text style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
-                    {brainTab === "analytics" ? "Análise" : "Central de aprendizado"}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <View>
+                        <Text style={{ fontSize: 23, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
+                            {brainTab === "analytics" ? "Análise" : "Banco de dados"}
+                        </Text>
+                        {brainTab === "database" && (
+                            <Text style={{ fontSize: 12.5, color: HADES.textDim, marginTop: 3 }}>
+                                Formulários das suas sessões
+                            </Text>
+                        )}
+                    </View>
+                    {brainTab === "database" && (
+                        <TouchableOpacity
+                            style={{
+                                width: 38,
+                                height: 38,
+                                borderRadius: 12,
+                                backgroundColor: HADES.surface,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}
+                        >
+                            <SlidersHorizontal size={18} color={HADES.textSecondary} />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
             {/* Tabs */}
@@ -202,8 +324,28 @@ export default function BrainScreen() {
                         <BancoDadosSkeleton />
                       ) : (
                         <>
+                        {/* Headers por período */}
+                        <View style={{ marginBottom: 16 }}>
+                            <View style={{ marginBottom: 14 }}>
+                                <Text style={{ fontSize: 11.5, fontWeight: "700", color: HADES.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+                                    ESSA SEMANA
+                                </Text>
+                                <Text style={{ fontSize: 15, fontWeight: "700", color: HADES.text }}>
+                                    {sessoesAgrupadasPorPeriodo.essaSemana} formulário{sessoesAgrupadasPorPeriodo.essaSemana !== 1 ? "s" : ""}
+                                </Text>
+                            </View>
+                            <View>
+                                <Text style={{ fontSize: 11.5, fontWeight: "700", color: HADES.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+                                    ESSE MÊS
+                                </Text>
+                                <Text style={{ fontSize: 15, fontWeight: "700", color: HADES.text }}>
+                                    {sessoesAgrupadasPorPeriodo.esseMs} formulário{sessoesAgrupadasPorPeriodo.esseMs !== 1 ? "s" : ""}
+                                </Text>
+                            </View>
+                        </View>
+
                         {/* Contadores */}
-                        <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
+                        <View style={{ flexDirection: "row", gap: 10, marginBottom: 18 }}>
                             <View
                                 style={{
                                     flex: 1,
@@ -212,15 +354,16 @@ export default function BrainScreen() {
                                     borderColor: HADES.border,
                                     borderRadius: 16,
                                     padding: 14,
+                                    opacity: selectedForm === "pending-tab" ? 0.6 : 1,
                                 }}
                             >
                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 8 }}>
-                                    <BookOpen size={14} color={HADES.green} />
+                                    <Check size={14} color={HADES.green} />
                                     <Text style={{ fontSize: 11, fontWeight: "700", color: HADES.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
                                         Salvos
                                     </Text>
                                 </View>
-                                <Text style={{ fontSize: 32, fontWeight: "800", color: HADES.text, letterSpacing: -1.2 }}>
+                                <Text style={{ fontSize: 34, fontWeight: "800", color: HADES.text, letterSpacing: -1.4 }}>
                                     {savedSessions.length}
                                 </Text>
                                 <Text style={{ fontSize: 11.5, color: HADES.textDim, marginTop: 6 }}>
@@ -231,23 +374,25 @@ export default function BrainScreen() {
                             <View
                                 style={{
                                     flex: 1,
-                                    backgroundColor: "rgba(240,85,107,0.08)",
-                                    borderWidth: 1,
-                                    borderColor: "rgba(240,85,107,0.32)",
+                                    backgroundColor: selectedForm === "pending-tab" ? "rgba(240,85,107,0.1)" : "rgba(240,85,107,0.08)",
+                                    borderWidth: selectedForm === "pending-tab" ? 1.5 : 1,
+                                    borderColor: selectedForm === "pending-tab" ? HADES.red : "rgba(240,85,107,0.32)",
                                     borderRadius: 16,
                                     padding: 14,
                                     position: "relative",
                                     overflow: "hidden",
                                 }}
                             >
-                                <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 3, backgroundColor: HADES.red }} />
+                                {selectedForm !== "pending-tab" && (
+                                    <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 3, backgroundColor: HADES.red }} />
+                                )}
                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 8 }}>
                                     <AlertCircle size={14} color={HADES.red} />
                                     <Text style={{ fontSize: 11, fontWeight: "700", color: HADES.red, textTransform: "uppercase", letterSpacing: 0.5 }}>
                                         Refazer
                                     </Text>
                                 </View>
-                                <Text style={{ fontSize: 32, fontWeight: "800", color: HADES.red, letterSpacing: -1.2 }}>
+                                <Text style={{ fontSize: 34, fontWeight: "800", color: HADES.red, letterSpacing: -1.4 }}>
                                     {pendingSessions.length}
                                 </Text>
                                 <Text style={{ fontSize: 11.5, color: "#a76a75", marginTop: 6 }}>
@@ -279,7 +424,7 @@ export default function BrainScreen() {
                         </View>
 
                         {/* Abas */}
-                        <View style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: HADES.border, marginBottom: 0 }}>
+                        <View style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: HADES.border, marginBottom: 0, marginTop: selectedForm === "pending-tab" ? 22 : 16 }}>
                             <TouchableOpacity
                                 onPress={() => setSelectedForm(null)}
                                 style={{
@@ -291,6 +436,7 @@ export default function BrainScreen() {
                                     paddingBottom: 11,
                                     borderBottomWidth: selectedForm === null ? 2.5 : 0,
                                     borderBottomColor: HADES.accentSolid,
+                                    opacity: selectedForm === "pending-tab" ? 0.6 : 1,
                                 }}
                             >
                                 <Text
@@ -302,20 +448,28 @@ export default function BrainScreen() {
                                 >
                                     Salvos
                                 </Text>
-                                <Text
+                                <View
                                     style={{
-                                        fontSize: 11,
-                                        fontWeight: "700",
-                                        color: selectedForm === null ? "#000" : HADES.textMuted,
-                                        backgroundColor: selectedForm === null ? HADES.accentSolid : "rgba(255,255,255,0.1)",
+                                        backgroundColor: selectedForm === null ? HADES.accentSolid : (selectedForm === "pending-tab" ? "#1a1b20" : HADES.surfaceOverlay),
                                         borderRadius: 6,
-                                        paddingVertical: 2,
-                                        paddingHorizontal: 6,
-                                        lineHeight: 1.2,
+                                        paddingVertical: 3,
+                                        paddingHorizontal: 7,
+                                        minWidth: 28,
+                                        alignItems: "center",
+                                        justifyContent: "center",
                                     }}
                                 >
-                                    {savedSessions.length}
-                                </Text>
+                                    <Text
+                                        style={{
+                                            fontSize: 11,
+                                            fontWeight: "700",
+                                            color: selectedForm === null ? "#000" : (selectedForm === "pending-tab" ? HADES.textMuted : HADES.textMuted),
+                                            lineHeight: 1.2,
+                                        }}
+                                    >
+                                        {savedSessions.length}
+                                    </Text>
+                                </View>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => setSelectedForm("pending-tab")}
@@ -339,20 +493,28 @@ export default function BrainScreen() {
                                 >
                                     Pendentes
                                 </Text>
-                                <Text
+                                <View
                                     style={{
-                                        fontSize: 11,
-                                        fontWeight: "700",
-                                        color: "#fff",
-                                        backgroundColor: HADES.red,
+                                        backgroundColor: selectedForm === "pending-tab" ? HADES.red : "rgba(240,85,107,0.12)",
                                         borderRadius: 6,
-                                        paddingVertical: 2,
-                                        paddingHorizontal: 6,
-                                        lineHeight: 1.2,
+                                        paddingVertical: 3,
+                                        paddingHorizontal: 7,
+                                        minWidth: 28,
+                                        alignItems: "center",
+                                        justifyContent: "center",
                                     }}
                                 >
-                                    {pendingSessions.length}
-                                </Text>
+                                    <Text
+                                        style={{
+                                            fontSize: 11,
+                                            fontWeight: "700",
+                                            color: selectedForm === "pending-tab" ? "#fff" : HADES.red,
+                                            lineHeight: 1.2,
+                                        }}
+                                    >
+                                        {pendingSessions.length}
+                                    </Text>
+                                </View>
                             </TouchableOpacity>
                         </View>
 
@@ -362,170 +524,264 @@ export default function BrainScreen() {
                             showsVerticalScrollIndicator={false}
                             scrollEventThrottle={16}
                         >
-                            {selectedForm === "pending-tab" && pendingSessions.length > 0 && (
-                                <View style={{ marginBottom: 16 }}>
-                                    <View
-                                        style={{
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            gap: 11,
-                                            backgroundColor: "rgba(240,85,107,0.06)",
-                                            borderWidth: 1,
-                                            borderColor: "rgba(240,85,107,0.22)",
-                                            borderLeftWidth: 3,
-                                            borderLeftColor: HADES.red,
-                                            borderRadius: 12,
-                                            padding: 11,
-                                            marginBottom: 18,
-                                        }}
-                                    >
-                                        <AlertCircle size={16} color={HADES.red} />
-                                        <Text style={{ flex: 1, fontSize: 12.5, color: HADES.text, lineHeight: 1.4 }}>
-                                            <Text style={{ color: HADES.red, fontWeight: "700" }}>
-                                                {pendingSessions.length} formulário{pendingSessions.length !== 1 ? "s" : ""}
-                                            </Text>
-                                            {" "}esperando resposta
-                                        </Text>
-                                        <ChevronRight size={16} color={HADES.red} />
-                                    </View>
-                                </View>
-                            )}
-
-                            {selectedForm === "pending-tab"
-                                ? pendingSessions.map((form, idx) => (
-                                    <TouchableOpacity
-                                        key={form.id}
-                                        onPress={() => setSelectedForm(form)}
-                                        activeOpacity={0.75}
-                                        style={{
-                                            backgroundColor: HADES.surface,
-                                            borderWidth: 1,
-                                            borderColor: "rgba(240,85,107,0.3)",
-                                            borderLeftWidth: 3,
-                                            borderLeftColor: HADES.red,
-                                            borderRadius: 15,
-                                            padding: 14,
-                                            marginBottom: idx !== pendingSessions.length - 1 ? 10 : 0,
-                                        }}
-                                    >
-                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 5 }}>
+                            {selectedForm === "pending-tab" && (
+                                <>
+                                    <Text style={{ fontSize: 12.5, color: HADES.textDim, lineHeight: 1.5, marginBottom: 16 }}>
+                                        Sessões encerradas sem formulário. Elas <Text style={{ color: HADES.text, fontWeight: "600" }}>não contam</Text> para suas horas até você responder.
+                                    </Text>
+                                    <View style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                                        {pendingSessions.map((form, idx) => (
                                             <View
+                                                key={form.id}
                                                 style={{
-                                                    width: 9,
-                                                    height: 9,
-                                                    borderRadius: 4.5,
-                                                    backgroundColor: "#4d94ff",
-                                                }}
-                                            />
-                                            <Text style={{ flex: 1, fontSize: 14.5, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
-                                                {form.disciplina}
-                                            </Text>
-                                            <View
-                                                style={{
-                                                    flexDirection: "row",
-                                                    alignItems: "center",
-                                                    gap: 5,
-                                                    backgroundColor: "rgba(240,85,107,0.13)",
-                                                    borderRadius: 7,
-                                                    paddingVertical: 3,
-                                                    paddingHorizontal: 8,
+                                                    backgroundColor: HADES.surface,
+                                                    borderWidth: 1,
+                                                    borderColor: "rgba(240,85,107,0.3)",
+                                                    borderLeftWidth: 3,
+                                                    borderLeftColor: HADES.red,
+                                                    borderRadius: 15,
+                                                    padding: 14,
                                                 }}
                                             >
-                                                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.red }} />
-                                                <Text style={{ fontSize: 10.5, fontWeight: "700", color: HADES.red, letterSpacing: 0.3, textTransform: "uppercase" }}>
-                                                    Pendente
+                                                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                                    <View
+                                                        style={{
+                                                            width: 9,
+                                                            height: 9,
+                                                            borderRadius: 4.5,
+                                                            backgroundColor: obterCorMateria(form.disciplina),
+                                                            flexShrink: 0,
+                                                        }}
+                                                    />
+                                                    <Text style={{ flex: 1, fontSize: 14.5, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
+                                                        {form.disciplina}
+                                                    </Text>
+                                                    <View
+                                                        style={{
+                                                            flexDirection: "row",
+                                                            alignItems: "center",
+                                                            gap: 5,
+                                                            backgroundColor: "rgba(240,85,107,0.13)",
+                                                            borderRadius: 7,
+                                                            paddingVertical: 3,
+                                                            paddingHorizontal: 8,
+                                                        }}
+                                                    >
+                                                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.red }} />
+                                                        <Text style={{ fontSize: 10.5, fontWeight: "700", color: HADES.red, letterSpacing: 0.3, textTransform: "uppercase" }}>
+                                                            Pendente
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 5, paddingLeft: 19 }}>
+                                                    {form.conteudo_especifico}
+                                                </Text>
+                                                <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 11, paddingLeft: 19 }}>
+                                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                                                        <Clock size={12} color="#5f636c" />
+                                                        <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
+                                                            {formatarData(form.data_sessao)}
+                                                        </Text>
+                                                    </View>
+                                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                                                        <Clock size={12} color="#5f636c" />
+                                                        <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
+                                                            {form.tempo_minutos} min
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14, paddingLeft: 19 }}>
+                                                    <TouchableOpacity
+                                                        onPress={() => {
+                                                            if (!selectedForm || typeof selectedForm === "string") return;
+                                                            const formData = form;
+                                                            setSelectedForm(null);
+                                                            router.push({
+                                                                pathname: "/(modals)/focus-feedback",
+                                                                params: {
+                                                                    sessionId: formData.id,
+                                                                    subject: formData.disciplina,
+                                                                    content: formData.conteudo_especifico || "",
+                                                                    oldDuration: formData.tempo_minutos.toString(),
+                                                                    duration: "0",
+                                                                    isPublic: formData.is_public.toString(),
+                                                                }
+                                                            });
+                                                        }}
+                                                        activeOpacity={0.85}
+                                                        style={{
+                                                            flex: 1,
+                                                            height: 38,
+                                                            borderRadius: 11,
+                                                            backgroundColor: HADES.red,
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            flexDirection: "row",
+                                                            gap: 7,
+                                                        }}
+                                                    >
+                                                        <Edit size={14} color="#fff" />
+                                                        <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>
+                                                            Responder agora
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        style={{
+                                                            width: 38,
+                                                            height: 38,
+                                                            borderRadius: 11,
+                                                            borderWidth: 1,
+                                                            borderColor: "rgba(255,255,255,0.1)",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                        }}
+                                                    >
+                                                        <Trash2 size={15} color={HADES.textSecondary} />
+                                                    </TouchableOpacity>
+                                                </View>
+                                                <Text style={{ fontSize: 11, color: "#a76a75", marginTop: 10, paddingLeft: 19 }}>
+                                                    Expira em 5 dias — depois a sessão é descartada
                                                 </Text>
                                             </View>
-                                        </View>
-                                        <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 5, paddingLeft: 19 }}>
-                                            {form.conteudo_especifico}
-                                        </Text>
-                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 11, paddingLeft: 19 }}>
-                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                                                <Clock size={12} color="#5f636c" />
-                                                <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
-                                                    {form.tempo_minutos} min
-                                                </Text>
+                                        ))}
+                                    </View>
+                                </>
+                            )}
+
+                            {selectedForm === null && (
+                                <>
+                                    {savedSessions.length > 0 ? (
+                                        sessoesAgrupadasPorPeriodoDetalhado.map((grupo, grupoIdx) => (
+                                            <View key={grupoIdx} style={{ marginBottom: 22 }}>
+                                                <View style={{ display: "flex", flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
+                                                    <Text style={{ fontSize: 11.5, fontWeight: "700", color: HADES.textMuted, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                                                        {grupo.label}
+                                                    </Text>
+                                                    <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.06)" }} />
+                                                    <Text style={{ fontSize: 11.5, color: "#5f636c" }}>
+                                                        {grupo.forms.length}
+                                                    </Text>
+                                                </View>
+                                                <View style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                                    {grupo.forms.map((form, formIdx) => (
+                                                        <TouchableOpacity
+                                                            key={form.id}
+                                                            onPress={() => setSelectedForm(form)}
+                                                            activeOpacity={0.75}
+                                                            style={{
+                                                                backgroundColor: HADES.surface,
+                                                                borderWidth: 1,
+                                                                borderColor: HADES.border,
+                                                                borderRadius: 15,
+                                                                padding: 14,
+                                                            }}
+                                                        >
+                                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                                                <View
+                                                                    style={{
+                                                                        width: 9,
+                                                                        height: 9,
+                                                                        borderRadius: 4.5,
+                                                                        backgroundColor: obterCorMateria(form.disciplina),
+                                                                        flexShrink: 0,
+                                                                    }}
+                                                                />
+                                                                <Text style={{ flex: 1, fontSize: 14.5, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
+                                                                    {form.disciplina}
+                                                                </Text>
+                                                                <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
+                                                                    {formatarData(form.data_sessao)}
+                                                                </Text>
+                                                            </View>
+                                                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 5, paddingLeft: 19 }}>
+                                                                {form.conteudo_especifico}
+                                                            </Text>
+                                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 12, paddingLeft: 19 }}>
+                                                                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                                                                    <Clock size={12} color="#5f636c" />
+                                                                    <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
+                                                                        {form.tempo_minutos} min
+                                                                    </Text>
+                                                                </View>
+                                                                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                                                                    <Layers size={12} color="#5f636c" />
+                                                                    <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
+                                                                        {form.questoes_respondidas ?? 0} questões
+                                                                    </Text>
+                                                                </View>
+                                                                <View
+                                                                    style={{
+                                                                        marginLeft: "auto",
+                                                                        backgroundColor: obterCorAcerto(calcularAcerto(form.questoes_acertadas, form.questoes_respondidas)),
+                                                                        borderRadius: 6,
+                                                                        paddingVertical: 3,
+                                                                        paddingHorizontal: 7,
+                                                                        minWidth: 35,
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center",
+                                                                    }}
+                                                                >
+                                                                    <Text style={{ fontSize: 10.5, fontWeight: "700", color: "#fff", lineHeight: 1.2 }}>
+                                                                        {calcularAcerto(form.questoes_acertadas, form.questoes_respondidas)}%
+                                                                    </Text>
+                                                                </View>
+                                                            </View>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
                                             </View>
-                                        </View>
-                                    </TouchableOpacity>
-                                ))
-                                : savedSessions.length > 0
-                                ? savedSessions.map((form, idx) => (
-                                    <TouchableOpacity
-                                        key={form.id}
-                                        onPress={() => setSelectedForm(form)}
-                                        activeOpacity={0.75}
-                                        style={{
-                                            backgroundColor: HADES.surface,
-                                            borderWidth: 1,
-                                            borderColor: HADES.border,
-                                            borderRadius: 15,
-                                            padding: 14,
-                                            marginBottom: idx !== savedSessions.length - 1 ? 10 : 0,
-                                        }}
-                                    >
-                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 5 }}>
+                                        ))
+                                    ) : (
+                                        <View style={{ alignItems: "center", paddingVertical: 60 }}>
                                             <View
                                                 style={{
-                                                    width: 9,
-                                                    height: 9,
-                                                    borderRadius: 4.5,
-                                                    backgroundColor: "#4d94ff",
+                                                    width: 62,
+                                                    height: 62,
+                                                    borderRadius: 31,
+                                                    backgroundColor: HADES.surface,
+                                                    borderWidth: 1,
+                                                    borderColor: HADES.border,
+                                                    borderStyle: "dashed",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    marginBottom: 13,
                                                 }}
-                                            />
-                                            <Text style={{ flex: 1, fontSize: 14.5, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
-                                                {form.disciplina}
-                                            </Text>
-                                            <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
-                                                Hoje
-                                            </Text>
-                                        </View>
-                                        <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 5, paddingLeft: 19 }}>
-                                            {form.conteudo_especifico}
-                                        </Text>
-                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 11, paddingLeft: 19 }}>
-                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                                                <Clock size={12} color="#5f636c" />
-                                                <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
-                                                    {form.tempo_minutos} min
-                                                </Text>
+                                            >
+                                                <BookOpen size={27} color="#5f636c" />
                                             </View>
-                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                                                <Layers size={12} color="#5f636c" />
-                                                <Text style={{ fontSize: 11.5, color: HADES.textMuted }}>
-                                                    {form.questoes_respondidas ?? 0} questões
+                                            <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.textSecondary, marginBottom: 8 }}>
+                                                Seu banco está vazio
+                                            </Text>
+                                            <Text style={{ fontSize: 13, color: HADES.textDim, lineHeight: 1.55, textAlign: "center", paddingHorizontal: 20, marginBottom: 12 }}>
+                                                Ao encerrar uma sessão de foco você responde um formulário — ele fica guardado aqui.
+                                            </Text>
+                                            <TouchableOpacity
+                                                onPress={() => router.push("/(tabs)/focus")}
+                                                activeOpacity={0.85}
+                                                style={{
+                                                    height: 44,
+                                                    borderRadius: 13,
+                                                    backgroundColor: HADES.accentSolid,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    flexDirection: "row",
+                                                    gap: 8,
+                                                    paddingHorizontal: 20,
+                                                    marginTop: 6,
+                                                }}
+                                            >
+                                                <Play size={16} color="#000" />
+                                                <Text style={{ fontSize: 14, fontWeight: "700", color: "#000" }}>
+                                                    Iniciar primeira sessão
                                                 </Text>
-                                            </View>
+                                            </TouchableOpacity>
                                         </View>
-                                    </TouchableOpacity>
-                                ))
-                                : (
-                                    <View style={{ alignItems: "center", paddingVertical: 60 }}>
-                                        <View
-                                            style={{
-                                                width: 62,
-                                                height: 62,
-                                                borderRadius: 31,
-                                                backgroundColor: HADES.surface,
-                                                borderWidth: 1,
-                                                borderColor: HADES.border,
-                                                borderStyle: "dashed",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                marginBottom: 13,
-                                            }}
-                                        >
-                                            <BookOpen size={27} color="#5f636c" />
-                                        </View>
-                                        <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.textSecondary, marginBottom: 8 }}>
-                                            Seu banco está vazio
-                                        </Text>
-                                        <Text style={{ fontSize: 13, color: HADES.textDim, lineHeight: 1.55, textAlign: "center", paddingHorizontal: 20 }}>
-                                            Ao encerrar uma sessão de foco você responde um formulário — ele fica guardado aqui.
-                                        </Text>
-                                    </View>
-                                )}
+                                    )}
+                                </>
+                            )}
                         </ScrollView>
                         </>
                       )}
