@@ -11,7 +11,7 @@ import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 //Componentes Lucide Native
-import { Plus, Users } from "lucide-react-native";
+import { Plus, Users, Compass } from "lucide-react-native";
 
 export default function MyGroupsScreen() {
     const { grupos, carregando, atualizando, atualizar } = useMeusGrupos();
@@ -109,6 +109,33 @@ export default function MyGroupsScreen() {
                 >
                     <Plus size={20} color="#000" />
                     <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>Criar um grupo</Text>
+                </TouchableOpacity>
+
+                {/*
+                  Esta tela é onde se cai ao sair de um grupo tendo outros. Sem uma saída para
+                  os grupos públicos ela virava um beco: criar grupo era o único caminho
+                  adiante. O `no-group` já oferecia os dois; aqui faltava.
+                */}
+                <TouchableOpacity
+                    onPress={() => router.push("/(groups)/browse-groups")}
+                    activeOpacity={0.85}
+                    style={{
+                        height: 50,
+                        marginTop: 10,
+                        borderRadius: 15,
+                        borderWidth: 1,
+                        borderColor: HADES.border,
+                        backgroundColor: HADES.surface,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 9,
+                    }}
+                >
+                    <Compass size={18} color={HADES.textSecondary} />
+                    <Text style={{ color: HADES.text, fontWeight: "600", fontSize: 15 }}>
+                        Explorar grupos públicos
+                    </Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>

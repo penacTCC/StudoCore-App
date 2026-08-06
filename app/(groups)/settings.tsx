@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 //Componentes do Native
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, DeviceEventEmitter } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 
@@ -29,6 +29,7 @@ import {
 import type { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
+import { limparUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 
 type ModalEdicao = "dados" | "meta" | "convite" | null;
 
@@ -48,6 +49,13 @@ export default function GroupSettingsScreen() {
     const [membros, setMembros] = useState<MembroGrupoComPerfil[]>([]);
     const [modalTransferenciaAdmin, setModalTransferenciaAdmin] = useState(false);
     const [novoAdminId, setNovoAdminId] = useState<string | null>(null);
+
+    /*
+      Membro comum também chega nesta tela — é por aqui que ele sai do grupo. Tudo que só o
+      administrador pode fazer (trocar foto, editar nome/meta, mexer em privacidade, excluir
+      o grupo) é escondido a partir daqui; sobra a identidade do grupo e o "Sair do grupo".
+    */
+    const souAdmin = membros.some((membro) => membro.user_id === userId && membro.administrador);
 
     //useEffect para buscar todas as informações do grupo
     useEffect(() => {
@@ -143,6 +151,22 @@ export default function GroupSettingsScreen() {
         if (salvo) fecharModal();
     };
 
+    /**
+     * Avisa o resto do app de que a participação em grupos mudou.
+     *
+     * Só entrar em grupo emitia `groupMembershipChanged`; sair e excluir não emitiam nada.
+     * O `useStatusMembroGrupo` seguia então com `membro: true` e com o id do grupo morto em
+     * `@last_group_id`, e o guard mandava para as tabs de um grupo que não existe mais — era
+     * de lá que vinha o "Erro ao buscar grupo".
+     *
+     * Limpando o id e emitindo o evento, o guard reavalia e escolhe o destino sozinho:
+     * `no-group` para quem ficou sem grupo nenhum, e a lista para quem ainda tem outros.
+     */
+    const avisarMudancaDeParticipacao = async () => {
+        await limparUltimoGrupoLocalmente();
+        DeviceEventEmitter.emit("groupMembershipChanged");
+    };
+
     /** Devolve `true` só quando o grupo foi mesmo apagado — a navegação depende disso. */
     const excluirGrupo = async () => {
         if (!groupId) return false;
@@ -197,18 +221,20 @@ export default function GroupSettingsScreen() {
         }
 
         setModalTransferenciaAdmin(false);
+        await avisarMudancaDeParticipacao();
         /*
           `replace` porque o grupo pode ter deixado de existir (último membro saiu): manter
           esta tela na pilha deixaria o usuário voltar para as configurações de um grupo do
           qual ele não faz mais parte.
+
+          Sai da tela imediatamente; se este era o último grupo, o guard leva daqui para o
+          `no-group` assim que o `membro` reavaliado chegar.
         */
         router.replace("/(groups)");
     };
 
     const handleLeaveGroup = () => {
         // Só o administrador precisa passar o bastão; membro comum sai direto.
-        const souAdmin = membros.some((membro) => membro.user_id === userId && membro.administrador);
-
         if (souAdmin && (qtdMembros ?? 0) > 1) {
             setNovoAdminId(null);
             setModalTransferenciaAdmin(true);
@@ -254,7 +280,10 @@ export default function GroupSettingsScreen() {
             onConfirm: async () => {
                 // Navegar mesmo quando o delete falha era o que fazia o grupo "sumir" da
                 // tela e reaparecer na lista logo depois.
-                if (await excluirGrupo()) router.replace("/(groups)");
+                if (!(await excluirGrupo())) return;
+
+                await avisarMudancaDeParticipacao();
+                router.replace("/(groups)");
             },
         });
     };
@@ -630,61 +659,78 @@ export default function GroupSettingsScreen() {
                     <>
                         {/* Identidade do grupo */}
                         <View style={{ alignItems: "center", marginBottom: 8, marginTop: 2 }}>
-                            <ImagePickerAvatar
-                                bucket="images"
-                                defaultImage={imageUrl ?? undefined}
-                                onImageUploaded={(url) => setImageUrl(url)}
-                                hades
-                            />
+                            {souAdmin ? (
+                                <ImagePickerAvatar
+                                    bucket="images"
+                                    defaultImage={imageUrl ?? undefined}
+                                    onImageUploaded={(url) => setImageUrl(url)}
+                                    hades
+                                />
+                            ) : (
+                                /* Mesmo tamanho do seletor (w-32) e a margem que o wrapper dele traz. */
+                                <View style={{ marginBottom: 32, marginTop: 8 }}>
+                                    <Avatar foto={imageUrl} nome={grupo?.nome_grupo} size={128} />
+                                </View>
+                            )}
                             <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text }}>
                                 {grupo?.nome_grupo ?? "Grupo"}
                             </Text>
                             <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 2 }}>
-                                Criado por você em {grupo?.created_at ? formatarData(grupo.created_at) : "-"}
+                                {/* Dizia "Criado por você" para qualquer um: com membro comum na tela, viraria mentira. */}
+                                Criado em {grupo?.created_at ? formatarData(grupo.created_at) : "-"}
                             </Text>
                         </View>
 
-                        <SecaoConfig titulo="GERAL">
-                            <LinhaEscolha
-                                rotulo="Nome e descrição"
-                                valor={grupo?.nome_grupo ?? "—"}
-                                onPress={() => abrirModal("dados")}
-                            />
-                            <LinhaEscolha
-                                rotulo="Meta semanal"
-                                valor={`${grupo?.meta_horas ?? 0}h`}
-                                onPress={() => abrirModal("meta")}
-                                ultima
-                            />
-                        </SecaoConfig>
+                        {souAdmin && (
+                            <>
+                                <SecaoConfig titulo="GERAL">
+                                    <LinhaEscolha
+                                        rotulo="Nome e descrição"
+                                        valor={grupo?.nome_grupo ?? "—"}
+                                        onPress={() => abrirModal("dados")}
+                                    />
+                                    <LinhaEscolha
+                                        rotulo="Meta semanal"
+                                        valor={`${grupo?.meta_horas ?? 0}h`}
+                                        onPress={() => abrirModal("meta")}
+                                        ultima
+                                    />
+                                </SecaoConfig>
 
-                        <SecaoConfig titulo="PRIVACIDADE E ACESSO">
-                            <LinhaSwitch
-                                rotulo="Grupo público"
-                                descricao="Qualquer pessoa pode encontrar"
-                                ligado={isPublic}
-                                onToggle={() => alternarPrivacidadeLocal(!isPublic)}
-                            />
-                            <LinhaEscolha
-                                rotulo="Link de convite"
-                                valor={grupo?.codigo_convite || "Nenhum código"}
-                                onPress={() => abrirModal("convite")}
-                                ultima
-                            />
-                        </SecaoConfig>
+                                <SecaoConfig titulo="PRIVACIDADE E ACESSO">
+                                    <LinhaSwitch
+                                        rotulo="Grupo público"
+                                        descricao="Qualquer pessoa pode encontrar"
+                                        ligado={isPublic}
+                                        onToggle={() => alternarPrivacidadeLocal(!isPublic)}
+                                    />
+                                    <LinhaEscolha
+                                        rotulo="Link de convite"
+                                        valor={grupo?.codigo_convite || "Nenhum código"}
+                                        onPress={() => abrirModal("convite")}
+                                        ultima
+                                    />
+                                </SecaoConfig>
+                            </>
+                        )}
 
                         <SecaoConfig titulo="ZONA DE PERIGO">
+                            {/* `ultima` migra para o "Sair" quando o excluir não renderiza, senão a
+                                última linha da seção fica com a borda inferior sobrando. */}
                             <LinhaPerigo
                                 rotulo="Sair do grupo"
                                 icone={<LogOut size={16} color={HADES.red} />}
                                 onPress={handleLeaveGroup}
+                                ultima={!souAdmin}
                             />
-                            <LinhaPerigo
-                                rotulo="Excluir grupo"
-                                icone={<Trash2 size={16} color={HADES.red} />}
-                                onPress={handleDeleteGroup}
-                                ultima
-                            />
+                            {souAdmin && (
+                                <LinhaPerigo
+                                    rotulo="Excluir grupo"
+                                    icone={<Trash2 size={16} color={HADES.red} />}
+                                    onPress={handleDeleteGroup}
+                                    ultima
+                                />
+                            )}
                         </SecaoConfig>
                     </>
                 )}
