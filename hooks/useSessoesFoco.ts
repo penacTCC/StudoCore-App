@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useFocusEffect } from "expo-router";
 import {
     buscarSessoesAoVivo,
@@ -9,6 +9,13 @@ import {
 import { toast } from "@/services/toast";
 import { definirFormulariosPendentes } from "@/services/formulariosPendentes";
 import { SessaoFocoRow } from "@/types/sessions";
+import { useDadosCache } from "@/hooks/useDadosCache";
+
+const SEM_SESSOES: SessaoFocoRow[] = [];
+
+// O feed é dado vivo, e o realtime já empurra as mudanças do grupo. A janela curta só
+// cobre a volta à tela depois de um tempo fora dela.
+const FEED_FRESCO = 15_000;
 
 /**
  * Assina o realtime de `sessoes_foco` do grupo e chama `recarregar` a cada mudança,
@@ -48,37 +55,27 @@ const useRealtimeSessoesGrupo = (groupId: string | null | undefined, recarregar:
  * Hook que busca sessões de foco públicas para o Feed.
  */
 export const useSessoesFoco = (limit: number = 20, groupId?: string | null) => {
-    const [sessions, setSessions] = useState<SessaoFocoRow[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    // `silencioso` evita o skeleton nas rebuscas do realtime: o feed já está na tela e
-    // piscar o placeholder a cada pausa de um colega é pior do que trocar o card direto.
-    const fetchSessions = useCallback(async (silencioso = false) => {
-        if (!silencioso) setLoading(true);
-        const { data, error } = await buscarSessoesRecentes(limit, groupId);
-        if (error) {
-            console.error("Erro ao buscar sessões de foco:", error);
-            if (!silencioso) toast.error("Não foi possível carregar as sessões de foco.");
-        } else {
-            setSessions((data as SessaoFocoRow[]) || []);
-        }
-        setLoading(false);
-    }, [limit, groupId]);
-
-    useEffect(() => {
-        fetchSessions();
-    }, [fetchSessions]);
-
-    useFocusEffect(
-        useCallback(() => {
-            fetchSessions(true);
-        }, [fetchSessions])
+    // O cache já mantém o feed anterior na tela durante a rebusca, então o skeleton não
+    // pisca mais a cada pausa de um colega nem a cada volta para a home — antes isso
+    // dependia de passar `silencioso` na mão em cada chamada.
+    const { dados, carregando, recarregar } = useDadosCache<SessaoFocoRow[]>(
+        `sessoes-recentes:${groupId ?? "todas"}:${limit}`,
+        async () => {
+            const { data, error } = await buscarSessoesRecentes(limit, groupId);
+            if (error) {
+                console.error("Erro ao buscar sessões de foco:", error);
+                toast.error("Não foi possível carregar as sessões de foco.");
+                throw error;
+            }
+            return (data as SessaoFocoRow[]) || [];
+        },
+        { tempoFresco: FEED_FRESCO }
     );
 
     // Uma sessão que acabou de ser encerrada por um colega já entra aqui como destaque.
-    useRealtimeSessoesGrupo(groupId, useCallback(() => fetchSessions(true), [fetchSessions]));
+    useRealtimeSessoesGrupo(groupId, recarregar);
 
-    return { sessions, loading, refresh: fetchSessions };
+    return { sessions: dados ?? SEM_SESSOES, loading: carregando, refresh: recarregar };
 };
 
 /**
@@ -90,33 +87,22 @@ export const useSessoesFoco = (limit: number = 20, groupId?: string | null) => {
  * pausar, retomar e encerrar aparecem no mesmo instante para todo o grupo.
  */
 export const useSessoesAoVivo = (limit: number = 20, groupId?: string | null) => {
-    const [sessoes, setSessoes] = useState<SessaoFocoRow[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    const fetchSessoes = useCallback(async (silencioso = false) => {
-        if (!silencioso) setLoading(true);
-        const { data, error } = await buscarSessoesAoVivo(limit, groupId);
-        if (error) {
-            console.error("Erro ao buscar sessões ao vivo:", error);
-        } else {
-            setSessoes((data as SessaoFocoRow[]) || []);
-        }
-        setLoading(false);
-    }, [limit, groupId]);
-
-    useEffect(() => {
-        fetchSessoes();
-    }, [fetchSessoes]);
-
-    useFocusEffect(
-        useCallback(() => {
-            fetchSessoes(true);
-        }, [fetchSessoes])
+    const { dados, carregando, recarregar } = useDadosCache<SessaoFocoRow[]>(
+        `sessoes-ao-vivo:${groupId ?? "todas"}:${limit}`,
+        async () => {
+            const { data, error } = await buscarSessoesAoVivo(limit, groupId);
+            if (error) {
+                console.error("Erro ao buscar sessões ao vivo:", error);
+                throw error;
+            }
+            return (data as SessaoFocoRow[]) || [];
+        },
+        { tempoFresco: FEED_FRESCO }
     );
 
-    useRealtimeSessoesGrupo(groupId, useCallback(() => fetchSessoes(true), [fetchSessoes]));
+    useRealtimeSessoesGrupo(groupId, recarregar);
 
-    return { sessoes, loading, refresh: fetchSessoes };
+    return { sessoes: dados ?? SEM_SESSOES, loading: carregando, refresh: recarregar };
 };
 
 /**
@@ -127,35 +113,32 @@ export const useSessoesAoVivo = (limit: number = 20, groupId?: string | null) =>
  * hook e não pode escrever a contagem dele no badge de quem está usando o app.
  */
 export const useSessoesUsuario = (userId: string | null | undefined, sincronizarBadge = false) => {
-    const [savedSessions, setSavedSessions] = useState<SessaoFocoRow[]>([]);
-    const [pendingSessions, setPendingSessions] = useState<SessaoFocoRow[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    const fetchUserSessions = useCallback(async () => {
-        if (!userId) return;
-        setLoading(true);
-        const { data, error } = await buscarSessoesPorUsuario(userId, 100);
-        if (error) {
-            console.error("Erro ao buscar sessões do usuário:", error);
-            toast.error("Não foi possível carregar suas sessões.");
-        } else {
-            const rows = (data as SessaoFocoRow[]) || [];
-            const pendentes = rows.filter(s => s.status === 'pendente');
-            setSavedSessions(rows.filter(s => s.status === 'salvo'));
-            setPendingSessions(pendentes);
-            // Mantém o badge da tab bar em dia sem uma busca extra: quem abriu o Foco ou o
-            // Análise já pagou por esta query.
-            if (sincronizarBadge) definirFormulariosPendentes(pendentes.length);
-        }
-        setLoading(false);
-    }, [userId, sincronizarBadge]);
-
-    useFocusEffect(
-        useCallback(() => {
-            fetchUserSessions();
-        }, [fetchUserSessions])
+    const { dados, carregando, recarregar } = useDadosCache<SessaoFocoRow[]>(
+        userId ? `sessoes-usuario:${userId}` : null,
+        async () => {
+            const { data, error } = await buscarSessoesPorUsuario(userId!, 100);
+            if (error) {
+                console.error("Erro ao buscar sessões do usuário:", error);
+                toast.error("Não foi possível carregar suas sessões.");
+                throw error;
+            }
+            return (data as SessaoFocoRow[]) || [];
+        },
+        // Uma sessão recém-encerrada tem que aparecer assim que a tela volta ao foco.
+        { tempoFresco: 0 }
     );
 
-    return { savedSessions, pendingSessions, loading, refresh: fetchUserSessions };
+    const linhas = dados ?? SEM_SESSOES;
+
+    const savedSessions = useMemo(() => linhas.filter(s => s.status === 'salvo'), [linhas]);
+    const pendingSessions = useMemo(() => linhas.filter(s => s.status === 'pendente'), [linhas]);
+
+    // Mantém o badge da tab bar em dia sem uma busca extra: quem abriu o Foco ou o
+    // Análise já pagou por esta query.
+    useEffect(() => {
+        if (sincronizarBadge && dados) definirFormulariosPendentes(pendingSessions.length);
+    }, [sincronizarBadge, dados, pendingSessions.length]);
+
+    return { savedSessions, pendingSessions, loading: carregando, refresh: recarregar };
 };
 

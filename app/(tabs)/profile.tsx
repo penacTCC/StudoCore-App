@@ -14,8 +14,7 @@ import { getIdentityColor, getBioFromObjetivo } from "@/constants/helpers";
 import { loadProfileStats, updateFavoriteSubject, updateWeeklyGoal } from "@/services/profileStats";
 import { buscarGamificacao } from "@/services/gamificacao";
 import { UserStats } from "@/types/profile";
-import { buscarPerfil, buscarUsuarioLogado } from "@/services/auth";
-import type { AuthUser } from "@/types/auth";
+import { buscarPerfil } from "@/services/auth";
 import type { Profile } from "@/types/profile";
 import { AvatarComOfensiva, BannerPerfil } from "@/components/profile/PerfilBanner";
 import CardMedalhas, { CardMedalhasVazio } from "@/components/profile/CardMedalhas";
@@ -29,6 +28,7 @@ import {
     ModalHeatmap,
 } from "@/components/profile/ModaisPerfil";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
 
@@ -71,65 +71,75 @@ function StatColuna({ Icone, valor, rotulo, apagado }: { Icone?: typeof Flame; v
 }
 
 export default function ProfileScreen() {
-    const [profileData, setProfileData] = useState<Profile | null>(null);
-    const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
-    const [stats, setStats] = useState<UserStats | null>(null);
     const [showSubjectModal, setShowSubjectModal] = useState(false);
     const [showGoalModal, setShowGoalModal] = useState(false);
     const [tempGoalValue, setTempGoalValue] = useState("");
     const [showHeatmapModal, setShowHeatmapModal] = useState(false);
     const [selectedDayInfo, setSelectedDayInfo] = useState<{ date: Date; hours: number } | null>(null);
-    const [melhorOfensiva, setMelhorOfensiva] = useState(0);
-    const [ofensivaAtual, setOfensivaAtual] = useState(0);
 
-    const { userId } = useAuth();
+    const { user: sessionUser, userId } = useAuth();
     const { materiasComCores, recarregarMaterias } = useMaterias(userId);
 
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
 
-    // Contador da seção Galeria. Vem separado da grade porque ela só carrega uma prévia
-    // curta, e o número ao lado do título tem que ser o total real.
-    const [totalFotos, setTotalFotos] = useState(0);
+    /*
+      As quatro buscas do perfil saem juntas, não em fila.
 
-    useFocusEffect(
-        useCallback(() => {
-            if (!userId) return;
-            contarFotosDoUsuario(userId).then(setTotalFotos);
-        }, [userId])
+      Antes elas eram encadeadas (usuário → perfil → gamificação → estatísticas), e como
+      cada uma só começava depois da anterior responder, a tela somava quatro latências de
+      rede antes de sair do skeleton. Nenhuma delas depende do resultado da outra: só
+      precisam do `userId`, que o `useAuth` já entrega. O contador da galeria entrou no
+      mesmo lote pelo mesmo motivo — era uma quinta ida solta ao servidor.
+    */
+    const { dados, recarregar, definir } = useDadosCache(
+        userId ? `perfil-completo:${userId}` : null,
+        async () => {
+            const [perfil, gamificacao, estatisticas, fotos] = await Promise.all([
+                buscarPerfil(userId!),
+                buscarGamificacao(userId!),
+                loadProfileStats(),
+                contarFotosDoUsuario(userId!),
+            ]);
+
+            return {
+                perfil: perfil.data ?? null,
+                melhorOfensiva: gamificacao?.melhor_ofensiva ?? 0,
+                ofensivaAtual: gamificacao?.ofensiva ?? 0,
+                estatisticas,
+                totalFotos: fotos,
+            };
+        },
+        /*
+          `tempoFresco: 0` = revalida a cada foco. O usuário costuma chegar aqui logo
+          depois de encerrar uma sessão, e horas/ofensiva/medalhas precisam estar certas.
+          Isso não traz o skeleton de volta: o dado anterior continua na tela enquanto a
+          revalidação acontece.
+        */
+        { tempoFresco: 0 }
     );
 
-    const fetchInitialData = useCallback(async () => {
-        const { data } = await buscarUsuarioLogado();
-        if (data?.user) {
-            setSessionUser(data.user);
-            const { data: prof } = await buscarPerfil(data.user.id);
-            if (prof) setProfileData(prof);
-            const gamificacao = await buscarGamificacao(data.user.id);
-            setMelhorOfensiva(gamificacao?.melhor_ofensiva ?? 0);
-            setOfensivaAtual(gamificacao?.ofensiva ?? 0);
-        }
-        const s = await loadProfileStats();
-        setStats(s);
-    }, []);
+    const profileData = dados?.perfil ?? null;
+    const stats = dados?.estatisticas ?? null;
+    const melhorOfensiva = dados?.melhorOfensiva ?? 0;
+    const ofensivaAtual = dados?.ofensivaAtual ?? 0;
+    const totalFotos = dados?.totalFotos ?? 0;
 
+    // Desbloquear medalha muda as estatísticas por fora da navegação: força a revalidação.
     useFocusEffect(
         useCallback(() => {
-            fetchInitialData();
-
-            const sub = DeviceEventEmitter.addListener('badgesUnlocked', async () => {
-                const s = await loadProfileStats();
-                setStats(s);
+            const sub = DeviceEventEmitter.addListener('badgesUnlocked', () => {
+                recarregar();
             });
 
             return () => sub.remove();
-        }, [fetchInitialData])
+        }, [recarregar])
     );
 
     const handleRefresh = async () => {
         setAtualizando(true);
         try {
-            await Promise.all([fetchInitialData(), recarregarMaterias()]);
+            await Promise.all([recarregar(), recarregarMaterias()]);
         } finally {
             setAtualizando(false);
         }
@@ -193,9 +203,18 @@ export default function ProfileScreen() {
         return { columns, monthPositions };
     }, [stats]);
 
+    // As mutações já devolvem as estatísticas atualizadas: gravamos direto no cache em vez
+    // de rebuscar o pacote inteiro do perfil.
+    const aplicarEstatisticas = useCallback(
+        (atualizadas: UserStats) => {
+            if (dados) definir({ ...dados, estatisticas: atualizadas });
+        },
+        [dados, definir]
+    );
+
     const handleSubjectSelect = async (subjectName: string) => {
         const updated = await updateFavoriteSubject(subjectName);
-        setStats(updated);
+        aplicarEstatisticas(updated);
         setShowSubjectModal(false);
     };
 
@@ -203,7 +222,7 @@ export default function ProfileScreen() {
         const h = parseInt(tempGoalValue, 10);
         if (!isNaN(h) && h > 0) {
             const updated = await updateWeeklyGoal(h);
-            setStats(updated);
+            aplicarEstatisticas(updated);
         }
         setShowGoalModal(false);
     };

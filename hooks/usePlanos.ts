@@ -1,29 +1,22 @@
 import { buscarPlanos } from "@/services/planos";
 import type { Plano } from "@/types/cronograma";
-import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useDadosCache } from "@/hooks/useDadosCache";
+
+const SEM_PLANOS: Plano[] = [];
 
 /**
- * Hook para buscar os planos do usuário, recarregando toda vez que a tela
- * volta a ficar em foco (ex.: usuário volta do plano-editor após salvar).
+ * Hook para buscar os planos do usuário.
+ *
+ * A lista fica no cache compartilhado: voltar do plano-editor mostra os planos que já
+ * estavam na tela e revalida por trás, em vez de esvaziar a aba durante a busca.
  */
 export const usePlanos = (userId: string | null | undefined) => {
-    const [planos, setPlanos] = useState<Plano[]>([]);
-    const [carregando, setCarregando] = useState(false);
-
-    const buscar = useCallback(async () => {
-        if (!userId) return;
-        setCarregando(true);
-        const resultado = await buscarPlanos(userId);
-        setPlanos(resultado);
-        setCarregando(false);
-    }, [userId]);
-
-    useFocusEffect(
-        useCallback(() => {
-            buscar();
-        }, [buscar])
+    const { dados, carregando, recarregar } = useDadosCache<Plano[]>(
+        userId ? `planos:${userId}` : null,
+        () => buscarPlanos(userId!),
+        // Plano só muda quando o próprio usuário edita — e aí o editor chama o recarregar.
+        { tempoFresco: 2 * 60_000 }
     );
 
-    return { planos, carregando, recarregarPlanos: buscar };
+    return { planos: dados ?? SEM_PLANOS, carregando, recarregarPlanos: recarregar };
 };

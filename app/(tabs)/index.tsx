@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 //Componentes de Native
 import { View, Text, TouchableOpacity, ScrollView, Image, RefreshControl } from "react-native";
@@ -7,7 +7,7 @@ import { ChevronDown, Users, Settings, FolderArchive } from "lucide-react-native
 
 //Componentes de Expo
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 
 //Constantes
 import { HADES } from "@/constants/hades";
@@ -21,6 +21,7 @@ import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 
 //Hooks
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useSessoesAoVivo, useSessoesFoco } from "@/hooks/useSessoesFoco";
@@ -29,28 +30,38 @@ import TituloDaSecao from "@/components/grupo/TituloDaSecao";
 import { buscarGrupoPorId, horasSemanaisGrupo } from "@/services/grupos";
 import { buscarRankingHorasMembros } from "@/services/ranking";
 import { RankingMembroComPerfil } from "@/types/ranking";
-import { Grupo } from "@/types/grupos";
 import { LEADERBOARD_TABS, LeaderboardFilter, formatarMinutos } from "@/constants/ranking";
 
 export default function GroupScreen() {
     const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
     const [showLeaderboardFilters, setShowLeaderboardFilters] = useState(false);
-    const [horasSemanaGrupo, setHorasSemanaGrupo] = useState(0)
-    const [rankingMembros, setRankingMembros] = useState<RankingMembroComPerfil[]>([])
-    const [grupo, setGroup] = useState<Grupo | null>(null)
-
     // Captura os parâmetros recebidos da tela anterior
     const {groupId,} = useLocalSearchParams(); //<- os parametros
 
-    useEffect(() => {
-        if(!groupId) return
-        const loadGroup = async () => {
-            const grupo = await buscarGrupoPorId(groupId as string);
-            setGroup(grupo);
-            console.log('Código do grupo: ' + grupo?.codigo_convite)
-        };
-        loadGroup();
-    }, [groupId]);
+    /*
+      Dados do grupo e progresso da semana vêm juntos, do cache.
+
+      Eram três efeitos separados — um para o grupo, dois quase idênticos para as horas
+      (um na montagem, outro no foco) — e todos começavam do zero a cada vez que a home
+      voltava, o que deixava a meta piscando. Uma chave só, buscada em paralelo, resolve
+      as duas coisas.
+    */
+    const { dados: dadosGrupo, recarregar: recarregarGrupo } = useDadosCache(
+        groupId ? `grupo-home:${groupId}` : null,
+        async () => {
+            const [grupo, horas] = await Promise.all([
+                buscarGrupoPorId(groupId as string),
+                horasSemanaisGrupo(groupId as string),
+            ]);
+            return { grupo, horas };
+        },
+        // O progresso muda a cada sessão encerrada por qualquer membro — inclusive a que o
+        // próprio usuário acabou de fazer antes de voltar pra home. Revalida sempre.
+        { tempoFresco: 0 }
+    );
+
+    const grupo = dadosGrupo?.grupo ?? null;
+    const horasSemanaGrupo = dadosGrupo?.horas ?? 0;
 
     //Pega os membros do grupo
     const { membros, carregando: carregandoMembros, recarregar: recarregarMembros } = useMembrosGrupo({ grupoId: groupId as string });
@@ -111,58 +122,38 @@ export default function GroupScreen() {
 
     const carregandoFeed = loadingAoVivo || loadingSessions;
 
-    //Faz useEffect para pegar as horas semanais do grupo
-    useEffect(() => {
-        if(!groupId) return
-        const carregarHoras = async () => {
-            const horas = await horasSemanaisGrupo(groupId as string)
-            setHorasSemanaGrupo(horas)
-        }
-        carregarHoras()
-    }, [groupId])
+    /*
+      Ranking: a busca depende só do grupo e do filtro; o cruzamento com os membros é
+      cálculo local.
 
-    // Recarrega o progresso quando a aba volta para frente depois de uma sessão de foco.
-    useFocusEffect(
-        useCallback(() => {
-            if (!groupId) return;
-
-            const reloadGroupProgress = async () => {
-                const weeklyHours = await horasSemanaisGrupo(groupId as string);
-                setHorasSemanaGrupo(weeklyHours);
-            };
-
-            reloadGroupProgress();
-        }, [groupId])
+      Antes as duas coisas viviam no mesmo efeito, com `membros` na lista de dependências
+      — como o hook devolvia um array novo a cada busca, a RPC do ranking era refeita toda
+      vez que os membros recarregavam, mesmo sem nada ter mudado.
+    */
+    const { dados: rankingBruto } = useDadosCache(
+        groupId ? `ranking-horas:${groupId}:${leaderboardFilter}` : null,
+        () => buscarRankingHorasMembros(groupId as string, leaderboardFilter),
+        { tempoFresco: 15_000 }
     );
 
-    //Chama função rpc do supabase
-    useEffect(() => {
-        const carregarRankingHoras = async () => {
-            if (!groupId) return;
+    const rankingMembros: RankingMembroComPerfil[] = useMemo(() => {
+        const ranking = rankingBruto ?? [];
 
-            const ranking = await buscarRankingHorasMembros(groupId as string, leaderboardFilter)
+        const rankingComMembros = ranking.map((item) => ({
+            ...item,
+            membro: membros.find((m) => m.user_id === item.user_id),
+        }));
 
-            const rankingComMembros = ranking.map((item) => {
-                const membro = membros.find((m) => m.user_id === item.user_id);
+        const membrosSemRanking = membros
+            .filter((membro) => !ranking.some((item) => item.user_id === membro.user_id))
+            .map((membro) => ({
+                user_id: membro.user_id,
+                total_minutos: 0,
+                membro,
+            }));
 
-                return {
-                    ...item,
-                    membro
-                }
-            })
-
-            const membrosSemRanking = membros
-                .filter((membro) => !ranking.some((item) => item.user_id === membro.user_id))
-                .map((membro) => ({
-                    user_id: membro.user_id,
-                    total_minutos: 0,
-                    membro,
-                }));
-
-            setRankingMembros([...rankingComMembros, ...membrosSemRanking])
-        }
-        carregarRankingHoras();
-    }, [groupId, leaderboardFilter, membros])
+        return [...rankingComMembros, ...membrosSemRanking];
+    }, [rankingBruto, membros]);
 
     // Atualiza todos os dados da tela quando o usuário puxa para atualizar.
     const handleRefresh = useCallback(async () => {
@@ -170,8 +161,7 @@ export default function GroupScreen() {
         setAtualizandoTela(true);
         try {
             await Promise.all([
-                buscarGrupoPorId(groupId as string).then(setGroup),
-                horasSemanaisGrupo(groupId as string).then(setHorasSemanaGrupo),
+                recarregarGrupo(),
                 recarregarMembros(),
                 refreshSessions(),
                 refreshAoVivo(),
@@ -179,7 +169,7 @@ export default function GroupScreen() {
         } finally {
             setAtualizandoTela(false);
         }
-    }, [groupId, recarregarMembros, refreshSessions, refreshAoVivo]);
+    }, [groupId, recarregarGrupo, recarregarMembros, refreshSessions, refreshAoVivo]);
 
     //Cálculo do progresso do grupo
     const metaPorMembro = Number(Array.isArray(grupo?.meta_horas) ? grupo.meta_horas[0] : grupo?.meta_horas) || 0

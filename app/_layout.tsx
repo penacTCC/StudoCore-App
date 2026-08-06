@@ -11,6 +11,7 @@ import { useAuthState } from "@/hooks/useAuthState";
 import { useStatusMembroGrupo } from "@/hooks/useStatusMembroGrupo";
 import { useRouteGuard } from "@/hooks/useRoutGuard";
 import { useForcasRecebidas } from "@/hooks/useForcasRecebidas";
+import { usePushToken } from "@/hooks/usePushToken";
 import { useRecuperarSessoesAbandonadas } from "@/hooks/useRecuperarSessoesAbandonadas";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { ToastHost } from "@/components/ui/Toast";
@@ -33,7 +34,12 @@ export default function RootLayout() {
     //Busca se o usuário tem um grupo
     const { membro, parametrosUltimoGrupo } = useStatusMembroGrupo(session, isInitialized);
 
-    // Escuta as forças que chegam pro usuário e notifica localmente (sem push remoto/FCM).
+    // Registra o token de push da conta neste aparelho (é o que faz a força chegar com o
+    // app fechado).
+    usePushToken(session?.user?.id);
+
+    // Plano B do push: escuta por Realtime as forças que chegam e notifica localmente
+    // quando o aparelho não conseguiu token de push.
     useForcasRecebidas(session?.user?.id);
 
     // Fecha sessões de foco que ficaram abertas de um fechamento forçado do app.

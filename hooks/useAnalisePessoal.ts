@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import { buscarGamificacao } from "@/services/gamificacao";
 import { calcularAnalisePessoal} from "@/lib/analytics";
 import {ComecoSemana, AnalisePessoal} from "@/types/analytics"
@@ -20,25 +21,19 @@ export function useAnalisePessoal(
 ) {
     const { savedSessions, pendingSessions, loading, refresh: refreshSessoes } = useSessoesUsuario(userId, true);
 
-    const [ofensiva, setOfensiva] = useState(0);
-    const [melhorOfensiva, setMelhorOfensiva] = useState(0);
-
     // A ofensiva é persistida no backend ao concluir uma sessão, então aqui só
     // buscamos o valor pronto em vez de recalcular a partir do histórico.
-    const buscarOfensiva = useCallback(async () => {
-        if (!userId) return;
-        const gamificacao = await buscarGamificacao(userId);
-        setOfensiva(gamificacao?.ofensiva ?? 0);
-        setMelhorOfensiva(gamificacao?.melhor_ofensiva ?? 0);
-    }, [userId]);
+    const { dados: gamificacao, recarregar: recarregarOfensiva } = useDadosCache(
+        userId ? `gamificacao:${userId}` : null,
+        () => buscarGamificacao(userId!)
+    );
 
-    useEffect(() => {
-        buscarOfensiva();
-    }, [buscarOfensiva]);
+    const ofensiva = gamificacao?.ofensiva ?? 0;
+    const melhorOfensiva = gamificacao?.melhor_ofensiva ?? 0;
 
     const refresh = useCallback(async () => {
-        await Promise.all([refreshSessoes(), buscarOfensiva()]);
-    }, [refreshSessoes, buscarOfensiva]);
+        await Promise.all([refreshSessoes(), recarregarOfensiva()]);
+    }, [refreshSessoes, recarregarOfensiva]);
 
     const analise = useMemo<AnalisePessoal>(
         () =>

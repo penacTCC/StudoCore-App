@@ -6,9 +6,10 @@
 // automaticamente pelo Supabase em toda Edge Function), pra que a regra não dependa de
 // nada que o app diga.
 //
-// A notificação de quem recebe NÃO sai daqui: push remoto exigiria credenciais do
-// Firebase/FCM no Android, que este projeto não usa. Em vez disso o INSERT abaixo viaja por
-// Realtime até o aparelho do destinatário, que dispara uma notificação local
+// A notificação de quem recebe sai daqui, como push do Expo: é o que faz a força chegar com
+// o app FECHADO. O token vem de `push_tokens` (lido com service role, já que a RLS de lá só
+// deixa o dono ler o próprio). Quem não tiver token registrado continua coberto pelo plano
+// B do app: o INSERT abaixo viaja por Realtime e o aparelho notifica localmente
 // (ver hooks/useForcasRecebidas.ts e services/notificacoesForca.ts).
 //
 // Deploy: `supabase functions deploy mandar-forca` (sem secret novo).
@@ -24,6 +25,63 @@ const CORS_HEADERS = {
 // Estourou, só libera quando a mais antiga das 3 sair da janela.
 const JANELA_MS = 15 * 60 * 1000;
 const LIMITE_ENVIOS = 3;
+
+const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+// Precisa bater com CANAL_FORCAS em services/pushTokens.ts: é o canal que o app cria no
+// Android ao registrar o token. Canal inexistente no aparelho = notificação silenciosa.
+const CANAL_FORCAS = "forcas";
+
+/**
+ * Manda o push da força pro aparelho do destinatário.
+ *
+ * Best-effort de ponta a ponta: a força já está gravada quando isto roda, então nenhuma
+ * falha aqui pode virar erro pro remetente — no pior caso a pessoa vê a força na torcida
+ * quando abrir o app.
+ */
+async function enviarPushDeForca(
+  admin: ReturnType<typeof createClient>,
+  destinatarioId: string,
+  nomeRemetente: string,
+) {
+  // Service role: a RLS de `push_tokens` só deixa o dono ler o próprio token, e quem lê
+  // aqui é o remetente.
+  const { data: registro } = await admin
+    .from("push_tokens")
+    .select("expo_push_token")
+    .eq("user_id", destinatarioId)
+    .maybeSingle();
+
+  const token = (registro as { expo_push_token: string } | null)?.expo_push_token;
+  if (!token) return; // sem token: o app do destinatário cai na notificação local.
+
+  const resposta = await fetch(EXPO_PUSH_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      to: token,
+      title: "💪 Hora de focar!",
+      body: `${nomeRemetente} está te chamando pra estudar.`,
+      data: { tipo: "forca" },
+      sound: "default",
+      channelId: CANAL_FORCAS,
+      priority: "high",
+    }),
+  });
+
+  const resultado = await resposta.json().catch(() => null);
+  const ticket = resultado?.data;
+
+  // Token velho (app desinstalado, restaurado de backup, etc). Se ficar no banco, toda
+  // força futura pra essa pessoa gasta uma chamada que nunca entrega.
+  if (ticket?.status === "error" && ticket?.details?.error === "DeviceNotRegistered") {
+    await admin.from("push_tokens").delete().eq("user_id", destinatarioId);
+    return;
+  }
+
+  if (ticket?.status === "error") {
+    console.error("Push recusado pelo Expo:", ticket?.message, ticket?.details);
+  }
+}
 
 const jsonResponse = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), {
@@ -108,8 +166,26 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ok: false, error: "Não foi possível registrar a força." }, 500);
     }
 
-    // Daqui em diante quem trabalha é o Realtime: o INSERT acima chega no app do
-    // destinatário, que mostra a notificação local.
+    // A força já está gravada. O push vem depois, e de propósito fora do caminho de erro:
+    // se o Expo estiver fora do ar ou o token estiver velho, o remetente não pode ver falha
+    // numa força que foi registrada com sucesso.
+    try {
+      const { data: perfil } = await admin
+        .from("profiles")
+        .select("nome_usuario, nome_real")
+        .eq("id", remetenteId)
+        .maybeSingle();
+
+      const nomeRemetente =
+        (perfil as { nome_usuario?: string; nome_real?: string } | null)?.nome_usuario ||
+        (perfil as { nome_usuario?: string; nome_real?: string } | null)?.nome_real ||
+        "Alguém";
+
+      await enviarPushDeForca(admin, destinatarioId, nomeRemetente);
+    } catch (erroPush) {
+      console.error("Erro ao mandar push da força:", erroPush);
+    }
+
     return jsonResponse({ ok: true, incentivo }, 200);
   } catch (erro) {
     console.error("Erro inesperado em mandar-forca:", erro);

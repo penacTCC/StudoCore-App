@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "895482028296",
+    "project_id": "studocore-22c66",
+    "storage_bucket": "studocore-22c66.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:895482028296:android:4c0a2dfa38679dbd4accbd",
+        "android_client_info": {
+          "package_name": "com.studocore.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCytgTdPqD7znVObx8tRmjkX_JJ9sUS5io"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

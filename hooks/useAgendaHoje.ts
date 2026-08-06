@@ -1,5 +1,4 @@
-import { useCallback, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useEffect, useMemo } from "react";
 import { resolverAgendaDoDia, type BlocoAgenda } from "@/services/agenda";
 import { carregarAgendaLocalmente, salvarAgendaLocalmente } from "@/services/armazenamentoOffline";
 import { buscarSessoesDoDia } from "@/services/sessions";
@@ -8,6 +7,7 @@ import { formatarDuracao, paraDataISO } from "@/utils/tempo";
 import { encontrarConflitos, somarMinutosSemSobreposicao } from "@/utils/conflitos";
 import type { BlocoDoDia, StatusBloco } from "@/types/cronograma";
 import type { SessaoFocoRow } from "@/types/sessions";
+import { useDadosCache } from "@/hooks/useDadosCache";
 
 /** O que fica guardado no aparelho por dia — a agenda resolvida e as sessões dele. */
 type AgendaEmCache = { agenda: BlocoAgenda[]; sessoes: SessaoFocoRow[] };
@@ -47,13 +47,55 @@ export type ResumoHoje = {
  */
 export function useAgendaHoje(userId: string | null | undefined, dataISO?: string) {
     const { materiasComCores } = useMaterias(userId ?? null);
-    const [blocos, setBlocos] = useState<BlocoDoDia[]>([]);
-    const [resumo, setResumo] = useState<ResumoHoje>({ planejado: "0m", concluido: "0m", proximo: null });
-    const [carregando, setCarregando] = useState(true);
+
+    const hojeISO = paraDataISO(new Date());
+    const diaAlvo = dataISO ?? hojeISO;
+
+    /*
+      A agenda do dia vem do cache compartilhado, e blocos/resumo passaram a ser derivados
+      dela em vez de estado próprio.
+
+      Antes o hook zerava `blocos` e ligava `carregando` a cada foco, então folhear os dias
+      (e voltar para a aba) redesenhava a tela do zero mesmo com o dado já em mãos. O
+      `tempoFresco: 0` mantém a revalidação a cada foco — importante, porque o status dos
+      blocos depende da hora atual — mas agora o conteúdo antigo fica na tela enquanto ela
+      acontece.
+    */
+    const { dados, carregando, recarregar, semear } = useDadosCache<AgendaEmCache>(
+        userId ? `agenda-dia:${userId}:${diaAlvo}` : null,
+        async () => {
+            const [agenda, { data: sessoesHoje }] = await Promise.all([
+                resolverAgendaDoDia(userId!, diaAlvo),
+                buscarSessoesDoDia(userId!, diaAlvo),
+            ]);
+
+            const resultado: AgendaEmCache = { agenda, sessoes: sessoesHoje ?? [] };
+            salvarAgendaLocalmente<AgendaEmCache>(userId!, diaAlvo, resultado);
+            return resultado;
+        },
+        { tempoFresco: 0 }
+    );
+
+    /*
+      Sem rede, a tela ficava em branco. O cache local do último carregamento desse mesmo
+      dia entra primeiro, só pra ter o que mostrar; a resposta da rede sempre vence, mesmo
+      que chegue antes da leitura do disco terminar.
+    */
+    useEffect(() => {
+        if (!userId || dados) return;
+
+        let ativo = true;
+        carregarAgendaLocalmente<AgendaEmCache>(userId, diaAlvo).then((local) => {
+            if (ativo && local) semear(local);
+        });
+
+        return () => { ativo = false; };
+    }, [userId, diaAlvo, dados, semear]);
 
     /** Transforma agenda + sessões nos blocos e no resumo que a tela mostra. */
-    const montar = useCallback(
-        (agenda: BlocoAgenda[], sessoesDoDia: SessaoFocoRow[], diaAlvo: string, hojeISO: string) => {
+    const { blocos, resumo } = useMemo(() => {
+        const agenda = dados?.agenda ?? [];
+        const sessoesDoDia = dados?.sessoes ?? [];
         const materiaPorId = new Map(materiasComCores.map((m) => [m.id, m]));
         /*
           O relógio só corre no dia de hoje. Num dia que já passou, todo bloco é
@@ -148,58 +190,15 @@ export function useAgendaHoje(userId: string | null | undefined, dataISO?: strin
             };
         });
 
-        setBlocos(resolvidos);
-        setResumo({
-            planejado: formatarDuracao(somarMinutosSemSobreposicao(itensEstudo)),
-            concluido: formatarDuracao(concluidoMin),
-            proximo,
-        });
-        },
-        [materiasComCores]
-    );
+        return {
+            blocos: resolvidos,
+            resumo: {
+                planejado: formatarDuracao(somarMinutosSemSobreposicao(itensEstudo)),
+                concluido: formatarDuracao(concluidoMin),
+                proximo,
+            } as ResumoHoje,
+        };
+    }, [dados, materiasComCores, diaAlvo, hojeISO]);
 
-    const carregar = useCallback(async () => {
-        if (!userId) {
-            setBlocos([]);
-            setCarregando(false);
-            return;
-        }
-        setCarregando(true);
-
-        const hojeISO = paraDataISO(new Date());
-        const diaAlvo = dataISO ?? hojeISO;
-
-        /*
-          Sem rede, a tela ficava em branco. O cache local do último carregamento
-          desse mesmo dia entra primeiro, só pra ter o que mostrar; a resposta da
-          rede chega depois e sobrescreve. O cálculo é o mesmo nos dois caminhos.
-        */
-        const cache = await carregarAgendaLocalmente<AgendaEmCache>(userId, diaAlvo);
-        if (cache) {
-            montar(cache.agenda, cache.sessoes, diaAlvo, hojeISO);
-            setCarregando(false);
-        }
-
-        const [agenda, { data: sessoesHoje }] = await Promise.all([
-            resolverAgendaDoDia(userId, diaAlvo),
-            buscarSessoesDoDia(userId, diaAlvo),
-        ]);
-
-        salvarAgendaLocalmente<AgendaEmCache>(userId, diaAlvo, {
-            agenda,
-            sessoes: sessoesHoje ?? [],
-        });
-
-        montar(agenda, sessoesHoje ?? [], diaAlvo, hojeISO);
-        setCarregando(false);
-    }, [userId, montar, dataISO]);
-
-
-    useFocusEffect(
-        useCallback(() => {
-            carregar();
-        }, [carregar])
-    );
-
-    return { blocos, resumo, carregando, recarregar: carregar };
+    return { blocos, resumo, carregando, recarregar };
 }

@@ -1,33 +1,34 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { buscarMateriasUsuario, deletarMateria } from '@/services/materias';
 import type { Materia, MateriaComCor } from '@/types/materias';
 import { toast } from '@/services/toast';
 import { confirm } from '@/services/confirm';
+import { useDadosCache } from '@/hooks/useDadosCache';
+
+const LISTA_VAZIA: Materia[] = [];
 
 /**
  * Hook que busca as matérias padrão do sistema + as customizadas do usuário
  * (ambas já vêm de materias_usuario, com cor persistida). Fornece a lista
  * completa, estado de carregamento e funções de gestão.
+ *
+ * A lista vive no cache compartilhado: várias telas usam as mesmas matérias, então a
+ * segunda tela a pedir recebe o dado na hora em vez de buscar de novo.
  */
 export function useMaterias(usuarioId: string | null) {
-  const [materias, setMaterias] = useState<Materia[]>([]);
-  const [carregando, setCarregando] = useState(true);
+  // Matéria muda raramente (só quando o próprio usuário cria ou apaga uma), então
+  // vale uma janela fresca longa: nada de rebuscar a cada troca de aba.
+  const {
+    dados,
+    carregando,
+    recarregar: carregar,
+  } = useDadosCache<Materia[]>(
+    usuarioId ? `materias:${usuarioId}` : null,
+    () => buscarMateriasUsuario(usuarioId!),
+    { tempoFresco: 5 * 60_000 }
+  );
 
-  const carregar = useCallback(async () => {
-    if (!usuarioId) {
-      setCarregando(false);
-      return;
-    }
-
-    setCarregando(true);
-    const resultado = await buscarMateriasUsuario(usuarioId);
-    setMaterias(resultado);
-    setCarregando(false);
-  }, [usuarioId]);
-
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
+  const materias = dados ?? LISTA_VAZIA;
 
   const materiasCustomizadas = useMemo(
     () => materias.filter((m) => !m.isPadrao),

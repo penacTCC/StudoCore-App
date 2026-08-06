@@ -1,5 +1,6 @@
 import { supabase } from "@/repositories/supabase";
 import { limparUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
+import { removerTokenPush } from "@/services/pushTokens";
 import * as Linking from "expo-linking";
 import type { AuthChangeEvent } from "@supabase/supabase-js";
 import type { AuthSession } from "@/types/auth";
@@ -184,8 +185,19 @@ export const confirmarCodigoCadastro = async (email: string, token: string) => {
 };
 
 //Buscar usuário logado
+/**
+ * Usuário da sessão atual, no mesmo formato de `auth.getUser()`.
+ *
+ * Usa `getSession()` de propósito: `getUser()` bate no servidor de auth toda vez que é
+ * chamado, e esta função está no caminho crítico de várias telas (o `loadProfileStats`
+ * sozinho a chama antes de qualquer consulta). `getSession()` lê do storage local e
+ * ainda renova o token quando ele está perto de vencer, então o dado continua válido —
+ * o que se perde é a revalidação da conta no servidor a cada chamada, que não é o que
+ * essas telas precisam.
+ */
 export const buscarUsuarioLogado = async () => {
-  return await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getSession();
+  return { data: { user: data.session?.user ?? null }, error };
 };
 
 //Buscar informações do perfil
@@ -213,6 +225,12 @@ export const deslogarUsuario = async () => {
   // até o próximo login: quem lê já valida o dono, mas apagar no logout impede que um
   // registro órfão fique guardado à toa depois que a conta sai.
   await limparUltimoGrupoLocalmente();
+
+  // O token de push é do APARELHO, mas fica gravado na conta. Se ele não sair junto, uma
+  // força mandada pra esta conta tocaria no aparelho de quem logar aqui depois. Precisa ser
+  // antes do signOut: depois dele a RLS não deixa mais apagar a linha.
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) await removerTokenPush(user.id);
 
   return await supabase.auth.signOut();
 }

@@ -19,11 +19,12 @@
           "instagram"
         ]
       },
-      "bundleIdentifier": "com.anonymous.StudoCoreMobile"
+      "bundleIdentifier": "com.studocore.app"
     },
     "android": {
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.StudoCoreMobile",
+      "package": "com.studocore.app",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "POST_NOTIFICATIONS",
         "READ_CONTACTS",

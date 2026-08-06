@@ -1,14 +1,19 @@
 import * as Notifications from "expo-notifications";
+import { temPushRemoto } from "@/services/pushTokens";
 
 /**
- * Notificação local do "mandar força".
+ * Notificação local do "mandar força" — hoje o PLANO B do push remoto.
  *
- * É local de propósito: push remoto (Expo Push / FCM) exigiria credenciais do Firebase no
- * Android, que este projeto não usa. Em vez disso, quem recebe a força escuta o INSERT em
- * `incentivos` por Realtime (ver services/incentivos.ts -> observarForcasRecebidas) e o
- * próprio aparelho dispara a notificação. Sem Firebase, sem token, sem tabela extra.
+ * O caminho normal é a Edge Function `mandar-forca` mandar um push pelo Expo, que chega
+ * mesmo com o app fechado. Esta notificação local existe pros aparelhos que não
+ * conseguiram token de push (Expo Go, emulador sem Play Services, permissão negada): neles
+ * o INSERT em `incentivos` ainda chega por Realtime (ver
+ * services/incentivos.ts -> observarForcasRecebidas) e o próprio aparelho notifica.
  *
- * Limite conhecido: só dispara com o app rodando (em primeiro plano ou recém-mandado pra
+ * Ela só dispara quando NÃO há push remoto — ver a checagem em `notificarForcaRecebida`.
+ * Com os dois ativos, quem estivesse com o app aberto veria a mesma força duas vezes.
+ *
+ * Limite do plano B: só dispara com o app rodando (em primeiro plano ou recém-mandado pra
  * segundo plano, enquanto o socket do Realtime sobrevive). Com o app fechado, a força
  * continua sendo registrada e aparece na torcida quando a pessoa abrir o app.
  */
@@ -39,6 +44,10 @@ async function garantirPermissao(): Promise<boolean> {
  */
 export async function notificarForcaRecebida(nomeRemetente: string): Promise<void> {
     try {
+        // O push remoto já vai mostrar esta mesma força (a Edge Function o dispara no mesmo
+        // INSERT que acabou de chegar por Realtime). Notificar aqui também duplicaria.
+        if (temPushRemoto()) return;
+
         if (!(await garantirPermissao())) return;
 
         await Notifications.scheduleNotificationAsync({

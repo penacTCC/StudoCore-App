@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { HADES } from "@/constants/hades";
 import { GRADE_INICIO_HORA, minParaPx } from "@/constants/cronograma";
 import { useMaterias } from "@/hooks/useMaterias";
@@ -16,6 +16,10 @@ import {
 import { encontrarConflitos, somarMinutosSemSobreposicao } from "@/utils/conflitos";
 import type { BlocoListaDia, BlocoSemana } from "@/types/cronograma";
 import type { SessaoFocoRow } from "@/types/sessions";
+import { useDadosCache } from "@/hooks/useDadosCache";
+
+const SEM_DIAS: DiaResolvido[] = [];
+const SEM_SESSOES: SessaoFocoRow[] = [];
 
 const DURACAO_GRADE_PADRAO_MIN = 720; // 12h, usado quando não há blocos ainda
 const PASSO_EIXO_MIN = 180; // marcação a cada 3h
@@ -35,41 +39,50 @@ function paraMinutos(horaInicio: string) {
  */
 export function useSemanaCronograma(userId: string | null | undefined, inicioDaSemana: Date) {
     const { materiasComCores } = useMaterias(userId ?? null);
-    const [dias, setDias] = useState<DiaResolvido[]>([]);
-    const [sessoes, setSessoes] = useState<SessaoFocoRow[]>([]);
-    const [carregando, setCarregando] = useState(true);
     const [atualizando, setAtualizando] = useState(false);
 
     const chaveSemana = paraDataISO(inicioDaSemana);
     const datasDaSemana = useMemo(() => pegarDatasDaSemana(inicioDaSemana), [chaveSemana]);
 
-    const carregar = useCallback(async () => {
-        if (!userId) {
-            setCarregando(false);
-            return;
-        }
-        setCarregando(true);
-        const [agenda, { data: sessoesDaSemana }] = await Promise.all([
-            resolverAgendaDaSemana(userId, datasDaSemana),
-            buscarSessoesPeriodo(userId, datasDaSemana[0], datasDaSemana[6]),
-        ]);
-        setDias(agenda);
-        setSessoes(sessoesDaSemana ?? []);
-        setCarregando(false);
-    }, [userId, datasDaSemana]);
+    /*
+      Semana resolvida + sessões do período, no cache compartilhado.
 
-    useEffect(() => {
-        carregar();
-    }, [carregar]);
+      Cada semana tem a própria chave, então navegar para a semana anterior e voltar
+      reaproveita o que já foi buscado em vez de refazer as duas consultas e deixar a
+      grade vazia no caminho.
+    */
+    const { dados, carregando, recarregar: buscar, definir } = useDadosCache(
+        userId ? `semana-cronograma:${userId}:${chaveSemana}` : null,
+        async () => {
+            const [agenda, { data: sessoesDaSemana }] = await Promise.all([
+                resolverAgendaDaSemana(userId!, datasDaSemana),
+                buscarSessoesPeriodo(userId!, datasDaSemana[0], datasDaSemana[6]),
+            ]);
+            return { dias: agenda, sessoes: sessoesDaSemana ?? [] };
+        },
+        { tempoFresco: 30_000 }
+    );
+
+    const dias = dados?.dias ?? SEM_DIAS;
+    const sessoes = dados?.sessoes ?? SEM_SESSOES;
+
+    /** Aplica uma alteração otimista na semana em cache, sem ir à rede. */
+    const alterarDias = useCallback(
+        (transformar: (atual: DiaResolvido[]) => DiaResolvido[]) => {
+            if (!dados) return;
+            definir({ ...dados, dias: transformar(dados.dias) });
+        },
+        [dados, definir]
+    );
 
     const recarregar = useCallback(async () => {
         setAtualizando(true);
         try {
-            await carregar();
+            await buscar();
         } finally {
             setAtualizando(false);
         }
-    }, [carregar]);
+    }, [buscar]);
 
     const materiaPorId = useMemo(
         () => new Map(materiasComCores.map((m) => [m.id, m])),
@@ -255,10 +268,10 @@ export function useSemanaCronograma(userId: string | null | undefined, inicioDaS
     /** Remove o bloco da lista local pelo id composto `data:blocoId`. */
     const esquecerBloco = useCallback((idComposto: string) => {
         const blocoId = idComposto.split(":")[1];
-        setDias((atual) =>
+        alterarDias((atual) =>
             atual.map((dia) => ({ ...dia, blocos: dia.blocos.filter((b) => b.id !== blocoId) }))
         );
-    }, []);
+    }, [alterarDias]);
 
     const excluirBloco = useCallback(
         async (idComposto: string) => {
@@ -286,7 +299,7 @@ export function useSemanaCronograma(userId: string | null | undefined, inicioDaS
             const bloco = origem.blocos.find((b) => b.id === blocoId);
             if (!bloco || bloco.origem !== "rotina") return;
 
-            setDias((atual) =>
+            alterarDias((atual) =>
                 atual.map((dia) => {
                     if (dia.dataISO === origem.dataISO) {
                         return { ...dia, blocos: dia.blocos.filter((b) => b.id !== blocoId) };
@@ -302,10 +315,10 @@ export function useSemanaCronograma(userId: string | null | undefined, inicioDaS
             if (error) {
                 console.error(error);
                 toast.error("Não foi possível mover o bloco.");
-                carregar();
+                buscar();
             }
         },
-        [dias, carregar]
+        [dias, alterarDias, buscar]
     );
 
     const hojeISO = paraDataISO(new Date());
