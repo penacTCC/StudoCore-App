@@ -36,6 +36,7 @@
     "expo-image-manipulator": "~55.0.19",
     "expo-image-picker": "~55.0.20",
     "expo-intent-launcher": "~55.0.12",
+    "expo-keep-awake": "~55.0.8",
     "expo-linear-gradient": "~55.0.13",
     "expo-linking": "~55.0.12",
     "expo-notifications": "~55.0.22",

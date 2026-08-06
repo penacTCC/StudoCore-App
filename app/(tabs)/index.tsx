@@ -195,6 +195,14 @@ export default function GroupScreen() {
     // Grupo recém-criado: a tela convida a chamar gente em vez de mostrar um ranking de um.
     const grupoSozinho = totalMembros <= 1;
 
+    /*
+      Convidar é do administrador. Ele pode passar a permissão para quem quiser, membro a
+      membro, nas configurações do grupo — quem não recebeu não vê os caminhos de convite.
+      A regra de verdade está na RPC `definir_codigo_convite`; aqui é só o que a tela mostra.
+    */
+    const meuVinculo = membros.find((membro) => membro.user_id === userId);
+    const podeConvidar = !!meuVinculo && (meuVinculo.administrador || !!meuVinculo.pode_convidar);
+
     const linhasRanking: LinhaRanking[] = rankingMembros
         .filter((item) => item.membro)
         .map((item) => ({
@@ -356,7 +364,7 @@ export default function GroupScreen() {
                     />
                 }
             >
-                {grupoSozinho && <ConviteDestaque onConvidar={abrirConvite} />}
+                {grupoSozinho && podeConvidar && <ConviteDestaque onConvidar={abrirConvite} />}
 
                 <MetaGrupo
                     percentual={progressoPercentual}
@@ -468,6 +476,7 @@ export default function GroupScreen() {
 
                 <MembrosGrupo
                     membros={membrosCarrossel}
+                    podeConvidar={podeConvidar}
                     onConvidar={abrirConvite}
                     onAbrirMembro={(membro) => abrirMembro(membro.userId, membro.admin)}
                 />

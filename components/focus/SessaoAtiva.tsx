@@ -375,17 +375,21 @@ function TelaDescanso({
                     </AnelPomodoro>
                 </View>
 
-                {autoFoco && (
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 7,
-                            marginBottom: 8,
-                        }}
-                    >
-                    </View>
-                )}
+                {/* Diz o que vai acontecer quando o descanso acabar, conforme a preferência. */}
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 7,
+                        marginBottom: 8,
+                    }}
+                >
+                    <Text style={{ fontSize: 12.5, color: "rgba(255,255,255,0.45)" }}>
+                        {autoFoco
+                            ? "O próximo foco começa sozinho"
+                            : "O próximo foco espera você retomar"}
+                    </Text>
+                </View>
             </View>
 
             <View style={{ paddingTop: 16, paddingHorizontal: 24, paddingBottom: 12, gap: 12 }}>

@@ -15,11 +15,13 @@ export type MembroCarrossel = {
 
 type Props = {
     membros: MembroCarrossel[];
+    /** Admin, ou membro a quem o admin passou a permissão. Só ele vê os atalhos de convite. */
+    podeConvidar: boolean;
     onConvidar: () => void;
     onAbrirMembro: (membro: MembroCarrossel) => void;
 };
 
-export default function MembrosGrupo({ membros, onConvidar, onAbrirMembro }: Props) {
+export default function MembrosGrupo({ membros, podeConvidar, onConvidar, onAbrirMembro }: Props) {
     const sozinho = membros.length <= 1;
 
     return (
@@ -37,7 +39,7 @@ export default function MembrosGrupo({ membros, onConvidar, onAbrirMembro }: Pro
                     Membros <Text style={{ color: HADES.textFaint, fontWeight: "600" }}>{membros.length}</Text>
                 </Text>
 
-                {!sozinho && (
+                {!sozinho && podeConvidar && (
                     <TouchableOpacity
                         onPress={onConvidar}
                         activeOpacity={0.85}
@@ -111,7 +113,7 @@ export default function MembrosGrupo({ membros, onConvidar, onAbrirMembro }: Pro
                 ))}
 
                 {/* Convite aparece como um lugar vago no carrossel quando o grupo é só você. */}
-                {sozinho && (
+                {sozinho && podeConvidar && (
                     <TouchableOpacity
                         onPress={onConvidar}
                         activeOpacity={0.75}

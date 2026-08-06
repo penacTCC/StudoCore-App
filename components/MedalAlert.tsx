@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet, DeviceEventEmitter, Vibration } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { preferenciasDoUsuarioAtual } from '@/services/preferencias';
 import { BookOpen, Flame, Star, Trophy, X } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { BadgeType } from '@/constants/badges';
@@ -27,10 +27,13 @@ export default function MedalAlert() {
             const nextBadge = queue[0];
             setCurrentBadge(nextBadge);
             
-            // Check vibration preference
-            AsyncStorage.getItem('@app_preferences_vibration').then((pref) => {
-                const wantsVibration = pref !== 'false'; // missing means true by default
-                if (wantsVibration) {
+            /*
+              Mesma preferência que o fim de fase do pomodoro usa. Antes isto lia uma
+              chave própria no AsyncStorage: existiam dois interruptores de vibração,
+              em telas diferentes, e desligar um não silenciava o outro.
+            */
+            preferenciasDoUsuarioAtual().then((prefs) => {
+                if (prefs.vibrar) {
                     // Dopamine hit: pattern vibrate!
                     Vibration.vibrate([0, 100, 50, 200]);
                 }

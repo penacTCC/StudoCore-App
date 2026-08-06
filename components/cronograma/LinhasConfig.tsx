@@ -192,6 +192,8 @@ export function LinhaEscolha({
     return (
         <TouchableOpacity
             onPress={onPress}
+            // Sem `onPress` a linha é só leitura: desabilitada, ela para de piscar ao toque.
+            disabled={!onPress}
             activeOpacity={0.7}
             style={{
                 flexDirection: "row",
@@ -207,7 +209,8 @@ export function LinhaEscolha({
                 >
                     {valor}
                 </Text>
-                <ChevronRight size={16} color={HADES.settingsChevron} />
+                {/* A seta promete uma tela do outro lado; sem `onPress` não há nenhuma. */}
+                {onPress && <ChevronRight size={16} color={HADES.settingsChevron} />}
             </View>
         </TouchableOpacity>
     );

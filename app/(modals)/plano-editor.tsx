@@ -9,6 +9,7 @@ import { formatarDuracao } from "@/utils/tempo";
 import { encontrarConflitos } from "@/utils/conflitos";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
+import { usePreferencias } from "@/hooks/usePreferencias";
 import {
     buscarPlanoPorId,
     buscarBlocosPlano,
@@ -42,6 +43,17 @@ type BlocoEditor = {
     sessaoId?: string;
 };
 
+function paraMinutos(horaInicio: string) {
+    const [h, m] = horaInicio.split(":").map(Number);
+    return h * 60 + m;
+}
+
+function paraHoraMin(totalMin: number) {
+    const h = Math.floor(totalMin / 60) % 24;
+    const m = totalMin % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
 export default function PlanoEditorScreen() {
     const router = useRouter();
     const { planoId, rascunho, aplicarHoje } = useLocalSearchParams<{
@@ -51,6 +63,7 @@ export default function PlanoEditorScreen() {
     }>();
     const { userId } = useAuth();
     const { materiasComCores } = useMaterias(userId);
+    const { prefs } = usePreferencias(userId);
 
     const materiaPorId = useMemo(
         () => new Map(materiasComCores.map((m) => [m.id, m])),
@@ -130,14 +143,72 @@ export default function PlanoEditorScreen() {
         router.setParams({ rascunho: undefined });
     }, [rascunho]);
 
-    const abrirNovoBloco = (tipo: "estudo" | "descanso") => {
+    const abrirNovoBloco = () => {
         const rascunhoAtual = JSON.stringify({ nome, cor, blocos });
         router.push({
             pathname: "/(modals)/novo-bloco-plano",
-            params: planoId
-                ? { planoId, tipo, rascunho: rascunhoAtual }
-                : { tipo, rascunho: rascunhoAtual },
+            params: planoId ? { planoId, rascunho: rascunhoAtual } : { rascunho: rascunhoAtual },
         });
+    };
+
+    /*
+      Descanso não é mais um formulário: o botão emenda, de uma vez, um descanso
+      em cada troca de matéria do plano. Horário e duração saem do próprio plano
+      (fim do bloco anterior) e das preferências — nada pra o usuário preencher.
+    */
+    const inserirDescansosEntreMaterias = () => {
+        const duracaoPadrao = prefs.duracaoPadraoDescansoMin;
+        if (duracaoPadrao <= 0) {
+            toast.info("Defina uma duração padrão de descanso nas configurações do cronograma.");
+            return;
+        }
+
+        const ordenados = [...blocos].sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+        const novos: BlocoEditor[] = [];
+        // Descansos que já começam onde um bloco termina — evita duplicar a cada
+        // toque no botão quando o descanso emendado não deixa folga nenhuma.
+        const iniciosDeDescanso = new Set(
+            blocos.filter((b) => b.tipo === "descanso").map((b) => b.horaInicio)
+        );
+
+        for (let i = 0; i < ordenados.length - 1; i++) {
+            const atual = ordenados[i];
+            const proximo = ordenados[i + 1];
+            // Só entre dois estudos de matérias diferentes — se já há um descanso
+            // no meio, ele é quem separa os dois e não cabe outro.
+            if (atual.tipo !== "estudo" || proximo.tipo !== "estudo") continue;
+            if (atual.materiaId === proximo.materiaId) continue;
+
+            const fimAtual = paraMinutos(atual.horaInicio) + atual.duracaoMin;
+            const inicioProximo = paraMinutos(proximo.horaInicio);
+            const folga = inicioProximo - fimAtual;
+            if (folga < 0) continue; // já se sobrepõem: um descanso aqui só pioraria o conflito
+
+            const horaInicio = paraHoraMin(fimAtual);
+            if (iniciosDeDescanso.has(horaInicio)) continue;
+            iniciosDeDescanso.add(horaInicio);
+
+            novos.push({
+                id: `novo-${Date.now()}-descanso-${i}`,
+                persistido: false,
+                horaInicio,
+                // Encaixa na folga quando ela existe, pra não invadir o bloco seguinte.
+                duracaoMin: folga > 0 ? Math.min(folga, duracaoPadrao) : duracaoPadrao,
+                tipo: "descanso",
+                notificar: false,
+                antecedenciaMin: null,
+            });
+        }
+
+        if (novos.length === 0) {
+            toast.info("Não há trocas de matéria sem descanso neste plano.");
+            return;
+        }
+
+        setBlocos((atual) => [...atual, ...novos]);
+        toast.success(
+            novos.length === 1 ? "1 descanso adicionado." : `${novos.length} descansos adicionados.`
+        );
     };
 
     const alternarNotificacao = (id: string) =>
@@ -537,14 +608,14 @@ export default function PlanoEditorScreen() {
                             rotulo="Bloco"
                             corIcone={HADES.accent}
                             corTexto={HADES.text}
-                            onPress={() => abrirNovoBloco("estudo")}
+                            onPress={abrirNovoBloco}
                         />
                         <BotaoAdicionar
                             Icone={Coffee}
                             rotulo="Descanso"
                             corIcone={HADES.textMuted}
                             corTexto={HADES.textSecondary}
-                            onPress={() => abrirNovoBloco("descanso")}
+                            onPress={inserirDescansosEntreMaterias}
                         />
                     </View>
                 </ScrollView>

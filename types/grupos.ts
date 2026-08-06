@@ -52,6 +52,18 @@ export type MembroGrupo = {
   user_id: string;
   grupo_id: string;
   administrador: boolean;
+  /*
+    Permissão de convidar concedida pelo admin (migration 20260806170000). Opcional porque
+    um banco que ainda não recebeu a migration devolve a linha sem a coluna — nesse caso
+    vale o mesmo que `false`. O admin convida sempre, sem depender deste campo.
+  */
+  pode_convidar?: boolean;
+  /*
+    Participação da própria pessoa (migration 20260806190000), opcionais pelo mesmo motivo
+    de `pode_convidar`. `meta_horas_pessoal` nulo significa seguir a meta do grupo.
+  */
+  silenciar_notificacoes?: boolean;
+  meta_horas_pessoal?: number | null;
   rank?: number;
   ofensiva?: number;
 };

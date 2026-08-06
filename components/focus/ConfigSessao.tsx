@@ -137,17 +137,25 @@ export default function ConfigSessao({
                             onPress={() => onSelecionarMateria(ativa ? "" : materia.nomeExibicao)}
                             activeOpacity={0.8}
                             style={{
-                                paddingVertical: 11,
-                                paddingHorizontal: 16,
-                                borderRadius: 12,
-                                backgroundColor: ativa ? HADES.accentSolid : HADES.surfaceRaised,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 7,
+                                backgroundColor: ativa ? `${materia.cor}29` : HADES.surfaceRaised,
+                                borderWidth: ativa ? 1.5 : 1,
+                                borderColor: ativa ? materia.cor : HADES.borderStrong,
+                                borderRadius: 18,
+                                paddingVertical: 8,
+                                paddingHorizontal: 13,
                             }}
                         >
+                            <View
+                                style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: materia.cor }}
+                            />
                             <Text
                                 style={{
-                                    fontSize: 14,
-                                    fontWeight: "600",
-                                    color: ativa ? "#000" : HADES.textSecondary,
+                                    fontSize: 13,
+                                    fontWeight: ativa ? "700" : "600",
+                                    color: ativa ? HADES.text : HADES.textSecondary,
                                 }}
                             >
                                 {materia.nomeExibicao}
@@ -160,19 +168,19 @@ export default function ConfigSessao({
                     onPress={onNovaMateria}
                     activeOpacity={0.8}
                     style={{
-                        paddingVertical: 11,
-                        paddingHorizontal: 16,
-                        borderRadius: 12,
-                        borderWidth: 1.5,
-                        borderStyle: "dashed",
-                        borderColor: "rgba(255,255,255,0.22)",
                         flexDirection: "row",
                         alignItems: "center",
                         gap: 6,
+                        borderRadius: 18,
+                        borderWidth: 1.5,
+                        borderStyle: "dashed",
+                        borderColor: "rgba(255,255,255,0.22)",
+                        paddingVertical: 8,
+                        paddingHorizontal: 13,
                     }}
                 >
-                    <Plus size={15} color={HADES.textMuted} />
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.textMuted }}>
+                    <Plus size={14} color={HADES.textMuted} />
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: HADES.textMuted }}>
                         Nova matéria
                     </Text>
                 </TouchableOpacity>

@@ -170,21 +170,6 @@ export default function ColegasFocandoScreen() {
                     borderTopColor: HADES.border,
                 }}
             >
-                <TouchableOpacity
-                    activeOpacity={0.85}
-                    style={{
-                        width: 52,
-                        height: 52,
-                        borderRadius: 14,
-                        backgroundColor: HADES.surfaceRaised,
-                        borderWidth: 1,
-                        borderColor: HADES.borderStrong,
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
-                >
-                    <MessageCircle size={19} color={HADES.textMuted} />
-                </TouchableOpacity>
             </View>
         </SafeAreaView>
     );

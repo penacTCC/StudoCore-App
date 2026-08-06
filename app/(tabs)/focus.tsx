@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Play } from "lucide-react-native";
 import * as Notifications from "expo-notifications";
 import * as Crypto from "expo-crypto";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 
 import { HADES } from "@/constants/hades";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -89,6 +90,9 @@ function formatarHora(timestamp: number) {
     return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
+/** Identifica a trava de tela desta tela, para não interferir na de outra parte do app. */
+const TRAVA_DE_TELA = "sessao-de-foco";
+
 export default function FocusScreen() {
     const [focusState, setFocusState] = useState<FocusState>("config");
     const [modo, setModo] = useState<ModoFoco>("cronometro");
@@ -129,7 +133,7 @@ export default function FocusScreen() {
 
     const { userId, user } = useAuth();
     const { prefs, carregando: carregandoPrefs } = usePreferencias(userId);
-    const { pendingSessions, loading: carregandoSessoesPendentes } = useSessoesUsuario(userId);
+    const { pendingSessions, loading: carregandoSessoesPendentes } = useSessoesUsuario(userId, true);
     const { archives } = useArchives(userId || undefined);
     const { materias, recarregarMaterias, carregando: carregandoMaterias } = useMaterias(userId);
     const params = useLocalSearchParams();
@@ -316,7 +320,7 @@ export default function FocusScreen() {
         setSalaFixa(undefined);
         setSelectedSubject("");
         setSpecificContent("");
-        setIsPublicSession(true);
+        setIsPublicSession(prefs.sessaoPublicaPadrao);
         setModo("cronometro");
         setFocusState("config");
         setContexto(null);
@@ -552,6 +556,36 @@ export default function FocusScreen() {
         limparParamsDaRota,
     ]);
 
+    /*
+      Enquanto a sessão está sendo montada, o interruptor de visibilidade parte da
+      preferência de privacidade. Só as dependências disparam isto, então mexer no
+      interruptor na própria tela continua valendo para a sessão que está sendo criada.
+    */
+    useEffect(() => {
+        if (focusState !== "config") return;
+        setIsPublicSession(prefs.sessaoPublicaPadrao);
+    }, [prefs.sessaoPublicaPadrao, focusState]);
+
+    /*
+      Segura o bloqueio de tela enquanto a sessão está de fato correndo.
+
+      Pausado não conta: quem pausa costuma largar o telefone, e manter a tela acesa ali
+      só queima bateria. A trava é solta no cleanup, então encerrar, pausar ou desligar a
+      preferência devolve o comportamento normal do aparelho na hora.
+    */
+    useEffect(() => {
+        if (!prefs.manterTelaLigada || focusState !== "active" || isPaused) return;
+
+        activateKeepAwakeAsync(TRAVA_DE_TELA).catch((erro) =>
+            console.error("Erro ao manter a tela ligada:", erro)
+        );
+        return () => {
+            deactivateKeepAwake(TRAVA_DE_TELA).catch((erro) =>
+                console.error("Erro ao liberar a tela:", erro)
+            );
+        };
+    }, [prefs.manterTelaLigada, focusState, isPaused]);
+
     // Timer com setInterval (atualiza a cada segundo enquanto em foreground)
     useEffect(() => {
         if (focusState === "active" && !isPaused) {
@@ -772,8 +806,8 @@ export default function FocusScreen() {
      */
     /*
       Avisos de troca de fase, conforme as preferências. `Vibration` vem do próprio
-      React Native, então não custa dependência nova; o aviso sonoro dedicado
-      ainda não existe (ver "somFimFoco" nas preferências).
+      React Native, então não custa dependência nova. Não há aviso sonoro dedicado: o
+      projeto não carrega biblioteca de áudio, e a preferência que o prometia foi tirada.
     */
     const avisarTrocaDeFase = useCallback(
         (entrandoEmEstudo: boolean) => {
@@ -952,11 +986,23 @@ export default function FocusScreen() {
             }
 
             await avancarParaItem(proximoIndice, proximoItem);
+
+            /*
+              "Iniciar automaticamente": desligada, a fase seguinte é armada por inteiro
+              mas já entra pausada, esperando o toque de retomar. O aviso de troca de fase
+              (`avisarTrocaDeFase`, dentro de `avancarParaItem`) é o que chama a pessoa de
+              volta — sem ele a sessão ficaria parada em silêncio.
+            */
+            const iniciaSozinho =
+                proximoItem.tipo === "estudo" ? prefs.autoFoco : prefs.autoDescanso;
+            if (!iniciaSozinho) {
+                await pausarSessao(proximoItem.duracaoMin * 60);
+            }
         };
 
         processarFimDeItem();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [restanteFase, fila, indiceFila, focusState, modo, isPaused, seguindoCronograma, avancarParaItem, finalizarLinhaAtual]);
+    }, [restanteFase, fila, indiceFila, focusState, modo, isPaused, seguindoCronograma, avancarParaItem, finalizarLinhaAtual, prefs.autoFoco, prefs.autoDescanso]);
 
     /*
       Motor da sessão em grupo: em vez de contar o próprio tempo, olha onde o CRONOGRAMA
@@ -1410,6 +1456,52 @@ export default function FocusScreen() {
      * mesmo `segundosDeFoco()` que a tela usa — antes a pausa gravava um contador paralelo,
      * derivado do relógio de parede da sessão, que no pomodoro incluía até o descanso.
      */
+    /**
+     * Congela o tempo de foco acumulado até aqui, grava a pausa e para o interval.
+     *
+     * `restanteDaFaseSeg` existe para a pausa que acontece na troca de fase: ali o estado
+     * `restanteFase` ainda é o da fase que acabou de terminar (o `setRestanteFase` da fase
+     * nova ainda não foi processado), e retomar com esse valor daria uma fase curta.
+     */
+    const pausarSessao = async (restanteDaFaseSeg?: number) => {
+        if (!session?.id) return;
+
+        const focoAtual = segundosDeFoco();
+
+        const { error: pauseError } = await atualizarSessaoFoco(session.id, {
+            status: "pausado",
+            tempo_minutos: await calculateFocusSessionMinutes(focoAtual),
+        });
+        if (pauseError) {
+            console.error("Erro ao pausar sessão:", pauseError);
+            toast.error("Não foi possível pausar a sessão.");
+        }
+
+        if (isPublicSession && salaId) {
+            const { error: updateMemberError } = await atualizarParticipacao(salaId, userId || "", {
+                status: "pausado",
+                tempo_segundos: focoAtual,
+            });
+            if (updateMemberError) {
+                console.error("Erro ao pausar membro:", updateMemberError);
+                toast.error("Não foi possível sincronizar sua sessão com o grupo.");
+                return;
+            }
+
+            await recarregarParticipantes();
+        }
+
+        // Mesmo valor que acabou de ser gravado no banco, para pausa e registro não
+        // divergirem por um segundo.
+        pausedSecondsRef.current =
+            restanteDaFaseSeg ?? (modo === "cronometro" ? focoAtual : restanteFase);
+        // Quanto a pausa durou é o que será descontado do tempo de foco ao retomar numa
+        // sessão em grupo, onde a fase não pode ser adiada.
+        pausaIniciadaEmRef.current = Date.now();
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setIsPaused(true);
+    };
+
     const togglePause = async () => {
         if (!session?.id) {
             console.error("Nenhuma sessão foi encontrada:", session);
@@ -1479,40 +1571,7 @@ export default function FocusScreen() {
             return;
         }
 
-        // Pausar: congela o tempo de foco acumulado até aqui e para o interval.
-        const focoAtual = segundosDeFoco();
-
-        const { error: pauseError } = await atualizarSessaoFoco(session.id, {
-            status: "pausado",
-            tempo_minutos: await calculateFocusSessionMinutes(focoAtual),
-        });
-        if (pauseError) {
-            console.error("Erro ao pausar sessão:", pauseError);
-            toast.error("Não foi possível pausar a sessão.");
-        }
-
-        if (isPublicSession && salaId) {
-            const { error: updateMemberError } = await atualizarParticipacao(salaId, userId || "", {
-                status: "pausado",
-                tempo_segundos: focoAtual,
-            });
-            if (updateMemberError) {
-                console.error("Erro ao pausar membro:", updateMemberError);
-                toast.error("Não foi possível sincronizar sua sessão com o grupo.");
-                return;
-            }
-
-            await recarregarParticipantes();
-        }
-
-        // Mesmo valor que acabou de ser gravado no banco, para pausa e registro não
-        // divergirem por um segundo.
-        pausedSecondsRef.current = modo === "cronometro" ? focoAtual : restanteFase;
-        // Quanto a pausa durou é o que será descontado do tempo de foco ao retomar numa
-        // sessão em grupo, onde a fase não pode ser adiada.
-        pausaIniciadaEmRef.current = Date.now();
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        setIsPaused(true);
+        await pausarSessao();
     };
 
     /**
@@ -1913,7 +1972,7 @@ export default function FocusScreen() {
                         ciclo={cicloAtual}
                         totalCiclos={totalCiclos}
                         contexto={contexto}
-                        autoFoco
+                        autoFoco={prefs.autoFoco}
                         /*
                           Numa sessão em grupo, esticar o foco e pular o descanso mudam o
                           combinado de todo mundo — então só quem criou a sessão vê esses

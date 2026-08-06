@@ -2,13 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Share, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, Share2, Crown, Clock, ListChecks, Trophy, Medal, Flame, BookOpen, Swords } from "lucide-react-native";
+import { ChevronLeft, Share2, Crown, Clock, ListChecks, Trophy, Medal, Flame, BookOpen, Swords, Lock } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import Avatar from "@/components/ui/Avatar";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
-import { buscarPerfil } from "@/services/auth";
-import { buscarGamificacao } from "@/services/gamificacao";
+import { buscarEstatisticasParaDuelo } from "@/services/profileStats";
 import { APP_BADGES } from "@/constants/badges";
 import { getAvatarColor } from "@/constants/helpers";
 import type { Profile } from "@/types/profile";
@@ -41,11 +40,41 @@ export default function CompareProfileScreen() {
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
 
+    /*
+      Uma RPC só, em vez de `buscarPerfil` + `buscarGamificacao`.
+
+      As duas leituras diretas ignoravam `perfil_publico` — e não adiantaria só esconder os
+      números aqui, porque `gamificacoes` libera SELECT para qualquer usuário logado e a
+      linha de `profiles` vinha inteira. Quem corta agora é o banco (migration
+      20260806200000): de perfil fechado chegam nome e foto, e número nenhum.
+    */
     const carregarLado = useCallback(async (id: string): Promise<PerfilComparavel | null> => {
-        const { data: profile } = await buscarPerfil(id);
-        if (!profile) return null;
-        const gamificacao = await buscarGamificacao(id);
-        return { profile, gamificacao };
+        const dados = await buscarEstatisticasParaDuelo(id);
+        if (!dados) return null;
+
+        return {
+            profile: {
+                id: dados.id,
+                nome_usuario: dados.nome_usuario,
+                nome_real: dados.nome_real,
+                foto_usuario: dados.foto_usuario,
+                perfil_publico: dados.perfil_publico,
+                horas_totais: dados.horas_totais,
+                questoes_feitas: dados.questoes_feitas,
+                medalhas_desbloqueadas: dados.medalhas_desbloqueadas,
+            },
+            // Sem ofensiva não há gamificação a mostrar — é o perfil fechado, ou alguém
+            // que ainda não tem linha em `gamificacoes`.
+            gamificacao:
+                dados.ofensiva === null
+                    ? null
+                    : {
+                          user_id: dados.id ?? id,
+                          ofensiva: dados.ofensiva,
+                          melhor_ofensiva: dados.melhor_ofensiva ?? 0,
+                          ultima_data_estudo: null,
+                      },
+        };
     }, []);
 
     useEffect(() => {
@@ -68,6 +97,15 @@ export default function CompareProfileScreen() {
 
     if (!eu || !ele) {
         return <CompareProfileSkeleton />;
+    }
+
+    /*
+      Perfil fechado não duela. Os números já chegaram nulos do banco, então isto é só
+      dizer o motivo — sem esta tela, o duelo apareceria com zero em tudo e daria a
+      entender que a pessoa nunca estudou.
+    */
+    if (ele.profile.perfil_publico === false) {
+        return <DueloIndisponivel nome={ele.profile.nome_usuario} onVoltar={() => router.back()} />;
     }
 
     const corEu = corDoUsuario(eu.profile.nome_usuario);
@@ -115,9 +153,6 @@ export default function CompareProfileScreen() {
                     <ChevronLeft size={20} color={HADES.textSecondary} />
                 </TouchableOpacity>
                 <Text style={{ fontSize: 16, fontWeight: "600", color: HADES.text }}>Duelo</Text>
-                <TouchableOpacity onPress={compartilhar} style={estilos.botaoCircular}>
-                    <Share2 size={16} color={HADES.textSecondary} />
-                </TouchableOpacity>
             </View>
 
             <ScrollView
@@ -259,6 +294,54 @@ export default function CompareProfileScreen() {
                     <Swords size={18} color="#fff" />
                     <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Desafiar {ele.profile.nome_usuario}</Text>
                 </TouchableOpacity>
+            </View>
+        </SafeAreaView>
+    );
+}
+
+/** Perfil fechado do outro lado: explica em vez de mostrar um duelo zerado. */
+function DueloIndisponivel({ nome, onVoltar }: { nome?: string | null; onVoltar: () => void }) {
+    const primeiroNome = nome?.split(" ")[0] ?? "Esta pessoa";
+
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top", "bottom"]}>
+            <View
+                style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 20,
+                    paddingTop: 6,
+                    paddingBottom: 12,
+                }}
+            >
+                <TouchableOpacity onPress={onVoltar} style={estilos.botaoCircular}>
+                    <ChevronLeft size={20} color={HADES.textSecondary} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 16, fontWeight: "600", color: HADES.text }}>Duelo</Text>
+                <View style={estilos.botaoCircular} />
+            </View>
+
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40, gap: 14 }}>
+                <View
+                    style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 32,
+                        backgroundColor: HADES.surfaceRaised,
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    <Lock size={26} color={HADES.textMuted} />
+                </View>
+                <Text style={{ fontSize: 17, fontWeight: "700", color: HADES.text, textAlign: "center" }}>
+                    Perfil fechado
+                </Text>
+                <Text style={{ fontSize: 13.5, color: HADES.textMuted, textAlign: "center", lineHeight: 20 }}>
+                    {primeiroNome} escolheu não mostrar as estatísticas. Sem os números dos dois lados
+                    não dá para montar o duelo.
+                </Text>
             </View>
         </SafeAreaView>
     );

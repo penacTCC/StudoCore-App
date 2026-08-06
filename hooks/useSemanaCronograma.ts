@@ -102,24 +102,30 @@ export function useSemanaCronograma(userId: string | null | undefined, inicioDaS
         return marcacoes;
     }, [janela]);
 
+    /*
+      Grade do calendário: só blocos de matéria. Os descansos picotavam as colunas
+      em faixas verdes que não dizem nada sobre o que se estuda na semana — quem
+      precisa vê-los usa a visualização em lista (`blocosLista`), que os mantém.
+    */
     const blocosSemana = useMemo<BlocoSemana[]>(
         () =>
             dias.flatMap((dia, coluna) =>
-                dia.blocos.map((bloco) => {
-                    const materia = bloco.materiaId ? materiaPorId.get(bloco.materiaId) : undefined;
-                    const descanso = bloco.tipo === "descanso";
+                dia.blocos
+                    .filter((bloco) => bloco.tipo !== "descanso")
+                    .map((bloco) => {
+                        const materia = bloco.materiaId ? materiaPorId.get(bloco.materiaId) : undefined;
 
-                    return {
-                        id: `${dia.dataISO}:${bloco.id}`,
-                        dia: coluna,
-                        inicioMin: paraMinutos(bloco.horaInicio) - janela.inicioMin,
-                        duracaoMin: bloco.duracaoMin,
-                        rotulo: descanso ? "Zzz" : materia?.nomeExibicao.slice(0, 3) ?? "—",
-                        cor: descanso ? HADES.green : materia?.cor ?? HADES.textFaint,
-                        tipo: bloco.tipo,
-                        origem: bloco.origem,
-                    };
-                })
+                        return {
+                            id: `${dia.dataISO}:${bloco.id}`,
+                            dia: coluna,
+                            inicioMin: paraMinutos(bloco.horaInicio) - janela.inicioMin,
+                            duracaoMin: bloco.duracaoMin,
+                            rotulo: materia?.nomeExibicao.slice(0, 3) ?? "—",
+                            cor: materia?.cor ?? HADES.textFaint,
+                            tipo: bloco.tipo,
+                            origem: bloco.origem,
+                        };
+                    })
             ),
         [dias, materiaPorId, janela]
     );

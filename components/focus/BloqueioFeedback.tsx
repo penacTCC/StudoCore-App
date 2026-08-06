@@ -117,24 +117,6 @@ export default function BloqueioFeedback({ sessoes, onResponder, onResponderTodo
             </ScrollView>
 
             <View style={{ paddingTop: 12, paddingHorizontal: 20, paddingBottom: 12 }}>
-                <TouchableOpacity
-                    onPress={onResponderTodos}
-                    activeOpacity={0.85}
-                    style={{
-                        height: 54,
-                        borderRadius: 15,
-                        backgroundColor: HADES.amber,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 9,
-                    }}
-                >
-                    <Pencil size={18} color="#000" />
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>
-                        Responder formulários
-                    </Text>
-                </TouchableOpacity>
             </View>
         </View>
     );

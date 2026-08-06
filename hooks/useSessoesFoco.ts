@@ -7,6 +7,7 @@ import {
     observarSessoesDoGrupo,
 } from "@/services/sessions";
 import { toast } from "@/services/toast";
+import { definirFormulariosPendentes } from "@/services/formulariosPendentes";
 import { SessaoFocoRow } from "@/types/sessions";
 
 /**
@@ -120,8 +121,12 @@ export const useSessoesAoVivo = (limit: number = 20, groupId?: string | null) =>
 
 /**
  * Hook que busca as sessões exclusivas do Usuário para o Brain Hub e divide em Salvas e Pendentes.
+ *
+ * `sincronizarBadge` só pode ser ligado quando `userId` é o da conta logada: é ele que
+ * alimenta o badge de formulários pendentes da tab bar. O perfil de um colega usa o mesmo
+ * hook e não pode escrever a contagem dele no badge de quem está usando o app.
  */
-export const useSessoesUsuario = (userId: string | null | undefined) => {
+export const useSessoesUsuario = (userId: string | null | undefined, sincronizarBadge = false) => {
     const [savedSessions, setSavedSessions] = useState<SessaoFocoRow[]>([]);
     const [pendingSessions, setPendingSessions] = useState<SessaoFocoRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -135,11 +140,15 @@ export const useSessoesUsuario = (userId: string | null | undefined) => {
             toast.error("Não foi possível carregar suas sessões.");
         } else {
             const rows = (data as SessaoFocoRow[]) || [];
+            const pendentes = rows.filter(s => s.status === 'pendente');
             setSavedSessions(rows.filter(s => s.status === 'salvo'));
-            setPendingSessions(rows.filter(s => s.status === 'pendente'));
+            setPendingSessions(pendentes);
+            // Mantém o badge da tab bar em dia sem uma busca extra: quem abriu o Foco ou o
+            // Análise já pagou por esta query.
+            if (sincronizarBadge) definirFormulariosPendentes(pendentes.length);
         }
         setLoading(false);
-    }, [userId]);
+    }, [userId, sincronizarBadge]);
 
     useFocusEffect(
         useCallback(() => {

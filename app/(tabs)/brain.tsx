@@ -14,6 +14,7 @@ import { useMaterias } from "@/hooks/useMaterias";
 import { formatarHoras } from "@/lib/analytics";
 import { SessaoFocoRow } from "@/types/sessions";
 import { taxaDeAcerto, totalQuestoes } from "@/utils/estatisticasSessao";
+import { paraDataISO, somarDias } from "@/utils/tempo";
 import { EstadoPoucosDadosPessoal, EstadoVazioPessoal, EstadoSemGrupo, EstadoGrupoSemDadosPeriodo } from "@/components/analytics/EstadosAnalise";
 import {
     SeletorEscopo,
@@ -135,18 +136,22 @@ export default function BrainScreen() {
         }
     }, [refreshAnalisePessoal, refreshGraficos]);
 
+    /*
+      "Hoje" / "Ontem" / "Amanhã" no fuso do APARELHO.
+      Isto usava `toISOString()`, que é UTC, nas duas pontas da comparação. Estando em UTC-3,
+      a partir das 21h o "hoje" do cálculo já era amanhã, e a sessão que a pessoa acabara de
+      fazer aparecia como "Ontem". O mesmo valia para o rótulo com a data por extenso:
+      `new Date("2026-08-06")` é meia-noite UTC, que impressa em horário local vira 05/08.
+      `paraDataISO` e o `T00:00:00` (sem o "Z") mantêm tudo no fuso de quem está olhando.
+    */
     const formatarData = (dataSessao: string) => {
         try {
-            const [ano, mes, dia] = dataSessao.split('-');
-            const data = new Date(`${ano}-${mes}-${dia}`);
+            const data = new Date(`${dataSessao}T00:00:00`);
             const hoje = new Date();
-            const amanhaString = new Date(hoje.getTime() + 86400000).toISOString().split('T')[0];
-            const ontemString = new Date(hoje.getTime() - 86400000).toISOString().split('T')[0];
-            const hojeString = hoje.toISOString().split('T')[0];
 
-            if (dataSessao === hojeString) return "Hoje";
-            if (dataSessao === ontemString) return "Ontem";
-            if (dataSessao === amanhaString) return "Amanhã";
+            if (dataSessao === paraDataISO(hoje)) return "Hoje";
+            if (dataSessao === paraDataISO(somarDias(hoje, -1))) return "Ontem";
+            if (dataSessao === paraDataISO(somarDias(hoje, 1))) return "Amanhã";
 
             return data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('de ', '').replace('.', '');
         } catch {
@@ -262,22 +267,6 @@ export default function BrainScreen() {
                             {brainTab === "analytics" ? "Análise" : "Banco de dados"}
                         </Text>
                     </View>
-                    {brainTab === "database" && (
-                        <TouchableOpacity
-                            style={{
-                                width: 38,
-                                height: 38,
-                                borderRadius: 12,
-                                backgroundColor: HADES.surface,
-                                borderWidth: 1,
-                                borderColor: HADES.border,
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <SlidersHorizontal size={18} color={HADES.textSecondary} />
-                        </TouchableOpacity>
-                    )}
                 </View>
             </View>
 

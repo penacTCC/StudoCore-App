@@ -28,6 +28,21 @@ export type ProfilePreview = Pick<
   "id" | "nome_real" | "nome_usuario" | "foto_usuario"
 >;
 
+/**
+ * O que o duelo consegue ver de alguém (RPC `estatisticas_para_duelo`).
+ *
+ * Identidade e `perfil_publico` vêm sempre; os números vêm nulos quando o perfil está
+ * fechado — quem corta é o banco, não a tela.
+ */
+export type EstatisticasDuelo = ProfilePreview & {
+  perfil_publico: boolean;
+  horas_totais: number | null;
+  questoes_feitas: number | null;
+  medalhas_desbloqueadas: string[] | null;
+  ofensiva: number | null;
+  melhor_ofensiva: number | null;
+};
+
 export type UserStats = {
     totalHours: number;
     totalQuestions: number;

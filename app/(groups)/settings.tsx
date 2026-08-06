@@ -15,7 +15,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { HADES } from "@/constants/hades";
 import Avatar from "@/components/ui/Avatar";
 import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
-import { SecaoConfig, LinhaSwitch, LinhaEscolha, LinhaPerigo } from "@/components/cronograma/LinhasConfig";
+import { SecaoConfig, LinhaSwitch, LinhaStepper, LinhaEscolha, LinhaPerigo } from "@/components/cronograma/LinhasConfig";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -23,6 +23,8 @@ import {
     buscarGrupoPorId,
     buscarMembrosGrupo,
     contarMembrosGrupo,
+    definirParticipacaoNoGrupo,
+    definirPermissaoConvite,
     excluirGrupoAtual,
     sairDoGrupo,
 } from "@/services/grupos";
@@ -56,6 +58,104 @@ export default function GroupSettingsScreen() {
       o grupo) é escondido a partir daqui; sobra a identidade do grupo e o "Sair do grupo".
     */
     const souAdmin = membros.some((membro) => membro.user_id === userId && membro.administrador);
+
+    /*
+      A minha linha na tabela de membros. É dela que sai tudo o que a seção "Sua
+      participação" edita — o que muda ali vale só para mim, nunca para o grupo.
+    */
+    const minhaParticipacao = membros.find((membro) => membro.user_id === userId) ?? null;
+
+    // Admin convida sempre; o membro comum só quando o admin liberou.
+    const possoConvidar = souAdmin || !!minhaParticipacao?.pode_convidar;
+
+    const [silenciado, setSilenciado] = useState(false);
+    // `null` = seguir a meta do grupo.
+    const [metaPessoal, setMetaPessoal] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!minhaParticipacao) return;
+        setSilenciado(!!minhaParticipacao.silenciar_notificacoes);
+        setMetaPessoal(minhaParticipacao.meta_horas_pessoal ?? null);
+    }, [minhaParticipacao?.id]);
+
+    const alternarSilenciar = async () => {
+        const novo = !silenciado;
+        // Otimista, igual à permissão de convite: responde na hora, volta se o banco recusar.
+        setSilenciado(novo);
+        const sucesso = await definirParticipacaoNoGrupo(groupId as string, { silenciar: novo });
+        if (!sucesso) setSilenciado(!novo);
+    };
+
+    /**
+     * Liga/desliga a meta própria. Ligar parte da meta do grupo, que é o número que a
+     * pessoa já tinha na frente — começar do zero faria parecer que ela perdeu o progresso.
+     */
+    const alternarMetaPessoal = async () => {
+        if (metaPessoal === null) {
+            const inicial = grupo?.meta_horas ?? 10;
+            setMetaPessoal(inicial);
+            await definirParticipacaoNoGrupo(groupId as string, { metaHorasPessoal: inicial });
+            return;
+        }
+        setMetaPessoal(null);
+        await definirParticipacaoNoGrupo(groupId as string, { limparMeta: true });
+    };
+
+    /*
+      Salva a meta pessoal um tempo depois do último toque no stepper: sem isso, ajustar de
+      10h para 20h seriam dez idas ao banco.
+    */
+    useEffect(() => {
+        if (metaPessoal === null || !groupId) return;
+        const timeout = setTimeout(() => {
+            definirParticipacaoNoGrupo(groupId as string, { metaHorasPessoal: metaPessoal });
+        }, 600);
+        return () => clearTimeout(timeout);
+    }, [metaPessoal, groupId]);
+
+    const copiarCodigoConvite = async () => {
+        if (!grupo?.codigo_convite) {
+            toast.error("Este grupo ainda não tem um código de convite.");
+            return;
+        }
+        await Clipboard.setStringAsync(grupo.codigo_convite);
+        toast.success("Código copiado.");
+    };
+
+    /*
+      Quem pode convidar: o admin sempre, e os membros a quem ele passar a permissão aqui.
+      O outro admin da lista não entra — a permissão dele vem do cargo e não tem o que ligar.
+    */
+    const membrosParaPermissao = membros.filter((membro) => !membro.administrador);
+
+    const alternarPermissaoConvite = async (membro: MembroGrupoComPerfil) => {
+        const novoValor = !membro.pode_convidar;
+
+        // Otimista: o switch responde na hora e volta sozinho se o banco recusar.
+        setMembros((atuais) =>
+            atuais.map((linha) =>
+                linha.id === membro.id ? { ...linha, pode_convidar: novoValor } : linha
+            )
+        );
+
+        const sucesso = await definirPermissaoConvite(groupId as string, membro.user_id, novoValor);
+
+        if (!sucesso) {
+            setMembros((atuais) =>
+                atuais.map((linha) =>
+                    linha.id === membro.id ? { ...linha, pode_convidar: !novoValor } : linha
+                )
+            );
+            return;
+        }
+
+        const nome = membro.userData?.nome_usuario ?? "O membro";
+        toast.success(
+            novoValor
+                ? `${nome} agora pode convidar pessoas para o grupo.`
+                : `${nome} não pode mais convidar pessoas.`
+        );
+    };
 
     //useEffect para buscar todas as informações do grupo
     useEffect(() => {
@@ -711,7 +811,90 @@ export default function GroupSettingsScreen() {
                                         ultima
                                     />
                                 </SecaoConfig>
+
+                                {/* Convidar é seu por padrão; aqui você estende para quem quiser. */}
+                                <SecaoConfig titulo="QUEM PODE CONVIDAR">
+                                    {membrosParaPermissao.length === 0 ? (
+                                        <View style={{ padding: 14 }}>
+                                            <Text style={{ fontSize: 13, color: HADES.settingsTextMuted, lineHeight: 18 }}>
+                                                Só você no grupo por enquanto. Quando entrar mais gente, é aqui
+                                                que você libera quem também pode convidar.
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        membrosParaPermissao.map((membro, indice) => (
+                                            <LinhaPermissaoConvite
+                                                key={membro.id}
+                                                membro={membro}
+                                                onToggle={() => alternarPermissaoConvite(membro)}
+                                                ultima={indice === membrosParaPermissao.length - 1}
+                                            />
+                                        ))
+                                    )}
+                                </SecaoConfig>
                             </>
+                        )}
+
+                        {/*
+                          Vale para todo mundo, inclusive o admin: administrar o grupo é uma
+                          coisa, participar dele é outra, e até quem criou o grupo pode querer
+                          silenciar os avisos ou ter uma meta menor que a coletiva.
+                        */}
+                        <SecaoConfig titulo="SUA PARTICIPAÇÃO">
+                            <LinhaSwitch
+                                rotulo="Silenciar este grupo"
+                                descricao="Para de receber avisos deste grupo. Você continua membro e continua vendo tudo."
+                                ligado={silenciado}
+                                onToggle={alternarSilenciar}
+                            />
+                            <LinhaSwitch
+                                rotulo="Usar meta própria"
+                                descricao={`Desligado, vale a meta do grupo (${grupo?.meta_horas ?? 0}h por semana).`}
+                                ligado={metaPessoal !== null}
+                                onToggle={alternarMetaPessoal}
+                                ultima={metaPessoal === null}
+                            />
+                            {metaPessoal !== null && (
+                                <LinhaStepper
+                                    rotulo="Minha meta semanal"
+                                    valor={`${metaPessoal}h`}
+                                    onDiminuir={() => setMetaPessoal(Math.max(1, metaPessoal - 1))}
+                                    onAumentar={() => setMetaPessoal(Math.min(168, metaPessoal + 1))}
+                                    ultima
+                                />
+                            )}
+                        </SecaoConfig>
+
+                        {/*
+                          O que o admin edita nos modais acima, o membro comum vê aqui em modo
+                          leitura. Antes ele não via nem a meta que precisava cumprir.
+                        */}
+                        {!souAdmin && (
+                            <SecaoConfig titulo="SOBRE O GRUPO">
+                                <LinhaEscolha rotulo="Descrição" valor={grupo?.descricao || "Sem descrição"} />
+                                <LinhaEscolha rotulo="Meta do grupo" valor={`${grupo?.meta_horas ?? 0}h por semana`} />
+                                <LinhaEscolha rotulo="Membros" valor={`${qtdMembros ?? 0}`} />
+                                <LinhaEscolha
+                                    rotulo="Administrador"
+                                    valor={
+                                        membros.find((membro) => membro.administrador)?.userData?.nome_usuario ??
+                                        "Sem administrador"
+                                    }
+                                    ultima={!possoConvidar}
+                                />
+                                {/*
+                                  A permissão de convidar não servia de nada nesta tela: quem a
+                                  recebia continuava sem ver o código para passar adiante.
+                                */}
+                                {possoConvidar && (
+                                    <LinhaEscolha
+                                        rotulo="Código de convite"
+                                        valor={grupo?.codigo_convite || "Nenhum código"}
+                                        onPress={copiarCodigoConvite}
+                                        ultima
+                                    />
+                                )}
+                            </SecaoConfig>
                         )}
 
                         <SecaoConfig titulo="ZONA DE PERIGO">
@@ -739,6 +922,68 @@ export default function GroupSettingsScreen() {
             {renderModal()}
             {renderModalTransferenciaAdmin()}
         </SafeAreaView>
+    );
+}
+
+/** Um membro do grupo com o interruptor da permissão de convidar. */
+function LinhaPermissaoConvite({
+    membro,
+    onToggle,
+    ultima,
+}: {
+    membro: MembroGrupoComPerfil;
+    onToggle: () => void;
+    ultima?: boolean;
+}) {
+    const ligado = !!membro.pode_convidar;
+    const nome = membro.userData?.nome_usuario ?? "Membro sem nome";
+
+    return (
+        <View
+            style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                padding: 14,
+                borderBottomWidth: ultima ? 0 : 1,
+                borderBottomColor: HADES.borderSettings,
+            }}
+        >
+            <Avatar foto={membro.userData?.foto_usuario} nome={nome} size={36} />
+
+            <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, color: HADES.text }} numberOfLines={1}>
+                    {nome}
+                </Text>
+                <Text style={{ fontSize: 12, color: HADES.settingsTextMuted, marginTop: 2 }}>
+                    {ligado ? "Pode convidar" : "Não pode convidar"}
+                </Text>
+            </View>
+
+            <TouchableOpacity
+                onPress={onToggle}
+                activeOpacity={0.8}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{
+                    width: 44,
+                    height: 27,
+                    borderRadius: 14,
+                    backgroundColor: ligado ? HADES.accentSolid : HADES.settingsSwitchOff,
+                    justifyContent: "center",
+                }}
+            >
+                <View
+                    style={{
+                        position: "absolute",
+                        left: ligado ? 19 : 2.5,
+                        width: 22,
+                        height: 22,
+                        borderRadius: 11,
+                        backgroundColor: "#fff",
+                    }}
+                />
+            </TouchableOpacity>
+        </View>
     );
 }
 

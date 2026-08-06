@@ -1,8 +1,16 @@
 import { Tabs } from "expo-router";
 import { Users, Timer, Brain, User, CalendarDays } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
+import BadgeContagem from "@/components/ui/BadgeContagem";
+import { useAuth } from "@/hooks/useAuth";
+import { useFormulariosPendentes } from "@/hooks/useFormulariosPendentes";
 
 export default function TabLayout() {
+    const { userId } = useAuth();
+    // Formulários de sessão em aberto viram um badge no ícone do Análise, que é a aba
+    // onde eles são respondidos.
+    const formulariosPendentes = useFormulariosPendentes(userId);
+
     return (
         <Tabs
             screenOptions={{
@@ -58,7 +66,9 @@ export default function TabLayout() {
                 options={{
                     title: "Análise",
                     tabBarIcon: ({ color }) => (
-                        <Brain size={22} color={color} />
+                        <BadgeContagem contagem={formulariosPendentes}>
+                            <Brain size={22} color={color} />
+                        </BadgeContagem>
                     ),
                 }}
             />

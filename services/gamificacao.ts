@@ -1,10 +1,14 @@
 import { supabase } from "@/repositories/supabase";
 import { toast } from "@/services/toast";
 import type { Gamificacao } from "@/types/gamificacao";
+/*
+  O helper daqui era `toISOString()`, ou seja, UTC: depois das 21h (horário de Brasília) a
+  ofensiva já marcava o dia seguinte, e um estudo da noite podia contar duas vezes ou pular
+  um dia. O de utils/tempo lê o dia no fuso do aparelho, igual ao `data_sessao` das sessões.
+*/
+import { paraDataISO } from "@/utils/tempo";
 
 const SELECT_GAMIFICACAO = "user_id, ofensiva, melhor_ofensiva, ultima_data_estudo";
-
-const paraDataISO = (data: Date) => data.toISOString().split("T")[0];
 
 /**
  * Busca o estado de gamificação (ofensiva atual, melhor ofensiva, último dia estudado) de um usuário.

@@ -16,6 +16,9 @@ export type SessaoFocoInsert = {
     status: string;
     ultimo_inicio: string | null;
     concluido_em: string | null;
+    /** Dia de estudo ("YYYY-MM-DD"), no fuso do APARELHO e sempre o dia em que a sessão
+     *  começou. Omitir deixa `salvarSessaoFoco` carimbar — ver o porquê lá. */
+    data_sessao?: string | null;
     /** Sala em que este estudo aconteceu (`salas_foco`). NULL em estudo solo. */
     sala_id?: string | null;
     /** Preenchido quando a sessão começa a partir de um bloco da aba Hoje. */

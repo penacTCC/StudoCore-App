@@ -306,15 +306,21 @@ export default function MemberProfileScreen() {
                     <Text style={{ fontSize: 14.5, fontWeight: "700", color: "#fff" }} numberOfLines={1}>
                         @{profile.nome_usuario}
                     </Text>
-                    <TouchableOpacity
-                        onPress={() => router.push({ pathname: "/(modals)/compare-profile", params: { userId } })}
-                        style={{
-                            width: 38, height: 38, borderRadius: 19,
-                            backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center",
-                        }}
-                    >
-                        <GitCompareArrows size={18} color="#fff" />
-                    </TouchableOpacity>
+                    {/* Perfil fechado: o duelo só levaria a um aviso de que não dá. O espaço
+                        continua ocupado para o nome não sair do centro do cabeçalho. */}
+                    {perfilPrivado ? (
+                        <View style={{ width: 38, height: 38 }} />
+                    ) : (
+                        <TouchableOpacity
+                            onPress={() => router.push({ pathname: "/(modals)/compare-profile", params: { userId } })}
+                            style={{
+                                width: 38, height: 38, borderRadius: 19,
+                                backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center",
+                            }}
+                        >
+                            <GitCompareArrows size={18} color="#fff" />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </SafeAreaView>
         </View>

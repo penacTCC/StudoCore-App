@@ -1,6 +1,12 @@
 import { supabase } from "@/repositories/supabase";
 import { toast } from "@/services/toast";
 import type { PreferenciasCronograma } from "@/types/cronograma";
+import {
+    DURACAO_BLOCO_UNICO_MAX,
+    DURACAO_BLOCO_UNICO_MIN,
+    DURACAO_POMODORO_MAX,
+    DURACAO_POMODORO_MIN,
+} from "@/constants/cronograma";
 
 export const PADRAO_PREFERENCIAS: PreferenciasCronograma = {
     focoMin: 25,
@@ -12,11 +18,9 @@ export const PADRAO_PREFERENCIAS: PreferenciasCronograma = {
     notificacoesAtivas: true,
     antecedenciaMin: 10,
     avisarFimDeFase: true,
-    resumoDiaSeguinte: false,
     naoPerturbar: true,
     naoPerturbarInicio: "22:00",
     naoPerturbarFim: "07:00",
-    somFimFoco: true,
     vibrar: true,
     manterTelaLigada: false,
     duracaoPadraoBlocoMin: 50,
@@ -24,6 +28,8 @@ export const PADRAO_PREFERENCIAS: PreferenciasCronograma = {
     contarDescansoComoEstudado: false,
     anotarAposQuiz: true,
     fotoAposSessao: true,
+    aparecerNoRanking: true,
+    sessaoPublicaPadrao: true,
 };
 
 /** Linha de `preferencias_cronograma` — chaves batem com as colunas da tabela. */
@@ -51,11 +57,24 @@ type PreferenciasRow = {
     contar_descanso_como_estudado: boolean;
     anotar_apos_quiz: boolean;
     foto_apos_sessao: boolean;
+    aparecer_no_ranking: boolean;
+    sessao_publica_padrao: boolean;
 };
 
+const entre = (valor: number, min: number, max: number) => Math.min(max, Math.max(min, valor));
+
+/*
+  As durações são normalizadas na leitura, e não só nos steppers da tela.
+
+  Antes das configurações passarem a usar os limites do cronograma, dava para salvar um
+  foco de 5min ou um bloco de 10min. Quem fez isso tem a linha gravada assim até hoje: sem
+  o ajuste aqui, a tela mostraria 5min enquanto o cronograma usaria 25 — que é exatamente
+  a divergência que os limites compartilhados foram corrigir. O valor corrigido volta pro
+  banco no próximo autosave.
+*/
 function paraPreferencias(row: PreferenciasRow): PreferenciasCronograma {
     return {
-        focoMin: row.foco_min,
+        focoMin: entre(row.foco_min, DURACAO_POMODORO_MIN, DURACAO_POMODORO_MAX),
         descansoCurtoMin: row.descanso_curto_min,
         descansoLongoMin: row.descanso_longo_min,
         ciclosAteLongo: row.ciclos_ate_longo,
@@ -64,18 +83,22 @@ function paraPreferencias(row: PreferenciasRow): PreferenciasCronograma {
         notificacoesAtivas: row.notificacoes_ativas,
         antecedenciaMin: row.antecedencia_min,
         avisarFimDeFase: row.avisar_fim_de_fase,
-        resumoDiaSeguinte: row.resumo_dia_seguinte,
         naoPerturbar: row.nao_perturbar,
         naoPerturbarInicio: row.nao_perturbar_inicio.slice(0, 5),
         naoPerturbarFim: row.nao_perturbar_fim.slice(0, 5),
-        somFimFoco: row.som_fim_foco,
         vibrar: row.vibrar,
         manterTelaLigada: row.manter_tela_ligada,
-        duracaoPadraoBlocoMin: row.duracao_padrao_bloco_min,
+        duracaoPadraoBlocoMin: entre(
+            row.duracao_padrao_bloco_min,
+            DURACAO_BLOCO_UNICO_MIN,
+            DURACAO_BLOCO_UNICO_MAX
+        ),
         duracaoPadraoDescansoMin: row.duracao_padrao_descanso_min,
         contarDescansoComoEstudado: row.contar_descanso_como_estudado,
         anotarAposQuiz: row.anotar_apos_quiz ?? true,
         fotoAposSessao: row.foto_apos_sessao ?? true,
+        aparecerNoRanking: row.aparecer_no_ranking ?? true,
+        sessaoPublicaPadrao: row.sessao_publica_padrao ?? true,
     };
 }
 
@@ -91,12 +114,18 @@ function paraRow(usuarioId: string, prefs: PreferenciasCronograma): Preferencias
         notificacoes_ativas: prefs.notificacoesAtivas,
         antecedencia_min: prefs.antecedenciaMin,
         avisar_fim_de_fase: prefs.avisarFimDeFase,
-        resumo_dia_seguinte: prefs.resumoDiaSeguinte,
         nao_perturbar: prefs.naoPerturbar,
         nao_perturbar_inicio: prefs.naoPerturbarInicio,
         nao_perturbar_fim: prefs.naoPerturbarFim,
-        som_fim_foco: prefs.somFimFoco,
         vibrar: prefs.vibrar,
+        /*
+          Interruptores removidos do app: o som de fim de foco nunca chegou a existir (não
+          há biblioteca de áudio no projeto) e o resumo do dia seguinte nunca foi ligado a
+          nenhum agendamento. As colunas continuam no banco, como `inicio_semana`, e vão
+          com valor fixo até serem retiradas numa migration.
+        */
+        som_fim_foco: false,
+        resumo_dia_seguinte: false,
         manter_tela_ligada: prefs.manterTelaLigada,
         // A escolha domingo/segunda foi removida do app; a coluna continua no
         // banco e é preenchida com o único valor que o cronograma usa.
@@ -106,6 +135,8 @@ function paraRow(usuarioId: string, prefs: PreferenciasCronograma): Preferencias
         contar_descanso_como_estudado: prefs.contarDescansoComoEstudado,
         anotar_apos_quiz: prefs.anotarAposQuiz,
         foto_apos_sessao: prefs.fotoAposSessao,
+        aparecer_no_ranking: prefs.aparecerNoRanking,
+        sessao_publica_padrao: prefs.sessaoPublicaPadrao,
     };
 }
 

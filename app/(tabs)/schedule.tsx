@@ -239,6 +239,8 @@ export default function ScheduleScreen() {
             origem: bloco.origem ?? "rotina",
             blocoId: bloco.id,
             planoId: bloco.planoId ?? null,
+            // O estudo conta no dia que a tela está mostrando, não no dia em que você clicou.
+            dataISO: diaISO,
         });
 
         if (error) {
@@ -309,21 +311,6 @@ export default function ScheduleScreen() {
                         {aba === "semana" && (
                             <AlternadorVisualizacao ativa={visualizacao} onChange={setVisualizacao} />
                         )}
-
-                        <TouchableOpacity
-                            onPress={() => router.push("/(modals)/cronograma-config")}
-                            activeOpacity={0.8}
-                            style={{
-                                width: 38,
-                                height: 38,
-                                borderRadius: 19,
-                                backgroundColor: HADES.surfaceRaised,
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <Settings size={18} color={HADES.textSecondary} />
-                        </TouchableOpacity>
                     </View>
                 </View>
             </View>

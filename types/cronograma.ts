@@ -143,11 +143,10 @@ export type PreferenciasCronograma = {
     notificacoesAtivas: boolean;
     antecedenciaMin: number;
     avisarFimDeFase: boolean;
-    resumoDiaSeguinte: boolean;
     naoPerturbar: boolean;
     naoPerturbarInicio: string;
     naoPerturbarFim: string;
-    somFimFoco: boolean;
+    /** Vale para todo o app: fim de fase do pomodoro e desbloqueio de medalha. */
     vibrar: boolean;
     manterTelaLigada: boolean;
     duracaoPadraoBlocoMin: number;
@@ -157,4 +156,8 @@ export type PreferenciasCronograma = {
     anotarAposQuiz: boolean;
     /** Se ligado, o fim da sessão oferece registrar uma foto do momento (pulável). */
     fotoAposSessao: boolean;
+    /** Desligado, o usuário some do ranking dos grupos e da lista de quem está estudando. */
+    aparecerNoRanking: boolean;
+    /** Valor inicial do interruptor "sessão pública" ao montar uma sessão de foco. */
+    sessaoPublicaPadrao: boolean;
 };

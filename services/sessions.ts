@@ -82,9 +82,25 @@ const descartarGrupoDeNaoMembro = async <T extends Partial<SessaoFocoInsert>>(pa
     return { ...payload, grupo_id: null };
 };
 
+/**
+ * Carimba o dia de estudo no fuso do aparelho, quando quem chamou não informou um.
+ *
+ * A coluna é `DATE DEFAULT CURRENT_DATE`, e o Postgres do Supabase roda em UTC: deixar o
+ * banco preencher jogava toda sessão começada depois das 21h (horário de Brasília) para o
+ * dia seguinte. Quem estudou às 22h de ontem via a sessão marcada como "Hoje" no Banco.
+ *
+ * A data é a do INÍCIO da sessão, não a do fim: uma sessão que atravessa a meia-noite conta
+ * no dia em que começou. Como a linha nasce quando a pessoa aperta "iniciar" (ver
+ * app/(tabs)/focus.tsx), carimbar aqui, no insert, já é o instante certo.
+ */
+const carimbarDiaDeEstudo = (sessao: SessaoFocoInsert): SessaoFocoInsert => ({
+    ...sessao,
+    data_sessao: sessao.data_sessao ?? paraDataISO(new Date()),
+});
+
 // ───── INSERT ─────
 export const salvarSessaoFoco = async (sessaoRecebida: SessaoFocoInsert) => {
-    const sessao = await descartarGrupoDeNaoMembro(sessaoRecebida, sessaoRecebida.user_id);
+    const sessao = await descartarGrupoDeNaoMembro(carimbarDiaDeEstudo(sessaoRecebida), sessaoRecebida.user_id);
 
     // Tenta salvar com `grupo_id`, que é o caminho correto depois da migration.
     const result = await supabase.from("sessoes_foco").insert(sessao).select();
@@ -421,6 +437,22 @@ export const buscarSessoesPorUsuario = async (userId: string, limit?: number) =>
 
     // Sem limite explícito, traz todas as sessões (necessário para análises que olham até 1 ano+ para trás).
     return await (limit !== undefined ? query.limit(limit) : query);
+};
+
+// ───── SELECT (só a contagem de formulários pendentes) ─────
+/**
+ * Conta as sessões do usuário que ficaram com formulário em aberto.
+ *
+ * Existe separada de `buscarSessoesPorUsuario` porque o badge da tab bar vive fora de
+ * qualquer tela e só precisa do número — puxar as 100 linhas com o join de `profiles`
+ * a cada troca de aba seria caro à toa.
+ */
+export const contarSessoesPendentes = async (userId: string) => {
+    return await supabase
+        .from("sessoes_foco")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("status", "pendente");
 };
 
 /**
@@ -794,11 +826,20 @@ export const registrarBlocoComoFeito = async (params: {
     origem: "rotina" | "plano";
     blocoId: string;
     planoId?: string | null;
+    /** Dia do bloco na agenda ("YYYY-MM-DD"), que é o dia em que o estudo conta. Sem ele,
+     *  vale hoje no fuso do aparelho — nunca o `CURRENT_DATE` do banco, que é UTC. */
+    dataISO?: string;
 }) => {
     const agora = new Date().toISOString();
 
     const { error } = await supabase.from("sessoes_foco").insert({
         user_id: params.userId,
+        /*
+          A aba Hoje casa bloco e sessão por `data_sessao` (ver buscarSessoesDoDia). Deixar
+          o banco preencher com CURRENT_DATE em UTC fazia um bloco marcado depois das 21h
+          ser gravado no dia seguinte — e voltar a aparecer como pendente na tela.
+        */
+        data_sessao: params.dataISO ?? paraDataISO(new Date()),
         disciplina: params.disciplina || "Estudo Geral",
         conteudo_especifico: params.conteudo || "Marcado como feito",
         tempo_minutos: params.minutos,

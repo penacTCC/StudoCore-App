@@ -4,7 +4,7 @@ import { supabase } from '@/repositories/supabase';
 import { buscarUsuarioLogado } from '@/services/auth';
 import { toast } from '@/services/toast';
 import { STATUS_SESSAO_FINALIZADA, segundosContabilizados } from '@/services/sessions';
-import { UserStats } from '@/types/profile';
+import { UserStats, EstatisticasDuelo } from '@/types/profile';
 
 const DEFAULT_STATS: UserStats = {
     totalHours: 0,
@@ -67,9 +67,17 @@ export const loadProfileStats = async (): Promise<UserStats> => {
                 const d = new Date(session.created_at);
                 const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+                /*
+                  Tempo negativo nunca soma. O banco já barra isso desde a migration
+                  20260806160000, mas sessões gravadas antes dela chegavam com o cronômetro
+                  invertido (-10.790 minutos, por exemplo) e derrubavam o total do perfil
+                  para horas NEGATIVAS assim que saíam de "pausado".
+                */
+                const minutosDaSessao = Math.max(0, session.tempo_minutos ?? 0);
+
                 // Transforma minutos da duração em horas para alimentar cards e heatmap.
-                const hoursInSession = session.tempo_minutos / 60;
-                exactLifetimeMinutes += session.tempo_minutos;
+                const hoursInSession = minutosDaSessao / 60;
+                exactLifetimeMinutes += minutosDaSessao;
 
                 // Só adiciona no heatmap quando a sessão está dentro da janela visual de 100 dias.
                 if (d >= ninetyDaysAgo) {
@@ -460,4 +468,26 @@ export const addStudyQuestions = async (questionsCount: number): Promise<UserSta
         console.error('Erro ao salvar questoes:', e);
         return null;
     }
+};
+
+/**
+ * Os números que o duelo pode mostrar de alguém.
+ *
+ * Passa por RPC em vez de ler `profiles` e `gamificacoes` direto porque o corte do perfil
+ * privado é do banco: `gamificacoes` libera SELECT para qualquer usuário logado, então
+ * esconder a ofensiva só no render deixaria o dado sair do servidor do mesmo jeito.
+ */
+export const buscarEstatisticasParaDuelo = async (
+    userId: string
+): Promise<EstatisticasDuelo | null> => {
+    const { data, error } = await supabase
+        .rpc('estatisticas_para_duelo', { p_user_id: userId })
+        .maybeSingle();
+
+    if (error) {
+        console.error('Erro ao buscar estatísticas para o duelo:', error);
+        return null;
+    }
+
+    return (data as EstatisticasDuelo) ?? null;
 };

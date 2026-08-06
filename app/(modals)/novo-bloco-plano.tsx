@@ -12,20 +12,26 @@ import { usePreferencias } from "@/hooks/usePreferencias";
 import { formatarDuracao } from "@/utils/tempo";
 import { gerarSequenciaPomodoro } from "@/utils/pomodoroSequence";
 import { toast } from "@/services/toast";
+import {
+    DURACAO_BLOCO_UNICO_MIN,
+    DURACAO_POMODORO_MAX,
+    DURACAO_POMODORO_MIN,
+} from "@/constants/cronograma";
 
 const HORAS = ["0", "1", "2", "3", "4"];
 const MINUTOS_DURACAO = ["00", "15", "30", "45"];
 const MINUTOS_LEMBRETE = ["5", "10", "15", "20", "30", "45", "60"];
 
 const QTD_POMODOROS = Array.from({ length: 12 }, (_, i) => String(i + 1));
-// Duração minuto a minuto (5 a 120), pra roda deslizar em passos finos.
-const DURACAO_POMODORO_MIN = 5;
-const DURACAO_POMODORO = Array.from({ length: 116 }, (_, i) => String(i + DURACAO_POMODORO_MIN));
+// Duração minuto a minuto, pra roda deslizar em passos finos. Os limites vêm de
+// constants/cronograma.ts porque as configurações usam os mesmos.
+const DURACAO_POMODORO = Array.from(
+    { length: DURACAO_POMODORO_MAX - DURACAO_POMODORO_MIN + 1 },
+    (_, i) => String(i + DURACAO_POMODORO_MIN)
+);
 const ALTURA_ITEM_RODA = 76; // rodas do modal de pomodoros (3 itens visíveis)
 const HORAS_DIA = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"));
 const MINUTOS_5 = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
-
-// Sem service de preferências ainda — mesmos valores padrão de cronograma-config.tsx.
 
 function paraHoraMin(totalMin: number) {
     const h = Math.floor((totalMin + 1440) / 60) % 24;
@@ -58,21 +64,21 @@ type ItemSequencia = {
  * blocos de uma vez, com descansos automáticos a partir das preferências) e
  * "Bloco único" (um bloco avulso, igual já era antes). Sem backend ainda:
  * devolve o(s) bloco(s) pro editor via params (rascunho), quem grava é ele.
+ *
+ * Só cria bloco de estudo: descanso agora é uma ação direta do editor de plano,
+ * que emenda os descansos entre matérias diferentes sem passar por esta tela.
  */
 export default function NovoBlocoPlanoScreen() {
     const router = useRouter();
-    const { planoId, tipo, rascunho } = useLocalSearchParams<{
+    const { planoId, rascunho } = useLocalSearchParams<{
         planoId?: string;
-        tipo?: "estudo" | "descanso";
         rascunho?: string;
     }>();
-    const tipoBloco = tipo ?? "estudo";
-    const ehDescanso = tipoBloco === "descanso";
     const { userId } = useAuth();
     const { materiasComCores } = useMaterias(userId);
     const { prefs, carregando: carregandoPrefs } = usePreferencias(userId);
 
-    const [modo, setModo] = useState<"pomodoros" | "unico">(ehDescanso ? "unico" : "pomodoros");
+    const [modo, setModo] = useState<"pomodoros" | "unico">("pomodoros");
 
     const [materiaId, setMateriaId] = useState<string | undefined>(undefined);
     const [topico, setTopico] = useState("");
@@ -80,11 +86,13 @@ export default function NovoBlocoPlanoScreen() {
 
     // Modo "Bloco único": duração via wheel inline.
     const [horasIdx, setHorasIdx] = useState(1);
-    const [minutosIdx, setMinutosIdx] = useState(2);
+    // Valor em minutos (não índice): a lista de opções muda com as horas, então o
+    // índice sozinho apontaria pra minutos diferentes conforme a roda ao lado.
+    const [minutosValor, setMinutosValor] = useState(30);
 
     // Modo "Sessão de pomodoros".
     const [qtdIdx, setQtdIdx] = useState(3); // "4"
-    const [duracaoPomodoroIdx, setDuracaoPomodoroIdx] = useState(25 - DURACAO_POMODORO_MIN); // "25"
+    const [duracaoPomodoroIdx, setDuracaoPomodoroIdx] = useState(0); // "25"
     const [inserirDescansos, setInserirDescansos] = useState(true);
 
     /*
@@ -106,9 +114,24 @@ export default function NovoBlocoPlanoScreen() {
     const { height: alturaJanela } = useWindowDimensions();
     const alturaMaximaFolha = alturaJanela - insets.top - 48;
 
-    const duracaoMin = Number(HORAS[horasIdx]) * 60 + Number(MINUTOS_DURACAO[minutosIdx]);
+    /*
+      Em 0h a roda dos minutos só oferece 30 e 45: o piso do bloco único é 30 min,
+      e barrar depois (com o botão desabilitado) deixava o usuário escolher uma
+      duração que a tela não aceita.
+    */
+    const minutosOpcoes = horasIdx === 0
+        ? MINUTOS_DURACAO.filter((m) => Number(m) >= DURACAO_BLOCO_UNICO_MIN)
+        : MINUTOS_DURACAO;
+    const minutosIdx = Math.max(0, minutosOpcoes.indexOf(minutosValor.toString().padStart(2, "0")));
+
+    const escolherHoras = (i: number) => {
+        setHorasIdx(i);
+        if (i === 0 && minutosValor < DURACAO_BLOCO_UNICO_MIN) setMinutosValor(DURACAO_BLOCO_UNICO_MIN);
+    };
+
+    const duracaoMin = Number(HORAS[horasIdx]) * 60 + minutosValor;
     const fimMin = inicioMin + duracaoMin;
-    const duracaoInvalida = duracaoMin === 0;
+    const duracaoInvalida = duracaoMin < DURACAO_BLOCO_UNICO_MIN;
 
     const ajustarInicio = (delta: number) => setInicioMin((atual) => atual + delta);
 
@@ -134,9 +157,12 @@ export default function NovoBlocoPlanoScreen() {
         if (carregandoPrefs || semeado.current) return;
         semeado.current = true;
 
-        const duracaoPadrao = ehDescanso ? prefs.duracaoPadraoDescansoMin : prefs.duracaoPadraoBlocoMin;
-        setHorasIdx(indiceMaisProximo(HORAS, Math.floor(duracaoPadrao / 60)));
-        setMinutosIdx(indiceMaisProximo(MINUTOS_DURACAO, duracaoPadrao % 60));
+        // Nunca abre abaixo do piso do bloco único, mesmo que a preferência seja menor.
+        const duracaoPadrao = Math.max(prefs.duracaoPadraoBlocoMin, DURACAO_BLOCO_UNICO_MIN);
+        const horas = indiceMaisProximo(HORAS, Math.floor(duracaoPadrao / 60));
+        const minutos = Number(MINUTOS_DURACAO[indiceMaisProximo(MINUTOS_DURACAO, duracaoPadrao % 60)]);
+        setHorasIdx(horas);
+        setMinutosValor(horas === 0 ? Math.max(minutos, DURACAO_BLOCO_UNICO_MIN) : minutos);
 
         setDuracaoPomodoroIdx(indiceMaisProximo(DURACAO_POMODORO, prefs.focoMin));
 
@@ -144,7 +170,7 @@ export default function NovoBlocoPlanoScreen() {
         if (prefs.antecedenciaMin > 0) {
             setLembreteIdx(indiceMaisProximo(MINUTOS_LEMBRETE, prefs.antecedenciaMin));
         }
-    }, [carregandoPrefs, ehDescanso, prefs]);
+    }, [carregandoPrefs, prefs]);
 
     const qtdPomodoros = Number(QTD_POMODOROS[qtdIdx]);
     const duracaoPomodoro = Number(DURACAO_POMODORO[duracaoPomodoroIdx]);
@@ -233,26 +259,24 @@ export default function NovoBlocoPlanoScreen() {
                 antecedenciaMin: item.tipo === "estudo" && lembreteAtivo ? Number(MINUTOS_LEMBRETE[lembreteIdx]) : null,
             }));
         } else {
-            const materiaSelecionada = ehDescanso
-                ? undefined
-                : materiasComCores.find((m) => m.id === materiaId);
-            if (!ehDescanso && !materiaSelecionada) return;
+            const materiaSelecionada = materiasComCores.find((m) => m.id === materiaId);
+            if (!materiaSelecionada) return;
 
             blocosNovos = [{
                 id: `novo-${Date.now()}`,
                 persistido: false,
                 horaInicio: paraHoraMin(inicioMin),
                 duracaoMin,
-                tipo: tipoBloco,
-                materiaId: materiaSelecionada?.id,
-                materia: materiaSelecionada?.nomeExibicao,
-                topico: ehDescanso ? undefined : topico || undefined,
-                cor: materiaSelecionada?.cor,
+                tipo: "estudo" as const,
+                materiaId: materiaSelecionada.id,
+                materia: materiaSelecionada.nomeExibicao,
+                topico: topico || undefined,
+                cor: materiaSelecionada.cor,
                 notificar: lembreteAtivo,
                 antecedenciaMin: lembreteAtivo ? Number(MINUTOS_LEMBRETE[lembreteIdx]) : null,
             }];
 
-            if (!ehDescanso && emendarDescanso && prefs.duracaoPadraoDescansoMin > 0) {
+            if (emendarDescanso && prefs.duracaoPadraoDescansoMin > 0) {
                 blocosNovos.push({
                     id: `novo-${Date.now()}-descanso`,
                     persistido: false,
@@ -281,9 +305,7 @@ export default function NovoBlocoPlanoScreen() {
         });
     };
 
-    const podeSubmeter = modo === "pomodoros"
-        ? !!materiaId
-        : !duracaoInvalida && (ehDescanso || !!materiaId);
+    const podeSubmeter = modo === "pomodoros" ? !!materiaId : !duracaoInvalida && !!materiaId;
 
     return (
         <View style={{ flex: 1, backgroundColor: HADES.bg }}>
@@ -297,7 +319,7 @@ export default function NovoBlocoPlanoScreen() {
                 <View
                     style={{
                         paddingTop: 8,
-                        paddingBottom: ehDescanso ? 14 : 4,
+                        paddingBottom: 4,
                         paddingHorizontal: 20,
                         flexDirection: "row",
                         alignItems: "center",
@@ -311,165 +333,157 @@ export default function NovoBlocoPlanoScreen() {
                     >
                         <Text style={{ fontSize: 14, color: HADES.textMuted }}>Cancelar</Text>
                     </TouchableOpacity>
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>
-                        {ehDescanso ? "Novo descanso" : "Novo bloco"}
-                    </Text>
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>Novo bloco</Text>
                     <View style={{ width: 56 }} />
                 </View>
 
                 {/* Alternador de modo */}
-                {!ehDescanso && (
-                    <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
-                        <View
+                <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
+                    <View
+                        style={{
+                            backgroundColor: HADES.surfaceRaised,
+                            borderWidth: 1,
+                            borderColor: HADES.borderStrong,
+                            borderRadius: 11,
+                            padding: 3,
+                            flexDirection: "row",
+                        }}
+                    >
+                        <TouchableOpacity
+                            onPress={() => setModo("pomodoros")}
+                            activeOpacity={0.8}
                             style={{
-                                backgroundColor: HADES.surfaceRaised,
-                                borderWidth: 1,
-                                borderColor: HADES.borderStrong,
-                                borderRadius: 11,
-                                padding: 3,
+                                flex: 1,
+                                paddingVertical: 8,
+                                borderRadius: 8,
                                 flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 6,
+                                backgroundColor: modo === "pomodoros" ? HADES.accentTint : "transparent",
+                                borderWidth: modo === "pomodoros" ? 1 : 0,
+                                borderColor: HADES.accentTintBorder,
                             }}
                         >
-                            <TouchableOpacity
-                                onPress={() => setModo("pomodoros")}
-                                activeOpacity={0.8}
+                            <Timer size={14} color={modo === "pomodoros" ? HADES.accentSolid : HADES.textFaint} />
+                            <Text
                                 style={{
-                                    flex: 1,
-                                    paddingVertical: 8,
-                                    borderRadius: 8,
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 6,
-                                    backgroundColor: modo === "pomodoros" ? HADES.accentTint : "transparent",
-                                    borderWidth: modo === "pomodoros" ? 1 : 0,
-                                    borderColor: HADES.accentTintBorder,
+                                    fontSize: 13,
+                                    fontWeight: "700",
+                                    color: modo === "pomodoros" ? HADES.accentSolid : HADES.textFaint,
                                 }}
                             >
-                                <Timer size={14} color={modo === "pomodoros" ? HADES.accentSolid : HADES.textFaint} />
-                                <Text
-                                    style={{
-                                        fontSize: 13,
-                                        fontWeight: "700",
-                                        color: modo === "pomodoros" ? HADES.accentSolid : HADES.textFaint,
-                                    }}
-                                >
-                                    Pomodoros
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => setModo("unico")}
-                                activeOpacity={0.8}
+                                Pomodoros
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => setModo("unico")}
+                            activeOpacity={0.8}
+                            style={{
+                                flex: 1,
+                                paddingVertical: 8,
+                                borderRadius: 8,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: modo === "unico" ? HADES.accentTint : "transparent",
+                                borderWidth: modo === "unico" ? 1 : 0,
+                                borderColor: HADES.accentTintBorder,
+                            }}
+                        >
+                            <Text
                                 style={{
-                                    flex: 1,
-                                    paddingVertical: 8,
-                                    borderRadius: 8,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    backgroundColor: modo === "unico" ? HADES.accentTint : "transparent",
-                                    borderWidth: modo === "unico" ? 1 : 0,
-                                    borderColor: HADES.accentTintBorder,
+                                    fontSize: 13,
+                                    fontWeight: "600",
+                                    color: modo === "unico" ? HADES.accentSolid : HADES.textFaint,
                                 }}
                             >
-                                <Text
-                                    style={{
-                                        fontSize: 13,
-                                        fontWeight: "600",
-                                        color: modo === "unico" ? HADES.accentSolid : HADES.textFaint,
-                                    }}
-                                >
-                                    Bloco único
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+                                Bloco único
+                            </Text>
+                        </TouchableOpacity>
                     </View>
-                )}
+                </View>
 
                 <ScrollView
                     style={{ flex: 1 }}
                     contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    {!ehDescanso && (
-                        <>
-                            {/* Matéria */}
-                            <Text
-                                style={{
-                                    fontSize: 12,
-                                    color: HADES.textFaint,
-                                    fontWeight: "600",
-                                    letterSpacing: 0.5,
-                                    marginTop: 14,
-                                    marginBottom: 10,
-                                }}
-                            >
-                                MATÉRIA
-                            </Text>
-                            {materiasComCores.length === 0 && (
-                                <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginBottom: 8 }}>
-                                    Você ainda não tem matérias cadastradas.
-                                </Text>
-                            )}
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ gap: 8, paddingBottom: 2 }}
-                            >
-                                {materiasComCores.map((m) => {
-                                    const selecionada = materiaId === m.id;
-                                    return (
-                                        <TouchableOpacity
-                                            key={m.id}
-                                            onPress={() => setMateriaId(m.id)}
-                                            activeOpacity={0.8}
-                                            style={{
-                                                flexDirection: "row",
-                                                alignItems: "center",
-                                                gap: 7,
-                                                backgroundColor: selecionada ? `${m.cor}29` : HADES.surfaceRaised,
-                                                borderWidth: selecionada ? 1.5 : 1,
-                                                borderColor: selecionada ? m.cor : HADES.borderStrong,
-                                                borderRadius: 18,
-                                                paddingVertical: 8,
-                                                paddingHorizontal: 13,
-                                            }}
-                                        >
-                                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: m.cor }} />
-                                            <Text
-                                                style={{
-                                                    fontSize: 13,
-                                                    fontWeight: selecionada ? "700" : "600",
-                                                    color: selecionada ? HADES.text : HADES.textSecondary,
-                                                }}
-                                            >
-                                                {m.nomeExibicao}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
-
-                            {/* Tópico */}
-                            <View
-                                style={{
-                                    backgroundColor: HADES.surfaceRaised,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    borderRadius: 12,
-                                    padding: 14,
-                                    marginTop: 12,
-                                }}
-                            >
-                                <TextInput
-                                    value={topico}
-                                    onChangeText={setTopico}
-                                    placeholder="Tópico (opcional)"
-                                    placeholderTextColor={HADES.textFaint}
-                                    style={{ padding: 0, color: HADES.text, fontSize: 15, fontWeight: "600" }}
-                                />
-                            </View>
-                        </>
+                    {/* Matéria */}
+                    <Text
+                        style={{
+                            fontSize: 12,
+                            color: HADES.textFaint,
+                            fontWeight: "600",
+                            letterSpacing: 0.5,
+                            marginTop: 14,
+                            marginBottom: 10,
+                        }}
+                    >
+                        MATÉRIA
+                    </Text>
+                    {materiasComCores.length === 0 && (
+                        <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginBottom: 8 }}>
+                            Você ainda não tem matérias cadastradas.
+                        </Text>
                     )}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ gap: 8, paddingBottom: 2 }}
+                    >
+                        {materiasComCores.map((m) => {
+                            const selecionada = materiaId === m.id;
+                            return (
+                                <TouchableOpacity
+                                    key={m.id}
+                                    onPress={() => setMateriaId(m.id)}
+                                    activeOpacity={0.8}
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        gap: 7,
+                                        backgroundColor: selecionada ? `${m.cor}29` : HADES.surfaceRaised,
+                                        borderWidth: selecionada ? 1.5 : 1,
+                                        borderColor: selecionada ? m.cor : HADES.borderStrong,
+                                        borderRadius: 18,
+                                        paddingVertical: 8,
+                                        paddingHorizontal: 13,
+                                    }}
+                                >
+                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: m.cor }} />
+                                    <Text
+                                        style={{
+                                            fontSize: 13,
+                                            fontWeight: selecionada ? "700" : "600",
+                                            color: selecionada ? HADES.text : HADES.textSecondary,
+                                        }}
+                                    >
+                                        {m.nomeExibicao}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+
+                    {/* Tópico */}
+                    <View
+                        style={{
+                            backgroundColor: HADES.surfaceRaised,
+                            borderWidth: 1,
+                            borderColor: HADES.borderStrong,
+                            borderRadius: 12,
+                            padding: 14,
+                            marginTop: 12,
+                        }}
+                    >
+                        <TextInput
+                            value={topico}
+                            onChangeText={setTopico}
+                            placeholder="Tópico (opcional)"
+                            placeholderTextColor={HADES.textFaint}
+                            style={{ padding: 0, color: HADES.text, fontSize: 15, fontWeight: "600" }}
+                        />
+                    </View>
 
                     {modo === "pomodoros" ? (
                         <>
@@ -902,12 +916,15 @@ export default function NovoBlocoPlanoScreen() {
                                 }}
                             >
                                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                                    <WheelPicker items={HORAS} selectedIndex={horasIdx} onChange={setHorasIdx} flex={0.6} />
+                                    <WheelPicker items={HORAS} selectedIndex={horasIdx} onChange={escolherHoras} flex={0.6} />
                                     <Text style={{ fontSize: 13, color: HADES.textMuted, fontWeight: "600" }}>h</Text>
                                     <WheelPicker
-                                        items={MINUTOS_DURACAO}
+                                        // Remonta a roda ao trocar a lista de opções, pra ela
+                                        // reposicionar em vez de manter o scroll da lista antiga.
+                                        key={minutosOpcoes.length}
+                                        items={minutosOpcoes}
                                         selectedIndex={minutosIdx}
-                                        onChange={setMinutosIdx}
+                                        onChange={(i) => setMinutosValor(Number(minutosOpcoes[i]))}
                                         flex={0.6}
                                     />
                                     <Text style={{ fontSize: 13, color: HADES.textMuted, fontWeight: "600" }}>min</Text>
@@ -915,52 +932,50 @@ export default function NovoBlocoPlanoScreen() {
                             </View>
 
                             {/* Descanso emendado */}
-                            {!ehDescanso && (
-                                <View
+                            <View
+                                style={{
+                                    backgroundColor: HADES.surfaceRaised,
+                                    borderWidth: 1,
+                                    borderColor: HADES.borderStrong,
+                                    borderRadius: 14,
+                                    marginTop: 14,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    padding: 13,
+                                }}
+                            >
+                                <Coffee size={16} color={HADES.green} style={{ marginRight: 10 }} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>
+                                        Descanso depois
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 2 }}>
+                                        {formatarDuracao(prefs.duracaoPadraoDescansoMin)}, das configurações
+                                    </Text>
+                                </View>
+                                <TouchableOpacity
+                                    onPress={() => setEmendarDescanso((v) => !v)}
+                                    activeOpacity={0.8}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                     style={{
-                                        backgroundColor: HADES.surfaceRaised,
-                                        borderWidth: 1,
-                                        borderColor: HADES.borderStrong,
+                                        width: 44,
+                                        height: 27,
                                         borderRadius: 14,
-                                        marginTop: 14,
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        padding: 13,
+                                        backgroundColor: emendarDescanso ? HADES.accentSolid : HADES.trackOff,
+                                        justifyContent: "center",
                                     }}
                                 >
-                                    <Coffee size={16} color={HADES.green} style={{ marginRight: 10 }} />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>
-                                            Descanso depois
-                                        </Text>
-                                        <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 2 }}>
-                                            {formatarDuracao(prefs.duracaoPadraoDescansoMin)}, das configurações
-                                        </Text>
-                                    </View>
-                                    <TouchableOpacity
-                                        onPress={() => setEmendarDescanso((v) => !v)}
-                                        activeOpacity={0.8}
-                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    <View
                                         style={{
-                                            width: 44,
-                                            height: 27,
-                                            borderRadius: 14,
-                                            backgroundColor: emendarDescanso ? HADES.accentSolid : HADES.trackOff,
-                                            justifyContent: "center",
+                                            width: 21,
+                                            height: 21,
+                                            borderRadius: 11,
+                                            backgroundColor: "#fff",
+                                            marginLeft: emendarDescanso ? 20 : 3,
                                         }}
-                                    >
-                                        <View
-                                            style={{
-                                                width: 21,
-                                                height: 21,
-                                                borderRadius: 11,
-                                                backgroundColor: "#fff",
-                                                marginLeft: emendarDescanso ? 20 : 3,
-                                            }}
-                                        />
-                                    </TouchableOpacity>
-                                </View>
-                            )}
+                                    />
+                                </TouchableOpacity>
+                            </View>
 
                             {/* Lembrete */}
                             <View
@@ -1065,7 +1080,7 @@ export default function NovoBlocoPlanoScreen() {
                                 <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>{resumo}</Text>
                                 <Text style={{ fontSize: 12, color: duracaoInvalida ? HADES.amber : HADES.textFaint, marginTop: 1 }}>
                                     {duracaoInvalida
-                                        ? "Escolha uma duração maior que 0"
+                                        ? `Mínimo de ${DURACAO_BLOCO_UNICO_MIN} min`
                                         : lembreteAtivo
                                             ? `Lembrete ${MINUTOS_LEMBRETE[lembreteIdx]} min antes`
                                             : "Sem lembrete"}

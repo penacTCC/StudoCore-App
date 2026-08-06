@@ -18,7 +18,7 @@ export function useAnalisePessoal(
     userId: string | null | undefined,
     comecoSemana: ComecoSemana
 ) {
-    const { savedSessions, pendingSessions, loading, refresh: refreshSessoes } = useSessoesUsuario(userId);
+    const { savedSessions, pendingSessions, loading, refresh: refreshSessoes } = useSessoesUsuario(userId, true);
 
     const [ofensiva, setOfensiva] = useState(0);
     const [melhorOfensiva, setMelhorOfensiva] = useState(0);

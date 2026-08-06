@@ -2,6 +2,7 @@ import { supabase } from "@/repositories/supabase";
 import { toast } from "@/services/toast";
 import type { Grupo, MembroGrupoComPerfil, OfensivaGrupo } from "@/types/grupos";
 import { STATUS_SESSAO_FINALIZADA } from "@/services/sessions";
+import { paraDataISO } from "@/utils/tempo";
 
 /**
  * Função para contar quantos membros tem um grupo específico, usando o ID do grupo.
@@ -221,15 +222,67 @@ export const entrarEmGrupoPublico = async (grupoId: string) => {
 }
 
 //Insere código de convite na tabela grupos
+/*
+  Vai pela RPC (migration 20260806170000) porque a policy de UPDATE de `grupos` só libera o
+  administrador: escrito direto daqui, o convite de um membro autorizado afetava zero linhas
+  e falhava calado. A RPC aplica a mesma regra de quem pode convidar que a tela usa.
+*/
 export const inserirCodigoConvite = async (grupoId: string, codigoConvite: string) => {
-  return await supabase
-    .from('grupos')
-    .update({
-      codigo_convite: codigoConvite
-    })
-    .eq('id', grupoId)
-    .select()
-    .single();
+  return await supabase.rpc('definir_codigo_convite', {
+    p_grupo_id: grupoId,
+    p_codigo: codigoConvite,
+  });
+}
+
+/**
+ * Liga/desliga a permissão de um membro comum convidar gente para o grupo. Só o
+ * administrador consegue — a checagem de verdade está na RPC, contra `auth.uid()`.
+ */
+export const definirPermissaoConvite = async (
+  grupoId: string,
+  membroUserId: string,
+  podeConvidar: boolean
+) => {
+  const { error } = await supabase.rpc('definir_permissao_convite', {
+    p_grupo_id: grupoId,
+    p_membro_user_id: membroUserId,
+    p_pode_convidar: podeConvidar,
+  });
+
+  if (error) {
+    console.error("Erro ao mudar a permissão de convite:", error);
+    toast.error("Não foi possível mudar a permissão de convite.");
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Salva o que é da participação da própria pessoa no grupo: silenciar os avisos e a meta
+ * de horas dela. Campos não informados ficam como estão — a tela manda um de cada vez.
+ *
+ * `limparMeta` é o que devolve a meta pessoal ao NULL (= seguir a meta do grupo); mandar
+ * `metaHorasPessoal: undefined` significaria "não mexe", e não "volta pro padrão".
+ */
+export const definirParticipacaoNoGrupo = async (
+  grupoId: string,
+  dados: { silenciar?: boolean; metaHorasPessoal?: number; limparMeta?: boolean }
+) => {
+  const { error } = await supabase.rpc('definir_participacao_no_grupo', {
+    p_grupo_id: grupoId,
+    p_silenciar: dados.silenciar ?? null,
+    p_meta_horas_pessoal: dados.metaHorasPessoal ?? null,
+    p_limpar_meta: dados.limparMeta ?? false,
+  });
+
+  if (error) {
+    console.error("Erro ao salvar a participação no grupo:", error);
+    toast.error("Não foi possível salvar suas preferências deste grupo.");
+    return false;
+  }
+
+  return true;
 }
 
 //Busca um grupo específico pelo ID
@@ -329,11 +382,14 @@ const obterSemanaAtual = () => {
   const fimSemana = new Date(inicioSemana);
   fimSemana.setDate(inicioSemana.getDate() + 6);
 
-  const formatar = (data: Date) => data.toISOString().split("T")[0];
-
+  /*
+    Datas no fuso do aparelho, como o `data_sessao` com que este intervalo é comparado.
+    Com `toISOString()` (UTC), a semana virava um dia antes para quem está em UTC-3: as
+    sessões de domingo à noite ficavam fora do intervalo da própria semana.
+  */
   return {
-    inicio: formatar(inicioSemana),
-    fim: formatar(fimSemana),
+    inicio: paraDataISO(inicioSemana),
+    fim: paraDataISO(fimSemana),
   };
 };
 

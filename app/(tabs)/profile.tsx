@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, DeviceEventEmitter, RefreshControl, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, DeviceEventEmitter, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-    LogOut, Settings, Maximize2, Users, ChevronRight,
-    Image as ImageIcon, Flame, Pencil, PartyPopper, Plus, Trash2,
+    Settings, Maximize2, Users, ChevronRight,
+    Image as ImageIcon, Flame, Pencil, PartyPopper, Plus,
 } from "lucide-react-native";
 import { router, useFocusEffect } from "expo-router";
 import { HADES } from "@/constants/hades";
@@ -14,7 +14,7 @@ import { getIdentityColor, getBioFromObjetivo } from "@/constants/helpers";
 import { loadProfileStats, updateFavoriteSubject, updateWeeklyGoal } from "@/services/profileStats";
 import { buscarGamificacao } from "@/services/gamificacao";
 import { UserStats } from "@/types/profile";
-import { buscarPerfil, buscarUsuarioLogado, deslogarUsuario, excluirConta } from "@/services/auth";
+import { buscarPerfil, buscarUsuarioLogado } from "@/services/auth";
 import type { AuthUser } from "@/types/auth";
 import type { Profile } from "@/types/profile";
 import { AvatarComOfensiva, BannerPerfil } from "@/components/profile/PerfilBanner";
@@ -81,7 +81,6 @@ export default function ProfileScreen() {
     const [selectedDayInfo, setSelectedDayInfo] = useState<{ date: Date; hours: number } | null>(null);
     const [melhorOfensiva, setMelhorOfensiva] = useState(0);
     const [ofensivaAtual, setOfensivaAtual] = useState(0);
-    const [excluindoConta, setExcluindoConta] = useState(false);
 
     const { userId } = useAuth();
     const { materiasComCores, recarregarMaterias } = useMaterias(userId);
@@ -194,53 +193,6 @@ export default function ProfileScreen() {
         return { columns, monthPositions };
     }, [stats]);
 
-    const handleSignOut = () => {
-        confirm({
-            title: "Sair da conta",
-            message: "Tem certeza que deseja sair?",
-            confirmText: "Sair",
-            destructive: true,
-            onConfirm: async () => {
-                const { error } = await deslogarUsuario();
-                if (error) {
-                    toast.error("Não foi possível sair da conta.");
-                }
-            },
-        });
-    };
-
-    /**
-     * Exclusão de conta: dois avisos antes de chamar o servidor, porque não existe desfazer —
-     * o primeiro conta o que some, o segundo é a confirmação final. Quem apaga é a Edge
-     * Function `excluir-conta` (ver services/auth.ts); o signOut lá dentro devolve o app
-     * pro login sozinho, então aqui não há navegação a fazer.
-     */
-    const handleDeleteAccount = () => {
-        confirm({
-            title: "Excluir conta",
-            message:
-                "Isso apaga para sempre seu perfil, sessões de foco, ofensivas, medalhas e a participação nos seus grupos. Não dá para desfazer.",
-            confirmText: "Continuar",
-            destructive: true,
-            onConfirm: () => {
-                confirm({
-                    title: "Tem certeza absoluta?",
-                    message: "Sua conta e todos os seus dados serão excluídos agora.",
-                    confirmText: "Excluir para sempre",
-                    destructive: true,
-                    onConfirm: async () => {
-                        setExcluindoConta(true);
-                        const { error } = await excluirConta();
-                        if (error) {
-                            setExcluindoConta(false);
-                            toast.error(error);
-                        }
-                    },
-                });
-            },
-        });
-    };
-
     const handleSubjectSelect = async (subjectName: string) => {
         const updated = await updateFavoriteSubject(subjectName);
         setStats(updated);
@@ -302,71 +254,61 @@ export default function ProfileScreen() {
 
     return (
         <View style={{ flex: 1, backgroundColor: HADES.bg }}>
-            {/* Banner + avatar sobreposto, fixos no topo. Ficam numa camada acima do
-                ScrollView (zIndex/elevation) pra que o conteúdo role por baixo do avatar
-                em vez de passar por cima da metade que ele projeta pra fora do banner. */}
-            <View
-                style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: BANNER_H,
-                    zIndex: 10,
-                    elevation: 10,
-                }}
-                pointerEvents="box-none"
-            >
-                <BannerPerfil
-                    altura={BANNER_H}
-                    cor={corIdentidade}
-                    iniciais={(profileData?.nome_usuario ?? "US").slice(0, 2).toUpperCase()}
-                    foto={profileData?.foto_usuario}
-                />
-
-                <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 10, left: 0, right: 0 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 2 }}>
-                        <TouchableOpacity />
-                        <TouchableOpacity
-                            onPress={() => router.push("/(modals)/settings")}
-                            activeOpacity={0.8}
-                            style={{
-                                width: 36, height: 36, borderRadius: 18,
-                                backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center",
-                            }}
-                        >
-                            <Settings size={16} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-                </SafeAreaView>
-
-                <View style={{ position: "absolute", left: 0, right: 0, bottom: -(AVATAR_SIZE / 2 + 4), alignItems: "center" }}>
-                    <AvatarComOfensiva
-                        tamanho={AVATAR_SIZE}
-                        foto={profileData?.foto_usuario}
-                        nome={profileData?.nome_usuario}
-                        ofensiva={ofensivaAtual}
-                        mostrarOfensiva={!usuarioNovo && (profileData?.mostrar_ofensiva ?? true)}
-                        badgeEditar={usuarioNovo}
-                        onPress={() => router.push("/(modals)/editar-perfil")}
-                    />
-                </View>
-            </View>
-
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ paddingTop: BANNER_H + AVATAR_SIZE / 2 + 18, paddingBottom: 28, paddingHorizontal: 20 }}
+                contentContainerStyle={{ paddingBottom: 28, paddingHorizontal: 20 }}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
-                    <RefreshControl
-                        refreshing={atualizando}
-                        onRefresh={handleRefresh}
-                        tintColor={HADES.accentSolid}
-                        // O spinner nasceria escondido atrás do banner fixo.
-                        progressViewOffset={BANNER_H}
-                    />
+                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
                 }
             >
+                {/* Banner + avatar sobreposto: rolam junto com o resto da tela. As margens
+                    negativas cancelam o padding lateral do ScrollView pra capa sangrar de
+                    ponta a ponta; a margem de baixo abre espaço pra metade do avatar que
+                    o banner projeta pra fora. */}
+                <View
+                    style={{
+                        height: BANNER_H,
+                        marginHorizontal: -20,
+                        marginBottom: AVATAR_SIZE / 2 + 18,
+                    }}
+                >
+                    <BannerPerfil
+                        altura={BANNER_H}
+                        cor={corIdentidade}
+                        iniciais={(profileData?.nome_usuario ?? "US").slice(0, 2).toUpperCase()}
+                        foto={profileData?.foto_usuario}
+                    />
+
+                    <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 10, left: 0, right: 0 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 2 }}>
+                            <TouchableOpacity />
+                            <TouchableOpacity
+                                onPress={() => router.push("/(modals)/settings")}
+                                activeOpacity={0.8}
+                                style={{
+                                    width: 36, height: 36, borderRadius: 18,
+                                    backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center",
+                                }}
+                            >
+                                <Settings size={16} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                    </SafeAreaView>
+
+                    <View style={{ position: "absolute", left: 0, right: 0, bottom: -(AVATAR_SIZE / 2 + 4), alignItems: "center" }}>
+                        <AvatarComOfensiva
+                            tamanho={AVATAR_SIZE}
+                            foto={profileData?.foto_usuario}
+                            nome={profileData?.nome_usuario}
+                            ofensiva={ofensivaAtual}
+                            mostrarOfensiva={!usuarioNovo && (profileData?.mostrar_ofensiva ?? true)}
+                            badgeEditar={usuarioNovo}
+                            onPress={() => router.push("/(modals)/editar-perfil")}
+                        />
+                    </View>
+                </View>
+
                 {/* Identidade */}
                 <View style={{ alignItems: "center" }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -458,7 +400,7 @@ export default function ProfileScreen() {
                             {metaAtingida ? (
                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 9 }}>
                                     <Text style={{ fontSize: 12, color: HADES.green, fontWeight: "600" }}>
-                         `              Meta semanal atingida!
+                                         Meta semanal atingida!
                                     </Text>
                                 </View>
                             ) : (
@@ -594,45 +536,11 @@ export default function ProfileScreen() {
                     <ChevronRight size={18} color={HADES.textDim} />
                 </TouchableOpacity>
 
-                {/* Sair da conta */}
-                <TouchableOpacity
-                    onPress={handleSignOut}
-                    activeOpacity={0.85}
-                    style={{
-                        height: 48, borderRadius: 13,
-                        borderWidth: 1, borderColor: "rgba(240,85,107,0.3)",
-                        backgroundColor: "rgba(240,85,107,0.07)",
-                        flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-                        marginTop: 20,
-                    }}
-                >
-                    <LogOut size={17} color={HADES.red} />
-                    <Text style={{ fontSize: 14.5, fontWeight: "600", color: HADES.red }}>
-                        Sair da conta
-                    </Text>
-                </TouchableOpacity>
-
-                {/* Excluir conta */}
-                <TouchableOpacity
-                    onPress={handleDeleteAccount}
-                    disabled={excluindoConta}
-                    activeOpacity={0.85}
-                    style={{
-                        height: 44, borderRadius: 13,
-                        flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-                        marginTop: 10,
-                        opacity: excluindoConta ? 0.6 : 1,
-                    }}
-                >
-                    {excluindoConta ? (
-                        <ActivityIndicator size="small" color={HADES.textMuted} />
-                    ) : (
-                        <Trash2 size={15} color={HADES.textMuted} />
-                    )}
-                    <Text style={{ fontSize: 13.5, fontWeight: "600", color: HADES.textMuted }}>
-                        {excluindoConta ? "Excluindo conta…" : "Excluir minha conta"}
-                    </Text>
-                </TouchableOpacity>
+                {/*
+                  Sair da conta e excluir conta moravam aqui, soltas no fim da rolagem.
+                  Foram para a zona de perigo das Configurações, junto do resto da conta —
+                  o perfil é uma vitrine, não um painel de administração.
+                */}
             </ScrollView>
 
             <SheetMateriaFavorita

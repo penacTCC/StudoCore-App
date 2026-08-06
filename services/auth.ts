@@ -116,6 +116,19 @@ export const atualizarPerfil = async (userId: string, dados: DadosEdicaoPerfil) 
 };
 
 /**
+ * Liga/desliga o perfil público sem passar pelo formulário inteiro de edição.
+ *
+ * `atualizarPerfil` reescreve nome, bio e foto de uma vez — chamá-la a partir de um
+ * interruptor solto obrigaria a tela a carregar e reenviar campos que ela nem mostra.
+ */
+export const atualizarPrivacidadePerfil = async (userId: string, perfilPublico: boolean) => {
+  return await supabase
+    .from("profiles")
+    .update({ perfil_publico: perfilPublico })
+    .eq("id", userId);
+};
+
+/**
  * Exclusão definitiva da conta de quem está logado.
  *
  * Roda na Edge Function `excluir-conta` porque apagar de auth.users exige a service role

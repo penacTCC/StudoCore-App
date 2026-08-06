@@ -14,8 +14,13 @@ import { useSemanaCronograma } from "@/hooks/useSemanaCronograma";
 const LARGURA_EIXO = 26;
 /** Altura mínima de um bloco na grade — um bloco de 5 min precisa ser clicável. */
 const ALTURA_MINIMA_BLOCO = 36;
-/** Acima disso cabe o rótulo; abaixo é modo compacto. */
-const ALTURA_PARA_ROTULO = 40;
+/**
+ * A partir dessa duração o bloco mostra a abreviação da matéria. O corte é pela
+ * duração, não pela altura: um bloco de 30 min é esticado até a altura mínima e
+ * tem espaço de sobra pro rótulo, mas o cálculo em pixels o classificava como
+ * compacto e ele aparecia mudo na grade.
+ */
+const DURACAO_PARA_ROTULO_MIN = 25;
 
 type Props = {
     visualizacao: VisualizacaoSemana;
@@ -193,7 +198,7 @@ export default function AbaSemana({ visualizacao, inicioDaSemana }: Props) {
                                               mentir um pouco, mas fica legível e clicável.
                                             */
                                             const altura = Math.max(minParaPx(bloco.duracaoMin), ALTURA_MINIMA_BLOCO);
-                                            const compacto = altura < ALTURA_PARA_ROTULO;
+                                            const compacto = bloco.duracaoMin < DURACAO_PARA_ROTULO_MIN;
 
                                             return (
                                                 <View
@@ -339,9 +344,11 @@ function FolhaDetalhes({
                 style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}
                 onPress={onFechar}
             >
+                {/* Folha escura com os cartões mais claros por cima — invertido em
+                    relação às outras folhas, pra que os totais é que saltem. */}
                 <Pressable
                     style={{
-                        backgroundColor: HADES.surfaceRaised,
+                        backgroundColor: HADES.surface,
                         borderWidth: 1,
                         borderColor: HADES.borderStrong,
                         borderTopLeftRadius: 24,
@@ -394,9 +401,9 @@ function FolhaDetalhes({
                                                 flexDirection: "row",
                                                 alignItems: "center",
                                                 gap: 10,
-                                                backgroundColor: HADES.surface,
+                                                backgroundColor: HADES.surfaceOverlay,
                                                 borderWidth: 1,
-                                                borderColor: HADES.border,
+                                                borderColor: HADES.borderStrong,
                                                 borderRadius: 12,
                                                 paddingVertical: 12,
                                                 paddingHorizontal: 14,
@@ -440,9 +447,9 @@ function CaixaTotal({ rotulo, valor, cor }: { rotulo: string; valor: string; cor
         <View
             style={{
                 flex: 1,
-                backgroundColor: HADES.surface,
+                backgroundColor: HADES.surfaceOverlay,
                 borderWidth: 1,
-                borderColor: HADES.border,
+                borderColor: HADES.borderStrong,
                 borderRadius: 14,
                 paddingVertical: 14,
                 alignItems: "center",
