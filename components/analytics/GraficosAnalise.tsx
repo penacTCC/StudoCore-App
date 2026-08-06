@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Image } from "react-native";
 import Svg, { Path, Line, Rect, Circle, Defs, LinearGradient, Stop, Text as SvgText } from "react-native-svg";
-import { Flame, Swords, ChevronRight, ChevronDown } from "lucide-react-native";
+import { Flame, Swords, ChevronRight, ChevronDown, User, Users } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 import { DIAS_SEMANA_ABREV, NOME_COMPLETO_DIA, formatarHoras } from "@/lib/analytics";
-import { membrosRankingAnalytics, ParDiaSemana, PontoSerieDia } from "@/types/analytics";
+import { AderenciaMateria, DesempenhoMateria, membrosRankingAnalytics, ParDiaSemana, ParPlanejadoRealizado, PontoSerieDia, ResumoAderencia } from "@/types/analytics";
 import { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
 import { getTimeAgo } from "@/constants/helpers";
 import { Avatar } from "../ui";
@@ -17,6 +17,13 @@ import { MateriaMaisEstudada } from "@/types/materias";
 // arbitrárias (ex.: "text-[#8a8d96]"); SVG não aceita className, então ali o
 // valor precisa ir mesmo como prop/cor.
 export const CORES = {
+    // Laranja de destaque dos gráficos. É o `accentColor` padrão do mockup (#ffa348),
+    // um passo mais suave que o HADES.accentSolid (#FF9A00) da marca — em área e barra
+    // grandes o tom da marca satura demais. Onde a marca aparece como detalhe (aba ativa,
+    // pull-to-refresh) o HADES.accentSolid continua valendo.
+    accent: "#ffa348",
+    /** Fundo do item selecionado nos controles em ícone (mesmo papel do HADES.accentTint). */
+    accentTint: "rgba(255,163,72,0.12)",
     cartao: "#0d0e12",
     bordaCartao: "rgba(255,255,255,0.06)",
     pillAtivo: "#1a1b20",
@@ -40,6 +47,15 @@ export type EscopoAnalise = "pessoal" | "grupo";
 export type PeriodoAnalise = "7d" | "30d" | "ano";
 
 // ── Seletor Pessoal / Grupo ──────────────────────────────────────────────
+/**
+ * Par de ícones (uma pessoa / várias) no lugar do segmentado com texto, mesma forma do
+ * alternador Calendário/Blocos do cronograma (app/(tabs)/schedule.tsx): individual vs.
+ * coletivo se lê no desenho, e o controle encolhe o bastante pra dividir a linha com o
+ * SeletorPeriodo em vez de ocupar uma faixa própria.
+ *
+ * Sem rótulo visível, o `accessibilityLabel` passa a ser a única descrição para leitor de
+ * tela — por isso ele é obrigatório aqui, não um extra.
+ */
 export function SeletorEscopo({
     valor,
     aoAlterar,
@@ -47,29 +63,48 @@ export function SeletorEscopo({
     valor: EscopoAnalise;
     aoAlterar: (v: EscopoAnalise) => void;
 }) {
+    const opcoes: { key: EscopoAnalise; Icone: LucideIcon; rotulo: string }[] = [
+        { key: "pessoal", Icone: User, rotulo: "Ver sua análise pessoal" },
+        { key: "grupo", Icone: Users, rotulo: "Ver a análise do grupo" },
+    ];
+
     return (
-        <View className="relative flex-row rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#0d0e12] p-1">
-            <View
-                className={`absolute bottom-1 top-1 w-1/2 rounded-[9px] bg-[#1a1b20] ${valor === "pessoal" ? "left-1" : "left-1/2"}`}
-            />
-            <TouchableOpacity onPress={() => aoAlterar("pessoal")} className="flex-1 items-center py-2.5">
-                <Text className={`text-sm font-semibold ${valor === "pessoal" ? "text-white" : "text-[#6b6e76]"}`}>
-                    Pessoal
-                </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => aoAlterar("grupo")} className="flex-1 items-center py-2.5">
-                <Text className={`text-sm font-semibold ${valor === "grupo" ? "text-white" : "text-[#6b6e76]"}`}>
-                    Grupo
-                </Text>
-            </TouchableOpacity>
+        <View
+            className="flex-row self-start rounded-[19px] border border-[rgba(255,255,255,0.06)] bg-[#0d0e12]"
+            style={{ padding: 3, gap: 2 }}
+        >
+            {opcoes.map(({ key, Icone, rotulo }) => {
+                const ativo = valor === key;
+                return (
+                    <TouchableOpacity
+                        key={key}
+                        onPress={() => aoAlterar(key)}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={rotulo}
+                        accessibilityState={{ selected: ativo }}
+                        style={{
+                            width: 40,
+                            height: 32,
+                            borderRadius: 16,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: ativo ? CORES.accentTint : "transparent",
+                        }}
+                    >
+                        <Icone size={16} color={ativo ? CORES.accent : CORES.textoMuted} />
+                    </TouchableOpacity>
+                );
+            })}
         </View>
     );
 }
 
-// ── Pills de período: 7 dias / 30 dias / Ano ────────────────────────────
+// ── Pills de período: 7d / 30d / Ano ────────────────────────────────────
+// Rótulos curtos pra caber na mesma linha do SeletorEscopo mesmo em tela de 360dp.
 const OPCOES_PERIODO: { key: PeriodoAnalise; label: string }[] = [
-    { key: "7d", label: "7 dias" },
-    { key: "30d", label: "30 dias" },
+    { key: "7d", label: "7d" },
+    { key: "30d", label: "30d" },
     { key: "ano", label: "Ano" },
 ];
 
@@ -81,14 +116,14 @@ export function SeletorPeriodo({
     aoAlterar: (v: PeriodoAnalise) => void;
 }) {
     return (
-        <View className="flex-row gap-1.5">
+        <View className="flex-row gap-1">
             {OPCOES_PERIODO.map((opcao) => {
                 const ativo = valor === opcao.key;
                 return (
                     <TouchableOpacity
                         key={opcao.key}
                         onPress={() => aoAlterar(opcao.key)}
-                        className={`mt-3 rounded-lg px-3.5 py-1.5 ${ativo ? "bg-[#1a1b20]" : "bg-transparent"}`}
+                        className={`rounded-lg px-3 py-2 ${ativo ? "bg-[#1a1b20]" : "bg-transparent"}`}
                     >
                         <Text className={`text-[13px] font-semibold ${ativo ? "text-white" : "text-[#6b6e76]"}`}>
                             {opcao.label}
@@ -506,6 +541,450 @@ export function GraficoOfensiva({
             <View className="mt-2 flex-row justify-between">
                 <Text className="text-[11px] text-[#5f636c]">{pontos.length} sem atrás</Text>
                 <Text className="text-[11px] text-[#5f636c]">Hoje</Text>
+            </View>
+        </View>
+    );
+}
+
+// ── 8. Planejado × Realizado — aderência ao cronograma ───────────────────
+
+/** Verde acima de 90% do plano, âmbar de 60 a 89, vermelho abaixo disso. */
+function corDaAderencia(pct: number) {
+    if (pct >= 90) return CORES.verde;
+    if (pct >= 60) return CORES.chama;
+    return CORES.vermelho;
+}
+
+export function GraficoPlanejadoRealizado({
+    cor,
+    titulo,
+    pares,
+    resumo,
+    temCronograma,
+    aoAbrirCronograma,
+}: {
+    cor: string;
+    titulo: string;
+    pares: ParPlanejadoRealizado[];
+    resumo: ResumoAderencia;
+    /** false quando não há nenhum bloco de estudo na janela — sem plano não há o que comparar. */
+    temCronograma: boolean;
+    aoAbrirCronograma: () => void;
+}) {
+    if (!temCronograma) {
+        return (
+            <View>
+                <Text className="mb-2.5 text-base font-bold tracking-[-0.2px] text-white">{titulo}</Text>
+                <View className="items-start rounded-xl border border-[rgba(255,255,255,0.06)] bg-[#0d0e12] p-4">
+                    <Text className="text-[13px] leading-[19px] text-[#8a8d96]">
+                        Você ainda não tem blocos de estudo no cronograma deste período. Monte sua rotina
+                        para comparar o que planejou com o que estudou.
+                    </Text>
+                    <TouchableOpacity
+                        onPress={aoAbrirCronograma}
+                        className="mt-3 flex-row items-center gap-1 rounded-lg bg-[#1a1b20] px-3 py-2"
+                    >
+                        <Text className="text-[13px] font-semibold" style={{ color: cor }}>
+                            Montar cronograma
+                        </Text>
+                        <ChevronRight size={14} color={cor} />
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+
+    const largura = 320;
+    const altura = 140;
+    const yTopo = 12;
+    const yBase = 130;
+
+    const maxMinutos = Math.max(...pares.flatMap((p) => [p.planejado, p.realizado]), 1);
+    const passoX = pares.length > 1 ? largura / (pares.length - 1) : 0;
+
+    const x = (i: number) => i * passoX;
+    const y = (minutos: number) => yBase - (minutos / maxMinutos) * (yBase - yTopo);
+
+    // Realizado: mesma área com gradiente do gráfico de horas, pra leitura contínua.
+    const linhaRealizado = pares.map((par, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(par.realizado)}`).join(" ");
+    const areaRealizado = `${linhaRealizado} L ${largura} ${altura} L 0 ${altura} Z`;
+
+    // Planejado: linha tracejada em degraus — cada bucket vira um patamar horizontal que vai
+    // da metade do caminho até o vizinho da esquerda à metade até o da direita, e o salto
+    // vertical entre patamares é a mudança de plano. Degrau (e não linha ligando os pontos)
+    // porque o planejado é um valor constante dentro do bucket, não uma curva.
+    const linhaPlanejado = pares
+        .map((par, i) => {
+            const esquerda = i === 0 ? 0 : (x(i - 1) + x(i)) / 2;
+            const direita = i === pares.length - 1 ? largura : (x(i) + x(i + 1)) / 2;
+            const alturaPatamar = y(par.planejado);
+            return `${i === 0 ? "M" : "L"} ${esquerda} ${alturaPatamar} L ${direita} ${alturaPatamar}`;
+        })
+        .join(" ");
+
+    // Só conta como meta batida/furada o bucket que tinha plano: dia sem bloco no
+    // cronograma não é falha, é dia livre.
+    const comPlano = pares.filter((par) => par.planejado > 0);
+    const vezesBatidas = comPlano.filter((par) => par.realizado >= par.planejado).length;
+    const vezesAbaixo = comPlano.length - vezesBatidas;
+
+    // O último bucket é sempre o atual (as janelas terminam hoje, ver lib/analytics.ts);
+    // no filtro de 7 dias os rótulos são dias da semana, então o destaque vai pro de hoje.
+    const ehSerieSemanal = pares.every((par) => DIAS_SEMANA_ABREV.includes(par.rotulo));
+    const rotuloAtual = ehSerieSemanal
+        ? DIAS_SEMANA_ABREV[new Date().getDay()]
+        : pares[pares.length - 1]?.rotulo;
+
+    return (
+        <View>
+            <View className="mb-1.5 flex-row items-center justify-between">
+                <Text className="text-base font-bold tracking-[-0.2px] text-white">{titulo}</Text>
+            </View>
+
+            <View className="mb-3 flex-row items-baseline gap-2">
+                <Text className="text-[30px] font-bold leading-none tracking-[-0.7px] text-white">{resumo.pct}%</Text>
+                <Text className="text-[13px] text-[#6b6e76]">de aderência</Text>
+                <Text className="ml-auto text-[13px] text-[#6b6e76]">
+                    <Text className="font-semibold text-white">{formatarHoras(resumo.minutosRealizados)}</Text>
+                    {" de "}
+                    {formatarHoras(resumo.minutosPlanejados)}
+                </Text>
+            </View>
+
+            <View className="mb-3 flex-row items-center gap-4">
+                <View className="flex-row items-center gap-1.5">
+                    <Svg width={18} height={8} viewBox="0 0 18 8">
+                        <Line x1="0" y1="4" x2="18" y2="4" stroke={CORES.textoSecundario} strokeWidth={2} strokeDasharray="4 3" />
+                    </Svg>
+                    <Text className="text-xs text-[#8a8d96]">Planejado</Text>
+                </View>
+                <View className="flex-row items-center gap-1.5">
+                    <View className="h-2 w-3.5 rounded-sm" style={{ backgroundColor: cor }} />
+                    <Text className="text-xs text-[#c9ccd2]">Realizado</Text>
+                </View>
+            </View>
+
+            <Svg width="100%" height={altura} viewBox={`0 0 ${largura} ${altura}`}>
+                <Defs>
+                    <LinearGradient id="gradienteAreaPlanejado" x1="0" x2="0" y1="0" y2="1">
+                        <Stop offset="0%" stopColor={cor} stopOpacity={0.32} />
+                        <Stop offset="100%" stopColor={cor} stopOpacity={0} />
+                    </LinearGradient>
+                </Defs>
+
+                <Line x1="0" y1="45" x2={largura} y2="45" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
+                <Line x1="0" y1="90" x2={largura} y2="90" stroke={CORES.linhaGrade} strokeDasharray="2 4" />
+                <Line x1="0" y1={yBase} x2={largura} y2={yBase} stroke={CORES.divisor} />
+
+                <Path d={areaRealizado} fill="url(#gradienteAreaPlanejado)" />
+                <Path
+                    d={linhaPlanejado}
+                    fill="none"
+                    stroke={CORES.textoSecundario}
+                    strokeWidth={1.8}
+                    strokeDasharray="5 4"
+                    strokeLinejoin="round"
+                />
+                <Path
+                    d={linhaRealizado}
+                    fill="none"
+                    stroke={cor}
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+
+                {/* Ponto por bucket: verde bateu o plano, vermelho ficou abaixo, cinza não
+                    tinha plano naquele dia. */}
+                {pares.map((par, i) => (
+                    <Circle
+                        key={`${par.rotulo}-${i}`}
+                        cx={x(i)}
+                        cy={y(par.realizado)}
+                        r={3.5}
+                        fill={
+                            par.planejado === 0
+                                ? CORES.barraAnterior
+                                : par.realizado >= par.planejado
+                                    ? CORES.verde
+                                    : CORES.vermelho
+                        }
+                    />
+                ))}
+            </Svg>
+
+            <View className="mt-2 flex-row justify-between px-0.5">
+                {pares.map((par, i) => (
+                    <Text
+                        key={`${par.rotulo}-${i}`}
+                        className={`text-[11px] ${par.rotulo === rotuloAtual ? "font-semibold text-white" : "text-[#5f636c]"}`}
+                    >
+                        {par.rotulo}
+                    </Text>
+                ))}
+            </View>
+        </View>
+    );
+}
+
+// ── 9. Aderência por matéria — barras horizontais ────────────────────────
+const LIMITE_LINHAS_MATERIA = 6;
+
+export function AderenciaPorMateria({ itens }: { itens: AderenciaMateria[] }) {
+    const visiveis = itens.slice(0, LIMITE_LINHAS_MATERIA);
+    const restantes = itens.length - visiveis.length;
+
+    if (itens.length === 0) return null;
+
+    return (
+        <View>
+            <Text className="mb-1.5 text-base font-bold tracking-[-0.2px] text-white">Aderência por matéria</Text>
+
+            <View className="gap-3.5">
+                {visiveis.map((item) => {
+                    // Matéria estudada sem estar no plano não tem denominador: em vez de uma
+                    // porcentagem inventada, a linha vira "extra".
+                    const foraDoPlano = item.planejado === 0;
+                    const largura = foraDoPlano ? 100 : Math.min(item.pct, 100);
+
+                    return (
+                        <View key={item.materia}>
+                            <View className="mb-1.5 flex-row items-center justify-between">
+                                <View className="flex-1 flex-row items-center gap-2">
+                                    <View className="h-2 w-2 rounded-sm" style={{ backgroundColor: item.cor }} />
+                                    <Text className="flex-1 text-[13px] font-medium text-[#c9ccd2]" numberOfLines={1}>
+                                        {item.materia}
+                                    </Text>
+                                </View>
+                                {foraDoPlano ? (
+                                    <Text className="text-[12px] text-[#6b6e76]">
+                                        <Text className="font-semibold text-white">{formatarHoras(item.realizado)}</Text>
+                                        {" fora do plano"}
+                                    </Text>
+                                ) : (
+                                    <Text className="text-[12px] text-[#6b6e76]">
+                                        <Text className="font-semibold" style={{ color: corDaAderencia(item.pct) }}>
+                                            {item.pct}%
+                                        </Text>
+                                        {"  "}
+                                        {formatarHoras(item.realizado)} / {formatarHoras(item.planejado)}
+                                    </Text>
+                                )}
+                            </View>
+                            <View className="h-2 overflow-hidden rounded-[4px] bg-[#1a1b20]">
+                                <View
+                                    className="h-full rounded-[4px]"
+                                    style={{
+                                        width: `${largura}%`,
+                                        backgroundColor: item.cor,
+                                        opacity: foraDoPlano ? 0.45 : 1,
+                                    }}
+                                />
+                            </View>
+                        </View>
+                    );
+                })}
+            </View>
+
+            {restantes > 0 && (
+                <Text className="mt-3 text-[11px] text-[#5f636c]">
+                    + {restantes} matéria{restantes > 1 ? "s" : ""} com menos tempo planejado
+                </Text>
+            )}
+        </View>
+    );
+}
+
+// ── 10. Taxa de acerto por matéria ───────────────────────────────────────
+
+/** Mesma escala de leitura do resto da tela: 70% é a linha de "vai bem". */
+function corDoAcerto(pct: number) {
+    if (pct >= 70) return CORES.verde;
+    if (pct >= 50) return CORES.chama;
+    return CORES.vermelho;
+}
+
+export function TaxaAcertoPorMateria({ itens }: { itens: DesempenhoMateria[] }) {
+    // Só matéria com questão respondida tem taxa; as outras viram uma nota no rodapé
+    // em vez de barras zeradas que parecem 0% de acerto.
+    const comQuestoes = itens.filter((item) => item.questoes > 0);
+    const semQuestoes = itens.length - comQuestoes.length;
+
+    return (
+        <View>
+            <Text className="mb-1.5 text-base font-bold tracking-[-0.2px] text-white">Taxa de acerto por matéria</Text>
+
+            {comQuestoes.length === 0 ? (
+                <Text className="text-[13px] leading-[19px] text-[#8a8d96]">
+                    Nenhuma questão respondida neste período. Faça os quizzes ao fim das sessões (ou anexe
+                    formulários corrigidos) para ver o acerto por matéria.
+                </Text>
+            ) : (
+                <View className="gap-3.5">
+                    {/* Pior primeiro: a informação útil aqui é onde melhorar. */}
+                    {[...comQuestoes]
+                        .sort((a, b) => a.pctAcerto - b.pctAcerto)
+                        .map((item) => (
+                            <View key={item.materia}>
+                                <View className="mb-1.5 flex-row items-center justify-between">
+                                    <View className="flex-1 flex-row items-center gap-2">
+                                        <View className="h-2 w-2 rounded-sm" style={{ backgroundColor: item.cor }} />
+                                        <Text className="flex-1 text-[13px] font-medium text-[#c9ccd2]" numberOfLines={1}>
+                                            {item.materia}
+                                        </Text>
+                                    </View>
+                                    <Text className="text-[12px] text-[#6b6e76]">
+                                        <Text className="font-semibold" style={{ color: corDoAcerto(item.pctAcerto) }}>
+                                            {item.pctAcerto}%
+                                        </Text>
+                                        {"  "}
+                                        {item.acertos}/{item.questoes}
+                                    </Text>
+                                </View>
+                                <View className="h-2 overflow-hidden rounded-[4px] bg-[#1a1b20]">
+                                    <View
+                                        className="h-full rounded-[4px]"
+                                        style={{ width: `${item.pctAcerto}%`, backgroundColor: corDoAcerto(item.pctAcerto) }}
+                                    />
+                                </View>
+                            </View>
+                        ))}
+                </View>
+            )}
+        </View>
+    );
+}
+
+// ── 11. Tempo × desempenho — quadrantes ──────────────────────────────────
+const ACERTO_DE_CORTE = 70; // linha horizontal: acima disso, a matéria está indo bem
+
+export function GraficoTempoDesempenho({ itens }: { itens: DesempenhoMateria[] }) {
+    const pontos = itens.filter((item) => item.questoes > 0 && item.minutos > 0);
+
+    if (pontos.length < 2) {
+        return (
+            <View>
+                <Text className="mb-1.5 text-base font-bold tracking-[-0.2px] text-white">Tempo × desempenho</Text>
+                <Text className="text-[13px] leading-[19px] text-[#8a8d96]">
+                    Estude e responda questões em pelo menos duas matérias no período para comparar onde o
+                    tempo investido está virando acerto.
+                </Text>
+            </View>
+        );
+    }
+
+    const largura = 320;
+    const altura = 200;
+    const margemEsq = 30;
+    const margemDir = 12;
+    const margemTopo = 14;
+    const margemBase = 24;
+
+    const maxHoras = Math.max(...pontos.map((p) => p.horas));
+    const maxQuestoes = Math.max(...pontos.map((p) => p.questoes));
+
+    // Mediana das horas: divide as matérias entre "muito tempo" e "pouco tempo" pelo próprio
+    // período do usuário, em vez de um corte fixo que não significaria nada.
+    const horasOrdenadas = [...pontos.map((p) => p.horas)].sort((a, b) => a - b);
+    const meio = Math.floor(horasOrdenadas.length / 2);
+    const medianaHoras =
+        horasOrdenadas.length % 2 === 0
+            ? (horasOrdenadas[meio - 1] + horasOrdenadas[meio]) / 2
+            : horasOrdenadas[meio];
+
+    const x = (horas: number) =>
+        margemEsq + (maxHoras > 0 ? horas / (maxHoras * 1.12) : 0) * (largura - margemEsq - margemDir);
+    const y = (pct: number) => margemTopo + (1 - pct / 100) * (altura - margemTopo - margemBase);
+    const raio = (questoes: number) => 4 + (maxQuestoes > 0 ? questoes / maxQuestoes : 0) * 6;
+
+    return (
+        <View>
+            <Text className="mb-1.5 text-base font-bold tracking-[-0.2px] text-white">Tempo × desempenho</Text>
+            <Text className="mb-3 text-[13px] text-[#6b6e76]">
+                Onde o tempo investido está virando acerto — o tamanho do ponto é o volume de questões
+            </Text>
+
+            <Svg width="100%" height={altura} viewBox={`0 0 ${largura} ${altura}`}>
+                {/* Eixo Y: 0 / 50 / 100% de acerto */}
+                {[0, 50, 100].map((tick) => (
+                    <Fragment key={tick}>
+                        <Line
+                            x1={margemEsq}
+                            y1={y(tick)}
+                            x2={largura - margemDir}
+                            y2={y(tick)}
+                            stroke={CORES.linhaGrade}
+                        />
+                        <SvgText x={margemEsq - 6} y={y(tick) + 3.5} fontSize={9} fill={CORES.textoFraco} textAnchor="end">
+                            {`${tick}%`}
+                        </SvgText>
+                    </Fragment>
+                ))}
+
+                {/* Divisores dos quadrantes */}
+                <Line
+                    x1={margemEsq}
+                    y1={y(ACERTO_DE_CORTE)}
+                    x2={largura - margemDir}
+                    y2={y(ACERTO_DE_CORTE)}
+                    stroke={CORES.divisor}
+                    strokeDasharray="3 4"
+                />
+                <Line
+                    x1={x(medianaHoras)}
+                    y1={margemTopo}
+                    x2={x(medianaHoras)}
+                    y2={altura - margemBase}
+                    stroke={CORES.divisor}
+                    strokeDasharray="3 4"
+                />
+
+                {/* Rótulos dos quadrantes */}
+                <SvgText x={margemEsq + 4} y={margemTopo + 10} fontSize={8.5} fill={CORES.textoFraco}>
+                    rende rápido
+                </SvgText>
+                <SvgText x={largura - margemDir - 4} y={margemTopo + 10} fontSize={8.5} fill={CORES.textoFraco} textAnchor="end">
+                    consolidado
+                </SvgText>
+                <SvgText x={margemEsq + 4} y={altura - margemBase - 5} fontSize={8.5} fill={CORES.textoFraco}>
+                    pouco explorado
+                </SvgText>
+                <SvgText x={largura - margemDir - 4} y={altura - margemBase - 5} fontSize={8.5} fill={CORES.textoFraco} textAnchor="end">
+                    custa caro
+                </SvgText>
+
+                {pontos.map((item) => (
+                    <Circle
+                        key={item.materia}
+                        cx={x(item.horas)}
+                        cy={y(item.pctAcerto)}
+                        r={raio(item.questoes)}
+                        fill={item.cor}
+                        fillOpacity={0.75}
+                        stroke={item.cor}
+                        strokeWidth={1.5}
+                    />
+                ))}
+
+                <SvgText x={largura - margemDir} y={altura - 6} fontSize={9} fill={CORES.textoFraco} textAnchor="end">
+                    horas estudadas →
+                </SvgText>
+            </Svg>
+
+            <View className="mt-3 gap-2">
+                {pontos.map((item) => (
+                    <View key={item.materia} className="flex-row items-center justify-between">
+                        <View className="flex-1 flex-row items-center gap-2">
+                            <View className="h-2 w-2 rounded-full" style={{ backgroundColor: item.cor }} />
+                            <Text className="flex-1 text-[13px] text-[#c9ccd2]" numberOfLines={1}>
+                                {item.materia}
+                            </Text>
+                        </View>
+                        <Text className="text-[12px] text-[#6b6e76]">
+                            {formatarHoras(item.minutos)} · <Text className="font-semibold text-white">{item.pctAcerto}%</Text>
+                        </Text>
+                    </View>
+                ))}
             </View>
         </View>
     );

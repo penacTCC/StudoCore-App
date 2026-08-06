@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/repositories/supabase';
 import type { Grupo, GrupoPublico } from '@/types/grupos';
 import type { SnapshotSessaoFoco } from '@/types/foco';
 
@@ -60,7 +61,7 @@ export const carregarSnapshotSessao = async (): Promise<SnapshotSessaoFoco | nul
       modo: dados.modo === 'pomodoro' ? 'pomodoro' : 'cronometro',
       inicioMs,
       sessaoId: dados.sessaoId ?? null,
-      sessaoGrupoId: dados.sessaoGrupoId ?? null,
+      salaId: dados.salaId ?? null,
       ehConvidado: dados.ehConvidado ?? false,
       fila: dados.fila ?? [],
       indiceFila: dados.indiceFila ?? 0,
@@ -154,17 +155,38 @@ export const carregarGruposPublicosLocalmente = async (): Promise<GrupoPublico[]
   }
 };
 
+/**
+ * Dono do último grupo salvo. O AsyncStorage é do APARELHO, não da conta: guardar só o id
+ * do grupo fazia com que, ao trocar de conta no mesmo aparelho, a conta nova herdasse o
+ * grupo de quem usou o app antes. Isso não ficava só na navegação — a tela de foco usa
+ * este id como fallback ao gravar `grupo_id` na sessão (ver app/(tabs)/focus.tsx), então
+ * sessões de quem nunca entrou no grupo apareciam no feed e contavam para a meta semanal
+ * dele. Gravando o dono junto, uma leitura de outra conta simplesmente não encontra nada.
+ */
+type UltimoGrupoSalvo = { userId: string; grupoId: string };
+
+const idDoUsuarioAtual = async () => {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user.id ?? null;
+};
+
 export const salvarUltimoGrupoLocalmente = async (grupoId: string) => {
   try {
-    await AsyncStorage.setItem(LAST_GROUP_KEY, grupoId);
+    const userId = await idDoUsuarioAtual();
+
+    // Sem sessão não há dono para carimbar, e um registro sem dono é justamente o que
+    // vazava entre contas — melhor não salvar nada.
+    if (!userId) return;
+
+    const registro: UltimoGrupoSalvo = { userId, grupoId };
+    await AsyncStorage.setItem(LAST_GROUP_KEY, JSON.stringify(registro));
   } catch (erro) {
     console.error('Erro ao salvar o ultimo grupo offline:', erro);
   }
 };
 
-// O último grupo é do aparelho, não da conta: ao trocar de conta o id antigo continua
-// salvo e a nova conta caía direto nas tabs do grupo alheio. Quem lê valida a
-// participação (ver useStatusMembroGrupo) e limpa por aqui quando não bate.
+// Chamado no logout e por quem lê e descobre que a participação não bate mais
+// (ver useStatusMembroGrupo).
 export const limparUltimoGrupoLocalmente = async () => {
   try {
     await AsyncStorage.removeItem(LAST_GROUP_KEY);
@@ -175,7 +197,28 @@ export const limparUltimoGrupoLocalmente = async () => {
 
 export const carregarUltimoGrupoLocalmente = async () => {
   try {
-    return await AsyncStorage.getItem(LAST_GROUP_KEY);
+    const bruto = await AsyncStorage.getItem(LAST_GROUP_KEY);
+    if (!bruto) return null;
+
+    const userId = await idDoUsuarioAtual();
+    if (!userId) return null;
+
+    /*
+      Versões anteriores gravavam o id do grupo cru, sem dono. Como não dá para saber de
+      quem ele era, é descartado: no pior caso a pessoa escolhe o grupo uma vez de novo,
+      contra o risco de carimbar a sessão com o grupo de outra conta.
+    */
+    let registro: UltimoGrupoSalvo;
+    try {
+      registro = JSON.parse(bruto);
+    } catch {
+      await limparUltimoGrupoLocalmente();
+      return null;
+    }
+
+    if (registro?.userId !== userId || !registro?.grupoId) return null;
+
+    return registro.grupoId;
   } catch (erro) {
     console.error('Erro ao ler o ultimo grupo offline:', erro);
     return null;

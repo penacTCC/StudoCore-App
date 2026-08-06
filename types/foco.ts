@@ -65,9 +65,9 @@ export type SnapshotSessaoFoco = {
     inicioMs: number;
     /** Linha em `sessoes_foco` que esta sessão está preenchendo. */
     sessaoId: string | null;
-    /** Sessão em grupo cuja participação (`tab_sessao_membros`) é a nossa. */
-    sessaoGrupoId: string | null;
-    /** `true` quando entramos na sessão pública de outra pessoa. */
+    /** Sala do encontro (`salas_foco`) — separada da linha de estudo acima. */
+    salaId: string | null;
+    /** `true` quando entramos na sala aberta por outra pessoa. */
     ehConvidado: boolean;
     fila: ItemFila[];
     indiceFila: number;

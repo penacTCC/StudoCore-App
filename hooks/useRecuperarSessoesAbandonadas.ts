@@ -25,9 +25,13 @@ export const useRecuperarSessoesAbandonadas = (userId?: string | null) => {
 
         const recuperar = async () => {
             const snapshot = await carregarSnapshotSessao();
-            const emAndamento = [snapshot?.sessaoId, snapshot?.sessaoGrupoId].filter(
-                (id): id is string => !!id
-            );
+            /*
+              Só a própria linha de `sessoes_foco` entra na exceção. O `salaId` do snapshot
+              não cabe aqui: desde a separação sala/registro pessoal ele identifica uma sala,
+              não uma sessão, e a varredura de participações abandonadas já se protege
+              sozinha (só fecha o que está sem batimento há mais de 15 min).
+            */
+            const emAndamento = [snapshot?.sessaoId].filter((id): id is string => !!id);
 
             await fecharSessoesAbandonadas(userId, emAndamento);
         };
@@ -46,9 +50,13 @@ export const useRecuperarSessoesAbandonadas = (userId?: string | null) => {
             if (estado !== "active") return;
 
             const snapshot = await carregarSnapshotSessao();
-            const emAndamento = [snapshot?.sessaoId, snapshot?.sessaoGrupoId].filter(
-                (id): id is string => !!id
-            );
+            /*
+              Só a própria linha de `sessoes_foco` entra na exceção. O `salaId` do snapshot
+              não cabe aqui: desde a separação sala/registro pessoal ele identifica uma sala,
+              não uma sessão, e a varredura de participações abandonadas já se protege
+              sozinha (só fecha o que está sem batimento há mais de 15 min).
+            */
+            const emAndamento = [snapshot?.sessaoId].filter((id): id is string => !!id);
 
             await fecharSessoesAbandonadas(userId, emAndamento);
         });

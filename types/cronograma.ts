@@ -155,4 +155,6 @@ export type PreferenciasCronograma = {
     contarDescansoComoEstudado: boolean;
     /** Se ligado, o fim do quiz abre a etapa de anotações da sessão (pulável). */
     anotarAposQuiz: boolean;
+    /** Se ligado, o fim da sessão oferece registrar uma foto do momento (pulável). */
+    fotoAposSessao: boolean;
 };

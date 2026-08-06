@@ -6,9 +6,9 @@ import { ChevronLeft, HandMetal, MessageCircle } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { useIncentivos } from "@/hooks/useIncentivos";
-import { useSessionMembers } from "@/hooks/useSessionMembers";
+import { useParticipantesDaSala } from "@/hooks/useParticipantesDaSala";
 import { tempoAoVivoDoMembro } from "@/utils/tempo";
-import type { MemberSession } from "@/types/sessions";
+import type { ParticipanteDaSala } from "@/types/sala";
 
 const formatarTempo = (segundos: number) => {
     const totalSegundos = Math.max(0, Math.floor(segundos));
@@ -33,12 +33,12 @@ const formatarCooldown = (segundos: number) => {
 export default function ColegasFocandoScreen() {
     const router = useRouter();
     const { userId } = useAuth();
-    const { materia, conteudo, sessionId } = useLocalSearchParams<{ materia?: string; conteudo?: string; sessionId?: string }>();
+    const { materia, conteudo, salaId } = useLocalSearchParams<{ materia?: string; conteudo?: string; salaId?: string }>();
 
-    const idDaSessao = Array.isArray(sessionId) ? sessionId[0] : sessionId;
+    const idDaSala = Array.isArray(salaId) ? salaId[0] : salaId;
 
-    // Membros sincronizados em tempo real (ver hooks/useSessionMembers).
-    const { members } = useSessionMembers(idDaSessao);
+    // Participantes sincronizados em tempo real (ver hooks/useParticipantesDaSala).
+    const { participantes: members } = useParticipantesDaSala(idDaSala);
 
     // Tick de 1s só para repintar a tela: o tempo em si é sempre recalculado a partir do
     // acumulado do membro + `ultimo_inicio` (ver tempoAoVivoDoMembro), nunca somado ao tick.
@@ -49,7 +49,7 @@ export default function ColegasFocandoScreen() {
     }, []);
 
     // A força é individual: cada colega da lista pode receber a sua.
-    const { enviandoPara, contarPara, podeTorcerPor, cooldownRestante, enviarForca } = useIncentivos(idDaSessao);
+    const { enviandoPara, contarPara, podeTorcerPor, cooldownRestante, enviarForca } = useIncentivos(idDaSala);
 
     // Quem já encerrou não é "em pausa": o contador dizia que a pessoa ainda estava na
     // sessão, parada, quando na verdade ela tinha saído.
@@ -57,7 +57,7 @@ export default function ColegasFocandoScreen() {
     const emPausa = members.filter((member) => member.status === "pausado").length;
 
     /** Tempo real do membro: o acumulado dele mais o que passou desde o último início. */
-    const tempoDoMembro = (member: MemberSession) => tempoAoVivoDoMembro(member);
+    const tempoDoMembro = (member: ParticipanteDaSala) => tempoAoVivoDoMembro(member);
 
     const tempoCombinado = members.reduce((total, member) => total + tempoDoMembro(member), 0);
 

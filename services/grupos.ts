@@ -341,11 +341,23 @@ export const horasSemanaisGrupo = async (groupId: string) => {
   // Busca o intervalo da semana atual para filtrar apenas o progresso semanal.
   const { inicio, fim } = obterSemanaAtual()
 
+  /*
+    Só entra quem é membro HOJE. Filtrar apenas por `grupo_id` deixava a meta contar sessão
+    de quem não está no grupo — seja porque saiu, seja porque a sessão nasceu com o grupo
+    errado. O sintoma era a meta da semana batida por alguém que não aparecia nem na lista
+    de membros nem no ranking, que leem `membros`.
+  */
+  const membrosAtuais = await buscarMembrosGrupo(groupId)
+  const idsMembrosAtuais = membrosAtuais.map((membro) => membro.user_id)
+
+  if (idsMembrosAtuais.length === 0) return 0;
+
   // Soma apenas sessões vinculadas ao grupo atual, evitando misturar estudos de outros grupos do mesmo usuário.
   const { data: sessions, error } = await supabase
     .from('sessoes_foco')
     .select('tempo_minutos')
     .eq("grupo_id", groupId)
+    .in("user_id", idsMembrosAtuais)
     .in("status", STATUS_SESSAO_FINALIZADA)
     .gte("data_sessao", inicio)
     .lte("data_sessao", fim);

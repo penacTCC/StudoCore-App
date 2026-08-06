@@ -1,7 +1,10 @@
 /** Um "Mandar força" enviado por alguém para o dono de uma sessão de foco. */
 export type Incentivo = {
     id: string;
-    sessao_id: string;
+    /** LEGADO: chave de quando sala e registro pessoal eram a mesma linha. */
+    sessao_id: string | null;
+    /** Sala em que a força foi mandada. */
+    sala_id: string | null;
     remetente_id: string;
     destinatario_id: string;
     created_at: string;
@@ -14,7 +17,10 @@ export type Incentivo = {
 };
 
 export type IncentivoInsert = {
-    sessao_id: string;
+    /** LEGADO: chave de quando sala e registro pessoal eram a mesma linha. */
+    sessao_id: string | null;
+    /** Sala em que a força foi mandada. */
+    sala_id: string | null;
     remetente_id: string;
     destinatario_id: string;
 };

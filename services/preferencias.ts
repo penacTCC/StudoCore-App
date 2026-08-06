@@ -23,6 +23,7 @@ export const PADRAO_PREFERENCIAS: PreferenciasCronograma = {
     duracaoPadraoDescansoMin: 10,
     contarDescansoComoEstudado: false,
     anotarAposQuiz: true,
+    fotoAposSessao: true,
 };
 
 /** Linha de `preferencias_cronograma` — chaves batem com as colunas da tabela. */
@@ -49,6 +50,7 @@ type PreferenciasRow = {
     duracao_padrao_descanso_min: number;
     contar_descanso_como_estudado: boolean;
     anotar_apos_quiz: boolean;
+    foto_apos_sessao: boolean;
 };
 
 function paraPreferencias(row: PreferenciasRow): PreferenciasCronograma {
@@ -73,6 +75,7 @@ function paraPreferencias(row: PreferenciasRow): PreferenciasCronograma {
         duracaoPadraoDescansoMin: row.duracao_padrao_descanso_min,
         contarDescansoComoEstudado: row.contar_descanso_como_estudado,
         anotarAposQuiz: row.anotar_apos_quiz ?? true,
+        fotoAposSessao: row.foto_apos_sessao ?? true,
     };
 }
 
@@ -102,6 +105,7 @@ function paraRow(usuarioId: string, prefs: PreferenciasCronograma): Preferencias
         duracao_padrao_descanso_min: prefs.duracaoPadraoDescansoMin,
         contar_descanso_como_estudado: prefs.contarDescansoComoEstudado,
         anotar_apos_quiz: prefs.anotarAposQuiz,
+        foto_apos_sessao: prefs.fotoAposSessao,
     };
 }
 

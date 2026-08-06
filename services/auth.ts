@@ -1,4 +1,5 @@
 import { supabase } from "@/repositories/supabase";
+import { limparUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import * as Linking from "expo-linking";
 import type { AuthChangeEvent } from "@supabase/supabase-js";
 import type { AuthSession } from "@/types/auth";
@@ -195,6 +196,11 @@ export const perfilEstaCompleto = async (userId: string) => {
 
 //Deslogar Usuario
 export const deslogarUsuario = async () => {
+  // O último grupo fica no AsyncStorage do aparelho. Limpar aqui evita que ele sobreviva
+  // até o próximo login: quem lê já valida o dono, mas apagar no logout impede que um
+  // registro órfão fique guardado à toa depois que a conta sai.
+  await limparUltimoGrupoLocalmente();
+
   return await supabase.auth.signOut();
 }
 

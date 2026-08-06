@@ -21,6 +21,8 @@ import { AvatarComOfensiva, BannerPerfil } from "@/components/profile/PerfilBann
 import CardMedalhas, { CardMedalhasVazio } from "@/components/profile/CardMedalhas";
 import MetaSemanalVazia, { HeatmapVazio } from "@/components/profile/PrimeirosPassos";
 import { GradeHeatmap, LegendaHeatmap } from "@/components/profile/Heatmap";
+import GaleriaSessoes from "@/components/profile/GaleriaSessoes";
+import { contarFotosDoUsuario } from "@/services/fotosSessao";
 import {
     ModalMetaSemanal,
     SheetMateriaFavorita,
@@ -86,6 +88,17 @@ export default function ProfileScreen() {
 
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
+
+    // Contador da seção Galeria. Vem separado da grade porque ela só carrega uma prévia
+    // curta, e o número ao lado do título tem que ser o total real.
+    const [totalFotos, setTotalFotos] = useState(0);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (!userId) return;
+            contarFotosDoUsuario(userId).then(setTotalFotos);
+        }, [userId])
+    );
 
     const fetchInitialData = useCallback(async () => {
         const { data } = await buscarUsuarioLogado();
@@ -289,8 +302,21 @@ export default function ProfileScreen() {
 
     return (
         <View style={{ flex: 1, backgroundColor: HADES.bg }}>
-            {/* Banner + avatar sobreposto, fixos no topo */}
-            <View style={{ height: BANNER_H }}>
+            {/* Banner + avatar sobreposto, fixos no topo. Ficam numa camada acima do
+                ScrollView (zIndex/elevation) pra que o conteúdo role por baixo do avatar
+                em vez de passar por cima da metade que ele projeta pra fora do banner. */}
+            <View
+                style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: BANNER_H,
+                    zIndex: 10,
+                    elevation: 10,
+                }}
+                pointerEvents="box-none"
+            >
                 <BannerPerfil
                     altura={BANNER_H}
                     cor={corIdentidade}
@@ -298,19 +324,9 @@ export default function ProfileScreen() {
                     foto={profileData?.foto_usuario}
                 />
 
-                <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
+                <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 10, left: 0, right: 0 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 2 }}>
-                        <TouchableOpacity
-                            onPress={() => router.push("/(modals)/editar-perfil")}
-                            activeOpacity={0.8}
-                            style={{
-                                flexDirection: "row", alignItems: "center", gap: 6,
-                                backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 9,
-                                paddingVertical: 7, paddingHorizontal: 11,
-                            }}
-                        >
-                            <ImageIcon size={14} color="#fff" />
-                        </TouchableOpacity>
+                        <TouchableOpacity />
                         <TouchableOpacity
                             onPress={() => router.push("/(modals)/settings")}
                             activeOpacity={0.8}
@@ -339,10 +355,16 @@ export default function ProfileScreen() {
 
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ paddingTop: AVATAR_SIZE / 2 + 18, paddingBottom: 28, paddingHorizontal: 20 }}
+                contentContainerStyle={{ paddingTop: BANNER_H + AVATAR_SIZE / 2 + 18, paddingBottom: 28, paddingHorizontal: 20 }}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
-                    <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
+                    <RefreshControl
+                        refreshing={atualizando}
+                        onRefresh={handleRefresh}
+                        tintColor={HADES.accentSolid}
+                        // O spinner nasceria escondido atrás do banner fixo.
+                        progressViewOffset={BANNER_H}
+                    />
                 }
             >
                 {/* Identidade */}
@@ -435,9 +457,8 @@ export default function ProfileScreen() {
                             </View>
                             {metaAtingida ? (
                                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 9 }}>
-                                    <PartyPopper size={13} color={HADES.green} />
                                     <Text style={{ fontSize: 12, color: HADES.green, fontWeight: "600" }}>
-                                        Meta semanal atingida! Parabéns!
+                         `              Meta semanal atingida!
                                     </Text>
                                 </View>
                             ) : (
@@ -503,6 +524,25 @@ export default function ProfileScreen() {
                         onVerTodas={() => router.push('/(modals)/badges')}
                         colunas={3}
                     />
+                )}
+
+                {/* Galeria — as fotos registradas ao fim das sessões. Escondida pra quem
+                    ainda não estudou: a etapa da foto só aparece depois de uma sessão. */}
+                {!usuarioNovo && userId && (
+                    <>
+                        <Divider />
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                            <Text style={sechStyle}>Galeria</Text>
+                            {totalFotos > 0 && (
+                                <Text style={{ fontSize: 11.5, color: HADES.textMuted, fontWeight: "600" }}>
+                                    {totalFotos} {totalFotos === 1 ? "registro" : "registros"}
+                                </Text>
+                            )}
+                        </View>
+                        {/* 4 = duas linhas no grid de duas colunas. Com 6 a prévia ficaria
+                            alta demais no meio do perfil agora que a foto é maior. */}
+                        <GaleriaSessoes userId={userId} limite={4} permitirRemover />
+                    </>
                 )}
 
                 {/* Matéria favorita */}
@@ -593,14 +633,6 @@ export default function ProfileScreen() {
                         {excluindoConta ? "Excluindo conta…" : "Excluir minha conta"}
                     </Text>
                 </TouchableOpacity>
-                <Text
-                    style={{
-                        fontSize: 11.5, color: HADES.textDim, textAlign: "center",
-                        marginTop: 6, paddingHorizontal: 24, lineHeight: 17,
-                    }}
-                >
-                    A exclusão é permanente e apaga todos os seus dados de estudo.
-                </Text>
             </ScrollView>
 
             <SheetMateriaFavorita

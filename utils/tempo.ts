@@ -45,6 +45,14 @@ export function segundosDesde(timestamp?: string | null): number {
 }
 
 /**
+ * Depois disso sem nenhuma interação, a sessão foi abandonada (app fechado à força), não
+ * é estudo. Mesmo corte que `buscarSessoesAoVivo` aplica para não deixar sessão fantasma
+ * no feed do grupo — os dois precisam concordar, senão o feed esconde uma sessão que a
+ * prévia ainda mostra correndo.
+ */
+export const HORAS_ATE_ABANDONO = 12;
+
+/**
  * Tempo ao vivo de um participante de sessão em grupo, em segundos.
  *
  * `tempo_segundos` em `tab_sessao_membros` é um acumulado congelado: só é regravado quando
@@ -58,16 +66,43 @@ export function segundosDesde(timestamp?: string | null): number {
  * multiplicado, o tempo dos colegas disparava, e um acumulado gravado enquanto o modo estava
  * ligado continuava inflado depois de desligá-lo.
  */
-export function tempoAoVivoDoMembro(membro: {
-    tempo_segundos?: number | null;
-    ultimo_inicio?: string | null;
-    status?: string | null;
-}): number {
+export function tempoAoVivoDoMembro(
+    membro: {
+        tempo_segundos?: number | null;
+        ultimo_inicio?: string | null;
+        status?: string | null;
+    },
+    opcoes?: {
+        /** `concluido_em` da sessão a que a participação pertence, quando conhecido. */
+        sessaoConcluidaEm?: string | null;
+    }
+): number {
     const acumulado = Math.max(0, Math.floor(membro.tempo_segundos || 0));
 
     if (membro.status !== "ativo") return acumulado;
 
-    return acumulado + segundosDesde(membro.ultimo_inicio);
+    const inicioMs = paraTimestampMs(membro.ultimo_inicio);
+    if (inicioMs === null) return acumulado;
+
+    /*
+      Duas travas contra o cronômetro fugitivo. O sintoma era um participante marcando 142
+      HORAS e subindo numa sessão já encerrada: a linha dele em `tab_sessao_membros` ficou
+      `ativo` (ver a migration `encerrar_participacoes_da_sessao`) e o trecho ao vivo
+      passou a ser "agora menos o dia em que ele abandonou".
+
+      1. Se a sala já fechou, o trecho para no instante em que ela fechou. Ninguém continua
+         estudando numa sessão concluída.
+      2. Acima do corte de abandono, o trecho inteiro é descartado em vez de truncado: um
+         intervalo desses não é estudo real, é app fechado à força. É o mesmo limite que
+         `buscarSessoesAoVivo` usa para não deixar sessão fantasma no feed.
+    */
+    const fimDaSalaMs = paraTimestampMs(opcoes?.sessaoConcluidaEm ?? null);
+    const ateMs = fimDaSalaMs === null ? Date.now() : Math.min(Date.now(), fimDaSalaMs);
+
+    const decorrido = Math.max(0, Math.floor((ateMs - inicioMs) / 1000));
+    if (decorrido > HORAS_ATE_ABANDONO * 3600) return acumulado;
+
+    return acumulado + decorrido;
 }
 
 /**
@@ -91,7 +126,12 @@ export function tempoAoVivoDaSessao(sessao: {
 
     if (sessao.concluido_em || sessao.status !== "ativo") return acumulado;
 
-    return acumulado + segundosDesde(sessao.ultimo_inicio);
+    // Mesma trava de abandono do `tempoAoVivoDoMembro`: uma sessão que ficou "ativa" desde
+    // anteontem não rendeu 40h de estudo, ela só nunca foi encerrada.
+    const decorrido = segundosDesde(sessao.ultimo_inicio);
+    if (decorrido > HORAS_ATE_ABANDONO * 3600) return acumulado;
+
+    return acumulado + decorrido;
 }
 
 /** Segunda-feira da semana que contém `data` — a semana sempre começa na segunda. */

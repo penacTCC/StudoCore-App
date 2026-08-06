@@ -15,7 +15,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { useMaterias } from "@/hooks/useMaterias";
 import { useArchives } from "@/hooks/useArchives";
-import { useSessionMembers } from "@/hooks/useSessionMembers";
+import { useParticipantesDaSala } from "@/hooks/useParticipantesDaSala";
+import type { SalaFoco } from "@/types/sala";
 import {
     carregarUltimoGrupoLocalmente,
     carregarSnapshotSessao,
@@ -32,8 +33,9 @@ import SheetVault from "@/components/focus/SheetVault";
 import SessaoAtiva from "@/components/focus/SessaoAtiva";
 import type { ArquivoDetalhe } from "@/types/archives";
 import type { SessaoFocoRow, SessionCardItem } from "@/types/sessions";
-import { salvarSessaoFoco, atualizarSessaoFoco, fetchFocusSession, fetchSessionById, calculateFocusSessionMinutes, insertTabSessaoMembros, updateTabSessaoMembros, transferirAnfitriaoDaSessao, registrarProgressoSessao, republicarFilaDaSessao } from "@/services/sessions";
-import { observarIncentivosDaSessao, buscarIncentivosDaSessao } from "@/services/incentivos";
+import { salvarSessaoFoco, atualizarSessaoFoco, fetchFocusSession, fetchSessionById, calculateFocusSessionMinutes, registrarProgressoSessao, republicarFilaDaSessao } from "@/services/sessions";
+import { criarSala, buscarSala, entrarNaSala, atualizarParticipacao, sairDaSala, transferirAnfitriaoDaSala, publicarFilaDaSala } from "@/services/salas";
+import { observarIncentivosDaSala, buscarIncentivosDaSala } from "@/services/incentivos";
 import { FaixaBlocoCronograma, FaixaSessaoRestaurada } from "@/components/focus/PecasFoco";
 import { toast } from "@/services/toast";
 import type { ConfigPomodoro, ContextoBloco, FocusState, FaseFoco, ModoFoco, ItemFila, SnapshotSessaoFoco } from "@/types/foco";
@@ -152,9 +154,11 @@ export default function FocusScreen() {
     /**
      * Sessão enviada pelo SessionCard (quando o usuário clica em "Continuar sessão" no card do cronograma). O parâmetro é enviado como JSON stringificado na query da rota.
      */
-    const { session: sessionParam, joinPublicSession } = useLocalSearchParams<{
+    const { session: sessionParam, joinPublicSession, salaId: salaIdParam } = useLocalSearchParams<{
         session?: string;
         joinPublicSession?: string;
+        /** Sala em que se está entrando. A `session` acima só serve para pré-preencher a tela. */
+        salaId?: string;
     }>(); // parametros de sessão em grupo
 
     // Parse session data enviada pelo SessionCard.
@@ -200,31 +204,47 @@ export default function FocusScreen() {
           entrava em descanso, nada acontecia no aparelho dos outros.
         */
         setModo(parsedSession.modo === "pomodoro" ? "pomodoro" : "cronometro");
-        limparParamsDaRota(["session", "joinPublicSession"]);
+        limparParamsDaRota(["session", "joinPublicSession", "salaId"]);
     }, [joinPublicSession, parsedSession, limparParamsDaRota]);
 
     /*
-      Sessão de grupo à qual a participação em `tab_sessao_membros` pertence.
+      Sala em que se está entrando, quando veio da prévia de uma sessão pública.
 
-      Quem entra numa sessão pública alheia continua criando a própria linha em
-      `sessoes_foco` (é o registro de estudo dele), mas o cronômetro compartilhado é o da
-      sessão do anfitrião. Antes tudo usava `session.id` — que para o convidado é a linha
-      dele mesmo —, então o insert/update de membro caía numa sessão sem participantes e o
-      tempo dele nunca aparecia na tela "Focando juntos".
+      A `sessaoParaEntrar` acima é só a vitrine — serve para pré-preencher matéria, conteúdo
+      e modo. Quem manda no encontro é a SALA: é ela que tem os participantes, o cronograma
+      e o ciclo de vida próprio.
     */
+    const [salaParaEntrar, setSalaParaEntrar] = useState<SalaFoco | null>(null);
+
+    useEffect(() => {
+        if (joinPublicSession !== "true" || !salaIdParam) return;
+
+        let cancelado = false;
+        buscarSala(salaIdParam as string).then(({ sala }) => {
+            if (!cancelado) setSalaParaEntrar(sala);
+        });
+
+        return () => {
+            cancelado = true;
+        };
+    }, [joinPublicSession, salaIdParam]);
+
     /*
-      Fixado quando a sessão começa e mantido até ela acabar.
+      A sala do encontro, fixada quando a sessão começa e mantida até ela acabar.
 
-      Antes era derivado da sessão corrente, e num plano com várias matérias a sessão
-      corrente troca a cada matéria — então o ponto de encontro do grupo mudava junto: quem
-      tinha entrado continuava na sessão da primeira matéria enquanto o anfitrião passava a
-      contar numa nova, e a tela "Focando juntos" se partia no meio do estudo.
+      Antes isto era o id da linha de `sessoes_foco` do anfitrião, e daí vinham dois
+      problemas que a tabela `salas_foco` resolve (ver a migration `20260806140000`):
+
+        * num plano com várias matérias, cada matéria cria uma linha nova — o ponto de
+          encontro mudava no meio do estudo, e o `salaFixa` existia só para segurar isso;
+        * quando o anfitrião encerrava o estudo DELE, a linha ganhava `concluido_em` e a
+          sala inteira passava a constar encerrada com gente dentro.
     */
-    const [sessaoGrupoFixa, setSessaoGrupoFixa] = useState<string | undefined>(undefined);
-    const sessaoGrupoId = sessaoGrupoFixa ?? (sessaoParaEntrar ? sessaoParaEntrar.id : session?.id);
+    const [salaFixa, setSalaFixa] = useState<string | undefined>(undefined);
+    const salaId = salaFixa ?? salaParaEntrar?.id;
 
-    // Membros da sessão em grupo, sincronizados em tempo real (ver hooks/useSessionMembers).
-    const { members, recarregar: recarregarMembros } = useSessionMembers(sessaoGrupoId);
+    // Participantes da sala, sincronizados em tempo real (ver hooks/useParticipantesDaSala).
+    const { participantes, recarregar: recarregarParticipantes } = useParticipantesDaSala(salaId);
 
     /*
       Cronograma que a sessão em grupo segue: a fila de focos e descansos publicada na linha
@@ -237,18 +257,18 @@ export default function FocusScreen() {
       Sessão privada não tem cronograma compartilhado: ali o pomodoro continua sendo local, e
       pausar continua empurrando a fase (não há mais ninguém para atrasar).
     */
-    const cronogramaCompartilhado = useCronogramaSessao(isPublicSession ? sessaoGrupoId : null);
+    const cronogramaCompartilhado = useCronogramaSessao(isPublicSession ? salaId : null);
     const seguindoCronograma =
         focusState === "active" && modo === "pomodoro" && !!cronogramaCompartilhado;
     /** Só quem criou a sessão mexe no combinado; os outros seguem. */
     const souDonoDoCronograma = !sessaoParaEntrar;
 
     const memberNames = useMemo(() => {
-        return members.map((member) => {
-            const profileName = member.profiles?.nome_usuario || member.profiles?.nome_real;
+        return participantes.map((participante) => {
+            const profileName = participante.profiles?.nome_usuario || participante.profiles?.nome_real;
             return profileName || "Participante";
         });
-    }, [members]);
+    }, [participantes]);
 
     // Quantidade de incentivos já recebidos, para mostrar a torcida durante a sessão.
     const [incentivosRecebidos, setIncentivosRecebidos] = useState(0);
@@ -261,14 +281,14 @@ export default function FocusScreen() {
       foco o app costuma estar aberto.
     */
     useEffect(() => {
-        const sessaoAtiva = sessaoGrupoId;
+        const sessaoAtiva = salaId;
         // Só sessão pública tem torcida: na privada a pessoa está estudando sozinha.
         if (!sessaoAtiva || focusState !== "active" || !userId || !isPublicSession) return;
 
         let cancelado = false;
 
         const sincronizarContador = async () => {
-            const { data } = await buscarIncentivosDaSessao(sessaoAtiva);
+            const { data } = await buscarIncentivosDaSala(sessaoAtiva);
             if (cancelado) return data;
             setIncentivosRecebidos(data.filter((item) => item.destinatario_id === userId).length);
             return data;
@@ -278,7 +298,7 @@ export default function FocusScreen() {
 
         // O aviso de "você recebeu força" agora é a notificação push de verdade, disparada
         // pela Edge Function mandar-forca — aqui só ressincroniza o contador exibido na tela.
-        const cancelarInscricao = observarIncentivosDaSessao(sessaoAtiva, () => {
+        const cancelarInscricao = observarIncentivosDaSala(sessaoAtiva, () => {
             sincronizarContador();
         });
 
@@ -286,13 +306,14 @@ export default function FocusScreen() {
             cancelado = true;
             cancelarInscricao();
         };
-    }, [sessaoGrupoId, focusState, userId, isPublicSession]);
+    }, [salaId, focusState, userId, isPublicSession]);
 
     const cancelarEntradaSessao = () => {
         setIgnoreJoinSession(true);
         setCreatedSession(null);
         setSessaoParaEntrar(null);
-        setSessaoGrupoFixa(undefined);
+        setSalaParaEntrar(null);
+        setSalaFixa(undefined);
         setSelectedSubject("");
         setSpecificContent("");
         setIsPublicSession(true);
@@ -395,15 +416,16 @@ export default function FocusScreen() {
             if (sessaoPropria) setCreatedSession(sessaoPropria);
 
             /*
-              Convidado: a participação em `tab_sessao_membros` é na sessão do anfitrião, e
-              é dela que sai `sessaoGrupoId`. Sem reencontrá-la, o tempo de quem reabriu o
-              app parava de aparecer para os colegas em "Focando juntos".
+              Reencontra a sala. Sem isto, o tempo de quem reabriu o app parava de aparecer
+              para os colegas em "Focando juntos", porque nada mais ligava esta tela à
+              participação em `tab_sessao_membros`.
             */
-            setSessaoGrupoFixa(snapshot.sessaoGrupoId ?? undefined);
+            setSalaFixa(snapshot.salaId ?? undefined);
 
-            if (snapshot.ehConvidado && snapshot.sessaoGrupoId) {
-                const { data } = await fetchSessionById(snapshot.sessaoGrupoId);
-                if (data) setSessaoParaEntrar(data as SessionCardItem);
+            if (snapshot.ehConvidado && snapshot.salaId) {
+                // Convidado: recupera a sala para voltar a seguir o cronograma do grupo.
+                const { sala } = await buscarSala(snapshot.salaId);
+                if (sala) setSalaParaEntrar(sala);
             }
 
             if (snapshot.modo === "cronometro") {
@@ -585,7 +607,7 @@ export default function FocusScreen() {
         const bater = () =>
             registrarProgressoSessao({
                 sessaoId: session.id,
-                sessaoGrupoId,
+                salaId,
                 userId,
                 segundosDeFoco: segundosDeFoco(),
                 ehPublica: isPublicSession,
@@ -603,7 +625,7 @@ export default function FocusScreen() {
             inscricao.remove();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [focusState, isPaused, modo, fase, session?.id, sessaoGrupoId, userId, isPublicSession]);
+    }, [focusState, isPaused, modo, fase, session?.id, salaId, userId, isPublicSession]);
 
     // Recalcula o tempo quando o app volta do background
     useEffect(() => {
@@ -723,8 +745,8 @@ export default function FocusScreen() {
         async (duracaoSegundos: number) => {
             if (!session?.id) return;
 
-            if (isPublicSession && userId && sessaoGrupoId) {
-                await updateTabSessaoMembros(userId, sessaoGrupoId, {
+            if (isPublicSession && userId && salaId) {
+                await atualizarParticipacao(salaId, userId, {
                     status: "concluido",
                     tempo_segundos: duracaoSegundos,
                 });
@@ -739,7 +761,7 @@ export default function FocusScreen() {
                 console.error("Erro ao finalizar sessão de foco:", error);
             }
         },
-        [session?.id, sessaoGrupoId, isPublicSession, userId]
+        [session?.id, salaId, isPublicSession, userId]
     );
 
     /**
@@ -814,10 +836,10 @@ export default function FocusScreen() {
                     }
                 }
 
-                if (isPublicSession && userId && sessaoGrupoId) {
-                    await updateTabSessaoMembros(
+                if (isPublicSession && userId && salaId) {
+                    await atualizarParticipacao(
+                        salaId,
                         userId,
-                        sessaoGrupoId,
                         entrandoEmEstudo
                             ? {
                                 status: "ativo",
@@ -872,7 +894,7 @@ export default function FocusScreen() {
 
             /*
               A linha nova é o registro de estudo desta matéria, e só. A PARTICIPAÇÃO no
-              grupo continua onde estava (`sessaoGrupoId`, fixado no início da sessão):
+              grupo continua onde estava (`salaId`, fixado no início da sessão):
               trocar de matéria não é trocar de sala.
 
               Era aqui que o grupo se desfazia no meio de um plano — cada matéria abria uma
@@ -881,7 +903,7 @@ export default function FocusScreen() {
             */
             setCreatedSession(data[0] as SessionCardItem);
         },
-        [userId, currentGroupId, isPublicSession, sessaoGrupoId, contexto?.planoId, session?.id, avisarTrocaDeFase, modo, cronogramaCompartilhado]
+        [userId, currentGroupId, isPublicSession, salaId, contexto?.planoId, session?.id, avisarTrocaDeFase, modo, cronogramaCompartilhado]
     );
 
     // Avanço automático pela fila quando o tempo do item atual acaba.
@@ -1027,7 +1049,7 @@ export default function FocusScreen() {
             modo,
             inicioMs: inicio,
             sessaoId: session?.id ?? null,
-            sessaoGrupoId: sessaoGrupoId ?? null,
+            salaId: salaId ?? null,
             ehConvidado: !!sessaoParaEntrar,
             fila,
             indiceFila,
@@ -1047,7 +1069,7 @@ export default function FocusScreen() {
             isPublicSession,
             modo,
             session?.id,
-            sessaoGrupoId,
+            salaId,
             sessaoParaEntrar,
             fila,
             indiceFila,
@@ -1076,54 +1098,33 @@ export default function FocusScreen() {
     }, [focusState, montarSnapshot, currentGroupId, snapshotTick]);
 
     /**
-     * função para entrar na sessão em grupo
+     * Registra a presença na sala.
+     *
+     * `salaDestino` é o encontro; `sessaoPropriaId` é a linha de `sessoes_foco` que ESTA
+     * pessoa acabou de criar — o registro pessoal de estudo dela. Antes os dois eram o mesmo
+     * id, e era essa confusão que fazia o encerramento de um derrubar a sala de todos.
      */
-    const handleJoinGroupSession = async (sessionData: SessionCardItem, options?: { funcao?: "anfitriao" | "membro" }) => {
+    const entrarNaSalaDeFoco = async (
+        salaDestino: string,
+        sessaoPropriaId: string,
+        options?: { funcao?: "anfitriao" | "membro" }
+    ) => {
         if (!userId) return;
 
-        // inserir o usuário na tabela de membros da sessão
-        const { data: insertTabSM, error: insertError } = await insertTabSessaoMembros({
-            sessao_id: sessionData.id,
-            membro_id: userId,
-            funcao: options?.funcao ?? 'membro',
-            tempo_segundos: 0,
-            status: 'ativo',
-            ultimo_inicio: new Date().toISOString(),
+        const { error } = await entrarNaSala({
+            salaId: salaDestino,
+            membroId: userId,
+            sessaoId: sessaoPropriaId,
+            funcao: options?.funcao ?? "membro",
         });
 
-        console.log("Inserindo membro na sessão:", { sessionId: sessionData.id, userId });
-        console.log("insertTabSM: ", insertTabSM)
-
-
-        if (insertError) {
-            /*
-              23505 é a violação da constraint (sessao_id, membro_id): já existe linha para
-              essa pessoa nessa sessão. Isso não é falha — acontece ao reentrar numa sessão
-              que já foi aberta antes, ou ao entrar na sessão que a própria pessoa criou (o
-              anfitrião já entra como membro ao criar). Antes o `return` abortava aqui e a
-              pessoa ficava presa sem nunca virar `active`; agora só reativamos a presença.
-
-              O `tempo_segundos` fica de fora de propósito, para não zerar o que já foi
-              acumulado por quem está retomando.
-            */
-            if (insertError.code === "23505") {
-                const { error: reativarError } = await updateTabSessaoMembros(userId, sessionData.id, {
-                    status: "ativo",
-                    ultimo_inicio: new Date().toISOString(),
-                });
-
-                if (reativarError) {
-                    console.warn("Erro ao reativar membro na sessão:", reativarError);
-                    return;
-                }
-            } else {
-                console.warn("Erro ao adicionar membro na sessão:", insertError);
-                return;
-            }
+        if (error) {
+            toast.error("Não foi possível entrar na sala do grupo.");
+            return;
         }
 
-        // Atualiza o carrossel de membros imediatamente, sem esperar o eco do realtime.
-        await recarregarMembros();
+        // Atualiza o carrossel de participantes imediatamente, sem esperar o eco do realtime.
+        await recarregarParticipantes();
 
         // mudar para o modo de foco
         setFocusState('active');
@@ -1273,6 +1274,47 @@ export default function FocusScreen() {
             return;
         }
 
+        /*
+          A SALA vem antes do registro pessoal, porque o registro precisa apontar para ela.
+
+          Só sessão pública em grupo abre sala — estudo solo não tem encontro. Quem está
+          entrando reaproveita a sala que já existe em vez de criar outra.
+        */
+        let salaDoEncontro: SalaFoco | null = salaParaEntrar;
+
+        /*
+          Veio da prévia para entrar numa sala, mas ela não carregou (rede, ou a sala sumiu).
+          Sem esta guarda o fluxo caía no ramo de baixo e ABRIA UMA SALA NOVA: a pessoa
+          acharia que entrou junto do colega e estaria sozinha numa sala própria.
+        */
+        if (isJoiningExistingPublicSession && !salaParaEntrar) {
+            toast.error("Não foi possível entrar nessa sala. Tente de novo.");
+            setFocusState("config");
+            return;
+        }
+
+        if (isPublicSession && !salaParaEntrar && activeGroupId && userId) {
+            const { sala } = await criarSala({
+                grupoId: activeGroupId as string,
+                anfitriaoId: userId,
+                isPublic: true,
+                modo,
+                fila: modo === "pomodoro" && filaAtual.length > 0 ? filaAtual : null,
+                filaInicioEm:
+                    modo === "pomodoro" && filaAtual.length > 0
+                        ? new Date(inicioDaFilaMs).toISOString()
+                        : null,
+            });
+
+            if (!sala) {
+                toast.error("Não foi possível abrir a sala do grupo. Tente novamente.");
+                setFocusState("config");
+                return;
+            }
+
+            salaDoEncontro = sala;
+        }
+
         // Primeira vez salvando essa sessão — insere e guarda o ID
         const { data, error } = await salvarSessaoFoco({
             user_id: userId as string,
@@ -1290,13 +1332,13 @@ export default function FocusScreen() {
             execucao_id: execucaoIdRef.current,
             ultimo_inicio: new Date().toISOString(),
             concluido_em: null,
+            // Onde este estudo aconteceu. NULL em estudo solo, que não tem sala.
+            sala_id: salaDoEncontro?.id ?? null,
             /*
-              Cronograma publicado junto com a sessão. É o que permite a outra pessoa entrar
-              depois e cair na mesma fase que todo mundo, sem precisar de ninguém avisando
-              (ver a migration `20260805220000_cronograma_compartilhado_sessao.sql`).
-
-              Quem entrou republica o mesmo cronograma na própria linha, com a MESMA origem:
-              assim a sessão dele também é entrável, e continua contando a mesma história.
+              A `fila` aqui é o RETRATO do cronograma que esta pessoa seguiu — serve ao card
+              do feed e ao histórico dela. A cópia que manda na sincronia é a da sala
+              (`salas_foco.fila`, ver hooks/useCronogramaSessao): é dela que todo mundo
+              deriva a fase atual, e é ela que sobrevive ao anfitrião sair.
             */
             modo,
             fila: modo === "pomodoro" && filaAtual.length > 0 ? filaAtual : null,
@@ -1316,16 +1358,13 @@ export default function FocusScreen() {
         const insertedSession = data[0];
         // Define a sessão no estado para ativar a visualização de grupo
         setCreatedSession(insertedSession);
-        // Ponto de encontro do grupo por toda a sessão, mesmo que a matéria mude depois.
-        setSessaoGrupoFixa(sessaoParaEntrar ? sessaoParaEntrar.id : insertedSession.id);
 
-        // verifica se a sessão foi criada localmente e se ela é pública
-        if (isPublicSession && !sessaoParaEntrar) {
-            await handleJoinGroupSession(insertedSession, { funcao: "anfitriao" });
-        }
-        //se veio uma sessão já existente via parâmetro da rota, também entra nela
-        if (sessaoParaEntrar) {
-            await handleJoinGroupSession(sessaoParaEntrar, { funcao: "membro" });
+        if (salaDoEncontro) {
+            // Ponto de encontro do grupo por toda a sessão, mesmo que a matéria mude depois.
+            setSalaFixa(salaDoEncontro.id);
+            await entrarNaSalaDeFoco(salaDoEncontro.id, insertedSession.id, {
+                funcao: salaParaEntrar ? "membro" : "anfitriao",
+            });
         }
 
         focoAcumuladoRef.current = 0;
@@ -1417,13 +1456,13 @@ export default function FocusScreen() {
                 setCreatedSession(refreshedSession[0]);
             }
 
-            if (isPublicSession && sessaoGrupoId) {
+            if (isPublicSession && salaId) {
                 /*
                   `tempo_segundos` fica de fora: ele já foi congelado na pausa e, a partir
                   deste `ultimo_inicio`, a tela "Focando juntos" volta a somar o tempo ao
                   vivo por cima dele. Regravá-lo aqui contaria o mesmo trecho duas vezes.
                 */
-                const { error: updateMemberError } = await updateTabSessaoMembros(userId || "", sessaoGrupoId, {
+                const { error: updateMemberError } = await atualizarParticipacao(salaId, userId || "", {
                     ultimo_inicio: nowIso,
                     status: "ativo",
                 });
@@ -1433,7 +1472,7 @@ export default function FocusScreen() {
                     return;
                 }
 
-                await recarregarMembros();
+                await recarregarParticipantes();
             }
 
             setIsPaused(false);
@@ -1452,8 +1491,8 @@ export default function FocusScreen() {
             toast.error("Não foi possível pausar a sessão.");
         }
 
-        if (isPublicSession && sessaoGrupoId) {
-            const { error: updateMemberError } = await updateTabSessaoMembros(userId || "", sessaoGrupoId, {
+        if (isPublicSession && salaId) {
+            const { error: updateMemberError } = await atualizarParticipacao(salaId, userId || "", {
                 status: "pausado",
                 tempo_segundos: focoAtual,
             });
@@ -1463,7 +1502,7 @@ export default function FocusScreen() {
                 return;
             }
 
-            await recarregarMembros();
+            await recarregarParticipantes();
         }
 
         // Mesmo valor que acabou de ser gravado no banco, para pausa e registro não
@@ -1516,7 +1555,7 @@ export default function FocusScreen() {
         const finalGroupId = currentGroupId || (await carregarUltimoGrupoLocalmente());
         const execucaoId = execucaoIdRef.current;
         const currentSessionId = session?.id;
-        const currentGrupoSessaoId = sessaoGrupoId;
+        const currentSalaId = salaId;
         // Numa execução de plano, parar durante um descanso não deve reabrir a linha da
         // última matéria (já finalizada quando o estudo dela terminou) — só finaliza aqui
         // quando o item atual é mesmo de estudo (sessão solo/bloco único sempre finaliza).
@@ -1542,32 +1581,40 @@ export default function FocusScreen() {
           na sessão em grupo — ou trataria a próxima sessão como revisão da anterior.
         */
         setSessaoParaEntrar(null);
-        setSessaoGrupoFixa(undefined);
+        setSalaFixa(undefined);
         setCreatedSession(null);
         setRevisao(null);
 
         if (!opcoes?.jaFinalizado && itemAtualEhEstudo) {
-            if (isPublicSession && currentGrupoSessaoId && userId) {
-                await updateTabSessaoMembros(userId, currentGrupoSessaoId, {
-                    status: "concluido",
-                    tempo_segundos: finalDuration,
-                });
-
+            if (isPublicSession && currentSalaId && userId) {
                 /*
-                  Se quem está saindo é o anfitrião, a sessão não pode ficar órfã enquanto
-                  os colegas ainda focam: o bastão passa para quem está lá há mais tempo (a
-                  escolha e a permissão ficam no RPC, ver services/sessions.ts). Quando não
-                  sobra ninguém, o RPC devolve null e a sessão acaba junto — nada a fazer.
+                  A ordem importa: transferir ANTES de sair.
+
+                  `transferir_anfitriao_sala` exige que quem chama ainda seja o anfitrião e
+                  escolhe entre quem não concluiu; se a saída viesse primeiro, não haveria
+                  mais anfitrião para passar o bastão.
                 */
-                const souAnfitriao = members.some(
-                    (membro) => membro.membro_id === userId && membro.funcao === "anfitriao"
+                const souAnfitriao = participantes.some(
+                    (participante) => participante.membro_id === userId && participante.funcao === "anfitriao"
                 );
                 if (souAnfitriao) {
-                    const { novoAnfitriaoId } = await transferirAnfitriaoDaSessao(currentGrupoSessaoId);
+                    const { novoAnfitriaoId } = await transferirAnfitriaoDaSala(currentSalaId);
                     if (novoAnfitriaoId) {
-                        toast.info("Você saiu da sessão. O grupo continua com um novo anfitrião.");
+                        toast.info("Você saiu da sala. O grupo continua com um novo anfitrião.");
                     }
                 }
+
+                /*
+                  Aqui está a correção central desta refatoração: encerrar o próprio estudo
+                  fecha só a PARTICIPAÇÃO. A sala só fecha se não sobrar mais ninguém — e
+                  quem decide isso é o banco, dentro do RPC.
+
+                  Antes, este mesmo ponto marcava `concluido_em` na linha que também
+                  identificava a sala, e todo mundo que estava dentro virava fantasma com o
+                  cronômetro somando desde o `ultimo_inicio` até hoje (os 142h e 940h que a
+                  migration `20260806120000` teve de limpar).
+                */
+                await sairDaSala(currentSalaId, finalDuration);
             }
 
             if (currentSessionId) {
@@ -1646,7 +1693,7 @@ export default function FocusScreen() {
     const reescreverItemAtual = async (novaDuracaoMin: number) => {
         // Só o dono muda o combinado — e a política de UPDATE do banco também não deixaria
         // outra pessoa escrever nessa linha.
-        if (!cronogramaCompartilhado || !sessaoGrupoId || !souDonoDoCronograma) return;
+        if (!cronogramaCompartilhado || !salaId || !souDonoDoCronograma) return;
 
         const novaFila = cronogramaCompartilhado.fila.map((item, i) =>
             i === indiceFila ? { ...item, duracaoMin: novaDuracaoMin } : item
@@ -1654,11 +1701,16 @@ export default function FocusScreen() {
 
         setFila(novaFila);
         /*
-          Escreve na sessão que o grupo segue, não na linha da matéria atual: num plano
-          encadeado a matéria corrente é uma linha nova a cada troca, e republicar nela não
-          chegaria a ninguém — todos leem o cronograma da sessão em que entraram.
+          Escreve na SALA, que é o cronograma que o grupo segue. Numa linha de `sessoes_foco`
+          isso não chegaria a ninguém: num plano encadeado a matéria corrente vira uma linha
+          nova a cada troca.
+
+          A linha pessoal também é atualizada, mas só como retrato — é dela que o card do
+          feed tira o ciclo exibido. Se esta segunda escrita falhar, a sincronia continua de
+          pé; só o rótulo do card fica desatualizado.
         */
-        await republicarFilaDaSessao(sessaoGrupoId, novaFila);
+        await publicarFilaDaSala(salaId, novaFila);
+        if (session?.id) await republicarFilaDaSessao(session.id, novaFila);
     };
 
     const pularDescanso = () => {
@@ -1884,7 +1936,7 @@ export default function FocusScreen() {
                                 params: {
                                     materia: selectedSubject,
                                     conteudo: specificContent,
-                                    sessionId: sessaoGrupoId || undefined,
+                                    salaId: salaId || undefined,
                                 },
                             })
                         }

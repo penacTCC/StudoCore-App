@@ -53,7 +53,8 @@ const capStyle = {
 };
 
 const fieldStyle = {
-    backgroundColor: HADES.surfaceOverlay,
+    // Mais escuro que o fundo dos cards: campo editável tem que ler como "buraco" na tela.
+    backgroundColor: HADES.surface,
     borderWidth: 1,
     borderColor: HADES.border,
     borderRadius: 14,
@@ -263,11 +264,13 @@ export default function EditarPerfilScreen() {
                     onPress={handleSave}
                     disabled={saving}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityLabel="Salvar"
                     style={{
-                        height: 32,
-                        borderRadius: 9,
+                        width: 34,
+                        height: 34,
+                        borderRadius: 10,
                         backgroundColor: HADES.accentSolid,
-                        paddingHorizontal: 15,
+                        alignItems: "center",
                         justifyContent: "center",
                         opacity: saving ? 0.7 : 1,
                     }}
@@ -275,7 +278,7 @@ export default function EditarPerfilScreen() {
                     {saving ? (
                         <ActivityIndicator size="small" color="#000" />
                     ) : (
-                        <Text style={{ fontSize: 13.5, fontWeight: "700", color: "#000" }}>Salvar</Text>
+                        <Check size={18} color="#000" strokeWidth={2.6} />
                     )}
                 </TouchableOpacity>
             </View>
@@ -305,7 +308,7 @@ export default function EditarPerfilScreen() {
                             style={{
                                 position: "absolute",
                                 top: 12,
-                                right: 14,
+                                left: 14,
                                 height: 30,
                                 borderRadius: 9,
                                 backgroundColor: "rgba(0,0,0,0.5)",
@@ -318,7 +321,6 @@ export default function EditarPerfilScreen() {
                             }}
                         >
                             <ImageIcon size={14} color="#fff" />
-                            <Text style={{ fontSize: 12, fontWeight: "600", color: "#fff" }}>Trocar capa</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -372,16 +374,6 @@ export default function EditarPerfilScreen() {
                             {enviandoFoto ? "Enviando…" : "Alterar foto"}
                         </Text>
                     </TouchableOpacity>
-                    <Text
-                        style={{
-                            fontSize: 11.5,
-                            color: HADES.textDim,
-                            textAlign: "center",
-                            marginTop: 6,
-                        }}
-                    >
-                        Sua capa usa a mesma foto do avatar.
-                    </Text>
 
                     {/* Campos */}
                     <View style={{ paddingHorizontal: 20, paddingTop: 22, gap: 12 }}>
@@ -632,7 +624,7 @@ function EditarPerfilSkeleton() {
                     <Skeleton width={21} height={21} borderRadius={6} hades />
                     <Skeleton width={120} height={16} hades />
                 </View>
-                <Skeleton width={60} height={32} borderRadius={9} hades />
+                <Skeleton width={34} height={34} borderRadius={10} hades />
             </View>
 
             <ScrollView

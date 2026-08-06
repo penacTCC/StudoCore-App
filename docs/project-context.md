@@ -51,6 +51,7 @@ Toda a comunicação com banco de dados e APIs externas está centralizada em se
 - **`sessions.ts`**: Salva e gerencia os registros das sessões de foco finalizadas.
 - **`materias.ts`**: CRUD de matérias/disciplinas do usuário.
 - **`archives.ts`, `supabaseStorage.ts`, `backblaze.ts`**: Abstrações para upload, download e listagem de materiais do Vault (com suporte ao armazenamento da Backblaze/Supabase).
+- **`fotosSessao.ts`**: Foto opcional do momento de estudo, registrada na etapa pós-sessão e exibida na Galeria do perfil. Vive num bucket **privado** (`sessao-fotos`), com leitura por signed URL de 1h — a policy do bucket só libera pra terceiros se a sessão for pública e o perfil também. Inspirado no check-in por foto do GymRats, mas com uma diferença deliberada: a foto **não valida** a sessão (quem valida é o cronômetro), é memória e prova social, e por isso é sempre pulável.
 - **`onlineUsers.ts`**: Real-time tracking para saber quem está estudando naquele momento.
 - **`ranking.ts`**: Lógica de leaderboard (classificação de usuários/grupos).
 - **`armazenamentoOffline.ts`**: Gerenciador de cache ou estado persistido localmente (possivelmente usando AsyncStorage).

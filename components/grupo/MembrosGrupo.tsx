@@ -46,13 +46,12 @@ export default function MembrosGrupo({ membros, onConvidar, onAbrirMembro }: Pro
                             alignItems: "center",
                             gap: 5,
                             backgroundColor: HADES.accentSolid,
-                            borderRadius: 9,
-                            paddingVertical: 7,
-                            paddingHorizontal: 12,
+                            borderRadius: 6,
+                            paddingVertical: 4,
+                            paddingHorizontal: 5,
                         }}
                     >
-                        <Plus size={14} color="#000" />
-                        <Text style={{ fontSize: 12.5, color: "#000", fontWeight: "700" }}>Convidar</Text>
+                        <Plus size={16} color="#000" />
                     </TouchableOpacity>
                 )}
             </View>

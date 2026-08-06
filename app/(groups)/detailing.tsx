@@ -1,14 +1,21 @@
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, TrendingUp } from "lucide-react-native";
+import { ArrowLeft } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import CardSessaoGrupo, { FeedVazio } from "@/components/grupo/CardSessaoGrupo";
-import { useSessoesFoco } from "@/hooks/useSessoesFoco";
+import ResumoDeHoje from "@/components/grupo/ResumoDeHoje";
+import TituloDaSecao from "@/components/grupo/TituloDaSecao";
+import { useSessoesAoVivo, useSessoesFoco } from "@/hooks/useSessoesFoco";
+import { useExtrasDoFeed } from "@/hooks/useExtrasDoFeed";
+import { useAuth } from "@/hooks/useAuth";
 import { router, useLocalSearchParams } from "expo-router";
 import { tempoTotalSessoesFocoOntem, tempoTotalSessoesFoco } from "@/services/sessions";
 import { useMembrosOnline } from "@/hooks/useMembrosOnline";
 import type { SessaoFocoRow } from "@/types/sessions";
+
+const ehMesmoDia = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 function formatarLabelData(dataString: string) {
     const data = new Date(dataString);
@@ -16,21 +23,18 @@ function formatarLabelData(dataString: string) {
     const ontem = new Date(hoje);
     ontem.setDate(hoje.getDate() - 1);
 
-    const eMesmoDia = (a: Date, b: Date) =>
-        a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    if (ehMesmoDia(data, hoje)) return "HOJE";
+    if (ehMesmoDia(data, ontem)) return "ONTEM";
 
-    if (eMesmoDia(data, hoje)) return "Hoje";
-    if (eMesmoDia(data, ontem)) return "Ontem";
-
-    return data.toLocaleDateString("pt-BR", {
-        weekday: "long",
-        day: "2-digit",
-        month: "short",
-    });
+    return data
+        .toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "short" })
+        .toUpperCase();
 }
 
 function agruparSessoesPorData(sessoes: SessaoFocoRow[]) {
-    const ordenadas = [...sessoes].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const ordenadas = [...sessoes].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
 
     const grupos: Array<{ chave: string; label: string; sessoes: SessaoFocoRow[] }> = [];
     const mapa = new Map<string, { chave: string; label: string; sessoes: SessaoFocoRow[] }>();
@@ -38,10 +42,9 @@ function agruparSessoesPorData(sessoes: SessaoFocoRow[]) {
     ordenadas.forEach((sessao) => {
         const data = new Date(sessao.created_at);
         const chave = `${data.getFullYear()}-${data.getMonth()}-${data.getDate()}`;
-        const label = formatarLabelData(sessao.created_at);
 
         if (!mapa.has(chave)) {
-            const grupo = { chave, label, sessoes: [] };
+            const grupo = { chave, label: formatarLabelData(sessao.created_at), sessoes: [] };
             mapa.set(chave, grupo);
             grupos.push(grupo);
         }
@@ -54,28 +57,32 @@ function agruparSessoesPorData(sessoes: SessaoFocoRow[]) {
 
 export default function DetailingScreen() {
     const { groupId } = useLocalSearchParams<{ groupId?: string }>();
-    const [total, setTotal] = useState("0h0");
+    const { userId } = useAuth();
+
     const [totalMinutos, setTotalMinutos] = useState(0);
-    const [totalSessoesAnteriores, setTotalsessoesAnteriores] = useState(0);
+    const [minutosOntem, setMinutosOntem] = useState(0);
 
     // Busca o histórico público do grupo atual para não misturar sessões de outros grupos.
     const { sessions, loading, refresh: refreshSessions } = useSessoesFoco(50, groupId);
 
-    //Busca de membros online agora
+    /*
+      A tela mostrava só o histórico, e quem estava focando naquele instante simplesmente
+      não aparecia em "ver todas as sessões" — o feed ao vivo existia apenas na home. Agora
+      as duas listas convivem, separadas pela seção AGORA.
+    */
+    const { sessoes: sessoesAoVivo, loading: carregandoAoVivo, refresh: refreshAoVivo } =
+        useSessoesAoVivo(20, groupId);
+
     const { totalOnline } = useMembrosOnline(groupId);
 
-    //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
 
-    //Busca o tempo total das sessões de foco
     const buscarTotal = useCallback(async () => {
-        //Busca resultados de tempo
         const resultado = await tempoTotalSessoesFoco(groupId);
-        const totalMinutosAnteriores = await tempoTotalSessoesFocoOntem(groupId);
+        const ontem = await tempoTotalSessoesFocoOntem(groupId);
 
-        setTotal(resultado.horasFormatadas);
         setTotalMinutos(resultado.totalMinutos);
-        setTotalsessoesAnteriores(totalMinutosAnteriores);
+        setMinutosOntem(ontem);
     }, [groupId]);
 
     useEffect(() => {
@@ -85,25 +92,28 @@ export default function DetailingScreen() {
     const handleRefresh = async () => {
         setAtualizando(true);
         try {
-            await Promise.all([refreshSessions(), buscarTotal()]);
+            await Promise.all([refreshSessions(), refreshAoVivo(), buscarTotal()]);
         } finally {
             setAtualizando(false);
         }
     };
 
-    //Faz o cálculo percentual do aumento, em relação a ontem
-    const percentual =
-        totalSessoesAnteriores === 0
-            ? totalMinutos > 0
-                ? 100
-                : 0
-            : ((totalMinutos - totalSessoesAnteriores) / totalSessoesAnteriores) * 100;
+    // A mesma sessão pode estar nas duas listas por um instante (acabou de encerrar e o
+    // feed ao vivo ainda não voltou): o ao vivo tem prioridade e o id evita repetir.
+    const encerradas = useMemo(() => {
+        const idsAoVivo = new Set(sessoesAoVivo.map((sessao) => sessao.id));
+        return sessions.filter((sessao) => !idsAoVivo.has(sessao.id));
+    }, [sessoesAoVivo, sessions]);
 
-    const sessoesAgrupadas = agruparSessoesPorData(sessions);
+    const todas = useMemo(() => [...sessoesAoVivo, ...encerradas], [sessoesAoVivo, encerradas]);
+    const extras = useExtrasDoFeed(todas);
+
+    const sessoesAgrupadas = agruparSessoesPorData(encerradas);
+    const carregando = loading || carregandoAoVivo;
+    const vazio = todas.length === 0;
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
-            {/* Header */}
             <View
                 style={{
                     paddingTop: 6,
@@ -111,26 +121,20 @@ export default function DetailingScreen() {
                     paddingBottom: 12,
                     flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "space-between",
                     gap: 12,
                 }}
             >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
-                    <TouchableOpacity
-                        onPress={() => router.back()}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                        <ArrowLeft size={22} color={HADES.textSecondary} />
-                    </TouchableOpacity>
-                    <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
-                            Detalhes
-                        </Text>
-                        <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 2 }}>
-                            Sessões recentes de estudo
-                        </Text>
-                    </View>
-                </View>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <ArrowLeft size={22} color={HADES.textSecondary} />
+                </TouchableOpacity>
+
+                <Text style={{ flex: 1, fontSize: 22, fontWeight: "700", color: HADES.text, letterSpacing: -0.4 }}>
+                    Sessões
+                </Text>
+
                 <View
                     style={{
                         flexDirection: "row",
@@ -144,7 +148,7 @@ export default function DetailingScreen() {
                 >
                     <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: HADES.green }} />
                     <Text style={{ fontSize: 11.5, fontWeight: "600", color: HADES.green }}>
-                        {totalOnline} estudando agora
+                        {totalOnline} estudando
                     </Text>
                 </View>
             </View>
@@ -157,69 +161,49 @@ export default function DetailingScreen() {
                     <RefreshControl refreshing={atualizando} onRefresh={handleRefresh} tintColor={HADES.accentSolid} />
                 }
             >
-                {/* Resumo de hoje */}
-                <View
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 14,
-                        backgroundColor: HADES.groupVioletTint,
-                        borderWidth: 1,
-                        borderColor: "rgba(124,92,252,0.22)",
-                        borderRadius: 16,
-                        padding: 14,
-                        marginBottom: 16,
-                    }}
-                >
-                    <View
-                        style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 13,
-                            backgroundColor: "rgba(124,92,252,0.22)",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <TrendingUp size={22} color={HADES.groupViolet} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 13, color: HADES.textMuted }}>Total de hoje</Text>
-                        <Text style={{ fontSize: 22, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
-                            {total}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: HADES.textDim, marginTop: 2 }}>
-                            Sessões concluídas aparecem marcadas no feed
-                        </Text>
-                    </View>
-                    <View style={{ alignItems: "flex-end" }}>
-                        <Text style={{ fontSize: 13, color: HADES.green, fontWeight: "600" }}>
-                            {percentual >= 0 ? "+" : ""}
-                            {percentual.toFixed(0)}%
-                        </Text>
-                        <Text style={{ fontSize: 12, color: HADES.textDim }}>vs. ontem</Text>
-                    </View>
+                <View style={{ marginBottom: 20 }}>
+                    <ResumoDeHoje totalMinutos={totalMinutos} minutosOntem={minutosOntem} />
                 </View>
 
-                {/* Feed de sessões */}
-                <View style={{ gap: 12 }}>
-                    {loading ? (
+                {carregando ? (
+                    <View style={{ gap: 10 }}>
                         <FeedVazio carregando />
-                    ) : sessions.length === 0 ? (
-                        <FeedVazio />
-                    ) : (
-                        sessoesAgrupadas.map((grupo) => (
-                            <View key={grupo.chave} style={{ gap: 10 }}>
-                                <Text style={{ fontSize: 12.5, fontWeight: "700", color: HADES.textMuted, textTransform: "capitalize" }}>
-                                    {grupo.label}
-                                </Text>
-                                {grupo.sessoes.map((session) => (
-                                    <CardSessaoGrupo key={session.id} sessao={session} />
+                    </View>
+                ) : vazio ? (
+                    <FeedVazio />
+                ) : (
+                    <View style={{ gap: 22 }}>
+                        {sessoesAoVivo.length > 0 && (
+                            <View style={{ gap: 10 }}>
+                                <TituloDaSecao label="AGORA" aoVivo contagem={sessoesAoVivo.length} />
+                                {sessoesAoVivo.map((sessao) => (
+                                    <CardSessaoGrupo
+                                        key={sessao.id}
+                                        sessao={sessao}
+                                        participantes={extras.participantesDe(sessao)}
+                                        fotoUrl={extras.fotoDe(sessao)}
+                                        usuarioId={userId}
+                                    />
                                 ))}
                             </View>
-                        ))
-                    )}
-                </View>
+                        )}
+
+                        {sessoesAgrupadas.map((grupo) => (
+                            <View key={grupo.chave} style={{ gap: 8 }}>
+                                <TituloDaSecao label={grupo.label} />
+                                {grupo.sessoes.map((sessao) => (
+                                    <CardSessaoGrupo
+                                        key={sessao.id}
+                                        sessao={sessao}
+                                        participantes={extras.participantesDe(sessao)}
+                                        fotoUrl={extras.fotoDe(sessao)}
+                                        usuarioId={userId}
+                                    />
+                                ))}
+                            </View>
+                        ))}
+                    </View>
+                )}
             </ScrollView>
         </SafeAreaView>
     );

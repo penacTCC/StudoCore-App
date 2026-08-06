@@ -42,6 +42,13 @@
       "expo-sharing",
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "cameraPermission": "O StudoCore usa a câmera para você registrar uma foto do seu momento de estudo ao fim da sessão.",
+          "photosPermission": "O StudoCore acessa suas fotos para você escolher a imagem da sessão ou seu avatar."
+        }
+      ],
+      [
         "expo-contacts",
         {
           "contactsPermission": "O StudoCore usa seus contatos para você convidar amigos para estudar junto."

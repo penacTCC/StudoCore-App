@@ -17,6 +17,7 @@ import type { SessionCardItem } from "@/types/sessions";
 import { usePreferencias } from "@/hooks/usePreferencias";
 import { salvarAnotacoes } from "@/services/anotacoes";
 import FormAnotacoes from "@/components/sessao/FormAnotacoes";
+import EtapaFotoSessao from "@/components/sessao/EtapaFotoSessao";
 import { ANOTACOES_VAZIAS, type AnotacoesSessao } from "@/types/anotacoes";
 
 const MAX_QUESTOES_EXECUCAO = 15;
@@ -168,23 +169,48 @@ export default function FocusFeedbackModal() {
     const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
 
     /*
-      Etapa opcional de anotações, mostrada depois que a sessão já foi gravada.
-      Fica atrás da preferência "Anotar ao fim da sessão" (app/(modals)/settings.tsx):
-      quem prefere anotar depois desliga e escreve pela sessão salva, em
-      app/(modals)/detalhes-sessao.tsx — os dois caminhos usam o mesmo formulário.
+      Etapas opcionais mostradas depois que a sessão já foi gravada, nesta ordem:
+      foto do momento → anotações. Cada uma fica atrás da sua preferência em
+      app/(modals)/settings.tsx ("Foto ao fim da sessão" e "Anotar ao fim da sessão"),
+      e as duas são puláveis — quem desligar as duas volta direto pro app.
+
+      A ordem é essa porque a foto é do ambiente daquele instante (a pessoa ainda está na
+      mesa) e a anotação é reflexão, que sobrevive a alguns minutos. Anotar depois também
+      é possível pela sessão salva, em app/(modals)/detalhes-sessao.tsx.
     */
     const { prefs } = usePreferencias(userId);
+    const [etapaFoto, setEtapaFoto] = useState(false);
     const [etapaAnotacoes, setEtapaAnotacoes] = useState(false);
     const [anotacoes, setAnotacoes] = useState<AnotacoesSessao>(ANOTACOES_VAZIAS);
     const [salvandoAnotacoes, setSalvandoAnotacoes] = useState(false);
-    // Numa execução de plano são várias linhas (uma por matéria); a anotação vale pra todas.
-    const [idsParaAnotar, setIdsParaAnotar] = useState<string[]>([]);
+    // Numa execução de plano são várias linhas (uma por matéria); foto e anotação valem pra todas.
+    const [idsDaSessao, setIdsDaSessao] = useState<string[]>([]);
 
-    /** Fecha a sessão: abre a etapa de anotações se estiver ligada, senão volta direto. */
+    /** Fecha a sessão: abre a primeira etapa opcional ligada, ou volta direto. */
     const concluirFluxo = (ids: (string | null | undefined)[]) => {
         const validos = ids.filter((id): id is string => !!id);
-        if (prefs.anotarAposQuiz && validos.length > 0) {
-            setIdsParaAnotar(validos);
+        if (validos.length === 0) {
+            router.back();
+            return;
+        }
+
+        setIdsDaSessao(validos);
+
+        if (prefs.fotoAposSessao) {
+            setEtapaFoto(true);
+            return;
+        }
+        if (prefs.anotarAposQuiz) {
+            setEtapaAnotacoes(true);
+            return;
+        }
+        router.back();
+    };
+
+    /** Saída da etapa de foto (salvou ou pulou): segue pras anotações ou encerra. */
+    const concluirEtapaFoto = () => {
+        setEtapaFoto(false);
+        if (prefs.anotarAposQuiz) {
             setEtapaAnotacoes(true);
             return;
         }
@@ -193,7 +219,7 @@ export default function FocusFeedbackModal() {
 
     const salvarEtapaAnotacoes = async () => {
         setSalvandoAnotacoes(true);
-        const resultados = await Promise.all(idsParaAnotar.map((id) => salvarAnotacoes(id, anotacoes)));
+        const resultados = await Promise.all(idsDaSessao.map((id) => salvarAnotacoes(id, anotacoes)));
         setSalvandoAnotacoes(false);
 
         if (resultados.some((resultado) => !resultado.sucesso)) {
@@ -444,9 +470,19 @@ export default function FocusFeedbackModal() {
     const isHighScore = totalQuestoes > 0 && score / totalQuestoes > 0.7;
 
     /*
-      Etapa final opcional. A sessão JÁ está gravada quando esta tela aparece — pular aqui
-      não perde nada do estudo, só deixa as anotações pra depois.
+      Etapas finais opcionais. A sessão JÁ está gravada quando estas telas aparecem — pular
+      aqui não perde nada do estudo, só deixa a foto e as anotações pra depois.
     */
+    if (etapaFoto && userId) {
+        return (
+            <EtapaFotoSessao
+                userId={userId}
+                sessaoIds={idsDaSessao}
+                aoConcluir={concluirEtapaFoto}
+            />
+        );
+    }
+
     if (etapaAnotacoes) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top", "bottom"]}>

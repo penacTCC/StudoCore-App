@@ -22,30 +22,37 @@ export function useStatusMembroGrupo(session: Session | null, inicializado: bool
       setMembro(null);
       setParametrosUltimoGrupo(undefined);
 
+      /*
+        A limpeza do último grupo roda ANTES de saber se a pessoa participa de algum grupo,
+        e não mais só dentro do `if (participaDeGrupo)`. Naquele lugar, uma conta que não
+        estava em grupo nenhum nunca chegava a limpar — o id do grupo alheio continuava no
+        aparelho e a tela de foco o usava como fallback ao gravar `grupo_id` na sessão.
+      */
+      const ultimoGrupoId = await carregarUltimoGrupoLocalmente();
+
+      if (ultimoGrupoId) {
+        const participaDoUltimo = await usuarioParticipaDoGrupo(session.user.id, ultimoGrupoId);
+        if (!participaDoUltimo) await limparUltimoGrupoLocalmente();
+      }
+
       const participaDeGrupo = await usuarioParticipaDeGrupo(session.user.id);
       setMembro(participaDeGrupo);
 
       if (participaDeGrupo) {
-        const ultimoGrupoId = await carregarUltimoGrupoLocalmente();
         let parametrosParaSalvar: ParametrosUltimoGrupo | null = null;
 
-        if (ultimoGrupoId) {
-          // O id fica salvo no aparelho, não na conta: sem validar a participação, ao trocar
-          // de conta a pessoa caía direto nas tabs do grupo de quem usou o app antes.
-          const participaDoUltimo = await usuarioParticipaDoGrupo(session.user.id, ultimoGrupoId);
+        // Relê depois da limpeza: se o id não era desta conta, aqui já volta nulo.
+        const ultimoGrupoValidado = await carregarUltimoGrupoLocalmente();
 
-          if (!participaDoUltimo) {
-            await limparUltimoGrupoLocalmente();
-          } else {
-            const grupo = await buscarGrupoPorId(ultimoGrupoId);
-            if (grupo) {
-              parametrosParaSalvar = {
-                groupId: grupo.id,
-                groupName: grupo.nome_grupo,
-                groupPhoto: grupo.foto_grupo,
-                groupGoal: grupo.meta_horas
-              };
-            }
+        if (ultimoGrupoValidado) {
+          const grupo = await buscarGrupoPorId(ultimoGrupoValidado);
+          if (grupo) {
+            parametrosParaSalvar = {
+              groupId: grupo.id,
+              groupName: grupo.nome_grupo,
+              groupPhoto: grupo.foto_grupo,
+              groupGoal: grupo.meta_horas
+            };
           }
         }
 

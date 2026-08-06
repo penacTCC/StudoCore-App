@@ -4,9 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
     ChevronLeft, Flame, GitCompareArrows, Trophy,
-    ListChecks, Heart, Timer, Camera, Lock,
-    Coffee, BookOpen, Sunrise, Library, PenLine, NotebookText,
-    type LucideIcon,
+    ListChecks, Timer, Lock,
 } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
@@ -17,6 +15,7 @@ import { APP_BADGES } from "@/constants/badges";
 import { getSubjectColor, formatDuration, getIdentityColor, getInitials, getBioFromObjetivo } from "@/constants/helpers";
 import { AvatarComOfensiva, BannerPerfil } from "@/components/profile/PerfilBanner";
 import CardMedalhas, { CardMedalhasVazioOutro } from "@/components/profile/CardMedalhas";
+import GaleriaSessoes from "@/components/profile/GaleriaSessoes";
 import type { Profile } from "@/types/profile";
 import type { Gamificacao } from "@/types/gamificacao";
 import type { SessaoFocoRow } from "@/types/sessions";
@@ -38,17 +37,6 @@ const sechStyle = {
     letterSpacing: 0.8,
     textTransform: "uppercase" as const,
 };
-
-// Placeholder da Galeria — recurso ainda não existe no app (sem posts/fotos reais salvos).
-// Mostrado só quando o usuário já tem alguma atividade real, pra dar uma prévia do que vem por aí.
-const GALERIA_MOCK: { Icone: LucideIcon; tag: string; likes: number; duracao?: string }[] = [
-    { Icone: Coffee, tag: "setup do dia", likes: 24, duracao: "2h05" },
-    { Icone: BookOpen, tag: "resumo de revisão", likes: 18 },
-    { Icone: Sunrise, tag: "estudo cedo", likes: 31, duracao: "1h30" },
-    { Icone: Library, tag: "biblioteca", likes: 12 },
-    { Icone: PenLine, tag: "flashcards", likes: 9 },
-    { Icone: NotebookText, tag: "caderno de resumos", likes: 15, duracao: "2h30" },
-];
 
 // Início da semana atual (segunda-feira), igual ao cálculo usado em profileStats/brain.
 const getInicioDaSemana = () => {
@@ -295,7 +283,7 @@ export default function MemberProfileScreen() {
                     )}
 
                     {aba === "galeria" && (
-                        semAtividade ? <GaleriaVazia primeiroNome={primeiroNome} /> : <GaleriaConteudo />
+                        <GaleriaSessoes userId={userId} nomeDoDono={primeiroNome} />
                     )}
                     </>
                     )}
@@ -549,63 +537,6 @@ function SessoesSkeleton() {
                     </View>
                 </View>
             ))}
-        </View>
-    );
-}
-
-function GaleriaConteudo() {
-    return (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
-            {GALERIA_MOCK.map((post, i) => (
-                <View
-                    key={i}
-                    style={{
-                        width: "32.3%", aspectRatio: 1, borderRadius: 10, overflow: "hidden",
-                        backgroundColor: HADES.surfaceRaised, borderWidth: 1, borderColor: HADES.border,
-                        alignItems: "center", justifyContent: "center", gap: 5, padding: 6,
-                    }}
-                >
-                    <post.Icone size={20} color={HADES.textDim} />
-                    <Text style={{ fontSize: 8, fontFamily: "monospace", color: HADES.textDim, textAlign: "center" }} numberOfLines={1}>
-                        {post.tag}
-                    </Text>
-                    <View style={{ position: "absolute", bottom: 5, left: 6, flexDirection: "row", alignItems: "center", gap: 3 }}>
-                        <Heart size={10} color={HADES.textSecondary} />
-                        <Text style={{ fontSize: 9, fontWeight: "700", color: HADES.textSecondary }}>{post.likes}</Text>
-                    </View>
-                    {post.duracao && (
-                        <View
-                            style={{
-                                position: "absolute", top: 5, right: 5, flexDirection: "row", alignItems: "center", gap: 3,
-                                backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6,
-                            }}
-                        >
-                            <Timer size={9} color={HADES.accentSolid} />
-                            <Text style={{ fontSize: 8.5, fontWeight: "700", color: "#fff" }}>{post.duracao}</Text>
-                        </View>
-                    )}
-                </View>
-            ))}
-        </View>
-    );
-}
-
-function GaleriaVazia({ primeiroNome }: { primeiroNome: string }) {
-    return (
-        <View style={{ alignItems: "center", gap: 12, paddingVertical: 40 }}>
-            <View
-                style={{
-                    width: 56, height: 56, borderRadius: 28,
-                    backgroundColor: HADES.surfaceRaised, borderWidth: 1, borderStyle: "dashed", borderColor: HADES.borderDashed,
-                    alignItems: "center", justifyContent: "center",
-                }}
-            >
-                <Camera size={24} color={HADES.textDim} />
-            </View>
-            <Text style={{ fontSize: 14.5, fontWeight: "700", color: HADES.textSecondary }}>Nenhuma foto ainda</Text>
-            <Text style={{ fontSize: 13, color: HADES.textFaint, lineHeight: 19, textAlign: "center", maxWidth: 240 }}>
-                Os registros do cantinho de estudo de {primeiroNome} vão aparecer aqui.
-            </Text>
         </View>
     );
 }

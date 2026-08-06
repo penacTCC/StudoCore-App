@@ -10,9 +10,11 @@ import type { Incentivo } from "@/types/incentivos";
  * A notificação de quem recebe não sai daqui: ela é disparada no aparelho do destinatário,
  * que escuta o INSERT por Realtime (ver `observarForcasRecebidas` abaixo).
  */
-export const mandarForca = async (sessaoId: string, destinatarioId: string) => {
+export const mandarForca = async (salaId: string, destinatarioId: string) => {
+    // A torcida é da SALA, não do registro pessoal de estudo de quem a abriu — por isso o
+    // parâmetro mudou de `sessaoId` para `salaId` (ver a migration `20260806140000`).
     const { data, error } = await supabase.functions.invoke("mandar-forca", {
-        body: { sessaoId, destinatarioId },
+        body: { salaId, destinatarioId },
     });
 
     if (error) {
@@ -26,8 +28,8 @@ export const mandarForca = async (sessaoId: string, destinatarioId: string) => {
     return { data, error: null, retryAfterSeconds: undefined };
 };
 
-// ───── SELECT (torcida de uma sessão) ─────
-export const buscarIncentivosDaSessao = async (sessaoId: string) => {
+// ───── SELECT (torcida de uma sala) ─────
+export const buscarIncentivosDaSala = async (salaId: string) => {
     const { data, error } = await supabase
         .from("incentivos")
         .select(`
@@ -38,7 +40,7 @@ export const buscarIncentivosDaSessao = async (sessaoId: string) => {
                 foto_usuario
             )
         `)
-        .eq("sessao_id", sessaoId)
+        .eq("sala_id", salaId)
         .order("created_at", { ascending: true });
 
     return { data: (data || []) as Incentivo[], error };
@@ -59,21 +61,21 @@ let contadorDeCanais = 0;
  * histórico persistido da torcida e não quem está conectado agora.
  * @returns função de cleanup que remove o canal.
  */
-export const observarIncentivosDaSessao = (
-    sessaoId: string,
+export const observarIncentivosDaSala = (
+    salaId: string,
     aoMudar: (novoIncentivo: Incentivo) => void
 ) => {
     contadorDeCanais += 1;
 
     const canal: RealtimeChannel = supabase
-        .channel(`incentivos:${sessaoId}:${contadorDeCanais}`)
+        .channel(`incentivos:${salaId}:${contadorDeCanais}`)
         .on(
             "postgres_changes",
             {
                 event: "INSERT",
                 schema: "public",
                 table: "incentivos",
-                filter: `sessao_id=eq.${sessaoId}`,
+                filter: `sala_id=eq.${salaId}`,
             },
             (payload) => aoMudar(payload.new as Incentivo)
         );
@@ -90,14 +92,14 @@ export const observarIncentivosDaSessao = (
  * É o substituto do push remoto: o INSERT chega por Realtime e o próprio aparelho mostra a
  * notificação local (ver services/notificacoesForca.ts) — sem Firebase/FCM no meio.
  *
- * Diferente de `observarIncentivosDaSessao`, aqui o filtro é por destinatário e o canal
+ * Diferente de `observarIncentivosDaSala`, aqui o filtro é por destinatário e o canal
  * é global (fica de pé o app inteiro, montado no _layout).
  *
  * @returns função de cleanup que remove o canal.
  */
 export const observarForcasRecebidas = (
     userId: string,
-    aoReceber: (info: { nomeRemetente: string; sessaoId: string }) => void
+    aoReceber: (info: { nomeRemetente: string; salaId: string | null }) => void
 ) => {
     const canal: RealtimeChannel = supabase
         .channel(`forcas-recebidas:${userId}`)
@@ -122,7 +124,7 @@ export const observarForcasRecebidas = (
 
                 aoReceber({
                     nomeRemetente: perfil?.nome_usuario || perfil?.nome_real || "Alguém",
-                    sessaoId: incentivo.sessao_id,
+                    salaId: incentivo.sala_id ?? null,
                 });
             }
         );

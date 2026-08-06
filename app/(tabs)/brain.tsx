@@ -25,6 +25,10 @@ import {
     BarraTaxaAcerto,
     GraficoDiaSemana,
     GraficoOfensiva,
+    GraficoPlanejadoRealizado,
+    AderenciaPorMateria,
+    TaxaAcertoPorMateria,
+    GraficoTempoDesempenho,
     CabecalhoGrupo,
     MetaSemanalGrupo,
     RankingHorasGrupo,
@@ -34,6 +38,7 @@ import {
     QuestoesPorMembroGrupo,
     EscopoAnalise,
     PeriodoAnalise,
+    CORES,
 } from "@/components/analytics/GraficosAnalise";
 
 type BrainTab = "database" | "analytics";
@@ -93,6 +98,11 @@ export default function BrainScreen() {
         pctAcerto,
         pontosDiaSemana,
         pontosOfensiva,
+        temCronograma,
+        paresPlanejadoRealizado,
+        resumoAderencia,
+        aderenciaPorMateria,
+        desempenhoPorMateria,
         grupos,
         membrosPorGrupo,
         grupoSelecionadoId,
@@ -780,8 +790,9 @@ export default function BrainScreen() {
                             </TouchableOpacity>
                         */}
 
-                        {/* Seletor Pessoal / Grupo */}
-                        <View className="gap-3">
+                        {/* Escopo e período dividem uma linha só — empilhados, viravam mais duas
+                            faixas de navegação embaixo do título e das abas. */}
+                        <View className="flex-row items-center justify-between">
                             <SeletorEscopo valor={escopoAnalise} aoAlterar={setEscopoAnalise} />
                             {(escopoAnalise === "grupo" || (!carregandoAnalise && estadoPessoal !== "vazio")) && (
                                 <SeletorPeriodo valor={periodoAnalise} aoAlterar={setPeriodoAnalise} />
@@ -791,13 +802,13 @@ export default function BrainScreen() {
                         {escopoAnalise === "grupo" ? (
                             grupos.length === 0 ? (
                                 <EstadoSemGrupo
-                                    cor={HADES.accentSolid}
+                                    cor={CORES.accent}
                                     aoVerGrupos={() => router.push("/(groups)/browse-groups")}
                                 />
                             ) : !grupoSelecionado ? null : (
                             <View className="gap-8">
                                 <CabecalhoGrupo
-                                    cor={HADES.accentSolid}
+                                    cor={CORES.accent}
                                     grupos={grupos}
                                     grupoSelecionadoId={grupoSelecionadoId}
                                     aoSelecionarGrupo={(grupo) => setGrupoSelecionadoId(grupo.id)}
@@ -809,15 +820,15 @@ export default function BrainScreen() {
                                     <EstadoGrupoSemDadosPeriodo nomeGrupo={grupoSelecionado.nome_grupo} />
                                 ) : (
                                     <>
-                                        <RankingHorasGrupo cor={HADES.accentSolid} membros={membrosRanking} grupoSelecionado={grupoSelecionado} />
+                                        <RankingHorasGrupo cor={CORES.accent} membros={membrosRanking} grupoSelecionado={grupoSelecionado} />
 
                                         <View className="flex-row gap-[10px]">
                                             <MateriaMaisEstudadaGrupo materias={materiasGrupo} qtdMaterias={qtdDisciplinasGrupo}/>
-                                            <MembrosAtivosGrupo cor={HADES.accentSolid} membrosTotais={membrosTotais} inativos={membrosInativos}/>
+                                            <MembrosAtivosGrupo cor={CORES.accent} membrosTotais={membrosTotais} inativos={membrosInativos}/>
                                         </View>
 
                                         <EvolucaoGrupo
-                                            cor={HADES.accentSolid}
+                                            cor={CORES.accent}
                                             horas={horasEvolucaoGrupo}
                                             percentual={percentualEvolucaoGrupo}
                                             pontos={pontosEvolucaoGrupo}
@@ -837,12 +848,12 @@ export default function BrainScreen() {
                             <AnalisePessoalSkeleton />
                         ) : estadoPessoal === "vazio" ? (
                             <EstadoVazioPessoal
-                                cor={HADES.accentSolid}
+                                cor={CORES.accent}
                                 aoIniciarSessao={() => router.push("/(tabs)/focus")}
                             />
                         ) : estadoPessoal === "poucos" ? (
                             <EstadoPoucosDadosPessoal
-                                cor={HADES.accentSolid}
+                                cor={CORES.accent}
                                 qtdSessoesTotal={sessoesUsuario.length}
                                 diasFaltantes={3 - diasComSessaoHistorico}
                                 horasHoje={estatisticasHoje.horasHoje}
@@ -852,17 +863,29 @@ export default function BrainScreen() {
                             />
                         ) : (
                             <View className="gap-8">
-                                <GraficoArea cor={HADES.accentSolid} horas={horasFormatadasAtuais} percentual={variacaoPercentual} periodo={rotuloPeriodo} pontos={pontosGraficoArea}/>
+                                <GraficoArea cor={CORES.accent} horas={horasFormatadasAtuais} percentual={variacaoPercentual} periodo={rotuloPeriodo} pontos={pontosGraficoArea}/>
 
                                 <View className="flex-row gap-[10px]">
                                     <CartaoMetrica icone={Timer} rotulo="SESSÃO MÉDIA" valor={mediaDasHoras} legenda="por sessão" />
                                     <CartaoMetrica icone={Layers} rotulo="Nº SESSÕES" valor={qtdSessoes.toString()} legenda="esta semana" />
                                 </View>
 
-                                <GraficoComparativoSemanal cor={HADES.accentSolid} titulo={tituloComparativo} pares={paresGraficoComparativo} />
+                                <GraficoComparativoSemanal cor={CORES.accent} titulo={tituloComparativo} pares={paresGraficoComparativo} />
+
+                                <GraficoPlanejadoRealizado
+                                    cor={CORES.accent}
+                                    titulo="Planejado vs. realizado"
+                                    pares={paresPlanejadoRealizado}
+                                    resumo={resumoAderencia}
+                                    temCronograma={temCronograma}
+                                    aoAbrirCronograma={() => router.push("/(tabs)/schedule")}
+                                />
+                                {temCronograma && <AderenciaPorMateria itens={aderenciaPorMateria} />}
+
                                 <GraficoDonutMaterias qtdMaterias={qtdMateriasEstudadas} materias={materiasParaDonut}/>
                                 <BarraTaxaAcerto acerto={qtdQuestoesCorretas} erro={qtdQuestoesErradas} total={qtdQuestoesTotais} pct={pctAcerto}/>
-                                <GraficoDiaSemana cor={HADES.accentSolid} pontos={pontosDiaSemana} />
+                                <TaxaAcertoPorMateria itens={desempenhoPorMateria} />
+                                <GraficoDiaSemana cor={CORES.accent} pontos={pontosDiaSemana} />
                                 <GraficoOfensiva ofensivaAtual={analise.sequencia} melhorOfensiva={analise.melhorSequencia} pontos={pontosOfensiva} />
                             </View>
                         )}

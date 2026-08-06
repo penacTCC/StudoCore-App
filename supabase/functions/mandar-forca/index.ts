@@ -57,11 +57,16 @@ Deno.serve(async (req: Request) => {
     const remetenteId = user.id;
 
     const corpo = await req.json();
-    const sessaoId = corpo?.sessaoId as string | undefined;
+    /*
+      A torcida é da SALA, não do registro pessoal de estudo do anfitrião (ver a migration
+      `20260806140000_salas_foco.sql`). `sessaoId` continua aceito para não quebrar um app
+      que ainda não atualizou.
+    */
+    const salaId = (corpo?.salaId ?? corpo?.sessaoId) as string | undefined;
     const destinatarioId = corpo?.destinatarioId as string | undefined;
 
-    if (!sessaoId || !destinatarioId) {
-      return jsonResponse({ ok: false, error: "Informe 'sessaoId' e 'destinatarioId'." }, 400);
+    if (!salaId || !destinatarioId) {
+      return jsonResponse({ ok: false, error: "Informe 'salaId' e 'destinatarioId'." }, 400);
     }
     if (destinatarioId === remetenteId) {
       return jsonResponse({ ok: false, error: "Você não pode mandar força pra si mesmo." }, 400);
@@ -94,7 +99,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: incentivo, error: erroInsert } = await admin
       .from("incentivos")
-      .insert({ sessao_id: sessaoId, remetente_id: remetenteId, destinatario_id: destinatarioId })
+      .insert({ sala_id: salaId, remetente_id: remetenteId, destinatario_id: destinatarioId })
       .select()
       .maybeSingle();
 

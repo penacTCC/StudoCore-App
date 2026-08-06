@@ -118,6 +118,25 @@ export async function buscarPlanoPorId(planoId: string): Promise<Plano | null> {
 }
 
 /**
+ * Só o nome do plano, em silêncio.
+ *
+ * A prévia da sessão usa isto para dizer de onde a sessão veio ("Do cronograma · ENEM
+ * 2026"). Diferente de `buscarPlanoPorId`, não avisa nada em caso de erro: quem abre a
+ * prévia de uma sessão alheia não enxerga o plano da outra pessoa (RLS), e isso é o
+ * esperado — a linha simplesmente não aparece.
+ */
+export async function buscarNomeDoPlano(planoId: string): Promise<string | null> {
+    const { data, error } = await supabase
+        .from("planos")
+        .select("nome")
+        .eq("id", planoId)
+        .maybeSingle();
+
+    if (error || !data) return null;
+    return (data as { nome: string }).nome;
+}
+
+/**
  * Aplica o plano a uma data específica — vence a rotina e qualquer plano fixado
  * nesse dia (ver comentário de `agenda_tipo` na migration). Reconfigura o próprio
  * plano em vez de duplicar: se outro plano já estava aplicado a essa mesma data,

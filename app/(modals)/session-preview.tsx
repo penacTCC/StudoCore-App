@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import {
@@ -7,7 +7,8 @@ import {
     Share2,
     BadgeCheck,
     Globe,
-    Flame,
+    CalendarDays,
+    Timer,
     Users,
     UserPlus,
     Lock,
@@ -17,18 +18,23 @@ import {
 
 import { HADES } from "@/constants/hades";
 import { getSubjectColor } from "@/constants/helpers";
+import Avatar from "@/components/ui/Avatar";
 import { fetchSessionById, buscarSessoesPorExecucao, compilarSessoesPorExecucao } from "@/services/sessions";
 import { tempoAoVivoDoMembro } from "@/utils/tempo";
+import { totalAcertos, totalQuestoes } from "@/utils/estatisticasSessao";
 import { useIncentivos } from "@/hooks/useIncentivos";
-import { useSessionMembers } from "@/hooks/useSessionMembers";
+import { useParticipantesDaSala } from "@/hooks/useParticipantesDaSala";
+import { buscarSala } from "@/services/salas";
+import { assinarCaminhosDeFoto } from "@/services/fotosSessao";
+import { buscarNomeDoPlano } from "@/services/planos";
+import type { SalaFoco } from "@/types/sala";
 import type { SessionCardItem } from "@/types/sessions";
 
 type Participante = {
     /** id do usuário: é quem recebe a força quando alguém torce por ele. */
     id: string;
     nome: string;
-    inicial: string;
-    cor: string;
+    foto: string | null;
     topico: string;
     tempoSegundos: number;
     /** Só quem está de fato focando tem o cronômetro correndo na tela. */
@@ -36,11 +42,50 @@ type Participante = {
     host?: boolean;
 };
 
+/** Uma matéria da sessão, já somada quando a execução encadeou vários blocos dela. */
+type BlocoDeMateria = {
+    disciplina: string;
+    conteudo: string;
+    minutos: number;
+};
+
+/** Acima disso a régua de tracinhos vira sujeira visual e cede lugar a uma barra cheia. */
+const MAX_TRACOS = 24;
+
 function formatarDuracao(min: number) {
     if (min < 60) return `${min}m`;
     const h = Math.floor(min / 60);
     const m = min % 60;
-    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    return m > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${h}h`;
+}
+
+function formatarHora(iso?: string | null) {
+    if (!iso) return null;
+    return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** "hoje", "ontem" ou a data — o cabeçalho da prévia não precisa de mais que isso. */
+function rotuloDoDia(iso: string) {
+    const data = new Date(iso);
+    const hoje = new Date();
+    const mesmoDia = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+
+    if (mesmoDia(data, hoje)) return "hoje";
+
+    const ontem = new Date(hoje);
+    ontem.setDate(hoje.getDate() - 1);
+    if (mesmoDia(data, ontem)) return "ontem";
+
+    return data.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+/** Distância até agora em linguagem de gente: "há 40min", "há 2h", "há 3d". */
+function haQuanto(iso: string) {
+    const minutos = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (minutos < 60) return `há ${minutos}min`;
+    const horas = Math.round(minutos / 60);
+    if (horas < 24) return `há ${horas}h`;
+    return `há ${Math.round(horas / 24)}d`;
 }
 
 function formatarCronometro(totalSegundos: number) {
@@ -65,8 +110,32 @@ export default function SessionPreviewScreen() {
     const [carregando, setCarregando] = useState(true);
     const [erro, setErro] = useState<string | null>(null);
 
-    // Membros sincronizados em tempo real (ver hooks/useSessionMembers).
-    const { members } = useSessionMembers(sessao?.id);
+    /*
+      As linhas cruas da execução (uma por matéria estudada). O `sessao` acima é a compilação
+      delas — o total que o hero mostra; estas ficam para a seção "Por matéria", que só existe
+      quando houve de fato mais de uma.
+    */
+    const [linhas, setLinhas] = useState<SessionCardItem[]>([]);
+
+    // Extras opcionais: cada um some da tela quando não existe (ver `blocos`, `fotoUrl`).
+    const [fotoUrl, setFotoUrl] = useState<string | null>(null);
+    const [fotoLegenda, setFotoLegenda] = useState<string | null>(null);
+    const [nomePlano, setNomePlano] = useState<string | null>(null);
+
+    /*
+      A tela mostra DUAS coisas que antes eram uma só (ver a migration `20260806140000`):
+
+        `sessao` — o registro pessoal de estudo de quem abriu (matéria, duração, placar);
+        `sala`   — o encontro, com os participantes e o próprio ciclo de vida.
+
+      A sala é quem diz se dá para entrar. Enquanto as duas eram a mesma linha, a tela se
+      contradizia: exibia "Sessão concluída" e, logo abaixo, gente em "Focando agora" com
+      cronômetro de 142h correndo.
+    */
+    const [sala, setSala] = useState<SalaFoco | null>(null);
+
+    const { participantes: membrosDaSala } = useParticipantesDaSala(sala?.id);
+    const salaAberta = Boolean(sala && !sala.encerrada_em);
 
     // Tick de 1s só para repintar: o tempo vem sempre de tempoAoVivoDoMembro.
     const [tick, setTick] = useState(0);
@@ -76,28 +145,60 @@ export default function SessionPreviewScreen() {
     }, []);
 
     const participantes = useMemo<Participante[]>(() => {
-        const cores = ["#1f9d63", "#7c5cfc", "#1f9aa8", "#e08a1e", "#d0455e"];
-
-        return members.map((membro, index) => {
-            const profile = membro.profiles as { nome_usuario?: string | null; nome_real?: string | null } | undefined;
+        return membrosDaSala.map((membro) => {
+            const profile = membro.profiles;
             const nome = profile?.nome_usuario || profile?.nome_real || "Usuário";
-            const inicial = nome.charAt(0).toUpperCase();
 
             return {
                 id: membro.membro_id,
                 nome,
-                inicial,
-                cor: cores[index % cores.length],
-                topico: membro.sessoes_foco?.conteudo_especifico || sessao?.conteudo_especifico || "Foco",
-                // Acumulado + tempo desde o último início (ver utils/tempo.ts).
-                tempoSegundos: tempoAoVivoDoMembro(membro),
-                ativo: membro.status === "ativo",
-                host: membro.funcao === "anfitriao" || membro.membro_id === sessao?.user_id,
+                foto: profile?.foto_usuario ?? null,
+                topico: sessao?.conteudo_especifico || "Foco",
+                /*
+                  Acumulado + tempo desde o último início, travado pelo fechamento da SALA —
+                  não pelo `concluido_em` do registro pessoal de quem abriu. Essa distinção é
+                  o ponto: o anfitrião encerrar o estudo dele não para o cronômetro de quem
+                  continua na sala (ver utils/tempo.ts).
+                */
+                tempoSegundos: tempoAoVivoDoMembro(membro, { sessaoConcluidaEm: sala?.encerrada_em }),
+                // Com a sala fechada ninguém está focando, por mais que a linha diga.
+                ativo: membro.status === "ativo" && salaAberta,
+                host: membro.funcao === "anfitriao" || membro.membro_id === sala?.anfitriao_id,
             };
         });
         // `tick` entra de propósito: força o recálculo do tempo ao vivo a cada segundo.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [members, sessao?.conteudo_especifico, sessao?.user_id, tick]);
+    }, [membrosDaSala, sessao?.conteudo_especifico, sala?.anfitriao_id, sala?.encerrada_em, salaAberta, tick]);
+
+    /*
+      As matérias da sessão, somadas. Uma execução que encadeou dois blocos da MESMA matéria
+      vira um bloco só: repetir "Matemática" duas vezes na lista não informa nada. É esta
+      lista que decide se a seção "Por matéria" existe (ver `temVariasMaterias`).
+    */
+    const blocos = useMemo<BlocoDeMateria[]>(() => {
+        const porMateria = new Map<string, BlocoDeMateria>();
+
+        for (const linha of linhas) {
+            const conteudo = linha.conteudo_especifico?.trim() || "";
+            const atual = porMateria.get(linha.disciplina);
+
+            if (!atual) {
+                porMateria.set(linha.disciplina, {
+                    disciplina: linha.disciplina,
+                    conteudo,
+                    minutos: linha.tempo_minutos ?? 0,
+                });
+                continue;
+            }
+
+            atual.minutos += linha.tempo_minutos ?? 0;
+            if (conteudo && !atual.conteudo.includes(conteudo)) {
+                atual.conteudo = atual.conteudo ? `${atual.conteudo} · ${conteudo}` : conteudo;
+            }
+        }
+
+        return [...porMateria.values()].sort((a, b) => b.minutos - a.minutos);
+    }, [linhas]);
 
     const sessionParam = useMemo(() => {
         const raw = Array.isArray(params.session) ? params.session[0] : params.session;
@@ -105,7 +206,6 @@ export default function SessionPreviewScreen() {
     }, [params.session]);
 
     const privada = sessao ? !sessao.is_public : params.isPublic === "false";
-    const corMateria = getSubjectColor(sessao?.disciplina || "Estudo Geral");
 
     // Torcida da sessão inteira, com contagem por participante. Fica fora dos early
     // returns por causa das regras de hooks. Sessão privada é estudo solo e não tem
@@ -118,7 +218,7 @@ export default function SessionPreviewScreen() {
         podeTorcerPor,
         cooldownRestante,
         enviarForca,
-    } = useIncentivos(privada ? null : sessao?.id);
+    } = useIncentivos(privada ? null : sala?.id);
 
     useEffect(() => {
         let ativo = true;
@@ -150,11 +250,14 @@ export default function SessionPreviewScreen() {
                   app/(tabs)/focus.tsx). Busca o grupo inteiro e compila, senão a prévia
                   mostraria só um pedaço da sessão (a última matéria, não o total).
                 */
+                let linhasDaSessao: SessionCardItem[] = sessaoEncontrada ? [sessaoEncontrada] : [];
+
                 if (sessaoEncontrada?.execucao_id) {
                     const { data: linhasDaExecucao, error: erroExecucao } = await buscarSessoesPorExecucao(
                         sessaoEncontrada.execucao_id
                     );
                     if (!erroExecucao && linhasDaExecucao.length > 0) {
+                        linhasDaSessao = linhasDaExecucao;
                         sessaoEncontrada = compilarSessoesPorExecucao(linhasDaExecucao)[0] ?? sessaoEncontrada;
                     }
                 }
@@ -171,10 +274,41 @@ export default function SessionPreviewScreen() {
                 }
 
                 setSessao(sessaoEncontrada);
+                setLinhas(linhasDaSessao);
 
                 if (!sessaoEncontrada) {
                     setCarregando(false);
                     return;
+                }
+
+                /*
+                  Foto e plano são enfeites: entram na tela só se existirem e se quem abriu
+                  puder vê-los. Falha em qualquer um dos dois some com a seção, nunca derruba
+                  a prévia — daí não estarem no try/catch principal do carregamento.
+                */
+                const linhaComFoto = linhasDaSessao.find((linha) => linha.foto_path);
+                if (linhaComFoto?.foto_path) {
+                    const urls = await assinarCaminhosDeFoto([linhaComFoto.foto_path]);
+                    if (ativo) {
+                        setFotoUrl(urls.get(linhaComFoto.foto_path) ?? null);
+                        setFotoLegenda(linhaComFoto.foto_legenda ?? null);
+                    }
+                }
+
+                if (sessaoEncontrada.plano_id) {
+                    const nome = await buscarNomeDoPlano(sessaoEncontrada.plano_id);
+                    if (ativo) setNomePlano(nome);
+                }
+
+                /*
+                  A sala é opcional: estudo solo não tem uma, e sessões anteriores à
+                  separação sala/registro têm a sala com o MESMO id da linha de origem (ver o
+                  backfill da migration `20260806140000`). Sem sala, a tela vira só o
+                  registro pessoal — sem participantes, sem torcida, sem "entrar junto".
+                */
+                if (sessaoEncontrada.sala_id) {
+                    const { sala: salaEncontrada } = await buscarSala(sessaoEncontrada.sala_id);
+                    if (ativo) setSala(salaEncontrada);
                 }
             } catch (error) {
                 console.warn("Erro ao carregar prévia da sessão:", error);
@@ -195,15 +329,19 @@ export default function SessionPreviewScreen() {
         };
     }, [params.sessionId, sessionParam]);
 
-    // Só as sessões públicas têm este CTA; nas privadas o footer mostra apenas o "Mandar força".
+    /*
+      Só as sessões públicas têm este CTA; nas privadas o footer mostra apenas o "Mandar
+      força". Quem entra vai para a SALA — a `session` segue junto só para pré-preencher
+      matéria e conteúdo na tela de foco.
+    */
     const handleAcao = () => {
-        if (!sessao) return;
+        if (!sessao || !sala) return;
         router.dismissAll();
         router.replace({
             pathname: "/(tabs)/focus",
             params: {
                 session: JSON.stringify(sessao),
-                sessionId: sessao.id,
+                salaId: sala.id,
                 joinPublicSession: "true",
             },
         });
@@ -230,17 +368,49 @@ export default function SessionPreviewScreen() {
     }
 
     const hostNome = sessao.profiles?.nome_usuario || sessao.profiles?.nome_real || "Usuário";
-    const hostInicial = hostNome.charAt(0).toUpperCase();
-    const hostCor = corMateria.text || "#1f9d63";
-    const estaConcluida = Boolean(sessao.concluido_em || sessao.status === "concluido");
-    const abertaHaMin = Math.max(1, Math.round((Date.now() - new Date(sessao.created_at).getTime()) / 60000));
+    /*
+      Duas perguntas diferentes, que antes tinham a mesma resposta:
+        `registroEncerrado` — o estudo de quem abriu já acabou (vale para o hero e o placar);
+        `salaAberta`        — ainda dá para entrar e focar junto.
+      Uma sala pode seguir aberta com o registro do criador já encerrado — é exatamente o
+      caso que a separação sala/sessão veio permitir.
+    */
+    const registroEncerrado = Boolean(sessao.concluido_em || sessao.status === "concluido");
     const duracaoMin = Math.max(1, Math.round(sessao.tempo_minutos || 0));
-    const horaInicio = sessao.ultimo_inicio ? new Date(sessao.ultimo_inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : new Date(sessao.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    const ofensiva = sessao.questoes_acertadas || 0;
 
-    const statusTexto = estaConcluida
-        ? "Sessão concluída"
-        : `${privada ? "está focando" : "abriu esta sessão"} · há ${abertaHaMin} min`;
+    /*
+      A prévia é montada por partes, e cada parte só aparece se a sessão tiver o que mostrar:
+      sessão de uma matéria não ganha "Por matéria", sessão sem quiz não ganha "Questões",
+      sessão sem foto não ganha "Registro". Encerrada não ganha convite para entrar.
+    */
+    const materiaPrincipal = blocos[0]?.disciplina || sessao.disciplina;
+    const outrasMaterias = blocos.slice(1).map((bloco) => bloco.disciplina);
+    const temVariasMaterias = blocos.length > 1;
+    const corMateria = getSubjectColor(materiaPrincipal || "Estudo Geral");
+
+    const conteudoPrincipal = blocos[0]?.conteudo || sessao.conteudo_especifico?.trim() || "";
+    const legendaOutras =
+        outrasMaterias.length === 0
+            ? ""
+            : `também ${outrasMaterias.length === 1 ? outrasMaterias[0] : `${outrasMaterias.slice(0, -1).join(", ")} e ${outrasMaterias[outrasMaterias.length - 1]}`}`;
+    const subtitulo = [conteudoPrincipal, legendaOutras].filter(Boolean).join(" · ");
+
+    const questoes = totalQuestoes(sessao);
+    const acertos = totalAcertos(sessao);
+    const taxaAcerto = questoes > 0 ? Math.round((acertos / questoes) * 100) : 0;
+
+    // Ciclos vêm do cronograma publicado da sala; no cronômetro simples a fila é vazia e a
+    // coluna some da faixa em vez de mostrar "0".
+    const fila = sala?.fila ?? sessao.fila ?? [];
+    const ciclos = fila.filter((item) => item.tipo === "estudo").length;
+
+    const horaInicio = formatarHora(sessao.ultimo_inicio) ?? formatarHora(sessao.created_at);
+    const horaTermino = formatarHora(sessao.concluido_em);
+
+    const estadoTexto = registroEncerrado
+        ? `encerrada ${haQuanto(sessao.concluido_em || sessao.created_at)}`
+        : `${privada ? "focando" : "aberta"} ${haQuanto(sessao.created_at)}`;
+    const statusTexto = `${rotuloDoDia(sessao.created_at)} · ${estadoTexto}`;
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -280,80 +450,204 @@ export default function SessionPreviewScreen() {
                     />
 
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
-                        <View style={[estilos.avatar, { width: 44, height: 44, borderRadius: 22, backgroundColor: hostCor }]}>
-                            <Text style={{ color: "#fff", fontSize: 17, fontWeight: "600" }}>{hostInicial}</Text>
-                        </View>
+                        {/* Foto de perfil de verdade: antes era sempre a inicial numa bolinha
+                            colorida, mesmo para quem tem avatar. */}
+                        <Avatar foto={sessao.profiles?.foto_usuario} nome={hostNome} size={44} />
                         <View style={{ flex: 1, minWidth: 0 }}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 5 }}>
                                 <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>{hostNome}</Text>
-                                <BadgeCheck size={16} color={HADES.subjectBlue} />
+                                {/* Privacidade coube num ícone ao lado do nome: o chip antigo
+                                    disputava espaço com o "encerrada há 2h" logo abaixo. */}
+                                {privada ? (
+                                    <Lock size={14} color={HADES.textMuted} />
+                                ) : (
+                                    <Globe size={14} color={HADES.accentSolid} />
+                                )}
                             </View>
+                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 2 }} numberOfLines={1}>
+                                {statusTexto}
+                            </Text>
                         </View>
-                        {privada ? (
-                            <View style={estilos.badgePrivada}>
-                                <Lock size={12} color={HADES.textMuted} />
-                                <Text style={estilos.badgePrivadaTexto}>Privada</Text>
-                            </View>
-                        ) : (
-                            <View style={estilos.badgePublica}>
-                                <Globe size={12} color={HADES.accentSolid} />
-                                <Text style={estilos.badgePublicaTexto}>Pública</Text>
+                    </View>
+
+                    <View style={{ marginTop: 18 }}>
+                        <Text style={{ fontSize: 26, fontWeight: "700", color: HADES.text, letterSpacing: -0.5 }}>{materiaPrincipal}</Text>
+                        {!!subtitulo && (
+                            <Text style={{ fontSize: 14, color: corMateria.text, marginTop: 3, lineHeight: 20 }}>{subtitulo}</Text>
+                        )}
+                    </View>
+
+                    {/* Números grandes: duração sempre; placar só quando houve questões. */}
+                    <View style={estilos.destaques}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={estilos.destaqueValor}>{formatarDuracao(duracaoMin)}</Text>
+                            <Text style={estilos.statRotulo}>{temVariasMaterias ? "DURAÇÃO TOTAL" : "DURAÇÃO"}</Text>
+                        </View>
+                        {questoes > 0 && (
+                            <View style={{ alignItems: "flex-end" }}>
+                                <Text style={[estilos.destaqueValor, { color: HADES.accentSolid }]}>
+                                    {acertos}/{questoes}
+                                </Text>
+                                <Text style={estilos.statRotulo}>QUESTÕES</Text>
                             </View>
                         )}
                     </View>
 
-                    <View style={{ marginTop: 18 }}>
-                        <Text style={{ fontSize: 24, fontWeight: "700", color: HADES.text, letterSpacing: -0.4 }}>{sessao.disciplina}</Text>
-                        <Text style={{ fontSize: 14, color: corMateria.text, marginTop: 3 }}>{sessao.conteudo_especifico || "Sessão sem conteúdo detalhado"}</Text>
-                    </View>
-
-                    {estaConcluida ? (
-                        <View style={estilos.badgeConcluida}>
-                            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: HADES.textMuted }} />
-                            <Text style={{ fontSize: 12, color: HADES.textMuted, fontWeight: "600" }}>Sessão concluída</Text>
-                        </View>
-                    ) : null}
-
+                    {/* Faixa de detalhes do relógio. Cada coluna só entra se tiver valor —
+                        sessão em andamento não tem término, cronômetro não tem ciclos. */}
                     <View style={estilos.stats}>
                         <View style={{ flex: 1 }}>
-                            <Text style={estilos.statValor}>{formatarDuracao(duracaoMin)}</Text>
-                            <Text style={estilos.statRotulo}>DURAÇÃO</Text>
-                        </View>
-                        <View style={[estilos.statDivider, { flex: 1 }]}>
                             <Text style={estilos.statValor}>{horaInicio}</Text>
                             <Text style={estilos.statRotulo}>INÍCIO</Text>
                         </View>
-                        <View style={[estilos.statDivider, { flex: 1 }]}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                                <Flame size={16} color={HADES.accentSolid} />
-                                <Text style={estilos.statValor}>{ofensiva}</Text>
+                        {!!horaTermino && (
+                            <View style={[estilos.statDivider, { flex: 1 }]}>
+                                <Text style={estilos.statValor}>{horaTermino}</Text>
+                                <Text style={estilos.statRotulo}>TÉRMINO</Text>
                             </View>
-                            <Text style={estilos.statRotulo}>QUESTÕES</Text>
-                        </View>
+                        )}
+                        {ciclos > 0 && (
+                            <View style={[estilos.statDivider, { flex: 1 }]}>
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                                    <Timer size={15} color={HADES.accentSolid} />
+                                    <Text style={estilos.statValor}>{ciclos}</Text>
+                                </View>
+                                <Text style={estilos.statRotulo}>{ciclos === 1 ? "CICLO" : "CICLOS"}</Text>
+                            </View>
+                        )}
                     </View>
+
+                    {/* Só quem consegue ler o plano vê de onde a sessão veio (ver buscarNomeDoPlano). */}
+                    {!!nomePlano && (
+                        <View style={estilos.linhaCronograma}>
+                            <CalendarDays size={13} color={HADES.textFaint} />
+                            <Text style={{ fontSize: 12, color: HADES.textMuted }} numberOfLines={1}>
+                                Do cronograma · <Text style={{ color: HADES.textSecondary, fontWeight: "600" }}>{nomePlano}</Text>
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
-                {privada ? (
+                {/* Por matéria — só quando a sessão passou por mais de uma. */}
+                {temVariasMaterias && (
                     <>
-                        {/* Bloqueio suave. Sessão privada é estudo solo: não tem torcida. */}
-                        <View style={estilos.avisoCard}>
-                            <Lock size={19} color={HADES.textMuted} style={{ marginTop: 1 }} />
-                            <Text style={estilos.avisoTexto}>
-                                Esta sessão é <Text style={estilos.avisoDestaque}>privada</Text>. Você acompanha o progresso, mas não pode entrar para
-                                focar junto.
+                        <Text style={estilos.secaoTituloSolto}>Por matéria</Text>
+                        <View style={{ gap: 9 }}>
+                            {blocos.map((bloco) => (
+                                <View key={bloco.disciplina} style={estilos.linhaMateria}>
+                                    <View
+                                        style={[
+                                            estilos.marcaMateria,
+                                            { backgroundColor: getSubjectColor(bloco.disciplina).text },
+                                        ]}
+                                    />
+                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                        <Text style={{ fontSize: 14.5, fontWeight: "600", color: HADES.text }}>{bloco.disciplina}</Text>
+                                        {!!bloco.conteudo && (
+                                            <Text style={{ fontSize: 12, color: HADES.textMuted, marginTop: 2 }} numberOfLines={1}>
+                                                {bloco.conteudo}
+                                            </Text>
+                                        )}
+                                    </View>
+                                    <Text style={{ fontSize: 14, fontWeight: "700", color: HADES.text }}>
+                                        {formatarDuracao(Math.max(1, Math.round(bloco.minutos)))}
+                                    </Text>
+                                </View>
+                            ))}
+                        </View>
+                    </>
+                )}
+
+                {/* Questões — some inteira quando a sessão não teve quiz nem formulário. */}
+                {questoes > 0 && (
+                    <>
+                        <View style={estilos.secaoHeaderSolto}>
+                            <Text style={estilos.secaoTitulo}>Questões</Text>
+                            <Text style={{ fontSize: 12, color: HADES.textMuted }}>
+                                {acertos} de {questoes} certas
+                            </Text>
+                        </View>
+                        <View style={estilos.cartaoQuestoes}>
+                            {questoes <= MAX_TRACOS ? (
+                                <View style={{ flexDirection: "row", gap: 5 }}>
+                                    {Array.from({ length: questoes }).map((_, indice) => (
+                                        <View
+                                            key={indice}
+                                            style={[
+                                                estilos.traco,
+                                                { backgroundColor: indice < acertos ? HADES.accentSolid : HADES.trackOff },
+                                            ]}
+                                        />
+                                    ))}
+                                </View>
+                            ) : (
+                                // Muita questão: tracinho por questão viraria poeira, então vira barra.
+                                <View style={estilos.barraTrilho}>
+                                    <View style={[estilos.barraCheia, { width: `${taxaAcerto}%` }]} />
+                                </View>
+                            )}
+                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 10 }}>
+                                {taxaAcerto}% de acerto
                             </Text>
                         </View>
                     </>
+                )}
+
+                {/* Registro — a foto do momento de estudo, quando existe uma. */}
+                {!!fotoUrl && (
+                    <>
+                        <Text style={estilos.secaoTituloSolto}>Registro</Text>
+                        <Image source={{ uri: fotoUrl }} style={estilos.foto} resizeMode="cover" />
+                        {!!fotoLegenda && (
+                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, marginTop: 8, lineHeight: 18 }}>
+                                {fotoLegenda}
+                            </Text>
+                        )}
+                    </>
+                )}
+
+                {privada ? (
+                    <>
+                        {/* Bloqueio suave, e só enquanto entrar ainda seria uma opção: numa sessão
+                            privada já encerrada, explicar que não dá pra entrar é ruído. */}
+                        {!registroEncerrado && (
+                            <View style={estilos.avisoCard}>
+                                <Lock size={19} color={HADES.textMuted} style={{ marginTop: 1 }} />
+                                <Text style={estilos.avisoTexto}>
+                                    Esta sessão é <Text style={estilos.avisoDestaque}>privada</Text>. Você acompanha o progresso, mas não pode entrar para
+                                    focar junto.
+                                </Text>
+                            </View>
+                        )}
+                    </>
                 ) : (
                     <>
-                        {/* Focando agora */}
+                        {/*
+                          A seção inteira some quando a sala já fechou e ninguém ficou
+                          registrado nela: "Ninguém entrou ainda — seja a primeira pessoa a
+                          focar junto" era um convite para uma sessão que acabou horas atrás.
+                        */}
+                        {(salaAberta || participantes.length > 0) && (
+                        <>
                         <View style={estilos.secaoHeader}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                <Text style={estilos.secaoTitulo}>Focando agora</Text>
+                                {/* Numa sessão encerrada isto é histórico, não "agora" — o título
+                                    antigo era o que fazia a tela se contradizer na cara do usuário. */}
+                                <Text style={estilos.secaoTitulo}>
+                                    {salaAberta ? "Focando agora" : "Quem participou"}
+                                </Text>
                                 {participantes.length > 0 && (
                                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.green }} />
-                                        <Text style={{ fontSize: 11, color: HADES.green, fontWeight: "600" }}>
+                                        {salaAberta && (
+                                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.green }} />
+                                        )}
+                                        <Text
+                                            style={{
+                                                fontSize: 11,
+                                                color: salaAberta ? HADES.green : HADES.textMuted,
+                                                fontWeight: "600",
+                                            }}
+                                        >
                                             {participantes.length === 1 ? "1 pessoa" : `${participantes.length} pessoas`}
                                         </Text>
                                     </View>
@@ -368,14 +662,12 @@ export default function SessionPreviewScreen() {
                                     const cooldownSegundos = cooldownRestante(p.id);
                                     // Torcer só faz sentido com a sessão rolando: mandar força para
                                     // quem terminou de estudar há horas não incentiva ninguém.
-                                    const posso = podeTorcerPor(p.id) && !estaConcluida;
+                                    const posso = podeTorcerPor(p.id) && salaAberta;
 
                                     return (
                                         <View key={p.id} style={estilos.participanteCard}>
                                             <View style={{ position: "relative" }}>
-                                                <View style={[estilos.avatar, { width: 38, height: 38, borderRadius: 19, backgroundColor: p.cor }]}>
-                                                    <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>{p.inicial}</Text>
-                                                </View>
+                                                <Avatar foto={p.foto} nome={p.nome} size={38} />
                                                 {/* Verde só para quem está focando; pausado fica cinza. */}
                                                 <View style={[estilos.pontoOnline, !p.ativo && { backgroundColor: HADES.textDim }]} />
                                             </View>
@@ -399,7 +691,7 @@ export default function SessionPreviewScreen() {
                                                     {formatarCronometro(p.tempoSegundos)}
                                                 </Text>
                                                 <Text style={{ fontSize: 11, color: p.ativo ? HADES.green : HADES.textMuted, marginTop: 1 }}>
-                                                    {p.ativo ? "em foco" : "em pausa"}
+                                                    {!salaAberta ? "encerrou" : p.ativo ? "em foco" : "em pausa"}
                                                 </Text>
                                             </View>
 
@@ -442,35 +734,33 @@ export default function SessionPreviewScreen() {
                                 <Text style={estilos.vazioTexto}>Seja a primeira pessoa a focar junto com {hostNome}.</Text>
                             </View>
                         )}
+                        </>
+                        )}
 
-                        {/* Torcida: quem está de fora acompanhando e mandando força. */}
-                        
-
-                        {/* Explicação da ação */}
-                        <View style={estilos.avisoCardAccent}>
-                            <Users size={19} color={HADES.accentSolid} style={{ marginTop: 1 }} />
-                            <Text style={estilos.avisoTexto}>
-                                Ao entrar você começa a <Text style={estilos.avisoDestaqueBranco}>focar junto</Text> — escolhe seu conteúdo e o tempo conta
-                                pro <Text style={estilos.avisoDestaqueBranco}>seu</Text> ranking.
-                            </Text>
-                        </View>
+                        {/* Explicação da ação — só faz sentido enquanto dá para entrar. */}
+                        {salaAberta && (
+                            <View style={estilos.avisoCardAccent}>
+                                <Users size={19} color={HADES.accentSolid} style={{ marginTop: 1 }} />
+                                <Text style={estilos.avisoTexto}>
+                                    Ao entrar você começa a <Text style={estilos.avisoDestaqueBranco}>focar junto</Text> — escolhe seu conteúdo e o tempo
+                                    conta pro <Text style={estilos.avisoDestaqueBranco}>seu</Text> ranking.
+                                </Text>
+                            </View>
+                        )}
                     </>
                 )}
             </ScrollView>
 
-            {/* Footer CTA. Na privada não há ação: não dá para entrar nem torcer. */}
-            {!privada && (
+            {/*
+              Footer CTA. Na privada não há ação, e com a sala fechada também não: um botão
+              desabilitado escrito "Sessão encerrada" só ocupava a barra inteira repetindo o
+              que o cabeçalho já diz.
+            */}
+            {!privada && salaAberta && (
                 <View style={estilos.footer}>
-                    <TouchableOpacity
-                        onPress={handleAcao}
-                        activeOpacity={0.85}
-                        disabled={estaConcluida}
-                        style={[estilos.botaoEntrar, estaConcluida && { opacity: 0.7 }]}
-                    >
+                    <TouchableOpacity onPress={handleAcao} activeOpacity={0.85} style={estilos.botaoEntrar}>
                         <Play size={19} color="#000" />
-                        <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>
-                            {estaConcluida ? "Sessão concluída" : "Entrar e focar junto"}
-                        </Text>
+                        <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>Entrar e focar junto</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -510,61 +800,97 @@ const estilos = StyleSheet.create({
         borderWidth: 1,
         padding: 17,
     },
-    avatar: {
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    badgePublica: {
+    destaques: {
         flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-        backgroundColor: "rgba(255,154,0,0.12)",
-        borderWidth: 1,
-        borderColor: "rgba(255,154,0,0.28)",
-        borderRadius: 8,
-        paddingHorizontal: 9,
-        paddingVertical: 4,
+        alignItems: "flex-end",
+        justifyContent: "space-between",
+        marginTop: 20,
     },
-    badgePublicaTexto: {
-        fontSize: 10.5,
-        color: HADES.accentSolid,
+    destaqueValor: {
+        fontSize: 32,
         fontWeight: "700",
-    },
-    badgePrivada: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-        backgroundColor: HADES.surfaceOverlay,
-        borderWidth: 1,
-        borderColor: HADES.border,
-        borderRadius: 8,
-        paddingHorizontal: 9,
-        paddingVertical: 4,
-    },
-    badgePrivadaTexto: {
-        fontSize: 10.5,
-        color: HADES.textMuted,
-        fontWeight: "700",
-    },
-    badgeConcluida: {
-        flexDirection: "row",
-        alignSelf: "flex-start",
-        alignItems: "center",
-        gap: 6,
-        marginTop: 14,
-        backgroundColor: HADES.surfaceOverlay,
-        borderWidth: 1,
-        borderColor: HADES.border,
-        borderRadius: 999,
-        paddingHorizontal: 11,
-        paddingVertical: 5,
+        color: HADES.text,
+        letterSpacing: -1,
     },
     stats: {
         flexDirection: "row",
-        marginTop: 18,
-        paddingTop: 16,
+        marginTop: 16,
+        paddingTop: 14,
         borderTopWidth: 1,
         borderTopColor: HADES.border,
+    },
+    linhaCronograma: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 7,
+        marginTop: 14,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: HADES.border,
+    },
+    secaoTituloSolto: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: HADES.text,
+        marginTop: 24,
+        marginBottom: 12,
+        marginHorizontal: 2,
+    },
+    secaoHeaderSolto: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: 24,
+        marginBottom: 12,
+        marginHorizontal: 2,
+    },
+    linhaMateria: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 11,
+        backgroundColor: HADES.surface,
+        borderWidth: 1,
+        borderColor: HADES.border,
+        borderRadius: 13,
+        paddingVertical: 12,
+        paddingHorizontal: 13,
+    },
+    marcaMateria: {
+        width: 3,
+        alignSelf: "stretch",
+        borderRadius: 2,
+    },
+    cartaoQuestoes: {
+        backgroundColor: HADES.surface,
+        borderWidth: 1,
+        borderColor: HADES.border,
+        borderRadius: 13,
+        paddingVertical: 13,
+        paddingHorizontal: 14,
+    },
+    traco: {
+        flex: 1,
+        height: 5,
+        borderRadius: 3,
+    },
+    barraTrilho: {
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: HADES.trackOff,
+        overflow: "hidden",
+    },
+    barraCheia: {
+        height: "100%",
+        borderRadius: 3,
+        backgroundColor: HADES.accentSolid,
+    },
+    foto: {
+        width: "100%",
+        aspectRatio: 4 / 3,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: HADES.border,
+        backgroundColor: HADES.surfaceRaised,
     },
     statDivider: {
         borderLeftWidth: 1,
@@ -636,20 +962,6 @@ const estilos = StyleSheet.create({
         color: HADES.text,
         fontVariant: ["tabular-nums"],
     },
-    avatarPilha: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 2,
-        borderColor: HADES.surface,
-    },
-    avatarPilhaTexto: {
-        fontSize: 13,
-        fontWeight: "600",
-        color: "#fff",
-    },
     vazioCard: {
         borderWidth: 1.5,
         borderStyle: "dashed",
@@ -715,17 +1027,6 @@ const estilos = StyleSheet.create({
     avisoDestaqueBranco: {
         color: HADES.text,
         fontWeight: "600",
-    },
-    torcidaCard: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        backgroundColor: HADES.surface,
-        borderWidth: 1,
-        borderColor: HADES.border,
-        borderRadius: 13,
-        paddingVertical: 12,
-        paddingHorizontal: 14,
     },
     footer: {
         flexDirection: "row",

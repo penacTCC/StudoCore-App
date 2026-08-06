@@ -1,19 +1,23 @@
 import { SessaoFocoRow } from "@/types/sessions";
-import { totalQuestoes } from "@/utils/estatisticasSessao";
-import {MateriaDistribuicao, AnalisePessoal, ComecoSemana, PontoSerieDia, ParDiaSemana} from "@/types/analytics"
+import { totalAcertos, totalQuestoes } from "@/utils/estatisticasSessao";
+import {MateriaDistribuicao, AnalisePessoal, ComecoSemana, PontoSerieDia, ParDiaSemana, ParPlanejadoRealizado, ResumoAderencia, AderenciaMateria, DesempenhoMateria} from "@/types/analytics"
 
 // Paleta usada para colorir as fatias de "distribuição por matéria".
 // As cores são atribuídas por rank (matéria mais estudada primeiro), então
 // ficam estáveis entre renders independente da ordem de inserção.
+//
+// Os valores saem do mockup "HADES Analytics" (Claude Design), não da paleta
+// tailwind: numa tela cheia de gráficos, os tons -500 do tailwind (#10b981,
+// #fbbf24, #f43f5e...) saturam demais lado a lado. Estes são os mesmos tons
+// dessaturados que o design usa no donut e nos avatares.
 const PALETA_MATERIAS = [
-    "#8b5cf6",
-    "#10b981",
-    "#fbbf24",
-    "#f43f5e",
-    "#3b82f6",
-    "#ec4899",
-    "#14b8a6",
-    "#f97316",
+    "#3b82f6", // azul
+    "#7c5cfc", // violeta
+    "#1f9d63", // verde
+    "#e08a1e", // laranja
+    "#f0556b", // rosa
+    "#1f9aa8", // teal
+    "#f2b03d", // âmbar
 ];
 // Abreviações indexadas como Date.getDay() (0 = domingo .. 6 = sábado).
 export const DIAS_SEMANA_ABREV = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -320,6 +324,214 @@ export function amostrarPontosOfensiva(
         pontos.unshift(historico[i]);
     }
     return pontos;
+}
+
+// ── Cronograma: planejado × realizado ────────────────────────────────────
+
+// Cinza usado para matéria que aparece no plano mas não teve nenhuma sessão —
+// não gasta uma cor da paleta com uma barra vazia.
+const COR_SEM_ESTUDO = "#3a3d45";
+
+/**
+ * Normaliza o nome de uma matéria para servir de chave de junção. Espelha
+ * `normalizarNomeMateria` (services/materias.ts) de propósito: este arquivo é puro
+ * e não pode importar um service que carrega o cliente do Supabase junto. Se a regra
+ * de normalização mudar lá, tem que mudar aqui.
+ *
+ * A junção é por nome porque `sessoes_foco.disciplina` guarda o texto da matéria, não
+ * uma FK para `materias_usuario` — que é o que o bloco do cronograma referencia.
+ */
+function chaveMateria(nome: string): string {
+    return nome
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "");
+}
+
+/** Minutos estudados por data ("YYYY-MM-DD"), na mesma chave que o cronograma usa. */
+export function agregarMinutosPorDia(sessoes: SessaoFocoRow[]): Record<string, number> {
+    const porDia: Record<string, number> = {};
+    for (const sessao of sessoes) {
+        // `data_sessao` (DATE) e não `created_at`: o planejado é por data de calendário,
+        // então as duas séries precisam ser fatiadas pelo mesmo critério.
+        const dia = sessao.data_sessao;
+        if (!dia) continue;
+        porDia[dia] = (porDia[dia] ?? 0) + (sessao.tempo_minutos || 0);
+    }
+    return porDia;
+}
+
+/**
+ * Distribui um mapa "YYYY-MM-DD" -> minutos nos mesmos buckets que o resto da aba usa
+ * (dias da semana no 7d, 4 semanas no 30d, 4 trimestres no ano), sempre terminando hoje.
+ */
+function bucketizarMapaPorDia(
+    porDia: Record<string, number>,
+    periodo: PeriodoAgregacao,
+    comecoSemana: ComecoSemana,
+    agora: Date
+): PontoSerieDia[] {
+    const dias = periodo === "7d" ? 7 : periodo === "30d" ? 30 : 365;
+
+    // Datas da janela, da mais antiga para a mais recente.
+    const chaves: string[] = [];
+    for (let i = dias - 1; i >= 0; i--) {
+        const data = new Date(agora);
+        data.setDate(agora.getDate() - i);
+        chaves.push(chaveDiaLocal(data));
+    }
+
+    if (periodo === "7d") {
+        const minutosPorDiaSemana = [0, 0, 0, 0, 0, 0, 0]; // índice = Date.getDay()
+        for (const chave of chaves) {
+            const [ano, mes, dia] = chave.split("-").map(Number);
+            minutosPorDiaSemana[new Date(ano, mes - 1, dia).getDay()] += porDia[chave] ?? 0;
+        }
+        const ordem = comecoSemana === "segunda" ? [1, 2, 3, 4, 5, 6, 0] : [0, 1, 2, 3, 4, 5, 6];
+        return ordem.map((indice) => ({
+            dia: DIAS_SEMANA_ABREV[indice],
+            minutos: minutosPorDiaSemana[indice],
+        }));
+    }
+
+    const rotulos = periodo === "30d" ? ROTULOS_SEMANAS : ROTULOS_TRIMESTRES;
+    const tamanhoBucket = chaves.length / rotulos.length;
+    const buckets = new Array(rotulos.length).fill(0);
+
+    chaves.forEach((chave, i) => {
+        const indice = Math.min(rotulos.length - 1, Math.floor(i / tamanhoBucket));
+        buckets[indice] += porDia[chave] ?? 0;
+    });
+
+    return buckets.map((minutos, i) => ({ dia: rotulos[i], minutos }));
+}
+
+/**
+ * Casa o que o cronograma previa com o que as sessões registraram, bucket a bucket.
+ *
+ * `planejadoPorDia` vem de `resolverAgendaDoIntervalo` (services/agenda.ts) já somado por
+ * data e restrito aos blocos de estudo — descanso não entra, senão a aderência cairia por
+ * pausa não cumprida, que não é o que o gráfico quer medir.
+ */
+export function agregarPlanejadoVsRealizado(
+    planejadoPorDia: Record<string, number>,
+    sessoes: SessaoFocoRow[],
+    periodo: PeriodoAgregacao,
+    comecoSemana: ComecoSemana,
+    agora: Date = new Date()
+): ParPlanejadoRealizado[] {
+    const planejado = bucketizarMapaPorDia(planejadoPorDia, periodo, comecoSemana, agora);
+    const realizado = bucketizarMapaPorDia(agregarMinutosPorDia(sessoes), periodo, comecoSemana, agora);
+
+    return planejado.map((ponto, i) => ({
+        rotulo: ponto.dia,
+        planejado: ponto.minutos,
+        realizado: realizado[i]?.minutos ?? 0,
+    }));
+}
+
+/** Totais e % de aderência do período, a partir dos buckets já pareados. */
+export function resumirAderencia(pares: ParPlanejadoRealizado[]): ResumoAderencia {
+    const minutosPlanejados = pares.reduce((total, par) => total + par.planejado, 0);
+    const minutosRealizados = pares.reduce((total, par) => total + par.realizado, 0);
+
+    return {
+        // Sem nada planejado não existe aderência a medir — 0 e a UI mostra o estado vazio.
+        pct: minutosPlanejados > 0 ? Math.round((minutosRealizados / minutosPlanejados) * 100) : 0,
+        minutosPlanejados,
+        minutosRealizados,
+    };
+}
+
+/**
+ * Aderência matéria a matéria: quanto foi planejado, quanto foi estudado e a razão entre
+ * os dois. Entram tanto as matérias do plano (mesmo com 0 minutos estudados, que são
+ * justamente as furadas) quanto as estudadas fora do plano — nestas `planejado` é 0 e o
+ * `pct` fica em 0, cabendo à UI rotulá-las como extra em vez de mostrar porcentagem.
+ */
+export function agregarAderenciaPorMateria(
+    planejadoPorMateria: Record<string, number>,
+    sessoes: SessaoFocoRow[]
+): AderenciaMateria[] {
+    const linhas = new Map<string, { materia: string; planejado: number; realizado: number }>();
+
+    for (const [materia, minutos] of Object.entries(planejadoPorMateria)) {
+        const chave = chaveMateria(materia);
+        const atual = linhas.get(chave) ?? { materia, planejado: 0, realizado: 0 };
+        atual.planejado += minutos;
+        linhas.set(chave, atual);
+    }
+
+    for (const sessao of sessoes) {
+        const materia = sessao.disciplina || "Outros";
+        const chave = chaveMateria(materia);
+        // O nome do plano ganha do da sessão quando os dois existem: é o cadastrado
+        // em materias_usuario, com acentuação e caixa corretas.
+        const atual = linhas.get(chave) ?? { materia, planejado: 0, realizado: 0 };
+        atual.realizado += sessao.tempo_minutos || 0;
+        linhas.set(chave, atual);
+    }
+
+    // Cor pela mesma regra do donut (rank de horas estudadas), pra matéria não trocar
+    // de cor entre um gráfico e outro na mesma tela.
+    const cores = new Map(
+        agregarDistribuicaoPorMateria(sessoes).map((m) => [chaveMateria(m.subject), m.color])
+    );
+
+    return Array.from(linhas.entries())
+        .map(([chave, linha]) => ({
+            materia: linha.materia,
+            cor: cores.get(chave) ?? COR_SEM_ESTUDO,
+            planejado: linha.planejado,
+            realizado: linha.realizado,
+            pct: linha.planejado > 0 ? Math.round((linha.realizado / linha.planejado) * 100) : 0,
+        }))
+        .sort((a, b) => b.planejado - a.planejado || b.realizado - a.realizado);
+}
+
+// ── Desempenho por matéria ───────────────────────────────────────────────
+
+/**
+ * Junta tempo e acerto por matéria numa linha só — é a base do gráfico "Taxa de acerto
+ * por matéria" e do de quadrantes "Tempo × desempenho", que leem os mesmos números por
+ * eixos diferentes.
+ *
+ * Ordenado por horas desc, igual a `agregarDistribuicaoPorMateria`, pra as cores por rank
+ * baterem com as do donut.
+ */
+export function agregarDesempenhoPorMateria(sessoes: SessaoFocoRow[]): DesempenhoMateria[] {
+    const porMateria = new Map<string, { materia: string; minutos: number; questoes: number; acertos: number }>();
+
+    for (const sessao of sessoes) {
+        const materia = sessao.disciplina || "Outros";
+        const chave = chaveMateria(materia);
+        const atual = porMateria.get(chave) ?? { materia, minutos: 0, questoes: 0, acertos: 0 };
+        atual.minutos += sessao.tempo_minutos || 0;
+        atual.questoes += totalQuestoes(sessao);
+        atual.acertos += totalAcertos(sessao);
+        porMateria.set(chave, atual);
+    }
+
+    return Array.from(porMateria.values())
+        .map((linha) => ({
+            materia: linha.materia,
+            minutos: linha.minutos,
+            hours: Math.round((linha.minutos / 60) * 10) / 10,
+            questoes: linha.questoes,
+            acertos: linha.acertos,
+        }))
+        .sort((a, b) => b.hours - a.hours)
+        .map((linha, i) => ({
+            materia: linha.materia,
+            cor: PALETA_MATERIAS[i % PALETA_MATERIAS.length],
+            minutos: linha.minutos,
+            horas: linha.hours,
+            questoes: linha.questoes,
+            acertos: linha.acertos,
+            pctAcerto: linha.questoes > 0 ? Math.round((linha.acertos / linha.questoes) * 100) : 0,
+        }));
 }
 
 // ── Cálculo principal ────────────────────────────────────────────────────

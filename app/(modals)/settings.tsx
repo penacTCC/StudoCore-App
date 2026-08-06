@@ -110,6 +110,12 @@ export default function SettingsScreen() {
                         onToggle={() => toggleVibration(!vibrationEnabled)}
                     />
                     <LinhaSwitch
+                        rotulo="Foto ao fim da sessão"
+                        descricao="Oferecer registrar uma foto do seu momento de estudo. As fotos ficam na aba Galeria do seu perfil."
+                        ligado={prefs.fotoAposSessao}
+                        onToggle={() => alternar("fotoAposSessao")}
+                    />
+                    <LinhaSwitch
                         rotulo="Anotar ao fim da sessão"
                         descricao="Abrir os campos de anotação assim que o quiz terminar. Desligado, dá pra anotar depois pela sessão salva."
                         ligado={prefs.anotarAposQuiz}

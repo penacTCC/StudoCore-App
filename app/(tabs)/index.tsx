@@ -24,6 +24,8 @@ import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useSessoesAoVivo, useSessoesFoco } from "@/hooks/useSessoesFoco";
+import { useExtrasDoFeed } from "@/hooks/useExtrasDoFeed";
+import TituloDaSecao from "@/components/grupo/TituloDaSecao";
 import { buscarGrupoPorId, horasSemanaisGrupo } from "@/services/grupos";
 import { buscarRankingHorasMembros } from "@/services/ranking";
 import { RankingMembroComPerfil } from "@/types/ranking";
@@ -81,13 +83,35 @@ export default function GroupScreen() {
         return [...sessoesAoVivo, ...sessions.filter((sessao) => !idsAoVivo.has(sessao.id))];
     }, [sessoesAoVivo, sessions]);
 
-    const sessoesVisiveis = sessoesDoFeed.slice(0, 2);
+    /*
+      Cota por seção em vez de um `slice(0, 2)` no feed inteiro.
 
-    // O selo só vale para o que está de fato na tela: com o feed misto, ter uma sessão ao
-    // vivo fora das duas primeiras não é motivo para anunciar "ao vivo".
-    const mostrandoAoVivo = sessoesVisiveis.some(
-        (sessao) => !sessao.concluido_em && (sessao.status === "ativo" || sessao.status === "pausado")
-    );
+      Com o corte simples, duas sessões ao vivo empurravam TODO o histórico para fora e a
+      home nunca mostrava o que o grupo já concluiu — inclusive a sessão que a pessoa
+      acabou de encerrar. Agora o ao vivo cede uma vaga: pelo menos uma encerrada aparece
+      sempre que existir uma.
+    */
+    const { aoVivoVisiveis, encerradasVisiveis, sessoesVisiveis } = useMemo(() => {
+        const aoVivo = sessoesDoFeed.filter(
+            (sessao) => !sessao.concluido_em && (sessao.status === "ativo" || sessao.status === "pausado")
+        );
+        const encerradas = sessoesDoFeed.filter((sessao) => !aoVivo.includes(sessao));
+
+        const TOTAL = 3;
+        const cotaEncerradas = Math.min(encerradas.length, 1);
+        const visiveisAoVivo = aoVivo.slice(0, TOTAL - cotaEncerradas);
+        const visiveisEncerradas = encerradas.slice(0, TOTAL - visiveisAoVivo.length);
+
+        return {
+            aoVivoVisiveis: visiveisAoVivo,
+            encerradasVisiveis: visiveisEncerradas,
+            sessoesVisiveis: [...visiveisAoVivo, ...visiveisEncerradas],
+        };
+    }, [sessoesDoFeed]);
+
+    // Participantes e fotos das sessões visíveis — em lote, não uma busca por card.
+    const extrasDoFeed = useExtrasDoFeed(sessoesVisiveis);
+
     const carregandoFeed = loadingAoVivo || loadingSessions;
 
     //Faz useEffect para pegar as horas semanais do grupo
@@ -372,22 +396,16 @@ export default function GroupScreen() {
                         marginBottom: 12,
                     }}
                 >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <Text
-                            style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}
-                        >
-                            Atividades
-                        </Text>
-                        {/* O selo só aparece quando o feed é de fato o ao vivo; no histórico ele mentia. */}
-                        {mostrandoAoVivo && (
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                                <View
-                                    style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: HADES.green }}
-                                />
-                                <Text style={{ fontSize: 11, color: HADES.green, fontWeight: "600" }}>ao vivo</Text>
-                            </View>
-                        )}
-                    </View>
+                    {/*
+                      O selo "ao vivo" saiu daqui: quem diz o estado agora é o cabeçalho
+                      AGORA da própria seção, logo abaixo — do contrário a home anunciaria
+                      duas vezes a mesma coisa, que é o ruído que o redesenho corta.
+                    */}
+                    <Text
+                        style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}
+                    >
+                        Atividades
+                    </Text>
 
                     {sessoesDoFeed.length > 0 && (
                         <TouchableOpacity
@@ -408,9 +426,42 @@ export default function GroupScreen() {
                     ) : sessoesDoFeed.length === 0 ? (
                         <FeedVazio />
                     ) : (
-                        sessoesVisiveis.map((session) => (
-                            <CardSessaoGrupo key={session.id} sessao={session} />
-                        ))
+                        <View style={{ gap: 18 }}>
+                            {/*
+                              Mesmas seções da tela de sessões, em miniatura: aqui o feed é
+                              uma prévia de duas linhas, então o histórico não se divide por
+                              dia — vira só "RECENTES".
+                            */}
+                            {aoVivoVisiveis.length > 0 && (
+                                <View style={{ gap: 10 }}>
+                                    <TituloDaSecao label="AGORA" aoVivo contagem={aoVivoVisiveis.length} />
+                                    {aoVivoVisiveis.map((session) => (
+                                        <CardSessaoGrupo
+                                            key={session.id}
+                                            sessao={session}
+                                            participantes={extrasDoFeed.participantesDe(session)}
+                                            fotoUrl={extrasDoFeed.fotoDe(session)}
+                                            usuarioId={userId}
+                                        />
+                                    ))}
+                                </View>
+                            )}
+
+                            {encerradasVisiveis.length > 0 && (
+                                <View style={{ gap: 8 }}>
+                                    <TituloDaSecao label="RECENTES" />
+                                    {encerradasVisiveis.map((session) => (
+                                        <CardSessaoGrupo
+                                            key={session.id}
+                                            sessao={session}
+                                            participantes={extrasDoFeed.participantesDe(session)}
+                                            fotoUrl={extrasDoFeed.fotoDe(session)}
+                                            usuarioId={userId}
+                                        />
+                                    ))}
+                                </View>
+                            )}
+                        </View>
                     )}
                 </View>
 

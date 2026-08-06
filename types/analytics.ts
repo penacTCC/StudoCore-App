@@ -32,6 +32,42 @@ export type PontoSerieDia = { dia: string; minutos: number };
 
 export type ParDiaSemana = { dia: string; atual: number; anterior: number };
 
+/** Um bucket do gráfico "Planejado × Realizado" (dia da semana, semana ou trimestre). */
+export type ParPlanejadoRealizado = { rotulo: string; planejado: number; realizado: number };
+
+/** Números do cabeçalho do "Planejado × Realizado", em minutos. */
+export type ResumoAderencia = {
+    /** Realizado ÷ planejado em %. Pode passar de 100 quando estudou além do plano. */
+    pct: number;
+    minutosPlanejados: number;
+    minutosRealizados: number;
+};
+
+/** Uma linha do gráfico "Aderência por matéria" — minutos, não horas. */
+export type AderenciaMateria = {
+    materia: string;
+    cor: string;
+    planejado: number;
+    realizado: number;
+    /** Realizado ÷ planejado em %, sem teto (pode passar de 100). */
+    pct: number;
+};
+
+/**
+ * Desempenho de uma matéria no período: alimenta tanto "Taxa de acerto por matéria"
+ * quanto o gráfico de quadrantes "Tempo × desempenho".
+ */
+export type DesempenhoMateria = {
+    materia: string;
+    cor: string;
+    minutos: number;
+    horas: number;
+    questoes: number;
+    acertos: number;
+    /** 0 quando a matéria não teve nenhuma questão respondida no período. */
+    pctAcerto: number;
+};
+
 export type  membrosRankingAnalytics = {
     userId: string;
     nome: string;

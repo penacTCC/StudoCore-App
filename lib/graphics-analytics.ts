@@ -2,15 +2,22 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useFocusEffect } from "expo-router";
 
 import {
+    agregarAderenciaPorMateria,
+    agregarDesempenhoPorMateria,
     agregarDistribuicaoPorMateria,
     agregarMinutosPorDiaSemana,
     agregarMinutosPorPeriodo,
     agregarParesPorPeriodo,
+    agregarPlanejadoVsRealizado,
     amostrarPontosOfensiva,
     construirHistoricoOfensiva,
     formatarHoras,
+    resumirAderencia,
     separarSessoesPorPeriodo,
 } from "@/lib/analytics";
+import { resolverAgendaDoIntervalo, type DiaResolvido } from "@/services/agenda";
+import { buscarMateriasUsuario } from "@/services/materias";
+import type { Materia } from "@/types/materias";
 import { SessaoFocoRow } from "@/types/sessions";
 import { ComecoSemana, membrosRankingAnalytics, PontoSerieDia } from "@/types/analytics";
 import { PeriodoAnalise, QuestoesMembroGrupo } from "@/components/analytics/GraficosAnalise";
@@ -184,6 +191,79 @@ export function useGraficosAnalytics(
     //não da reconstrução — evita divergência por qualquer caso de borda.
     const historicoOfensiva = construirHistoricoOfensiva(sessoesUsuario);
     const pontosOfensiva = amostrarPontosOfensiva(historicoOfensiva);
+
+    //-------Cronograma: planejado × realizado-------
+
+    //Dias do cronograma já resolvidos (plano por data > plano fixado > rotina) na mesma
+    //janela do SeletorPeriodo, e as matérias do usuário — os blocos guardam materia_id,
+    //enquanto a sessão guarda o nome da disciplina, então a junção precisa do de-para.
+    const [diasCronograma, setDiasCronograma] = useState<DiaResolvido[]>([])
+    const [materiasUsuario, setMateriasUsuario] = useState<Materia[]>([])
+
+    const carregarCronograma = useCallback(async () => {
+        if (!userId) return
+
+        const dias = periodoAnalise === "7d" ? 7 : periodoAnalise === "30d" ? 30 : 365
+        const fim = new Date()
+        const inicio = new Date()
+        inicio.setDate(inicio.getDate() - (dias - 1))
+
+        const [resolvidos, materias] = await Promise.all([
+            resolverAgendaDoIntervalo(userId, formatarData(inicio), formatarData(fim)),
+            buscarMateriasUsuario(userId),
+        ])
+
+        setDiasCronograma(resolvidos)
+        setMateriasUsuario(materias)
+    }, [userId, periodoAnalise])
+
+    useEffect(() => {
+        carregarCronograma()
+    }, [carregarCronograma])
+
+    //Minutos planejados por data e por matéria. Só blocos de estudo entram: descanso
+    //previsto e não cumprido não deveria derrubar a aderência (ver lib/analytics.ts).
+    const { planejadoPorDia, planejadoPorMateria, temCronograma } = useMemo(() => {
+        const nomePorId = new Map(
+            materiasUsuario.filter((m) => m.id).map((m) => [m.id as string, m.nomeExibicao])
+        )
+
+        const porDia: Record<string, number> = {}
+        const porMateria: Record<string, number> = {}
+
+        for (const dia of diasCronograma) {
+            for (const bloco of dia.blocos) {
+                if (bloco.tipo !== "estudo") continue
+                porDia[dia.dataISO] = (porDia[dia.dataISO] ?? 0) + bloco.duracaoMin
+
+                //Bloco de estudo sem matéria definida existe (o campo é opcional no cronograma);
+                //vai pro balde "Sem matéria" em vez de sumir da conta por matéria.
+                const nome = (bloco.materiaId ? nomePorId.get(bloco.materiaId) : null) ?? "Sem matéria"
+                porMateria[nome] = (porMateria[nome] ?? 0) + bloco.duracaoMin
+            }
+        }
+
+        return {
+            planejadoPorDia: porDia,
+            planejadoPorMateria: porMateria,
+            temCronograma: Object.keys(porDia).length > 0,
+        }
+    }, [diasCronograma, materiasUsuario])
+
+    const paresPlanejadoRealizado = agregarPlanejadoVsRealizado(
+        planejadoPorDia,
+        sessoesDoPeriodoAtual,
+        periodoAnalise,
+        comecoSemana
+    )
+    const resumoAderencia = resumirAderencia(paresPlanejadoRealizado)
+    const aderenciaPorMateria = agregarAderenciaPorMateria(planejadoPorMateria, sessoesDoPeriodoAtual)
+
+    //-------Desempenho por matéria-------
+
+    //Uma agregação só alimenta os dois gráficos: a lista de taxa de acerto por matéria
+    //e o de quadrantes (tempo × acerto).
+    const desempenhoPorMateria = agregarDesempenhoPorMateria(sessoesDoPeriodoAtual)
 
     //========Aba Grupo========
 
@@ -359,6 +439,7 @@ export function useGraficosAnalytics(
     const refresh = useCallback(async () => {
         await Promise.all([
             buscarSessoesUsuario(),
+            carregarCronograma(),
             atualizarGrupos(),
             recarregarMembrosGrupos(),
             sessoesGrupo.refresh(),
@@ -367,6 +448,7 @@ export function useGraficosAnalytics(
         ])
     }, [
         buscarSessoesUsuario,
+        carregarCronograma,
         atualizarGrupos,
         recarregarMembrosGrupos,
         sessoesGrupo.refresh,
@@ -412,6 +494,11 @@ export function useGraficosAnalytics(
         pctAcerto,
         pontosDiaSemana,
         pontosOfensiva,
+        temCronograma,
+        paresPlanejadoRealizado,
+        resumoAderencia,
+        aderenciaPorMateria,
+        desempenhoPorMateria,
         //=======GRUPO=======
         grupos,
         membrosPorGrupo,

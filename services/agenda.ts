@@ -216,3 +216,109 @@ export async function resolverAgendaDaSemana(
         return { dataISO, diaSemana, blocos: ordenarPorHorario(blocos) };
     });
 }
+
+/** Lista as datas "YYYY-MM-DD" de `inicioISO` até `fimISO`, inclusive nas duas pontas. */
+export function datasDoIntervalo(inicioISO: string, fimISO: string): string[] {
+    const [anoI, mesI, diaI] = inicioISO.split("-").map(Number);
+    const [anoF, mesF, diaF] = fimISO.split("-").map(Number);
+
+    const atual = new Date(anoI, mesI - 1, diaI);
+    const fim = new Date(anoF, mesF - 1, diaF);
+    const datas: string[] = [];
+
+    while (atual <= fim) {
+        datas.push(
+            `${atual.getFullYear()}-${String(atual.getMonth() + 1).padStart(2, "0")}-${String(atual.getDate()).padStart(2, "0")}`
+        );
+        atual.setDate(atual.getDate() + 1);
+    }
+
+    return datas;
+}
+
+/**
+ * Mesma resolução de `resolverAgendaDaSemana`, mas para um intervalo contínuo de datas.
+ *
+ * Existe separada porque a aba Análise reconstrói o "planejado" de janelas longas (até um
+ * ano): passar 365 datas num `.in()` montaria uma URL gigante, então aqui o filtro dos
+ * planos por data vira um `gte`/`lte` e a expansão dia a dia acontece em memória — ainda
+ * são três consultas, independente do tamanho da janela.
+ *
+ * Aviso importante para quem lê esses números: rotina e planos não têm histórico
+ * versionado no banco, só o estado atual. O planejado de datas passadas é, portanto,
+ * uma reconstrução a partir do cronograma de hoje — se o usuário mudou a rotina no meio
+ * do período, o passado é reescrito por essa mudança.
+ */
+export async function resolverAgendaDoIntervalo(
+    usuarioId: string,
+    inicioISO: string,
+    fimISO: string
+): Promise<DiaResolvido[]> {
+    let houveErro = false;
+
+    const [planosPorData, planosFixados, rotina] = await Promise.all([
+        supabase
+            .from("planos")
+            .select("id, nome, agenda_data, planos_blocos(*)")
+            .eq("usuario_id", usuarioId)
+            .eq("agenda_tipo", "data")
+            .gte("agenda_data", inicioISO)
+            .lte("agenda_data", fimISO),
+        supabase
+            .from("planos")
+            .select("id, nome, agenda_dias, planos_blocos(*)")
+            .eq("usuario_id", usuarioId)
+            .eq("agenda_tipo", "fixado"),
+        supabase.from("rotina_semanal_blocos").select("*").eq("usuario_id", usuarioId),
+    ]);
+
+    for (const [rotulo, resultado] of [
+        ["planos por data", planosPorData],
+        ["planos fixados", planosFixados],
+        ["rotina", rotina],
+    ] as const) {
+        if (resultado.error) {
+            console.error(`Erro ao buscar ${rotulo} do intervalo:`, resultado.error.message);
+            houveErro = true;
+        }
+    }
+
+    if (houveErro) {
+        toast.error("Não foi possível carregar seu cronograma.");
+    }
+
+    type PlanoComBlocos = { id: string; nome: string; planos_blocos: BlocoPlano[] };
+
+    const porData = new Map<string, PlanoComBlocos>();
+    for (const linha of (planosPorData.data ?? []) as (PlanoComBlocos & { agenda_data: string })[]) {
+        porData.set(linha.agenda_data, linha);
+    }
+
+    const porDiaFixado = new Map<number, PlanoComBlocos>();
+    for (const linha of (planosFixados.data ?? []) as (PlanoComBlocos & { agenda_dias: number[] | null })[]) {
+        for (const dia of linha.agenda_dias ?? []) {
+            if (!porDiaFixado.has(dia)) porDiaFixado.set(dia, linha);
+        }
+    }
+
+    const rotinaPorDia = new Map<number, BlocoRotina[]>();
+    for (const row of ((rotina.data as BlocoRotina[] | null) ?? [])) {
+        const doDia = rotinaPorDia.get(row.dia_semana) ?? [];
+        doDia.push(row);
+        rotinaPorDia.set(row.dia_semana, doDia);
+    }
+
+    return datasDoIntervalo(inicioISO, fimISO).map((dataISO) => {
+        const diaSemana = diaSemanaDe(dataISO);
+        const planoDaData = porData.get(dataISO);
+        const planoFixado = porDiaFixado.get(diaSemana);
+
+        const blocos = planoDaData
+            ? paraBlocosDePlano(planoDaData)
+            : planoFixado
+                ? paraBlocosDePlano(planoFixado)
+                : (rotinaPorDia.get(diaSemana) ?? []).map(paraBlocoDeRotina);
+
+        return { dataISO, diaSemana, blocos: ordenarPorHorario(blocos) };
+    });
+}

@@ -1,6 +1,7 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/repositories/supabase";
-import { SessaoFocoInsert, MemberSession, SessaoFocoRow, SessionCardItem } from "@/types/sessions";
+import { SessaoFocoInsert, SessaoFocoRow, SessionCardItem } from "@/types/sessions";
+import type { ParticipanteResumido } from "@/types/sala";
 import { paraDataISO, pegarIntervaloSemanaAtual } from "@/utils/tempo";
 import { escalarSegundos, garantirFatorCarregado } from "@/services/modoTeste";
 
@@ -54,8 +55,37 @@ export const calculateFocusSessionMinutes = async (timerSeconds: number) => {
     return Math.max(1, Math.round(contabilizados / 60));
 };
 
+/**
+ * Descarta o `grupo_id` do payload quando o autor não é membro daquele grupo.
+ *
+ * A tela de foco carimba o grupo a partir do "último grupo" guardado no aparelho, e um id
+ * inválido ali (conta trocada no mesmo aparelho, ou alguém que saiu do grupo) gerava sessão
+ * fantasma: ela aparecia no feed e somava na meta semanal de um grupo em que o autor não
+ * está — mas não no ranking nem na lista de membros, que leem `membros`. Sem grupo a sessão
+ * continua valendo no histórico pessoal, que é o comportamento certo.
+ *
+ * Falha de rede aqui não bloqueia a gravação: a checagem só remove o vínculo quando a
+ * resposta diz, com certeza, que não há participação.
+ */
+const descartarGrupoDeNaoMembro = async <T extends Partial<SessaoFocoInsert>>(payload: T, userId?: string | null) => {
+    if (!payload.grupo_id || !userId) return payload;
+
+    const { data, error } = await supabase
+        .from("membros")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("grupo_id", payload.grupo_id)
+        .maybeSingle();
+
+    if (error || data) return payload;
+
+    return { ...payload, grupo_id: null };
+};
+
 // ───── INSERT ─────
-export const salvarSessaoFoco = async (sessao: SessaoFocoInsert) => {
+export const salvarSessaoFoco = async (sessaoRecebida: SessaoFocoInsert) => {
+    const sessao = await descartarGrupoDeNaoMembro(sessaoRecebida, sessaoRecebida.user_id);
+
     // Tenta salvar com `grupo_id`, que é o caminho correto depois da migration.
     const result = await supabase.from("sessoes_foco").insert(sessao).select();
 
@@ -69,7 +99,24 @@ export const salvarSessaoFoco = async (sessao: SessaoFocoInsert) => {
 };
 
 // ───── UPDATE (refazer ou revisar formulário pendente) ─────
-export const atualizarSessaoFoco = async (id: string, updates: Partial<SessaoFocoInsert>) => {
+export const atualizarSessaoFoco = async (id: string, updatesRecebidos: Partial<SessaoFocoInsert>) => {
+    /*
+      Mesma checagem do insert. O update não traz `user_id` no payload, então o autor vem da
+      própria linha — só quando há `grupo_id` a gravar, para não custar uma ida ao banco em
+      todo tick de pomodoro (que atualiza status e tempo, nunca o grupo).
+    */
+    let updates = updatesRecebidos;
+
+    if (updates.grupo_id) {
+        const { data: linha } = await supabase
+            .from("sessoes_foco")
+            .select("user_id")
+            .eq("id", id)
+            .maybeSingle();
+
+        updates = await descartarGrupoDeNaoMembro(updates, linha?.user_id);
+    }
+
     // Tenta atualizar com `grupo_id`, mantendo a sessão vinculada ao grupo quando o schema já permite.
     const result = await supabase.from("sessoes_foco").update(updates).eq("id", id);
 
@@ -404,7 +451,8 @@ export const STATUS_SESSAO_FINALIZADA = ["salvo", "pendente"];
  */
 export const registrarProgressoSessao = async (params: {
     sessaoId: string;
-    sessaoGrupoId?: string | null;
+    /** Sala do encontro, quando a sessão é pública em grupo. */
+    salaId?: string | null;
     userId?: string | null;
     segundosDeFoco: number;
     ehPublica: boolean;
@@ -423,11 +471,12 @@ export const registrarProgressoSessao = async (params: {
         console.warn("Erro ao registrar o progresso da sessão:", error);
     }
 
-    if (params.ehPublica && params.sessaoGrupoId && params.userId) {
-        await updateTabSessaoMembros(params.userId, params.sessaoGrupoId, {
-            tempo_segundos: params.segundosDeFoco,
-            ultimo_inicio: agoraIso,
-        });
+    if (params.ehPublica && params.salaId && params.userId) {
+        await supabase
+            .from("tab_sessao_membros")
+            .update({ tempo_segundos: params.segundosDeFoco, ultimo_inicio: agoraIso })
+            .eq("sala_id", params.salaId)
+            .eq("membro_id", params.userId);
     }
 };
 
@@ -599,90 +648,44 @@ export const buscarSessoesPorGrupo = async (groupId: string, limit?: number) => 
     return { data: compilarSessoesPorExecucao(data as SessionCardItem[]), error: null };
 };
 
-export const insertTabSessaoMembros = async (memberData: MemberSession) => {
+export const buscarParticipantesDasSalas = async (salaIds: string[]) => {
+    const porSessao = new Map<string, ParticipanteResumido[]>();
+    if (salaIds.length === 0) return porSessao;
+
     const { data, error } = await supabase
-        .from('tab_sessao_membros')
-        .insert(memberData)
-        .select();
-    return { data, error };
-}
+        .from("tab_sessao_membros")
+        .select("sala_id, membro_id, funcao, profiles:membro_id (nome_real, nome_usuario, foto_usuario)")
+        .in("sala_id", salaIds);
 
-export const fetchSessionMembers = async (sessaoId: string) => {
-    const { data, error } = await supabase
-        .from('tab_sessao_membros')
-        .select('*, profiles:membro_id (nome_real, nome_usuario)')
-        .eq('sessao_id', sessaoId);
-    return { data, error };
-}
-
-/**
- * Passa o papel de anfitrião para outra pessoa que ainda está na sessão e rebaixa quem
- * chamou — usado quando o anfitrião encerra a sessão dele mas os colegas continuam.
- *
- * A escolha do sucessor e a permissão ficam no banco (RPC `transferir_anfitriao_sessao`,
- * SECURITY DEFINER) porque a RLS de `tab_sessao_membros` só permite que cada um atualize a
- * própria linha. Devolve o id de quem assumiu, ou `null` quando não sobrou ninguém.
- */
-export const transferirAnfitriaoDaSessao = async (sessaoId: string) => {
-    const { data, error } = await supabase.rpc("transferir_anfitriao_sessao", { p_sessao_id: sessaoId });
-
+    // Uma falha aqui só custa a pilha de avatares: o card continua válido sem ela.
     if (error) {
-        console.error("Erro ao transferir o anfitrião da sessão:", error);
-        return { novoAnfitriaoId: null as string | null, error };
+        console.warn("Erro ao buscar participantes das salas:", error);
+        return porSessao;
     }
 
-    return { novoAnfitriaoId: (data as string | null) ?? null, error: null };
+    for (const linha of (data ?? []) as any[]) {
+        const perfil = Array.isArray(linha.profiles) ? linha.profiles[0] : linha.profiles;
+        const lista = porSessao.get(linha.sala_id) ?? [];
+
+        lista.push({
+            membroId: linha.membro_id,
+            funcao: linha.funcao === "anfitriao" ? "anfitriao" : "membro",
+            nome: perfil?.nome_real || perfil?.nome_usuario || "Usuário",
+            foto: perfil?.foto_usuario ?? null,
+        });
+
+        porSessao.set(linha.sala_id, lista);
+    }
+
+    for (const lista of porSessao.values()) {
+        lista.sort((a, b) => Number(b.funcao === "anfitriao") - Number(a.funcao === "anfitriao"));
+    }
+
+    return porSessao;
 };
 
-export const updateTabSessaoMembros = async (userid: string, sessaoid: string, updates: Partial<MemberSession>) => {
-    const { data, error } = await supabase
-        .from('tab_sessao_membros')
-        .update(updates)
-        .eq('membro_id', userid)
-        .eq('sessao_id', sessaoid);
-    return { data, error };
-}
-
-/*
-  Contador que dá um nome único a cada canal, pelo mesmo motivo do
-  services/incentivos.ts: a mesma sessão pode ser observada por mais de uma tela ao mesmo
-  tempo (foco ativo, colegas focando, prévia da sessão), e o supabase-js reaproveita canais
-  pelo nome — adicionar callbacks a um canal que já passou pelo `subscribe()` estoura.
-*/
-let contadorDeCanaisMembros = 0;
-
-/**
- * Escuta em tempo real as mudanças de progresso dos membros de uma sessão (pausar, retomar,
- * concluir, entrar). O payload de INSERT/UPDATE/DELETE do Postgres não traz o JOIN com
- * `profiles`, então quem chama deve refazer o fetch (`fetchSessionMembers`) para atualizar a
- * lista — o callback aqui só avisa que algo mudou.
- * @returns função de cleanup que remove o canal.
- */
-export const observarMembrosDaSessao = (sessaoId: string, aoMudar: () => void) => {
-    contadorDeCanaisMembros += 1;
-
-    const canal: RealtimeChannel = supabase
-        .channel(`tab_sessao_membros:${sessaoId}:${contadorDeCanaisMembros}`)
-        .on(
-            "postgres_changes",
-            {
-                event: "*",
-                schema: "public",
-                table: "tab_sessao_membros",
-                filter: `sessao_id=eq.${sessaoId}`,
-            },
-            () => aoMudar()
-        );
-
-    canal.subscribe();
-
-    return () => {
-        supabase.removeChannel(canal);
-    };
-};
-
-/* Mesmo motivo do contador de canais de membros: a home escuta o feed ao vivo e o feed de
-   destaques ao mesmo tempo, e o supabase-js reaproveita canais pelo nome. */
+/* O supabase-js reaproveita canais pelo nome, e a home escuta o feed ao vivo e o feed de
+   destaques ao mesmo tempo — cada assinatura precisa do seu próprio canal. */
 let contadorDeCanaisSessoes = 0;
 
 /**

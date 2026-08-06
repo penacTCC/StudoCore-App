@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    buscarIncentivosDaSessao,
+    buscarIncentivosDaSala,
     mandarForca,
-    observarIncentivosDaSessao,
+    observarIncentivosDaSala,
 } from '@/services/incentivos';
 import { useAuth } from '@/hooks/useAuth';
 import type { Incentivo } from '@/types/incentivos';
@@ -42,7 +42,7 @@ export const useIncentivos = (sessaoId?: string | null) => {
             return;
         }
 
-        const { data, error } = await buscarIncentivosDaSessao(sessaoId);
+        const { data, error } = await buscarIncentivosDaSala(sessaoId);
 
         if (error) {
             console.warn('Erro ao carregar incentivos da sessão:', error);
@@ -62,7 +62,7 @@ export const useIncentivos = (sessaoId?: string | null) => {
     useEffect(() => {
         if (!sessaoId) return;
 
-        return observarIncentivosDaSessao(sessaoId, () => {
+        return observarIncentivosDaSala(sessaoId, () => {
             // Recarrega a lista inteira porque o payload do realtime não traz o JOIN com
             // profiles, e a UI precisa do nome de quem torceu para montar a Torcida.
             recarregar();
@@ -151,7 +151,8 @@ export const useIncentivos = (sessaoId?: string | null) => {
             */
             const otimista: Incentivo = {
                 id: `otimista-${userId}-${destinatarioId}-${Date.now()}`,
-                sessao_id: sessaoId,
+                sessao_id: null,
+                sala_id: sessaoId,
                 remetente_id: userId as string,
                 destinatario_id: destinatarioId,
                 created_at: new Date().toISOString(),
