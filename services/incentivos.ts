@@ -51,6 +51,10 @@ export const buscarIncentivosDaSala = async (salaId: string) => {
   e adicionar callbacks a um canal que já passou pelo `subscribe()` estoura. Como a mesma
   sessão pode ser observada por duas telas ao mesmo tempo (a de foco ativo e a de colegas
   focando, aberta por cima dela), cada assinatura precisa do seu próprio canal.
+
+  Vale também para assinaturas que se sucedem: `removeChannel` só solta o canal depois do
+  round-trip com o servidor, então numa remontagem o canal que sai ainda está na lista
+  quando o que entra pede o mesmo nome.
 */
 let contadorDeCanais = 0;
 
@@ -101,8 +105,10 @@ export const observarForcasRecebidas = (
     userId: string,
     aoReceber: (info: { nomeRemetente: string; salaId: string | null }) => void
 ) => {
+    contadorDeCanais += 1;
+
     const canal: RealtimeChannel = supabase
-        .channel(`forcas-recebidas:${userId}`)
+        .channel(`forcas-recebidas:${userId}:${contadorDeCanais}`)
         .on(
             "postgres_changes",
             {

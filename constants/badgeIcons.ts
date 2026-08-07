@@ -19,9 +19,14 @@ export const BADGE_ICON_MAP: Record<string, LucideIcon> = {
     Globe, Crown, Gem, Infinity, Diamond, Timer, LayoutGrid, BrainCircuit,
 };
 
-// Medalhas com arte própria (PNG), indexadas pelo id do BadgeType.
-// Quem não estiver aqui continua usando o ícone lucide do BADGE_ICON_MAP.
 export const BADGE_IMAGE_MAP: Record<string, number> = {
     first_session: require("@/assets/badges/first_session.png"),
     hours_1: require("@/assets/badges/hours_1.png"),
+    hours_2: require("@/assets/badges/hours_2.png"),
+    hours_5: require("@/assets/badges/hours_5.png"),
+    hours_10: require("@/assets/badges/hours_10.png"),
+    questions_5: require("@/assets/badges/questions_5.png"),
+    questions_10: require("@/assets/badges/questions_10.png"),
+    questions_25: require("@/assets/badges/questions_25.png"),
+    weekly_goal: require("@/assets/badges/weekly_goal.png"),
 };

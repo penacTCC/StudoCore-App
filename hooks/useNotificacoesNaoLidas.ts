@@ -37,9 +37,9 @@ export function useNotificacoesNaoLidas(userId: string | null | undefined) {
 /**
  * Só lê o número que o hook acima mantém.
  *
- * Existe porque `useNotificacoesNaoLidas` abre um canal de Realtime, e o supabase-js
- * reaproveita canal pelo nome: dois hooks com o mesmo `userId` estourariam ao assinar o
- * canal já assinado. Quem só quer desenhar o badge (o sino do cabeçalho) usa este.
+ * Existe porque `useNotificacoesNaoLidas` abre um canal de Realtime e refaz a contagem no
+ * banco a cada evento. Quem só quer desenhar o badge (o sino do cabeçalho) usa este e não
+ * paga por isso de novo.
  */
 export function useContagemDeNotificacoes() {
     const [contagem, setContagem] = useState(obterNotificacoesNaoLidas);

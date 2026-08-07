@@ -152,29 +152,62 @@ export async function carregarNotificacoesNaoLidas(): Promise<void> {
     definirNotificacoesNaoLidas(Number(data) || 0);
 }
 
+type Assinatura = {
+    userId: string;
+    canal: ReturnType<typeof supabase.channel>;
+    ouvintes: Set<() => void>;
+};
+
+let assinatura: Assinatura | null = null;
+let sequencia = 0;
+
+function encerrarAssinatura() {
+    if (!assinatura) return;
+    supabase.removeChannel(assinatura.canal);
+    assinatura = null;
+}
+
 /**
  * Escuta as notificações que chegam para o usuário logado.
  *
  * Só serve para o badge subir com o app aberto — o push (Edge Function
  * `avisar-interacao`) é quem cobre o app fechado.
+ *
+ * O canal é único e compartilhado por contagem de ouvintes, por dois motivos que se somam:
+ * o supabase-js devolve o canal já existente quando o nome bate, e `removeChannel` só o
+ * tira da lista depois do round-trip com o servidor. Sem isso, uma remontagem (trocar de
+ * grupo, por exemplo) pegava de volta o canal antigo — ainda assinado — e estourava em
+ * `.on()`. O sufixo no nome fecha a mesma corrida pelo outro lado: o canal que está saindo
+ * nunca colide com o que está entrando.
  */
 export function observarNotificacoes(userId: string, aoChegar: () => void) {
-    const canal = supabase
-        .channel(`notificacoes:${userId}`)
-        .on(
-            "postgres_changes",
-            {
-                event: "INSERT",
-                schema: "public",
-                table: "comunidade_notificacoes",
-                filter: `destinatario_id=eq.${userId}`,
-            },
-            () => aoChegar()
-        )
-        .subscribe();
+    if (assinatura && assinatura.userId !== userId) encerrarAssinatura();
+
+    if (!assinatura) {
+        const ouvintes = new Set<() => void>();
+        const canal = supabase
+            .channel(`notificacoes:${userId}:${++sequencia}`)
+            .on(
+                "postgres_changes",
+                {
+                    event: "INSERT",
+                    schema: "public",
+                    table: "comunidade_notificacoes",
+                    filter: `destinatario_id=eq.${userId}`,
+                },
+                () => ouvintes.forEach((ouvinte) => ouvinte())
+            )
+            .subscribe();
+
+        assinatura = { userId, canal, ouvintes };
+    }
+
+    const atual = assinatura;
+    atual.ouvintes.add(aoChegar);
 
     return () => {
-        supabase.removeChannel(canal);
+        atual.ouvintes.delete(aoChegar);
+        if (atual === assinatura && atual.ouvintes.size === 0) encerrarAssinatura();
     };
 }
 
