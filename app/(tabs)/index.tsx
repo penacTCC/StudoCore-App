@@ -2,19 +2,21 @@ import { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { Search } from "lucide-react-native";
+import { Bell } from "lucide-react-native";
 
 import AbaExplorar from "@/components/comunidade/AbaExplorar";
 import AbaMeuGrupo from "@/components/comunidade/AbaMeuGrupo";
 import SegmentoComunidade, { EscopoComunidade } from "@/components/comunidade/SegmentoComunidade";
+import BadgeContagem from "@/components/ui/BadgeContagem";
 import { HADES } from "@/constants/hades";
+import { useContagemDeNotificacoes } from "@/hooks/useNotificacoesNaoLidas";
 
 /**
  * Aba Comunidade — substitui a antiga aba Grupos.
  *
  * A casca é só o título, a busca e o alternador de escopo; o conteúdo de cada escopo vive
  * em seu próprio componente. "Meu grupo" é a home de grupo de sempre; "Explorar" é o feed
- * público (ainda mockado, ver `services/comunidade.ts`).
+ * público (fotos de sessão, arquivos e planos — ver `services/comunidade.ts`).
  *
  * Quem chega sem grupo abre direto no Explorar: é o lado da aba que tem o que mostrar
  * antes de a pessoa entrar em algum grupo.
@@ -28,6 +30,9 @@ export default function ComunidadeScreen() {
     // O escopo que nunca foi aberto não é montado: assim o feed público só vai à rede
     // quando alguém pede por ele. Depois de visitado, fica montado.
     const [visitados, setVisitados] = useState<EscopoComunidade[]>([escopoInicial]);
+
+    // Só lê o contador; quem o mantém em dia é o hook da tab bar (ver useNotificacoesNaoLidas).
+    const naoLidas = useContagemDeNotificacoes();
 
     const trocarEscopo = (novo: EscopoComunidade) => {
         setEscopo(novo);
@@ -50,19 +55,14 @@ export default function ComunidadeScreen() {
                     Comunidade
                 </Text>
 
+                {/* O badge da tab bar avisa que tem novidade; o sino é como se chega nela. */}
                 <TouchableOpacity
-                    onPress={() => router.push("/(groups)/browse-groups")}
-                    activeOpacity={0.8}
-                    style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 19,
-                        backgroundColor: HADES.surfaceRaised,
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
+                    onPress={() => router.push("/(modals)/notificacoes")}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                    <Search size={18} color={HADES.textSecondary} />
+                    <BadgeContagem contagem={naoLidas}>
+                        <Bell size={21} color={HADES.textSecondary} />
+                    </BadgeContagem>
                 </TouchableOpacity>
             </View>
 

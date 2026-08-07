@@ -3,7 +3,7 @@ import { Lock, Star, Timer } from "lucide-react-native";
 import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { BADGE_LEVEL_COLORS, BADGE_LEVEL_LABELS, BadgeType } from "@/constants/badges";
-import { BADGE_ICON_MAP } from "@/constants/badgeIcons";
+import IconeMedalha from "@/components/badges/IconeMedalha";
 
 const UNIT_LABELS: Record<BadgeType["requirementType"], string> = {
     hours: "horas",
@@ -25,7 +25,6 @@ export default function DetalheMedalhaSheet({ badge, isUnlocked, progress, curre
     if (!badge) return null;
 
     const cor = BADGE_LEVEL_COLORS[badge.level];
-    const BadgeIcon = BADGE_ICON_MAP[badge.icon] || Star;
     const pct = Math.round(progress * 100);
     const unit = UNIT_LABELS[badge.requirementType];
     const atual = Math.min(Math.round(currentVal), badge.requirementValue);
@@ -64,7 +63,7 @@ export default function DetalheMedalhaSheet({ badge, isUnlocked, progress, curre
                                     justifyContent: "center",
                                 }}
                             >
-                                <BadgeIcon size={44} color={cor} />
+                                <IconeMedalha badgeId={badge.id} icon={badge.icon} size={44} color={cor} locked={!isUnlocked} />
                                 {!isUnlocked && (
                                     <View
                                         style={{

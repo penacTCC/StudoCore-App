@@ -10,6 +10,7 @@ export async function uploadArquivo({
   arquivo,
   disciplina,
   gruposIds,
+  publico = false,
 }: UploadArquivoParams) {
     console.log("1 - lendo arquivo");
     const objetoArquivo = new FileClass(arquivo.uri); // Cria o objeto do arquivo
@@ -40,6 +41,10 @@ export async function uploadArquivo({
       disciplina: disciplina,
       storage_path: caminhoArquivo,
       backblaze_file_id: uploadData.fileId,
+      publico,
+      // O card do feed mostra o peso do arquivo, e o tamanho só existe aqui, no picker:
+      // depois do upload seria preciso baixar o arquivo pra descobrir.
+      tamanho_bytes: arquivo.size ?? null,
     })
     .select()
     .single();
@@ -61,6 +66,23 @@ export async function uploadArquivo({
 
   return novoArquivo;
 }
+
+/**
+ * Publica ou despublica um arquivo no Explorar.
+ *
+ * Independente de `arquivos_grupos`: compartilhar com o grupo e publicar para o app todo
+ * são duas decisões diferentes, e uma nunca implica a outra. Despublicar tira o card do
+ * feed na hora — as curtidas e comentários ficam guardados e voltam se publicar de novo,
+ * mas ninguém consegue somar mais nenhum enquanto estiver fora (a RLS recusa).
+ */
+export const alternarArquivoPublico = async (arquivoId: string, publico: boolean) => {
+  const { error } = await supabase
+    .from("arquivos")
+    .update({ publico })
+    .eq("id", arquivoId);
+
+  if (error) throw new Error(error.message);
+};
 
 export const deletaRegistro = async ({arquivoId}: DeletaRegistroProps) => {
   return await supabase

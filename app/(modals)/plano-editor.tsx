@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { GripVertical, Coffee, Plus, ChevronDown, ChevronRight, Check, Trash2, Timer } from "lucide-react-native";
+import { GripVertical, Coffee, Plus, ChevronDown, ChevronRight, Check, Trash2, Timer, Share2 } from "lucide-react-native";
 import { HADES, CORES_PLANO } from "@/constants/hades";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatarDuracao } from "@/utils/tempo";
@@ -72,6 +72,9 @@ export default function PlanoEditorScreen() {
 
     const [nome, setNome] = useState("");
     const [cor, setCor] = useState<string>(CORES_PLANO[0]);
+    // Compartilhar o plano no Explorar da Comunidade. Como nome e cor, só vale depois do
+    // "Salvar" — o editor inteiro é local até lá.
+    const [publico, setPublico] = useState(false);
     const [corMenuAberto, setCorMenuAberto] = useState(false);
     const [blocos, setBlocos] = useState<BlocoEditor[]>([]);
     const [salvando, setSalvando] = useState(false);
@@ -92,6 +95,7 @@ export default function PlanoEditorScreen() {
             if (plano) {
                 setNome(plano.nome);
                 setCor(plano.cor);
+                setPublico(plano.publico);
             }
 
             const { data, error } = await buscarBlocosPlano(planoId);
@@ -132,9 +136,15 @@ export default function PlanoEditorScreen() {
     useEffect(() => {
         if (!rascunho) return;
         try {
-            const dados = JSON.parse(rascunho) as { nome: string; cor: string; blocos: BlocoEditor[] };
+            const dados = JSON.parse(rascunho) as {
+                nome: string;
+                cor: string;
+                publico?: boolean;
+                blocos: BlocoEditor[];
+            };
             setNome(dados.nome);
             setCor(dados.cor);
+            setPublico(!!dados.publico);
             setBlocos(dados.blocos);
         } catch (e) {
             console.error("Rascunho inválido recebido do editor:", e);
@@ -144,7 +154,7 @@ export default function PlanoEditorScreen() {
     }, [rascunho]);
 
     const abrirNovoBloco = () => {
-        const rascunhoAtual = JSON.stringify({ nome, cor, blocos });
+        const rascunhoAtual = JSON.stringify({ nome, cor, publico, blocos });
         router.push({
             pathname: "/(modals)/novo-bloco-plano",
             params: planoId ? { planoId, rascunho: rascunhoAtual } : { rascunho: rascunhoAtual },
@@ -325,7 +335,7 @@ export default function PlanoEditorScreen() {
 
         let planoIdReal: string | undefined = planoId;
         if (!planoIdReal) {
-            const resultado = await criarPlano(userId, nome, cor);
+            const resultado = await criarPlano(userId, nome, cor, publico);
             if (!resultado.sucesso || !resultado.plano) {
                 toast.error(resultado.erro ?? "Não foi possível criar o plano.");
                 setSalvando(false);
@@ -333,7 +343,7 @@ export default function PlanoEditorScreen() {
             }
             planoIdReal = resultado.plano.id;
         } else {
-            const resultado = await atualizarPlano(planoIdReal, { nome, cor });
+            const resultado = await atualizarPlano(planoIdReal, { nome, cor, publico });
             if (!resultado.sucesso) {
                 toast.error(resultado.erro ?? "Não foi possível atualizar o plano.");
                 setSalvando(false);
@@ -541,6 +551,45 @@ export default function PlanoEditorScreen() {
                             </View>
                         </Pressable>
                     </Modal>
+
+                    {/*
+                      Compartilhar fica em cima, junto de nome e cor, porque é uma decisão
+                      sobre o plano inteiro — não mais um item da lista de blocos. Só passa
+                      a valer no "Salvar", como todo o resto desta tela.
+                    */}
+                    <TouchableOpacity
+                        onPress={() => setPublico((antes) => !antes)}
+                        activeOpacity={0.8}
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: 14,
+                            marginBottom: 20,
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            backgroundColor: publico ? HADES.accentTint : HADES.surfaceRaised,
+                            borderColor: publico ? HADES.accentTintBorder : HADES.borderStrong,
+                        }}
+                    >
+                        <Share2 size={17} color={publico ? HADES.accentSolid : HADES.textMuted} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>
+                                Compartilhar no Explorar
+                            </Text>
+                            <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 2, lineHeight: 17 }}>
+                                {publico
+                                    ? "Qualquer pessoa do app vê os blocos e pode importar uma cópia."
+                                    : "Só você vê este plano."}
+                            </Text>
+                        </View>
+                        <Interruptor
+                            ligado={publico}
+                            onPress={() => setPublico((antes) => !antes)}
+                            cor={HADES.accentSolid}
+                            pequeno
+                        />
+                    </TouchableOpacity>
 
                     <Text
                         style={{

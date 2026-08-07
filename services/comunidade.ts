@@ -1,340 +1,544 @@
 /**
- * Feed público da Comunidade — AINDA MOCKADO.
+ * Feed público da Comunidade.
  *
- * Nada aqui toca o Supabase por enquanto: as tabelas de publicação, curtida, comentário,
- * denúncia e bloqueio não existem no banco. A tela já foi escrita contra esta interface,
- * então trocar o mock pela consulta real é substituir o corpo destas funções — a assinatura
- * (cursor, página, promessas) é a que o feed de verdade vai precisar.
+ * As três origens vêm do banco, cada uma pela RPC dela:
  *
- * O estado vive em memória do módulo: curtir, comentar e bloquear valem enquanto o app
- * estiver aberto e somem no recarregamento, o que é o suficiente para validar o fluxo.
+ * - GALERIA (`comunidade_feed_galeria`): sessões com foto de quem optou pelo feed. A foto
+ *   é assinada em lote, porque o bucket é privado (ver 20260806090000_fotos_sessao.sql).
+ * - ARQUIVOS (`comunidade_feed_arquivos`) e PLANOS (`comunidade_feed_planos`): as duas
+ *   origens que ganharam `publico` em 20260807210000. Diferente da galeria, aqui não há
+ *   preferência global no meio: publicar é um ato explícito por item.
+ *
+ * Curtida, comentário, denúncia e bloqueio valem igual para as três: apontam para o par
+ * (origem, referencia_id), e a RLS recusa a interação numa publicação que saiu do ar.
  */
 
-import { HADES } from "@/constants/hades";
+import { supabase } from "@/repositories/supabase";
+import { assinarCaminhosDeFoto } from "@/services/fotosSessao";
+import { avisarInteracao } from "@/services/notificacoesComunidade";
+import { CORES_PLANO } from "@/constants/hades";
 import type {
     ComentarioPublicacao,
     FiltroComunidade,
+    MateriaDoPlano,
     PaginaDoFeed,
     Publicacao,
+    PublicacaoArquivo,
+    PublicacaoGaleria,
+    PublicacaoPlano,
+    ReferenciaPublicacao,
+    TipoPublicacao,
 } from "@/types/comunidade";
 
-/** Simula a latência da rede para que os estados de carregando/revalidando apareçam. */
-const LATENCIA_MS = 550;
-const TAMANHO_PAGINA = 4;
+const TAMANHO_PAGINA = 6;
 
-const esperar = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-const agora = Date.now();
-const minutosAtras = (minutos: number) => new Date(agora - minutos * 60_000).toISOString();
-
-const AUTOR_LOGADO = { id: "eu", nome: "penac", foto: null };
-
-const AUTORES = {
-    marina: { id: "u-marina", nome: "Marina R.", foto: null },
-    rafael: { id: "u-rafael", nome: "Rafael", foto: null },
-    lucas: { id: "u-lucas", nome: "Lucas", foto: null },
-    bia: { id: "u-bia", nome: "Bia", foto: null },
-    nat: { id: "u-nat", nome: "NatVM", foto: null },
-    toulhe: { id: "u-toulhe", nome: "toulhe", foto: null },
-};
-
-/*
-  Publicações de exemplo, em ordem cronológica decrescente — é a ordem que o feed real
-  também vai usar.
-*/
-const PUBLICACOES: Publicacao[] = [
-    {
-        id: "p1",
-        tipo: "galeria",
-        autor: AUTORES.marina,
-        criadoEm: minutosAtras(35),
-        curtidas: 24,
-        curtidoPorMim: true,
-        comentarios: 6,
-        fotoUrl: null,
-        materia: "Cálculo II",
-        materiaCor: HADES.subjectBlue,
-        duracaoMinutos: 105,
-    },
-    {
-        id: "p2",
-        tipo: "arquivo",
-        autor: AUTORES.rafael,
-        criadoEm: minutosAtras(120),
-        curtidas: 11,
-        curtidoPorMim: false,
-        comentarios: 2,
-        nomeArquivo: "Resumo Bioquímica — Ciclo de Krebs.pdf",
-        extensao: "PDF",
-        tamanhoBytes: 2_517_000,
-        materia: "Bioquímica",
-        materiaCor: "#1f9d63",
-    },
-    {
-        id: "p3",
-        tipo: "plano",
-        autor: AUTORES.lucas,
-        criadoEm: minutosAtras(60 * 26),
-        curtidas: 47,
-        curtidoPorMim: false,
-        comentarios: 13,
-        titulo: "Reta final ENEM — 6 semanas",
-        blocos: 24,
-        horasTotais: 36,
-        materias: [
-            { nome: "Matemática", cor: HADES.subjectBlue },
-            { nome: "Física", cor: HADES.groupViolet },
-            { nome: "Química", cor: "#1f9d63" },
-        ],
-        materiasExtras: 2,
-    },
-    {
-        id: "p4",
-        tipo: "galeria",
-        autor: AUTORES.nat,
-        criadoEm: minutosAtras(60 * 30),
-        curtidas: 8,
-        curtidoPorMim: false,
-        comentarios: 1,
-        fotoUrl: null,
-        materia: "Física",
-        materiaCor: HADES.groupViolet,
-        duracaoMinutos: 80,
-    },
-    {
-        id: "p5",
-        tipo: "plano",
-        autor: AUTORES.bia,
-        criadoEm: minutosAtras(60 * 24 * 3),
-        curtidas: 19,
-        curtidoPorMim: true,
-        comentarios: 4,
-        titulo: "Rotina de revisão espaçada — Anatomia",
-        blocos: 12,
-        horasTotais: 18,
-        materias: [
-            { nome: "Anatomia", cor: "#d0455e" },
-            { nome: "Fisiologia", cor: "#1f9d63" },
-        ],
-        materiasExtras: 0,
-    },
-    {
-        id: "p6",
-        tipo: "arquivo",
-        autor: AUTORES.toulhe,
-        criadoEm: minutosAtras(60 * 24 * 4),
-        curtidas: 5,
-        curtidoPorMim: false,
-        comentarios: 0,
-        nomeArquivo: "Lista resolvida — Cinemática.docx",
-        extensao: "DOCX",
-        tamanhoBytes: 640_000,
-        materia: "Física",
-        materiaCor: HADES.groupViolet,
-    },
-    {
-        id: "p7",
-        tipo: "galeria",
-        autor: AUTORES.lucas,
-        criadoEm: minutosAtras(60 * 24 * 5),
-        curtidas: 31,
-        curtidoPorMim: false,
-        comentarios: 3,
-        fotoUrl: null,
-        materia: "Química",
-        materiaCor: "#1f9d63",
-        duracaoMinutos: 145,
-    },
-    {
-        id: "p8",
-        tipo: "arquivo",
-        autor: AUTORES.marina,
-        criadoEm: minutosAtras(60 * 24 * 6),
-        curtidas: 14,
-        curtidoPorMim: false,
-        comentarios: 2,
-        nomeArquivo: "Mapa mental — Revolução Industrial.pdf",
-        extensao: "PDF",
-        tamanhoBytes: 1_120_000,
-        materia: "História",
-        materiaCor: HADES.amber,
-    },
-];
-
-const COMENTARIOS: ComentarioPublicacao[] = [
-    {
-        id: "c1",
-        publicacaoId: "p1",
-        autor: AUTORES.rafael,
-        texto: "Que setup! Essa técnica de resumo à mão ainda é imbatível.",
-        criadoEm: minutosAtras(20),
-        meu: false,
-        doAutorDaPublicacao: false,
-    },
-    {
-        id: "c2",
-        publicacaoId: "p1",
-        autor: AUTOR_LOGADO,
-        texto: "1h45 de Cálculo II num sábado, respeito demais 👏",
-        criadoEm: minutosAtras(12),
-        meu: true,
-        doAutorDaPublicacao: false,
-    },
-    {
-        id: "c3",
-        publicacaoId: "p1",
-        autor: AUTORES.nat,
-        texto: "Qual caderno é esse? Preciso de um igual pra Física.",
-        criadoEm: minutosAtras(8),
-        meu: false,
-        doAutorDaPublicacao: false,
-    },
-    {
-        id: "c4",
-        publicacaoId: "p1",
-        autor: AUTORES.marina,
-        texto: "É um Moleskine quadriculado! Valeu, gente 🧡",
-        criadoEm: minutosAtras(5),
-        meu: false,
-        doAutorDaPublicacao: true,
-    },
-    {
-        id: "c5",
-        publicacaoId: "p2",
-        autor: AUTORES.bia,
-        texto: "Salvei na hora, obrigada!",
-        criadoEm: minutosAtras(90),
-        meu: false,
-        doAutorDaPublicacao: false,
-    },
-    {
-        id: "c6",
-        publicacaoId: "p3",
-        autor: AUTORES.nat,
-        texto: "Importei aqui e já encaixou na minha semana.",
-        criadoEm: minutosAtras(60 * 20),
-        meu: false,
-        doAutorDaPublicacao: false,
-    },
-];
-
-/** Autores bloqueados nesta sessão do app. */
-const bloqueados = new Set<string>();
-
-let sequenciaComentario = 100;
-
-/** Autor usado como "eu" nos comentários enquanto o feed é mock. */
-export function autorLogadoMock() {
-    return AUTOR_LOGADO;
-}
+/** Chave de lista: única entre origens e estável entre páginas. */
+const chaveDe = (ref: ReferenciaPublicacao) => `${ref.origem}:${ref.referenciaId}`;
 
 /**
- * Uma página do feed público, já sem os autores bloqueados.
+ * Cor da matéria no card.
  *
- * `cursor` é o id da última publicação recebida; o feed real vai paginar por
- * (criadoEm, id), então a assinatura não muda.
+ * A sessão guarda só o nome da disciplina em texto; a cor escolhida pela pessoa vive em
+ * `materias_usuario`, que é dela e não do feed. Um hash do nome sobre a paleta HADES dá
+ * uma cor estável para a mesma matéria em todos os cards, sem join nenhum.
+ */
+function corDaMateria(nome: string): string {
+    let soma = 0;
+    for (let i = 0; i < nome.length; i++) soma = (soma + nome.charCodeAt(i)) % 997;
+    return CORES_PLANO[soma % CORES_PLANO.length];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cursor
+//
+// O feed junta três fontes que paginam em ritmos diferentes, então um cursor só não
+// serve: ele guarda a posição keyset de cada uma. Vai e volta como string opaca.
+//
+// A origem SAI do objeto quando se esgota — é o que distingue "ainda não comecei"
+// (presente, valendo `null`) de "acabou" (ausente). Quando não sobra nenhuma, o cursor
+// inteiro vira `null` e o scroll infinito para.
+// ─────────────────────────────────────────────────────────────────────────────
+type Posicao = { criadoEm: string; id: string };
+type Cursor = Partial<Record<TipoPublicacao, Posicao | null>>;
+
+const ORIGENS: TipoPublicacao[] = ["galeria", "arquivo", "plano"];
+
+const CURSOR_INICIAL: Cursor = { galeria: null, arquivo: null, plano: null };
+
+function lerCursor(bruto?: string | null): Cursor {
+    if (!bruto) return CURSOR_INICIAL;
+    try {
+        return JSON.parse(bruto) as Cursor;
+    } catch {
+        return CURSOR_INICIAL;
+    }
+}
+
+function escreverCursor(cursor: Cursor): string | null {
+    return Object.keys(cursor).length === 0 ? null : JSON.stringify(cursor);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Uma página de cada origem
+//
+// As três RPCs têm a mesma assinatura de propósito (limite + keyset), então o feed
+// trata as origens de forma uniforme e só o mapeamento de linha muda.
+// ─────────────────────────────────────────────────────────────────────────────
+type PaginaDaOrigem<T extends Publicacao> = { itens: T[]; acabou: boolean };
+
+type LinhaFeedGaleria = {
+    sessao_id: string;
+    autor_id: string;
+    autor_nome: string | null;
+    autor_foto: string | null;
+    foto_path: string;
+    foto_legenda: string | null;
+    disciplina: string | null;
+    tempo_minutos: number | null;
+    criado_em: string;
+    curtidas: number;
+    curtido_por_mim: boolean;
+    comentarios: number;
+};
+
+async function paginaGaleria(
+    posicao: Posicao | null,
+    limite: number
+): Promise<PaginaDaOrigem<PublicacaoGaleria>> {
+    const { data, error } = await supabase.rpc("comunidade_feed_galeria", {
+        p_limite: limite,
+        p_cursor_data: posicao?.criadoEm ?? null,
+        p_cursor_id: posicao?.id ?? null,
+    });
+
+    if (error) throw new Error(error.message);
+
+    const linhas = (data ?? []) as LinhaFeedGaleria[];
+
+    /*
+      Uma assinatura para a página inteira, não uma por card: com signed URL individual
+      um feed de dez fotos abriria dez requisições ao storage antes de desenhar.
+    */
+    const urlPorPath = await assinarCaminhosDeFoto(linhas.map((linha) => linha.foto_path));
+
+    const itens: PublicacaoGaleria[] = linhas.map((linha) => ({
+        ...comum("galeria", linha.sessao_id, linha),
+        tipo: "galeria",
+        fotoUrl: urlPorPath.get(linha.foto_path) ?? null,
+        legenda: linha.foto_legenda,
+        materia: linha.disciplina || "Sessão de estudo",
+        materiaCor: corDaMateria(linha.disciplina || ""),
+        duracaoMinutos: linha.tempo_minutos ?? 0,
+    }));
+
+    return { itens, acabou: linhas.length < limite };
+}
+
+type LinhaFeedArquivo = {
+    arquivo_id: string;
+    autor_id: string;
+    autor_nome: string | null;
+    autor_foto: string | null;
+    titulo: string;
+    storage_path: string | null;
+    disciplina: string | null;
+    tamanho_bytes: number | null;
+    criado_em: string;
+    curtidas: number;
+    curtido_por_mim: boolean;
+    comentarios: number;
+};
+
+async function paginaArquivos(
+    posicao: Posicao | null,
+    limite: number
+): Promise<PaginaDaOrigem<PublicacaoArquivo>> {
+    const { data, error } = await supabase.rpc("comunidade_feed_arquivos", {
+        p_limite: limite,
+        p_cursor_data: posicao?.criadoEm ?? null,
+        p_cursor_id: posicao?.id ?? null,
+    });
+
+    if (error) throw new Error(error.message);
+
+    const linhas = (data ?? []) as LinhaFeedArquivo[];
+
+    const itens: PublicacaoArquivo[] = linhas.map((linha) => ({
+        ...comum("arquivo", linha.arquivo_id, linha),
+        tipo: "arquivo",
+        nomeArquivo: linha.titulo,
+        extensao: extensaoDe(linha.titulo),
+        storagePath: linha.storage_path,
+        tamanhoBytes: linha.tamanho_bytes === null ? null : Number(linha.tamanho_bytes),
+        materia: linha.disciplina,
+        materiaCor: linha.disciplina ? corDaMateria(linha.disciplina) : null,
+    }));
+
+    return { itens, acabou: linhas.length < limite };
+}
+
+type LinhaFeedPlano = {
+    plano_id: string;
+    autor_id: string;
+    autor_nome: string | null;
+    autor_foto: string | null;
+    nome: string;
+    cor: string;
+    blocos: number;
+    minutos_totais: number;
+    materias: { nome: string; cor: string }[] | null;
+    criado_em: string;
+    curtidas: number;
+    curtido_por_mim: boolean;
+    comentarios: number;
+};
+
+/** Quantas matérias viram tag no card; o resto é contado no "+N". */
+const MATERIAS_NO_CARD = 3;
+
+async function paginaPlanos(
+    posicao: Posicao | null,
+    limite: number
+): Promise<PaginaDaOrigem<PublicacaoPlano>> {
+    const { data, error } = await supabase.rpc("comunidade_feed_planos", {
+        p_limite: limite,
+        p_cursor_data: posicao?.criadoEm ?? null,
+        p_cursor_id: posicao?.id ?? null,
+    });
+
+    if (error) throw new Error(error.message);
+
+    const linhas = (data ?? []) as LinhaFeedPlano[];
+
+    const itens: PublicacaoPlano[] = linhas.map((linha) => {
+        const materias: MateriaDoPlano[] = linha.materias ?? [];
+        return {
+            ...comum("plano", linha.plano_id, linha),
+            tipo: "plano",
+            titulo: linha.nome,
+            blocos: Number(linha.blocos) || 0,
+            minutosTotais: Number(linha.minutos_totais) || 0,
+            materias: materias.slice(0, MATERIAS_NO_CARD),
+            materiasExtras: Math.max(0, materias.length - MATERIAS_NO_CARD),
+        };
+    });
+
+    return { itens, acabou: linhas.length < limite };
+}
+
+/** A parte que as três RPCs devolvem igual: autor, data e o placar das reações. */
+function comum(
+    origem: TipoPublicacao,
+    referenciaId: string,
+    linha: {
+        autor_id: string;
+        autor_nome: string | null;
+        autor_foto: string | null;
+        criado_em: string;
+        curtidas: number;
+        curtido_por_mim: boolean;
+        comentarios: number;
+    }
+) {
+    return {
+        id: chaveDe({ origem, referenciaId }),
+        origem,
+        referenciaId,
+        autor: {
+            id: linha.autor_id,
+            nome: linha.autor_nome || "Sem nome",
+            foto: linha.autor_foto,
+        },
+        criadoEm: linha.criado_em,
+        curtidas: Number(linha.curtidas) || 0,
+        curtidoPorMim: !!linha.curtido_por_mim,
+        comentarios: Number(linha.comentarios) || 0,
+    };
+}
+
+/** "Resumo.pdf" → "PDF". Sem ponto no nome, some do card em vez de repetir o título. */
+function extensaoDe(nome: string): string {
+    const partes = nome.split(".");
+    return partes.length > 1 ? partes[partes.length - 1].toUpperCase() : "";
+}
+
+function paginaDaOrigem(
+    origem: TipoPublicacao,
+    posicao: Posicao | null,
+    limite: number
+): Promise<PaginaDaOrigem<Publicacao>> {
+    if (origem === "galeria") return paginaGaleria(posicao, limite);
+    if (origem === "arquivo") return paginaArquivos(posicao, limite);
+    return paginaPlanos(posicao, limite);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feed
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Uma página do feed, juntando as origens por data.
+ *
+ * Cada fonte devolve sua própria página ordenada; o merge pega as mais recentes e devolve
+ * ao cursor só o que foi de fato consumido de cada uma. É o que mantém a ordem cronológica
+ * correta sem que uma fonte vazia ou lenta segure as outras.
  */
 export async function buscarFeedComunidade(opcoes: {
     filtro: FiltroComunidade;
     cursor?: string | null;
 }): Promise<PaginaDoFeed> {
-    await esperar(LATENCIA_MS);
+    const cursor = lerCursor(opcoes.cursor);
 
-    const visiveis = PUBLICACOES.filter(
-        (publicacao) =>
-            !bloqueados.has(publicacao.autor.id) &&
-            (opcoes.filtro === "tudo" || publicacao.tipo === opcoes.filtro)
+    // Ativa = pedida pelo filtro e ainda não esgotada.
+    const ativas = ORIGENS.filter(
+        (origem) =>
+            (opcoes.filtro === "tudo" || opcoes.filtro === origem) && origem in cursor
     );
 
-    const inicio = opcoes.cursor ? visiveis.findIndex((p) => p.id === opcoes.cursor) + 1 : 0;
-    const pagina = visiveis.slice(inicio, inicio + TAMANHO_PAGINA);
-    const acabou = inicio + TAMANHO_PAGINA >= visiveis.length;
+    const paginas = await Promise.all(
+        ativas.map((origem) => paginaDaOrigem(origem, cursor[origem] ?? null, TAMANHO_PAGINA))
+    );
+
+    const entregues = paginas
+        .flatMap((pagina) => pagina.itens)
+        .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime())
+        .slice(0, TAMANHO_PAGINA);
+
+    // Cada fonte avança só até o último item dela que entrou nesta página.
+    const proximo: Cursor = {};
+    ativas.forEach((origem, i) => {
+        const daOrigem = entregues.filter((item) => item.origem === origem);
+        const acabou = paginas[i].acabou && daOrigem.length === paginas[i].itens.length;
+        if (acabou) return;
+
+        const ultimo = daOrigem[daOrigem.length - 1];
+        proximo[origem] = ultimo
+            ? { criadoEm: ultimo.criadoEm, id: ultimo.referenciaId }
+            : cursor[origem] ?? null;
+    });
 
     return {
-        // Cópia rasa: a tela mexe no item (curtida otimista) e não deve editar o mock.
-        itens: pagina.map((publicacao) => ({ ...publicacao })),
-        proximoCursor: acabou || pagina.length === 0 ? null : pagina[pagina.length - 1].id,
+        itens: entregues,
+        proximoCursor: entregues.length === 0 ? null : escreverCursor(proximo),
     };
 }
 
-/** Curte ou descurte. Devolve a contagem que o servidor passou a ter. */
-export async function alternarCurtida(publicacaoId: string, curtir: boolean): Promise<number> {
-    await esperar(220);
+// ─────────────────────────────────────────────────────────────────────────────
+// Interações
+// ─────────────────────────────────────────────────────────────────────────────
 
-    const publicacao = PUBLICACOES.find((p) => p.id === publicacaoId);
-    if (!publicacao) return 0;
-
-    if (publicacao.curtidoPorMim !== curtir) {
-        publicacao.curtidoPorMim = curtir;
-        publicacao.curtidas = Math.max(0, publicacao.curtidas + (curtir ? 1 : -1));
-    }
-
-    return publicacao.curtidas;
+async function usuarioAtual(): Promise<string> {
+    const { data } = await supabase.auth.getUser();
+    const id = data.user?.id;
+    if (!id) throw new Error("Sessão expirada.");
+    return id;
 }
 
-export async function buscarComentarios(publicacaoId: string): Promise<ComentarioPublicacao[]> {
-    await esperar(400);
-    return COMENTARIOS.filter((comentario) => comentario.publicacaoId === publicacaoId).map(
-        (comentario) => ({ ...comentario })
-    );
+/** Curte ou descurte. A RLS recusa a curtida se a publicação não estiver pública. */
+export async function alternarCurtida(ref: ReferenciaPublicacao, curtir: boolean): Promise<void> {
+    const userId = await usuarioAtual();
+
+    if (curtir) {
+        const { error } = await supabase.from("comunidade_curtidas").insert({
+            user_id: userId,
+            origem: ref.origem,
+            referencia_id: ref.referenciaId,
+        });
+        // Curtir duas vezes (toque duplo, corrida de rede) esbarra na unique: não é erro.
+        if (error && error.code !== "23505") throw new Error(error.message);
+
+        /*
+          A notificação em si já foi criada pelo gatilho do INSERT acima; isto aqui só pede
+          o push. Fica fora do `if` de erro de propósito: mesmo na colisão de unique existe
+          a chance de o push anterior não ter saído, e a Edge Function é idempotente (só
+          avisa notificação ainda pendente).
+        */
+        avisarInteracao(ref, "curtida");
+        return;
+    }
+
+    const { error } = await supabase
+        .from("comunidade_curtidas")
+        .delete()
+        .eq("user_id", userId)
+        .eq("origem", ref.origem)
+        .eq("referencia_id", ref.referenciaId);
+
+    if (error) throw new Error(error.message);
+}
+
+type LinhaComentario = {
+    id: string;
+    user_id: string;
+    texto: string;
+    criado_em: string;
+    profiles: { nome_usuario: string | null; foto_usuario: string | null } | null;
+};
+
+export async function buscarComentarios(
+    ref: ReferenciaPublicacao,
+    donoDaPublicacaoId?: string | null
+): Promise<ComentarioPublicacao[]> {
+    const [userId, resposta] = await Promise.all([
+        usuarioAtual(),
+        supabase
+            .from("comunidade_comentarios")
+            .select("id, user_id, texto, criado_em, profiles(nome_usuario, foto_usuario)")
+            .eq("origem", ref.origem)
+            .eq("referencia_id", ref.referenciaId)
+            .order("criado_em", { ascending: true }),
+    ]);
+
+    if (resposta.error) throw new Error(resposta.error.message);
+
+    return ((resposta.data ?? []) as unknown as LinhaComentario[]).map((linha) => ({
+        id: linha.id,
+        autor: {
+            id: linha.user_id,
+            nome: linha.profiles?.nome_usuario || "Sem nome",
+            foto: linha.profiles?.foto_usuario ?? null,
+        },
+        texto: linha.texto,
+        criadoEm: linha.criado_em,
+        meu: linha.user_id === userId,
+        doAutorDaPublicacao: !!donoDaPublicacaoId && linha.user_id === donoDaPublicacaoId,
+    }));
 }
 
 export async function publicarComentario(
-    publicacaoId: string,
-    texto: string
+    ref: ReferenciaPublicacao,
+    texto: string,
+    donoDaPublicacaoId?: string | null
 ): Promise<ComentarioPublicacao> {
-    await esperar(300);
+    const userId = await usuarioAtual();
 
-    const comentario: ComentarioPublicacao = {
-        id: `c${++sequenciaComentario}`,
-        publicacaoId,
-        autor: AUTOR_LOGADO,
-        texto: texto.trim(),
-        criadoEm: new Date().toISOString(),
+    const { data, error } = await supabase
+        .from("comunidade_comentarios")
+        .insert({
+            user_id: userId,
+            origem: ref.origem,
+            referencia_id: ref.referenciaId,
+            texto: texto.trim(),
+        })
+        .select("id, user_id, texto, criado_em, profiles(nome_usuario, foto_usuario)")
+        .single();
+
+    if (error) throw new Error(error.message);
+
+    // O gatilho do INSERT já pôs a notificação na caixa de quem publicou; falta o push.
+    avisarInteracao(ref, "comentario");
+
+    const linha = data as unknown as LinhaComentario;
+    return {
+        id: linha.id,
+        autor: {
+            id: linha.user_id,
+            nome: linha.profiles?.nome_usuario || "Você",
+            foto: linha.profiles?.foto_usuario ?? null,
+        },
+        texto: linha.texto,
+        criadoEm: linha.criado_em,
         meu: true,
-        doAutorDaPublicacao: false,
+        doAutorDaPublicacao: !!donoDaPublicacaoId && linha.user_id === donoDaPublicacaoId,
     };
-
-    COMENTARIOS.push(comentario);
-
-    const publicacao = PUBLICACOES.find((p) => p.id === publicacaoId);
-    if (publicacao) publicacao.comentarios += 1;
-
-    return { ...comentario };
 }
 
+/** Apagar é de quem escreveu e de quem publicou — a RLS decide, não a tela. */
 export async function apagarComentario(comentarioId: string): Promise<void> {
-    await esperar(250);
-
-    const indice = COMENTARIOS.findIndex((comentario) => comentario.id === comentarioId);
-    if (indice < 0) return;
-
-    const [removido] = COMENTARIOS.splice(indice, 1);
-    const publicacao = PUBLICACOES.find((p) => p.id === removido.publicacaoId);
-    if (publicacao) publicacao.comentarios = Math.max(0, publicacao.comentarios - 1);
+    const { error } = await supabase.from("comunidade_comentarios").delete().eq("id", comentarioId);
+    if (error) throw new Error(error.message);
 }
 
-/** Denúncia de publicação ou comentário. No mock só confirma o recebimento. */
 export async function denunciar(alvo: {
-    tipo: "publicacao" | "comentario";
-    id: string;
+    ref: ReferenciaPublicacao;
+    comentarioId?: string | null;
     motivo?: string;
+    detalhe?: string;
 }): Promise<void> {
-    await esperar(300);
-    console.log("[comunidade] denúncia registrada (mock)", alvo);
+    const userId = await usuarioAtual();
+
+    const { error } = await supabase.from("comunidade_denuncias").insert({
+        denunciante_id: userId,
+        origem: alvo.ref.origem,
+        referencia_id: alvo.ref.referenciaId,
+        comentario_id: alvo.comentarioId ?? null,
+        motivo: alvo.motivo ?? "nao_informado",
+        detalhe: alvo.detalhe ?? null,
+    });
+
+    // Denunciar a mesma coisa de novo não é sinal novo, e nem erro para quem denunciou.
+    if (error && error.code !== "23505") throw new Error(error.message);
 }
+
+export async function bloquearAutor(autorId: string): Promise<void> {
+    const userId = await usuarioAtual();
+
+    const { error } = await supabase.from("comunidade_bloqueios").insert({
+        bloqueador_id: userId,
+        bloqueado_id: autorId,
+    });
+
+    if (error && error.code !== "23505") throw new Error(error.message);
+}
+
+export async function desbloquearAutor(autorId: string): Promise<void> {
+    const userId = await usuarioAtual();
+
+    const { error } = await supabase
+        .from("comunidade_bloqueios")
+        .delete()
+        .eq("bloqueador_id", userId)
+        .eq("bloqueado_id", autorId);
+
+    if (error) throw new Error(error.message);
+}
+
+/** Quem o usuário bloqueou, para a tela de privacidade poder desfazer. */
+export async function listarBloqueados(): Promise<AutorBloqueado[]> {
+    const { data, error } = await supabase
+        .from("comunidade_bloqueios")
+        .select("bloqueado_id, criado_em, profiles!comunidade_bloqueios_bloqueado_id_fkey(nome_usuario, foto_usuario)")
+        .order("criado_em", { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    return ((data ?? []) as unknown as LinhaBloqueio[]).map((linha) => ({
+        id: linha.bloqueado_id,
+        nome: linha.profiles?.nome_usuario || "Sem nome",
+        foto: linha.profiles?.foto_usuario ?? null,
+        bloqueadoEm: linha.criado_em,
+    }));
+}
+
+type LinhaBloqueio = {
+    bloqueado_id: string;
+    criado_em: string;
+    profiles: { nome_usuario: string | null; foto_usuario: string | null } | null;
+};
+
+export type AutorBloqueado = {
+    id: string;
+    nome: string;
+    foto: string | null;
+    bloqueadoEm: string;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Importar um plano público
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Bloqueia um autor. As publicações dele somem do feed na hora — quem apaga da lista
- * em tela é o hook; aqui a lista deixa de devolvê-las nas próximas páginas.
+ * Copia um plano público para o cronograma de quem chamou e devolve o id da cópia.
+ *
+ * É cópia, não referência: o plano importado é seu e não muda mais se o original mudar
+ * (nem some se o autor despublicar). Entra sem agenda — quem importou decide depois em
+ * que dias ele vale, porque agenda é disputa de espaço no cronograma de cada um.
  */
-export async function bloquearAutor(autorId: string): Promise<void> {
-    await esperar(300);
-    bloqueados.add(autorId);
-}
+export async function importarPlano(planoId: string): Promise<string> {
+    const { data, error } = await supabase.rpc("comunidade_importar_plano", {
+        p_plano_id: planoId,
+    });
 
-/** Importa um plano público para o cronograma do usuário. Ainda não implementado. */
-export async function importarPlanoPublicado(planoId: string): Promise<void> {
-    await esperar(500);
-    console.log("[comunidade] importar plano (mock)", planoId);
+    if (error) throw new Error(error.message);
+    return data as string;
 }

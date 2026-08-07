@@ -14,6 +14,11 @@ type Props = {
     userId: string;
     /** Linhas da sessão que recebem a foto (mais de uma numa execução de plano). */
     sessaoIds: string[];
+    /**
+     * A foto vai aparecer no Explorar para estranhos, e não só na galeria do perfil.
+     * É `true` quando o opt-in do feed está ligado E esta sessão é pública.
+     */
+    iraParaOFeed?: boolean;
     /** Chamado quando a etapa termina — salvando ou pulando. Nunca falha o fluxo. */
     aoConcluir: () => void;
 };
@@ -31,7 +36,7 @@ type Props = {
  *
  * Fica atrás da preferência "Foto ao fim da sessão" (app/(modals)/settings.tsx).
  */
-export default function EtapaFotoSessao({ userId, sessaoIds, aoConcluir }: Props) {
+export default function EtapaFotoSessao({ userId, sessaoIds, iraParaOFeed, aoConcluir }: Props) {
     const [foto, setFoto] = useState<FotoCapturada | null>(null);
     const [legenda, setLegenda] = useState("");
     const [abrindo, setAbrindo] = useState(false);
@@ -73,8 +78,15 @@ export default function EtapaFotoSessao({ userId, sessaoIds, aoConcluir }: Props
                 <Text style={{ fontSize: 20, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>
                     Registre esse momento
                 </Text>
+                {/*
+                  O destino da foto muda o que esta frase pode prometer. Com o feed
+                  público ligado ela não fica só na galeria do perfil — e a hora de dizer
+                  isso é antes de a pessoa apontar a câmera, não depois de salvar.
+                */}
                 <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 4, lineHeight: 19 }}>
-                    Uma foto do seu ambiente, das anotações, do café. Fica na sua galeria do perfil.
+                    {iraParaOFeed
+                        ? "Uma foto do seu ambiente, das anotações, do café. Como esta sessão é pública e você participa do feed, ela vai aparecer no Explorar."
+                        : "Uma foto do seu ambiente, das anotações, do café. Fica na sua galeria do perfil."}
                 </Text>
             </View>
 

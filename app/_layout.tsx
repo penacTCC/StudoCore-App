@@ -13,6 +13,7 @@ import { useRouteGuard } from "@/hooks/useRoutGuard";
 import { useForcasRecebidas } from "@/hooks/useForcasRecebidas";
 import { usePushToken } from "@/hooks/usePushToken";
 import { useLembreteDeOfensiva } from "@/hooks/useLembreteDeOfensiva";
+import { useAberturaPorNotificacao } from "@/hooks/useAberturaPorNotificacao";
 import { useRecuperarSessoesAbandonadas } from "@/hooks/useRecuperarSessoesAbandonadas";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { ToastHost } from "@/components/ui/Toast";
@@ -43,6 +44,9 @@ export default function RootLayout() {
     // Plano B do push: escuta por Realtime as forças que chegam e notifica localmente
     // quando o aparelho não conseguiu token de push.
     useForcasRecebidas(session?.user?.id);
+
+    // Tocar numa notificação de curtida/comentário abre a caixa de notificações.
+    useAberturaPorNotificacao(session?.user?.id);
 
     // Reagenda o lembrete da noite pra quem tem ofensiva pra perder e ainda não estudou.
     useLembreteDeOfensiva(session?.user?.id);

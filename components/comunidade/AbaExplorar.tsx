@@ -15,23 +15,33 @@ import {
     FaixaRevalidando,
 } from "@/components/comunidade/EstadosExplorar";
 import { HADES } from "@/constants/hades";
+import { useAuth } from "@/hooks/useAuth";
 import { useFeedComunidade } from "@/hooks/useFeedComunidade";
-import { denunciar, importarPlanoPublicado } from "@/services/comunidade";
+import { usePreferencias } from "@/hooks/usePreferencias";
+import { useProfile } from "@/hooks/useProfile";
+import { denunciar, importarPlano } from "@/services/comunidade";
 import { confirm } from "@/services/confirm";
 import { toast } from "@/services/toast";
+import { abrirArquivoDoBucket } from "@/services/visualizarArquivo";
 import type { FiltroComunidade, Publicacao } from "@/types/comunidade";
 
 /**
- * Feed público da Comunidade: galeria, arquivos e planos de qualquer usuário, no mesmo
- * fluxo, com scroll infinito.
+ * Feed público da Comunidade: fotos de sessão, arquivos e planos no mesmo fluxo, com
+ * scroll infinito.
  *
- * O conteúdo ainda vem do mock em `services/comunidade` — a tela toda já está escrita
- * contra a interface que o feed real vai expor.
+ * As três origens vêm do banco, cada uma pela RPC dela (ver services/comunidade.ts), e
+ * todas aceitam as mesmas interações — curtir, comentar, denunciar, bloquear o autor.
  */
 export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
     const [filtro, setFiltro] = useState<FiltroComunidade>("tudo");
     const [menuAberto, setMenuAberto] = useState<Publicacao | null>(null);
     const [comentariosDe, setComentariosDe] = useState<Publicacao | null>(null);
+    // Id da publicação cuja ação demorada está em curso (baixar arquivo, importar plano).
+    const [ocupada, setOcupada] = useState<string | null>(null);
+
+    const { userId } = useAuth();
+    const { profile } = useProfile(userId ?? "");
+    const { prefs } = usePreferencias(userId);
 
     const {
         itens,
@@ -49,16 +59,22 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
 
     const abrirPerfil = useCallback((publicacao: Publicacao) => {
         setMenuAberto(null);
-        // MOCK: os autores do feed não são usuários de verdade ainda, então a tela de
-        // perfil não tem o que buscar. Vira `router.push("/(modals)/member-profile")`
-        // quando o feed passar a vir do banco.
-        toast.info(`Perfil de ${publicacao.autor.nome} chega junto com o feed real.`);
+        router.push({
+            pathname: "/(modals)/member-profile",
+            params: { userId: publicacao.autor.id, administrador: "false" },
+        });
     }, []);
 
     const denunciarPublicacao = useCallback(async (publicacao: Publicacao) => {
         setMenuAberto(null);
-        await denunciar({ tipo: "publicacao", id: publicacao.id });
-        toast.success("Denúncia enviada. Vamos analisar.");
+        try {
+            await denunciar({
+                ref: { origem: publicacao.origem, referenciaId: publicacao.referenciaId },
+            });
+            toast.success("Denúncia enviada. Vamos analisar.");
+        } catch {
+            toast.error("Não deu para enviar a denúncia.");
+        }
     }, []);
 
     const bloquearAutor = useCallback(
@@ -70,24 +86,63 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
                 confirmText: "Bloquear",
                 destructive: true,
                 onConfirm: async () => {
-                    await bloquear(publicacao.autor.id);
-                    toast.success(`${publicacao.autor.nome} foi bloqueado.`);
+                    try {
+                        await bloquear(publicacao.autor.id);
+                        toast.success(`${publicacao.autor.nome} foi bloqueado.`);
+                    } catch {
+                        toast.error("Não deu para bloquear agora.");
+                    }
                 },
             });
         },
         [bloquear]
     );
 
-    const importarPlano = useCallback(async (publicacao: Publicacao) => {
-        if (publicacao.tipo !== "plano") return;
-        await importarPlanoPublicado(publicacao.id);
-        // MOCK: nada é gravado no cronograma ainda.
-        toast.info("Importar plano ainda está em construção.");
+    /**
+     * Baixa o arquivo do bucket e entrega ao visualizador do sistema — o mesmo caminho do
+     * Vault. O arquivo público continua atrás do download autenticado: o que `publico` abre
+     * é o card no feed, não o bucket.
+     */
+    const baixarArquivo = useCallback(async (publicacao: Publicacao) => {
+        if (publicacao.tipo !== "arquivo") return;
+        if (!publicacao.storagePath) {
+            toast.error("Esse arquivo não está mais disponível.");
+            return;
+        }
+
+        setOcupada(publicacao.id);
+        try {
+            await abrirArquivoDoBucket(publicacao.storagePath);
+        } finally {
+            setOcupada(null);
+        }
     }, []);
 
-    const baixarArquivo = useCallback(() => {
-        // MOCK: os arquivos do feed não têm URL assinada ainda.
-        toast.info("O download do feed público ainda está em construção.");
+    /**
+     * Importar é copiar: o plano vira um plano seu, sem agenda, e não muda mais junto com
+     * o original. Confirmar antes porque o cronograma é da pessoa e ninguém espera que um
+     * toque no feed acrescente coisa lá dentro.
+     */
+    const importar = useCallback((publicacao: Publicacao) => {
+        if (publicacao.tipo !== "plano") return;
+
+        confirm({
+            title: `Importar "${publicacao.titulo}"?`,
+            message:
+                "Uma cópia vai para os seus planos, sem dias marcados. Você escolhe depois quando ela vale.",
+            confirmText: "Importar",
+            onConfirm: async () => {
+                setOcupada(publicacao.id);
+                try {
+                    await importarPlano(publicacao.referenciaId);
+                    toast.success("Plano copiado para os seus planos.");
+                } catch {
+                    toast.error("Não deu para importar esse plano.");
+                } finally {
+                    setOcupada(null);
+                }
+            },
+        });
     }, []);
 
     const cabecalho = (
@@ -137,16 +192,22 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
                 }
                 onEndReached={carregarMais}
                 onEndReachedThreshold={0.4}
-                ListEmptyComponent={<ExplorarVazio />}
+                ListEmptyComponent={
+                    <ExplorarVazio
+                        naoParticipa={!prefs.feedPublico}
+                        onParticipar={() => router.push("/(modals)/settings")}
+                    />
+                }
                 ListFooterComponent={carregandoMais ? <CarregandoMais /> : null}
                 renderItem={({ item }) => (
                     <CardPublicacao
                         publicacao={item}
-                        onCurtir={() => curtir(item.id)}
+                        ocupado={ocupada === item.id}
+                        onCurtir={() => curtir(item)}
                         onComentar={() => setComentariosDe(item)}
                         onAbrirMenu={() => setMenuAberto(item)}
-                        onImportarPlano={() => importarPlano(item)}
-                        onBaixarArquivo={baixarArquivo}
+                        onImportarPlano={() => importar(item)}
+                        onBaixarArquivo={() => baixarArquivo(item)}
                     />
                 )}
             />
@@ -160,8 +221,12 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
             />
 
             <SheetComentarios
-                publicacaoId={comentariosDe?.id ?? null}
-                souDonoDaPublicacao={comentariosDe?.autor.id === "eu"}
+                publicacao={comentariosDe}
+                eu={{
+                    id: userId,
+                    nome: profile?.nome_usuario ?? null,
+                    foto: profile?.foto_usuario ?? null,
+                }}
                 onFechar={() => setComentariosDe(null)}
                 onContagemMudou={(delta) => {
                     if (comentariosDe) ajustarContagemDeComentarios(comentariosDe.id, delta);

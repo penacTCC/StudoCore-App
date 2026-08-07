@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { ChevronRight, Star, Target } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import { BADGE_LEVEL_COLORS, BadgeType } from "@/constants/badges";
-import { BADGE_ICON_MAP as iconMap } from "@/constants/badgeIcons";
+import IconeMedalha from "@/components/badges/IconeMedalha";
 
 function Cabecalho({ desbloqueadas, total, onVerTodas }: { desbloqueadas: number; total: number; onVerTodas?: () => void }) {
     return (
@@ -68,7 +68,6 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
             ) : (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 14 }}>
                     {recentes.map((badge) => {
-                        const BadgeIcon = iconMap[badge.icon] || Star;
                         const cor = BADGE_LEVEL_COLORS[badge.level];
                         return (
                             <View key={badge.id} style={{ width: largura, alignItems: "center", gap: 7 }}>
@@ -84,7 +83,7 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
                                         justifyContent: "center",
                                     }}
                                 >
-                                    <BadgeIcon size={iconSize} color={cor} />
+                                    <IconeMedalha badgeId={badge.id} icon={badge.icon} size={iconSize} color={cor} />
                                 </View>
                                 <Text
                                     style={{
@@ -115,8 +114,7 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
 
                     <View style={{ gap: 14 }}>
                         {proximas.map(({ badge, progress }) => {
-                            const BadgeIcon = iconMap[badge.icon] || Star;
-                            const cor = BADGE_LEVEL_COLORS[badge.level];
+                                const cor = BADGE_LEVEL_COLORS[badge.level];
                             const pct = Math.round(progress * 100);
                             return (
                                 <View key={badge.id}>
@@ -138,7 +136,7 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
                                                 justifyContent: "center",
                                             }}
                                         >
-                                            <BadgeIcon size={15} color={cor} />
+                                            <IconeMedalha badgeId={badge.id} icon={badge.icon} size={15} color={cor} />
                                         </View>
                                         <Text
                                             style={{ flex: 1, fontSize: 13, color: "#e8e9ec", fontWeight: "500" }}
@@ -172,7 +170,6 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
 
 /** Seção de medalhas para quem ainda não conquistou nenhuma (perfil próprio: convida a agir). */
 export function CardMedalhasVazio({ primeira, total }: { primeira: BadgeType | undefined; total: number }) {
-    const BadgeIcon = primeira ? iconMap[primeira.icon] || Star : Star;
     const cor = primeira ? BADGE_LEVEL_COLORS[primeira.level] : HADES.textMuted;
 
     return (
@@ -201,7 +198,7 @@ export function CardMedalhasVazio({ primeira, total }: { primeira: BadgeType | u
                         justifyContent: "center",
                     }}
                 >
-                    <BadgeIcon size={19} color={cor} />
+                    <IconeMedalha badgeId={primeira?.id ?? ""} icon={primeira?.icon ?? "Star"} size={19} color={cor} />
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 13.5, fontWeight: "600", color: HADES.text }}>

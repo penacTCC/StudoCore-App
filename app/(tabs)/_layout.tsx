@@ -6,6 +6,7 @@ import BotaoAba from "@/components/ui/BotaoAba";
 import IconeAba from "@/components/ui/IconeAba";
 import { useAuth } from "@/hooks/useAuth";
 import { useFormulariosPendentes } from "@/hooks/useFormulariosPendentes";
+import { useNotificacoesNaoLidas } from "@/hooks/useNotificacoesNaoLidas";
 
 // Cinza/branco no lugar do laranja: a aba ativa se destaca pelo ícone preenchido
 // e pelo texto branco, como no Spotify.
@@ -17,6 +18,9 @@ export default function TabLayout() {
     // Formulários de sessão em aberto viram um badge no ícone do Análise, que é a aba
     // onde eles são respondidos.
     const formulariosPendentes = useFormulariosPendentes(userId);
+    // Curtidas e comentários por ler viram badge no ícone da Comunidade, que é a aba de
+    // onde se chega na caixa de notificações.
+    const notificacoesNaoLidas = useNotificacoesNaoLidas(userId);
 
     return (
         <Tabs
@@ -56,7 +60,9 @@ export default function TabLayout() {
                 options={{
                     title: "Comunidade",
                     tabBarIcon: ({ color, focused }) => (
-                        <IconeAba nome="grupos" color={color} focused={focused} />
+                        <BadgeContagem contagem={notificacoesNaoLidas}>
+                            <IconeAba nome="grupos" color={color} focused={focused} />
+                        </BadgeContagem>
                     ),
                 }}
             />

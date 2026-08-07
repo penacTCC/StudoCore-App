@@ -32,6 +32,7 @@ function paraPlano(row: PlanoRow, blocos: { duracao_min: number }[]): Plano {
         qtdBlocos: blocos.length,
         duracaoTotal: formatarDuracao(duracaoTotalMin),
         agenda: paraAgendaPlano(row),
+        publico: row.publico ?? false,
     };
 }
 
@@ -58,7 +59,12 @@ export async function buscarPlanos(usuarioId: string): Promise<Plano[]> {
 }
 
 /** Cria um novo plano, sem agenda definida ainda (fica "nenhuma" até o usuário fixar/agendar). */
-export async function criarPlano(usuarioId: string, nome: string, cor: string): Promise<ResultadoPlano> {
+export async function criarPlano(
+    usuarioId: string,
+    nome: string,
+    cor: string,
+    publico = false
+): Promise<ResultadoPlano> {
     const nomeLimpo = nome.trim();
     if (!nomeLimpo) {
         return { sucesso: false, erro: "O nome do plano não pode estar vazio." };
@@ -66,7 +72,7 @@ export async function criarPlano(usuarioId: string, nome: string, cor: string): 
 
     const { data, error } = await supabase
         .from("planos")
-        .insert({ usuario_id: usuarioId, nome: nomeLimpo, cor })
+        .insert({ usuario_id: usuarioId, nome: nomeLimpo, cor, publico })
         .select()
         .single();
 
@@ -78,10 +84,25 @@ export async function criarPlano(usuarioId: string, nome: string, cor: string): 
     return { sucesso: true, plano: paraPlano(data as PlanoRow, []) };
 }
 
-/** Atualiza nome e/ou cor de um plano existente. */
+/**
+ * Compartilha (ou para de compartilhar) o plano no Explorar da Comunidade.
+ *
+ * Publicar expõe os blocos em leitura para qualquer pessoa — é o que dá sentido ao
+ * "importar para meu cronograma" do card. Parar de compartilhar tira o card do feed, mas
+ * não desfaz nada: quem já importou ficou com uma cópia, que é dessa pessoa e continua
+ * valendo. Quem chama precisa deixar isso claro.
+ */
+export async function alternarPlanoPublico(
+    planoId: string,
+    publico: boolean
+): Promise<ResultadoPlano> {
+    return atualizarPlano(planoId, { publico });
+}
+
+/** Atualiza nome, cor e/ou compartilhamento de um plano existente. */
 export async function atualizarPlano(
     planoId: string,
-    dados: { nome?: string; cor?: string }
+    dados: { nome?: string; cor?: string; publico?: boolean }
 ): Promise<ResultadoPlano> {
     const { data, error } = await supabase
         .from("planos")

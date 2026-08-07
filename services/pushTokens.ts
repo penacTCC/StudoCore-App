@@ -21,6 +21,16 @@ import { supabase } from "@/repositories/supabase";
  * aparecerem igual (com som e como banner). */
 export const CANAL_FORCAS = "forcas";
 
+/**
+ * Canal das curtidas e comentários do feed público.
+ *
+ * Separado das forças porque o Android deixa desligar canal por canal: quem quer o
+ * chamado pra estudar mas não quer saber de curtida agora consegue escolher, sem
+ * desligar a notificação do app inteiro. Precisa bater com CANAL_COMUNIDADE em
+ * supabase/functions/_shared/push.ts — canal inexistente no aparelho chega silencioso.
+ */
+export const CANAL_COMUNIDADE = "comunidade";
+
 /*
   Guarda se este aparelho conseguiu registrar um token. Quem lê é a notificação local do
   Realtime: com push remoto funcionando, disparar a local também mostraria a MESMA força
@@ -41,6 +51,15 @@ export async function garantirCanalDeForcas(): Promise<void> {
     });
 }
 
+/** Curtida e comentário entram em DEFAULT: chegam, mas não interrompem quem está estudando. */
+export async function garantirCanalDeComunidade(): Promise<void> {
+    if (Platform.OS !== "android") return;
+    await Notifications.setNotificationChannelAsync(CANAL_COMUNIDADE, {
+        name: "Curtidas e comentários",
+        importance: Notifications.AndroidImportance.DEFAULT,
+    });
+}
+
 async function garantirPermissao(): Promise<boolean> {
     const atual = await Notifications.getPermissionsAsync();
     if (atual.status === "granted") return true;
@@ -57,6 +76,7 @@ export async function registrarTokenPush(userId: string): Promise<void> {
     try {
         if (!(await garantirPermissao())) return;
         await garantirCanalDeForcas();
+        await garantirCanalDeComunidade();
 
         // Em build EAS o projectId vem do app.json; sem ele o Expo não sabe pra qual
         // projeto emitir o token e a chamada estoura.

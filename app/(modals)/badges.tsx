@@ -3,19 +3,25 @@ import { View, Text, ScrollView, TouchableOpacity, DeviceEventEmitter, RefreshCo
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { useDadosCache } from "@/hooks/useDadosCache";
-import { ArrowLeft, Check, Lock, Star } from "lucide-react-native";
+import { ArrowLeft, Lock } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import {
     APP_BADGES, BADGE_LEVEL_LABELS, BADGE_LEVEL_COLORS,
     BadgeType, BadgeLevel,
 } from "@/constants/badges";
-import { BADGE_ICON_MAP as iconMap } from "@/constants/badgeIcons";
+import { IconeMedalhaTile } from "@/components/badges/IconeMedalha";
 import { loadProfileStats } from "@/services/profileStats";
 import type { UserStats } from "@/types/profile";
 import DetalheMedalhaSheet from "@/components/badges/DetalheMedalhaSheet";
-import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 const LEVELS: BadgeLevel[] = ['basico', 'intermediario', 'avancado', 'elite'];
+
+// Grade de 3 colunas: a arte ocupa quase toda a largura da célula e o nome vem embaixo,
+// em duas linhas no máximo. A altura fixa mantém as linhas alinhadas mesmo com nomes curtos.
+const TILE_SIZE = 83;
+const CELL_HEIGHT = 148;
+const GRID_GAP = 10;
 
 const LEVEL_BLURB: Record<BadgeLevel, string> = {
     basico: 'Os primeiros marcos',
@@ -134,7 +140,6 @@ export default function BadgesScreen() {
                                 borderColor: hasProgress ? `${color}57` : HADES.border,
                             }}
                         >
-                            <View style={{ width: 8, height: 8, borderRadius: 3, backgroundColor: color }} />
                             <Text style={{ fontSize: 10, fontWeight: "700", color: HADES.textSecondary }}>{LEVEL_SHORT[level]}</Text>
                             <Text style={{ fontSize: 10, fontWeight: "700", color }}>{lvlUnlocked}/{levelBadges.length}</Text>
                         </View>
@@ -200,15 +205,9 @@ export default function BadgesScreen() {
                                 </Text>
                             </View>
 
-                            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 }}>
+                            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: GRID_GAP }}>
                                 {levelBadges.map(badge => {
-                                    const BadgeIcon = iconMap[badge.icon] || Star;
                                     const isUnlocked = stats.badgesUnlocked.includes(badge.id);
-                                    const progress = getBadgeProgress(badge, stats);
-                                    const progressPct = Math.round(progress * 100);
-                                    const circleBg = isUnlocked ? `${levelColor}24` : HADES.surfaceRaised;
-                                    const circleRing = isUnlocked ? `${levelColor}57` : HADES.border;
-                                    const iconColor = isUnlocked ? levelColor : HADES.textDim;
 
                                     return (
                                         <TouchableOpacity
@@ -217,67 +216,60 @@ export default function BadgesScreen() {
                                             onPress={() => setSelected(badge)}
                                             style={{
                                                 width: "31.5%",
+                                                minHeight: CELL_HEIGHT,
                                                 backgroundColor: HADES.surface,
-                                                borderWidth: 1,
-                                                borderColor: HADES.border,
-                                                borderRadius: 13,
-                                                paddingVertical: 12,
+                                                borderRadius: 12,
+                                                paddingTop: 14,
+                                                paddingBottom: 12,
                                                 paddingHorizontal: 6,
                                                 alignItems: "center",
-                                                gap: 6,
+                                                gap: 10,
                                             }}
                                         >
                                             <View>
-                                                <View
-                                                    style={{
-                                                        width: 38, height: 38, borderRadius: 19,
-                                                        backgroundColor: circleBg,
-                                                        borderWidth: 1,
-                                                        borderColor: circleRing,
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                    }}
-                                                >
-                                                    <BadgeIcon size={19} color={iconColor} />
-                                                </View>
+                                                <IconeMedalhaTile
+                                                    badgeId={badge.id}
+                                                    icon={badge.icon}
+                                                    size={TILE_SIZE}
+                                                    color={levelColor}
+                                                    locked={!isUnlocked}
+                                                />
                                                 {!isUnlocked && (
                                                     <View
                                                         style={{
-                                                            position: "absolute", bottom: -2, right: -3,
-                                                            width: 15, height: 15, borderRadius: 8,
+                                                            position: "absolute", bottom: -3, right: -3,
+                                                            width: 20, height: 20, borderRadius: 10,
                                                             backgroundColor: HADES.surfaceRaised,
-                                                            borderWidth: 1.5, borderColor: HADES.surface,
+                                                            borderWidth: 2, borderColor: HADES.surface,
                                                             alignItems: "center", justifyContent: "center",
                                                         }}
                                                     >
-                                                        <Lock size={8} color={HADES.textDim} />
+                                                        <Lock size={10} color={HADES.textDim} />
                                                     </View>
                                                 )}
                                             </View>
 
                                             <Text
                                                 numberOfLines={2}
-                                                style={{ fontSize: 11, fontWeight: "700", lineHeight: 13.5, textAlign: "center", color: isUnlocked ? HADES.textSecondary : HADES.textFaint }}
+                                                style={{
+                                                    fontSize: 14.5,
+                                                    fontWeight: "700",
+                                                    lineHeight: 16,
+                                                    textAlign: "center",
+                                                    letterSpacing: 0.2,
+                                                    color: isUnlocked ? HADES.text : HADES.textFaint,
+                                                }}
                                             >
                                                 {badge.name}
                                             </Text>
-
-                                            {isUnlocked ? (
-                                                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 6, paddingVertical: 2, paddingLeft: 5, paddingRight: 6, backgroundColor: circleBg }}>
-                                                    <Check size={9} color={levelColor} />
-                                                    <Text style={{ fontSize: 8, fontWeight: "800", letterSpacing: 0.3, color: levelColor }}>CONQUISTADA</Text>
-                                                </View>
-                                            ) : (
-                                                <View style={{ width: "100%" }}>
-                                                    <View style={{ height: 3, borderRadius: 2, backgroundColor: HADES.surfaceOverlay, overflow: "hidden" }}>
-                                                        <View style={{ height: "100%", width: `${progressPct}%`, borderRadius: 2, backgroundColor: levelColor }} />
-                                                    </View>
-                                                    <Text style={{ fontSize: 8.5, fontWeight: "700", color: HADES.textDim, marginTop: 4 }}>{progressPct}%</Text>
-                                                </View>
-                                            )}
                                         </TouchableOpacity>
                                     );
                                 })}
+
+                                {/* Células vazias para a última linha incompleta não esparramar pelo space-between */}
+                                {Array.from({ length: (3 - (levelBadges.length % 3)) % 3 }).map((_, i) => (
+                                    <View key={`vazio-${i}`} style={{ width: "31.5%" }} />
+                                ))}
                             </View>
                         </View>
                     );
@@ -363,25 +355,25 @@ function BadgesSkeleton() {
                             <Skeleton width={40} height={18} borderRadius={7} hades />
                         </View>
 
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8 }}>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: GRID_GAP }}>
                             {[0, 1, 2].map((i) => (
                                 <View
                                     key={i}
                                     style={{
                                         width: "31.5%",
+                                        minHeight: CELL_HEIGHT,
                                         backgroundColor: HADES.surface,
-                                        borderWidth: 1,
-                                        borderColor: HADES.border,
-                                        borderRadius: 13,
-                                        paddingVertical: 12,
+                                        borderRadius: 12,
+                                        paddingTop: 14,
+                                        paddingBottom: 12,
                                         paddingHorizontal: 6,
                                         alignItems: "center",
-                                        gap: 8,
+                                        gap: 10,
                                     }}
                                 >
-                                    <SkeletonCircle size={38} hades />
-                                    <Skeleton width="80%" height={11} hades />
-                                    <Skeleton width="60%" height={9} hades />
+                                    <Skeleton width={TILE_SIZE} height={TILE_SIZE} borderRadius={19} hades />
+                                    <Skeleton width="80%" height={12.5} hades />
+                                    <Skeleton width="55%" height={12.5} hades />
                                 </View>
                             ))}
                         </View>

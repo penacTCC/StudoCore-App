@@ -17,6 +17,8 @@ export default function ModalsLayout() {
             <Stack.Screen name="editar-perfil" options={{ presentation: "modal" }} />
             <Stack.Screen name="detalhes-sessao" options={{ presentation: "card" }} />
             <Stack.Screen name="corrigir-anexo" options={{ presentation: "modal" }} />
+            <Stack.Screen name="contas-bloqueadas" options={{ presentation: "card" }} />
+            <Stack.Screen name="notificacoes" options={{ presentation: "card" }} />
         </Stack>
     );
 }

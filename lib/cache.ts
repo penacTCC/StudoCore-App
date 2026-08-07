@@ -23,6 +23,16 @@ const TEMPO_MAXIMO = 10 * 60_000;
 /** Acima disto, uma gravação dispara a limpeza das entradas velhas e sem observadores. */
 const LIMITE_ENTRADAS = 80;
 
+/**
+ * A partir de quanto tempo uma busca "em andamento" é dada como perdida.
+ *
+ * Fica acima do tempo limite das requisições (`lib/supabase.ts`), de propósito: no caminho
+ * normal é o fetch que desiste primeiro e devolve um erro de verdade. Isto aqui é a rede de
+ * segurança para a promise que não resolve nem rejeita por qualquer outro motivo — sem ela,
+ * a chave ficava marcada como `buscando` para sempre e a tela nunca saía do skeleton.
+ */
+export const TEMPO_LIMITE_BUSCA = 30_000;
+
 export type EstadoCache<T> = {
     dados: T | undefined;
     erro: unknown;
@@ -30,6 +40,8 @@ export type EstadoCache<T> = {
     gravadoEm: number;
     /** Há uma busca em andamento para esta chave. */
     buscando: boolean;
+    /** Quando a busca em andamento começou. 0 quando não há busca. */
+    buscandoDesde: number;
 };
 
 /**
@@ -42,6 +54,7 @@ const VAZIO: EstadoCache<never> = Object.freeze({
     erro: null,
     gravadoEm: 0,
     buscando: false,
+    buscandoDesde: 0,
 });
 
 const entradas = new Map<string, EstadoCache<unknown>>();
@@ -74,6 +87,15 @@ function gravar<T>(chave: string, estado: EstadoCache<T>) {
 
 export function lerCache<T>(chave: string): EstadoCache<T> {
     return (entradas.get(chave) as EstadoCache<T> | undefined) ?? (VAZIO as EstadoCache<T>);
+}
+
+/**
+ * Uma busca marcada como em andamento há tempo demais é tratada como perdida.
+ * Ver `TEMPO_LIMITE_BUSCA`.
+ */
+export function buscaTravada(chave: string): boolean {
+    const { buscando, buscandoDesde } = lerCache(chave);
+    return buscando && Date.now() - buscandoDesde > TEMPO_LIMITE_BUSCA;
 }
 
 export function observarCache(chave: string, notificar: () => void): () => void {
@@ -111,14 +133,18 @@ function limpar() {
  * Devolve a promise em andamento para quem quiser esperar (pull-to-refresh, por exemplo).
  */
 export function buscarNoCache<T>(chave: string, buscar: () => Promise<T>): Promise<T> {
+    // Uma busca dentro do prazo é reaproveitada; uma travada é abandonada e refeita.
+    // Abandonar é seguro: a busca nova avança a geração, então o resultado da velha é
+    // descartado se ainda chegar, e o `finally` dela compara identidade antes de mexer
+    // no dedupe — não vai derrubar a substituta.
     const jaEmVoo = emVoo.get(chave) as Promise<T> | undefined;
-    if (jaEmVoo) return jaEmVoo;
+    if (jaEmVoo && !buscaTravada(chave)) return jaEmVoo;
 
     const minhaGeracao = (geracao.get(chave) ?? 0) + 1;
     geracao.set(chave, minhaGeracao);
 
     const anterior = lerCache<T>(chave);
-    gravar<T>(chave, { ...anterior, buscando: true });
+    gravar<T>(chave, { ...anterior, buscando: true, buscandoDesde: Date.now() });
 
     // A promise precisa se referenciar no `finally` para só limpar a si mesma; o objeto
     // intermediário existe porque a referência ainda não está atribuída ali dentro.
@@ -130,13 +156,24 @@ export function buscarNoCache<T>(chave: string, buscar: () => Promise<T>): Promi
             // Chegou tarde: outra busca mais nova já assumiu esta chave.
             if (geracao.get(chave) !== minhaGeracao) return dados;
 
-            gravar<T>(chave, { dados, erro: null, gravadoEm: Date.now(), buscando: false });
+            gravar<T>(chave, {
+                dados,
+                erro: null,
+                gravadoEm: Date.now(),
+                buscando: false,
+                buscandoDesde: 0,
+            });
             limpar();
             return dados;
         } catch (erro) {
             if (geracao.get(chave) === minhaGeracao) {
                 // O dado anterior é preservado: uma falha de rede não deve esvaziar a tela.
-                gravar<T>(chave, { ...lerCache<T>(chave), erro, buscando: false });
+                gravar<T>(chave, {
+                    ...lerCache<T>(chave),
+                    erro,
+                    buscando: false,
+                    buscandoDesde: 0,
+                });
             }
             throw erro;
         } finally {
@@ -160,7 +197,13 @@ export function definirCache<T>(chave: string, dados: T) {
     */
     emVoo.delete(chave);
 
-    gravar<T>(chave, { dados, erro: null, gravadoEm: Date.now(), buscando: false });
+    gravar<T>(chave, {
+        dados,
+        erro: null,
+        gravadoEm: Date.now(),
+        buscando: false,
+        buscandoDesde: 0,
+    });
 }
 
 /**
@@ -172,8 +215,16 @@ export function definirCache<T>(chave: string, dados: T) {
  * que vale, e a semente é descartada.
  */
 export function semearCache<T>(chave: string, dados: T) {
-    if (lerCache<T>(chave).gravadoEm !== 0) return;
-    gravar<T>(chave, { dados, erro: null, gravadoEm: Date.now(), buscando: emVoo.has(chave) });
+    const anterior = lerCache<T>(chave);
+    if (anterior.gravadoEm !== 0) return;
+    gravar<T>(chave, {
+        dados,
+        erro: null,
+        gravadoEm: Date.now(),
+        // A busca em andamento (se houver) segue valendo, com o relógio dela intacto.
+        buscando: anterior.buscando,
+        buscandoDesde: anterior.buscandoDesde,
+    });
 }
 
 /**
@@ -190,9 +241,14 @@ export function invalidarCache(prefixo?: string) {
 
 /** Remove entradas do cache por completo. Usado no logout, para não vazar dado entre contas. */
 export function limparCache(prefixo?: string) {
-    for (const chave of [...entradas.keys()]) {
+    // As chaves vêm dos dois mapas: uma busca disparada e ainda sem resposta não tem entrada
+    // em `entradas`, mas precisa igualmente sair do dedupe. Sem isso, a promise ficava órfã
+    // em `emVoo` — a geração nova já a condenava a nunca gravar — e a próxima conta que
+    // pedisse a mesma chave recebia essa promise morta e travava no skeleton.
+    for (const chave of new Set([...entradas.keys(), ...emVoo.keys()])) {
         if (prefixo && !chave.startsWith(prefixo)) continue;
         entradas.delete(chave);
+        emVoo.delete(chave);
         geracao.set(chave, (geracao.get(chave) ?? 0) + 1);
         avisar(chave);
     }

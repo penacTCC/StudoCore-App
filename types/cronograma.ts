@@ -61,6 +61,8 @@ export type Plano = {
     qtdBlocos: number;
     duracaoTotal: string;
     agenda: AgendaPlano;
+    /** Compartilhado no Explorar da Comunidade. */
+    publico: boolean;
 };
 
 /** Linha de `planos` — chaves batem com as colunas da tabela. */
@@ -72,6 +74,7 @@ export type PlanoRow = {
     agenda_tipo: "fixado" | "data" | "nenhuma";
     agenda_dias: number[] | null;
     agenda_data: string | null;
+    publico: boolean;
     created_at: string;
 };
 
@@ -160,4 +163,10 @@ export type PreferenciasCronograma = {
     aparecerNoRanking: boolean;
     /** Valor inicial do interruptor "sessão pública" ao montar uma sessão de foco. */
     sessaoPublicaPadrao: boolean;
+    /**
+     * Opt-in do feed público (Comunidade → Explorar). Desligado, as fotos de sessão não
+     * saem do grupo, mesmo com a sessão pública — `sessaoPublicaPadrao` é consentimento
+     * de grupo, não de feed aberto.
+     */
+    feedPublico: boolean;
 };

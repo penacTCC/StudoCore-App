@@ -478,6 +478,9 @@ export default function FocusFeedbackModal() {
             <EtapaFotoSessao
                 userId={userId}
                 sessaoIds={idsDaSessao}
+                // As duas condições que a RPC do feed exige: o opt-in e a sessão pública.
+                // Só assim a tela promete o que vai mesmo acontecer com a foto.
+                iraParaOFeed={prefs.feedPublico && params.isPublic === "true"}
                 aoConcluir={concluirEtapaFoto}
             />
         );

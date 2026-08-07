@@ -18,3 +18,10 @@ export const BADGE_ICON_MAP: Record<string, LucideIcon> = {
     Crosshair, Sword, Swords, Anchor, Dumbbell, Mountain, Compass, Sparkles,
     Globe, Crown, Gem, Infinity, Diamond, Timer, LayoutGrid, BrainCircuit,
 };
+
+// Medalhas com arte própria (PNG), indexadas pelo id do BadgeType.
+// Quem não estiver aqui continua usando o ícone lucide do BADGE_ICON_MAP.
+export const BADGE_IMAGE_MAP: Record<string, number> = {
+    first_session: require("@/assets/badges/first_session.png"),
+    hours_1: require("@/assets/badges/hours_1.png"),
+};

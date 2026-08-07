@@ -8,6 +8,7 @@ import { Image as FileUp, X } from "lucide-react-native";
 //Componentes do Projeto
 import DocumentPickerVault from "@/components/ui/DocumentPickerVault";
 import TabSelector from "@/components/ui/TabSelector";
+import { LinhaSwitch } from "@/components/cronograma/LinhasConfig";
 
 //Componentes do Projeto
 import { HADES } from "@/constants/hades";
@@ -54,6 +55,10 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
     const { grupos } = useMeusGrupos();
     const [gruposSelecionados, setGruposSelecionados] = useState<string[]>([]);
 
+    // Publicar no Explorar. Começa desligado de propósito: compartilhar com o grupo e
+    // publicar para o app inteiro são decisões diferentes, e a segunda é sempre escolha.
+    const [publicarNoExplorar, setPublicarNoExplorar] = useState(false);
+
     /**
      * função adiciona o grupo se ele não estiver na lista ou remove se já estiver.
      * @param groupId id do grupo
@@ -78,6 +83,7 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                 arquivo: selectedFile,
                 disciplina: selectedDiscipline,
                 gruposIds: gruposSelecionados,
+                publico: publicarNoExplorar,
             });
 
             toast.success("Arquivo enviado com sucesso!");
@@ -104,6 +110,9 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                     borderColor: HADES.border,
                     borderRadius: 24,
                     padding: 22,
+                    // O modal cresceu com o interruptor do Explorar e não cabe inteiro em
+                    // tela pequena; o miolo rola e o cabeçalho e o botão ficam parados.
+                    maxHeight: "90%",
                 }}
             >
                 {/* Header */}
@@ -114,85 +123,36 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                     </TouchableOpacity>
                 </View>
 
-                {/* Upload Zone */}
-                <DocumentPickerVault
-                    category={uploadFileType}
-                    selectedFile={selectedFile}
-                    isUploading={isUploading}
-                    onFileSelected={setSelectedFile}
-                />
-
-                {/* File Type Selector */}
-                <View style={{ marginBottom: 16 }}>
-                    <Text style={{ fontSize: 12, color: HADES.textMuted, marginBottom: 8 }}>Categoria do arquivo</Text>
-                    <TabSelector
-                        tabs={FILE_TYPE_TABS}
-                        active={uploadFileType}
-                        onSelect={(k) => setUploadFileType(k as FileCategory)}
-                        activeColor="brand"
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    {/* Upload Zone */}
+                    <DocumentPickerVault
+                        category={uploadFileType}
+                        selectedFile={selectedFile}
+                        isUploading={isUploading}
+                        onFileSelected={setSelectedFile}
                     />
-                </View>
 
-                {/* Discipline Selector */}
-                <View style={{ marginBottom: 20 }}>
-                    <Text style={{ fontSize: 12, color: HADES.textMuted, marginBottom: 8 }}>Escolha a disciplina</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        {disciplinas.map((discipline) => {
-                            const isSelected = selectedDiscipline === discipline;
-                            return (
-                                <TouchableOpacity
-                                    key={discipline}
-                                    onPress={() => setSelectedDiscipline(discipline)}
-                                    activeOpacity={0.8}
-                                    style={{
-                                        paddingHorizontal: 16,
-                                        paddingVertical: 8,
-                                        borderRadius: 999,
-                                        marginRight: 8,
-                                        borderWidth: 1,
-                                        backgroundColor: isSelected ? HADES.accentSolid : HADES.surfaceOverlay,
-                                        borderColor: isSelected ? HADES.accentSolid : HADES.border,
-                                    }}
-                                >
-                                    <Text style={{ fontSize: 12, fontWeight: "600", color: isSelected ? "#000" : HADES.textMuted }}>
-                                        {discipline}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
-                </View>
+                    {/* File Type Selector */}
+                    <View style={{ marginBottom: 16 }}>
+                        <Text style={{ fontSize: 12, color: HADES.textMuted, marginBottom: 8 }}>Categoria do arquivo</Text>
+                        <TabSelector
+                            tabs={FILE_TYPE_TABS}
+                            active={uploadFileType}
+                            onSelect={(k) => setUploadFileType(k as FileCategory)}
+                            activeColor="brand"
+                        />
+                    </View>
 
-                {/* Group Selector */}
-                <View style={{ marginBottom: 20 }}>
-                    <Text style={{ fontSize: 12, color: HADES.textMuted, marginBottom: 8 }}>
-                        Escolha o grupo com quem deseja compartilhar
-                    </Text>
-
-                    {grupos.length === 0 ? (
-                        <View
-                            style={{
-                                backgroundColor: HADES.surfaceOverlay,
-                                borderWidth: 1,
-                                borderColor: HADES.border,
-                                borderRadius: 12,
-                                paddingVertical: 14,
-                                paddingHorizontal: 14,
-                            }}
-                        >
-                            <Text style={{ fontSize: 12.5, color: HADES.textMuted }}>
-                                Você ainda não está em nenhum grupo. Entre em um grupo pra poder compartilhar arquivos com ele.
-                            </Text>
-                        </View>
-                    ) : (
+                    {/* Discipline Selector */}
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={{ fontSize: 12, color: HADES.textMuted, marginBottom: 8 }}>Escolha a disciplina</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            {grupos.map((group) => {
-                                const isSelected = gruposSelecionados.includes(group.id);
-
+                            {disciplinas.map((discipline) => {
+                                const isSelected = selectedDiscipline === discipline;
                                 return (
                                     <TouchableOpacity
-                                        key={group.id}
-                                        onPress={() => alternarGrupo(group.id)}
+                                        key={discipline}
+                                        onPress={() => setSelectedDiscipline(discipline)}
                                         activeOpacity={0.8}
                                         style={{
                                             paddingHorizontal: 16,
@@ -205,14 +165,88 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
                                         }}
                                     >
                                         <Text style={{ fontSize: 12, fontWeight: "600", color: isSelected ? "#000" : HADES.textMuted }}>
-                                            {group.nome_grupo}
+                                            {discipline}
                                         </Text>
                                     </TouchableOpacity>
                                 );
                             })}
                         </ScrollView>
-                    )}
-                </View>
+                    </View>
+
+                    {/* Group Selector */}
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={{ fontSize: 12, color: HADES.textMuted, marginBottom: 8 }}>
+                            Escolha o grupo com quem deseja compartilhar
+                        </Text>
+
+                        {grupos.length === 0 ? (
+                            <View
+                                style={{
+                                    backgroundColor: HADES.surfaceOverlay,
+                                    borderWidth: 1,
+                                    borderColor: HADES.border,
+                                    borderRadius: 12,
+                                    paddingVertical: 14,
+                                    paddingHorizontal: 14,
+                                }}
+                            >
+                                <Text style={{ fontSize: 12.5, color: HADES.textMuted }}>
+                                    Você ainda não está em nenhum grupo. Entre em um grupo pra poder compartilhar arquivos com ele.
+                                </Text>
+                            </View>
+                        ) : (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                {grupos.map((group) => {
+                                    const isSelected = gruposSelecionados.includes(group.id);
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={group.id}
+                                            onPress={() => alternarGrupo(group.id)}
+                                            activeOpacity={0.8}
+                                            style={{
+                                                paddingHorizontal: 16,
+                                                paddingVertical: 8,
+                                                borderRadius: 999,
+                                                marginRight: 8,
+                                                borderWidth: 1,
+                                                backgroundColor: isSelected ? HADES.accentSolid : HADES.surfaceOverlay,
+                                                borderColor: isSelected ? HADES.accentSolid : HADES.border,
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: 12, fontWeight: "600", color: isSelected ? "#000" : HADES.textMuted }}>
+                                                {group.nome_grupo}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
+                    </View>
+
+                    {/*
+                      Publicar no Explorar fica DEPOIS dos grupos e separado deles: são duas
+                      perguntas diferentes, e juntá-las na mesma lista faria "compartilhar com
+                      o pessoal do grupo" parecer o mesmo que "deixar o app inteiro baixar".
+                    */}
+                    <View
+                        style={{
+                            marginBottom: 20,
+                            backgroundColor: HADES.surfaceOverlay,
+                            borderWidth: 1,
+                            borderColor: HADES.border,
+                            borderRadius: 12,
+                        }}
+                    >
+                        <LinhaSwitch
+                            rotulo="Publicar no Explorar"
+                            descricao="Qualquer pessoa do app vê e pode baixar este arquivo."
+                            ligado={publicarNoExplorar}
+                            onToggle={() => setPublicarNoExplorar((antes) => !antes)}
+                            ultima
+                        />
+                    </View>
+                </ScrollView>
 
                 {/* Upload Button */}
                 {selectedFile && (

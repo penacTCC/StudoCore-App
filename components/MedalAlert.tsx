@@ -1,14 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet, DeviceEventEmitter, Vibration } from 'react-native';
 import { preferenciasDoUsuarioAtual } from '@/services/preferencias';
-import { BookOpen, Flame, Star, Trophy, X } from 'lucide-react-native';
+import { X } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { BadgeType } from '@/constants/badges';
-import type { LucideIcon } from 'lucide-react-native';
-
-const iconMap: Record<string, LucideIcon> = {
-    BookOpen, Flame, Star, Trophy
-};
+import IconeMedalha from '@/components/badges/IconeMedalha';
 
 export default function MedalAlert() {
     const [queue, setQueue] = useState<BadgeType[]>([]);
@@ -63,7 +59,6 @@ export default function MedalAlert() {
 
     if (!currentBadge) return null;
 
-    const BadgeIcon = iconMap[currentBadge.icon] || Star;
 
     return (
         <Animated.View 
@@ -74,7 +69,7 @@ export default function MedalAlert() {
         >
             <View className="flex-row items-center bg-slate-900 border border-emerald-500 rounded-2xl p-4 shadow-xl shadow-emerald-500/20 w-11/12">
                 <View className="w-12 h-12 rounded-full bg-emerald-500/20 items-center justify-center mr-4">
-                    <BadgeIcon size={24} color={COLORS.emerald} />
+                    <IconeMedalha badgeId={currentBadge.id} icon={currentBadge.icon} size={24} color={COLORS.emerald} />
                 </View>
                 <View className="flex-1">
                     <Text className="text-xs text-emerald-400 font-bold uppercase tracking-wider mb-0.5">

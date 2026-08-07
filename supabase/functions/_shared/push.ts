@@ -13,15 +13,18 @@ type Admin = ReturnType<typeof createClient>;
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
-// Precisa bater com CANAL_FORCAS em services/pushTokens.ts: é o canal que o app cria no
-// Android ao registrar o token. Canal inexistente no aparelho = notificação silenciosa.
+// Precisam bater com os canais em services/pushTokens.ts: são os que o app cria no Android
+// ao registrar o token. Canal inexistente no aparelho = notificação silenciosa.
 export const CANAL_FORCAS = "forcas";
+export const CANAL_COMUNIDADE = "comunidade";
 
 export type MensagemPush = {
   destinatarioId: string;
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  /** Canal Android. Só as forças são urgentes; o resto do app pede o canal explicitamente. */
+  canal?: string;
 };
 
 /** Uma linha de `push_tokens` com o fuso de quem vai receber. */
@@ -128,7 +131,7 @@ export async function enviarPush(admin: Admin, mensagens: MensagemPush[]): Promi
     body: m.body,
     data: m.data ?? {},
     sound: "default",
-    channelId: CANAL_FORCAS,
+    channelId: m.canal ?? CANAL_FORCAS,
     priority: "high",
   }));
 

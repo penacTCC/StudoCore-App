@@ -30,6 +30,8 @@ export const PADRAO_PREFERENCIAS: PreferenciasCronograma = {
     fotoAposSessao: true,
     aparecerNoRanking: true,
     sessaoPublicaPadrao: true,
+    // Publicar para estranhos é escolha, não default. Ver 20260807190000_feed_publico_opt_in.
+    feedPublico: false,
 };
 
 /** Linha de `preferencias_cronograma` — chaves batem com as colunas da tabela. */
@@ -59,6 +61,7 @@ type PreferenciasRow = {
     foto_apos_sessao: boolean;
     aparecer_no_ranking: boolean;
     sessao_publica_padrao: boolean;
+    feed_publico: boolean;
 };
 
 const entre = (valor: number, min: number, max: number) => Math.min(max, Math.max(min, valor));
@@ -99,6 +102,9 @@ function paraPreferencias(row: PreferenciasRow): PreferenciasCronograma {
         fotoAposSessao: row.foto_apos_sessao ?? true,
         aparecerNoRanking: row.aparecer_no_ranking ?? true,
         sessaoPublicaPadrao: row.sessao_publica_padrao ?? true,
+        // Coluna ausente (linha gravada antes da migration) cai para desligado: no feed
+        // público, o lado seguro do `??` é não publicar.
+        feedPublico: row.feed_publico ?? false,
     };
 }
 
@@ -137,6 +143,7 @@ function paraRow(usuarioId: string, prefs: PreferenciasCronograma): Preferencias
         foto_apos_sessao: prefs.fotoAposSessao,
         aparecer_no_ranking: prefs.aparecerNoRanking,
         sessao_publica_padrao: prefs.sessaoPublicaPadrao,
+        feed_publico: prefs.feedPublico,
     };
 }
 

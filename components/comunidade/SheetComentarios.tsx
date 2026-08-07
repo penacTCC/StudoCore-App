@@ -20,12 +20,11 @@ import { confirm } from "@/services/confirm";
 import { toast } from "@/services/toast";
 import {
     apagarComentario,
-    autorLogadoMock,
     buscarComentarios,
     denunciar,
     publicarComentario,
 } from "@/services/comunidade";
-import type { ComentarioPublicacao } from "@/types/comunidade";
+import type { ComentarioPublicacao, Publicacao } from "@/types/comunidade";
 
 /**
  * Comentários de uma publicação, em um nível só.
@@ -35,14 +34,15 @@ import type { ComentarioPublicacao } from "@/types/comunidade";
  * é de quem escreveu e de quem publicou; denunciar é de qualquer um.
  */
 export default function SheetComentarios({
-    publicacaoId,
-    souDonoDaPublicacao,
+    publicacao,
+    eu,
     onFechar,
     onContagemMudou,
 }: {
     /** `null` mantém a folha fechada. */
-    publicacaoId: string | null;
-    souDonoDaPublicacao: boolean;
+    publicacao: Publicacao | null;
+    /** Usuário logado: avatar do campo de escrita e quem pode apagar comentário alheio. */
+    eu: { id: string | null; nome: string | null; foto: string | null };
     onFechar: () => void;
     onContagemMudou: (delta: number) => void;
 }) {
@@ -51,17 +51,21 @@ export default function SheetComentarios({
     const [texto, setTexto] = useState("");
     const [enviando, setEnviando] = useState(false);
 
-    const eu = autorLogadoMock();
+    const publicacaoId = publicacao?.id ?? null;
+    const donoId = publicacao?.autor.id ?? null;
 
     useEffect(() => {
-        if (!publicacaoId) return;
+        if (!publicacao) return;
 
         let ativo = true;
         setCarregando(true);
         setComentarios([]);
         setTexto("");
 
-        buscarComentarios(publicacaoId)
+        buscarComentarios(
+            { origem: publicacao.origem, referenciaId: publicacao.referenciaId },
+            publicacao.autor.id
+        )
             .then((lista) => {
                 if (ativo) setComentarios(lista);
             })
@@ -75,15 +79,21 @@ export default function SheetComentarios({
         return () => {
             ativo = false;
         };
+        // A folha recarrega quando troca de publicação, não a cada render do feed.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [publicacaoId]);
 
     const enviar = useCallback(async () => {
         const conteudo = texto.trim();
-        if (!publicacaoId || !conteudo || enviando) return;
+        if (!publicacao || !conteudo || enviando) return;
 
         setEnviando(true);
         try {
-            const comentario = await publicarComentario(publicacaoId, conteudo);
+            const comentario = await publicarComentario(
+                { origem: publicacao.origem, referenciaId: publicacao.referenciaId },
+                conteudo,
+                donoId
+            );
             setComentarios((atuais) => [...atuais, comentario]);
             setTexto("");
             onContagemMudou(1);
@@ -92,7 +102,7 @@ export default function SheetComentarios({
         } finally {
             setEnviando(false);
         }
-    }, [publicacaoId, texto, enviando, onContagemMudou]);
+    }, [publicacao, donoId, texto, enviando, onContagemMudou]);
 
     const apagar = useCallback(
         (comentario: ComentarioPublicacao) => {
@@ -119,13 +129,24 @@ export default function SheetComentarios({
         [onContagemMudou]
     );
 
-    const reportar = useCallback(async (comentarioId: string) => {
-        await denunciar({ tipo: "comentario", id: comentarioId });
-        toast.success("Denúncia enviada. Vamos analisar.");
-    }, []);
+    const reportar = useCallback(
+        async (comentarioId: string) => {
+            if (!publicacao) return;
+            try {
+                await denunciar({
+                    ref: { origem: publicacao.origem, referenciaId: publicacao.referenciaId },
+                    comentarioId,
+                });
+                toast.success("Denúncia enviada. Vamos analisar.");
+            } catch {
+                toast.error("Não deu para enviar a denúncia.");
+            }
+        },
+        [publicacao]
+    );
 
     return (
-        <Modal visible={!!publicacaoId} transparent animationType="slide" onRequestClose={onFechar}>
+        <Modal visible={!!publicacao} transparent animationType="slide" onRequestClose={onFechar}>
             <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)" }} onPress={onFechar} />
 
             <KeyboardAvoidingView
@@ -224,7 +245,8 @@ export default function SheetComentarios({
                                         </Text>
                                     </View>
 
-                                    {comentario.meu || souDonoDaPublicacao ? (
+                                    {/* A RLS é quem decide de verdade; aqui é só qual ícone mostrar. */}
+                                    {comentario.meu || (!!eu.id && eu.id === donoId) ? (
                                         <TouchableOpacity
                                             onPress={() => apagar(comentario)}
                                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

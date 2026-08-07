@@ -17,7 +17,20 @@ export type AutorPublicacao = {
     foto: string | null;
 };
 
-type PublicacaoBase = {
+/**
+ * Endereço de uma publicação no banco: `origem` diz em qual tabela `referenciaId` vive.
+ *
+ * Curtida, comentário e denúncia apontam para esse par em vez de para uma tabela
+ * `publicacoes` — a foto de sessão já é uma linha de `sessoes_foco`, e duplicá-la criaria
+ * duas fontes da verdade para "esta sessão ainda é pública?".
+ */
+export type ReferenciaPublicacao = {
+    origem: TipoPublicacao;
+    referenciaId: string;
+};
+
+type PublicacaoBase = ReferenciaPublicacao & {
+    /** `origem:referenciaId` — chave estável de lista, única entre as origens. */
     id: string;
     autor: AutorPublicacao;
     /** ISO 8601. */
@@ -29,7 +42,9 @@ type PublicacaoBase = {
 
 export type PublicacaoGaleria = PublicacaoBase & {
     tipo: "galeria";
+    /** Signed URL de 1h — o bucket é privado, então ela expira e é reassinada por página. */
     fotoUrl: string | null;
+    legenda: string | null;
     materia: string;
     materiaCor: string;
     duracaoMinutos: number;
@@ -40,7 +55,10 @@ export type PublicacaoArquivo = PublicacaoBase & {
     nomeArquivo: string;
     /** Extensão em maiúsculas, como aparece no card: PDF, DOCX… */
     extensao: string;
-    tamanhoBytes: number;
+    /** Caminho no bucket — é por ele que o botão de download baixa o arquivo. */
+    storagePath: string | null;
+    /** `null` nos arquivos enviados antes da coluna existir; o card omite o tamanho. */
+    tamanhoBytes: number | null;
     materia: string | null;
     materiaCor: string | null;
 };
@@ -54,7 +72,8 @@ export type PublicacaoPlano = PublicacaoBase & {
     tipo: "plano";
     titulo: string;
     blocos: number;
-    horasTotais: number;
+    /** Só o tempo de estudo — somar o descanso inflaria o plano. */
+    minutosTotais: number;
     /** Só as primeiras matérias entram nas tags; o resto vira "+N". */
     materias: MateriaDoPlano[];
     materiasExtras: number;
@@ -64,7 +83,6 @@ export type Publicacao = PublicacaoGaleria | PublicacaoArquivo | PublicacaoPlano
 
 export type ComentarioPublicacao = {
     id: string;
-    publicacaoId: string;
     autor: AutorPublicacao;
     texto: string;
     criadoEm: string;
@@ -76,6 +94,11 @@ export type ComentarioPublicacao = {
 
 export type PaginaDoFeed = {
     itens: Publicacao[];
-    /** `null` quando não há mais nada para carregar. */
+    /**
+     * Cursor opaco da próxima página; `null` quando acabou.
+     *
+     * Ele carrega a posição de cada origem separadamente, porque o feed é uma junção de
+     * fontes que paginam em ritmos diferentes.
+     */
     proximoCursor: string | null;
 };

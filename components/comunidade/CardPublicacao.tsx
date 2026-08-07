@@ -1,4 +1,4 @@
-import { View, Text, Image, TouchableOpacity } from "react-native";
+import { View, Text, Image, TouchableOpacity, ActivityIndicator } from "react-native";
 import {
     CalendarPlus,
     CalendarRange,
@@ -28,6 +28,7 @@ export default function CardPublicacao({
     onAbrirMenu,
     onImportarPlano,
     onBaixarArquivo,
+    ocupado = false,
 }: {
     publicacao: Publicacao;
     onCurtir: () => void;
@@ -35,6 +36,8 @@ export default function CardPublicacao({
     onAbrirMenu: () => void;
     onImportarPlano: () => void;
     onBaixarArquivo: () => void;
+    /** Baixar e importar levam segundos e saem do app; sem isso o toque parece perdido. */
+    ocupado?: boolean;
 }) {
     return (
         <View
@@ -124,11 +127,12 @@ export default function CardPublicacao({
                                 {publicacao.nomeArquivo}
                             </Text>
                             <Text style={{ fontSize: 11.5, color: HADES.textFaint, marginTop: 2 }}>
-                                {publicacao.extensao} · {formatarTamanho(publicacao.tamanhoBytes)}
+                                {descreverArquivo(publicacao.extensao, publicacao.tamanhoBytes)}
                             </Text>
                         </View>
                         <TouchableOpacity
                             onPress={onBaixarArquivo}
+                            disabled={ocupado}
                             activeOpacity={0.8}
                             style={{
                                 width: 34,
@@ -139,7 +143,11 @@ export default function CardPublicacao({
                                 justifyContent: "center",
                             }}
                         >
-                            <Download size={16} color={HADES.textSecondary} />
+                            {ocupado ? (
+                                <ActivityIndicator size="small" color={HADES.textSecondary} />
+                            ) : (
+                                <Download size={16} color={HADES.textSecondary} />
+                            )}
                         </TouchableOpacity>
                     </View>
 
@@ -182,7 +190,7 @@ export default function CardPublicacao({
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                             <Clock size={13} color={HADES.textFaint} />
                             <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>
-                                {publicacao.horasTotais}h no total
+                                {formatarDuracao(publicacao.minutosTotais)} de estudo
                             </Text>
                         </View>
                     </View>
@@ -225,8 +233,10 @@ export default function CardPublicacao({
 
                     <TouchableOpacity
                         onPress={onImportarPlano}
+                        disabled={ocupado}
                         activeOpacity={0.85}
                         style={{
+                            opacity: ocupado ? 0.6 : 1,
                             height: 40,
                             borderRadius: 11,
                             backgroundColor: "rgba(255,154,0,0.12)",
@@ -239,9 +249,13 @@ export default function CardPublicacao({
                             marginTop: 12,
                         }}
                     >
-                        <CalendarPlus size={15} color={HADES.accentSolid} />
+                        {ocupado ? (
+                            <ActivityIndicator size="small" color={HADES.accentSolid} />
+                        ) : (
+                            <CalendarPlus size={15} color={HADES.accentSolid} />
+                        )}
                         <Text style={{ fontSize: 13, fontWeight: "700", color: HADES.accentSolid }}>
-                            Importar para meu cronograma
+                            {ocupado ? "Importando..." : "Importar para meu cronograma"}
                         </Text>
                     </TouchableOpacity>
                 </>
@@ -322,8 +336,8 @@ function Reacao({
 }
 
 /**
- * A foto da sessão só existe no bucket privado, servida por signed URL. Enquanto o feed
- * é mock não há URL nenhuma, então o card mostra a moldura vazia em vez de quebrar.
+ * A foto da sessão só existe no bucket privado, servida por signed URL. A assinatura pode
+ * falhar (expirou, o arquivo sumiu), e aí o card mostra a moldura vazia em vez de quebrar.
  */
 function FotoDaSessao({ url }: { url: string | null }) {
     if (url) {
@@ -379,6 +393,15 @@ function formatarDuracao(minutos: number): string {
     if (horas === 0) return `${resto}m`;
     if (resto === 0) return `${horas}h`;
     return `${horas}h ${String(resto).padStart(2, "0")}m`;
+}
+
+/**
+ * "PDF · 2,5 MB" — mas cada metade pode faltar: arquivo sem extensão no nome, e tamanho
+ * só a partir de 20260807210000 (os anteriores nunca gravaram o peso).
+ */
+function descreverArquivo(extensao: string, bytes: number | null): string {
+    const partes = [extensao, bytes === null ? "" : formatarTamanho(bytes)].filter(Boolean);
+    return partes.join(" · ");
 }
 
 function formatarTamanho(bytes: number): string {

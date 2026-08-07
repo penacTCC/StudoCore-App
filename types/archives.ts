@@ -9,6 +9,8 @@ export type UploadArquivoParams = {
   };
   disciplina: string;
   gruposIds: string[];
+  /** Publicar no Explorar da Comunidade. Padrão `false`: publicar é escolha, não default. */
+  publico?: boolean;
 };
 
 export type DeletaRegistroProps = {
@@ -30,6 +32,9 @@ export type ArquivoDetalhe = {
   disciplina: string;
   storage_path: string | null;
   backblaze_file_id: string | null;
+  publico?: boolean;
+  /** `null` nos arquivos enviados antes da coluna existir. */
+  tamanho_bytes?: number | null;
   created_at: string;
   profiles?: ArquivoProfile | null;
   arquivos_grupos?: ArquivoGrupo[];

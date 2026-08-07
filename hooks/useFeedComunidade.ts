@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { alternarCurtida, bloquearAutor, buscarFeedComunidade } from "@/services/comunidade";
+import { toast } from "@/services/toast";
 import type { FiltroComunidade, Publicacao } from "@/types/comunidade";
 
 /**
@@ -79,33 +80,30 @@ export function useFeedComunidade(filtro: FiltroComunidade) {
     const tentarDeNovo = useCallback(() => carregarPrimeiraPagina("inicial"), [carregarPrimeiraPagina]);
 
     /** Curtida otimista: o coração responde na hora e volta atrás se o servidor recusar. */
-    const curtir = useCallback((publicacaoId: string) => {
-        let alvo: Publicacao | undefined;
+    const curtir = useCallback((publicacao: Publicacao) => {
+        const anterior = { curtidoPorMim: publicacao.curtidoPorMim, curtidas: publicacao.curtidas };
+        const passaACurtir = !publicacao.curtidoPorMim;
 
         setItens((atuais) =>
-            atuais.map((item) => {
-                if (item.id !== publicacaoId) return item;
-                alvo = item;
-                const passaACurtir = !item.curtidoPorMim;
-                return {
-                    ...item,
-                    curtidoPorMim: passaACurtir,
-                    curtidas: Math.max(0, item.curtidas + (passaACurtir ? 1 : -1)),
-                };
-            })
+            atuais.map((item) =>
+                item.id === publicacao.id
+                    ? {
+                          ...item,
+                          curtidoPorMim: passaACurtir,
+                          curtidas: Math.max(0, item.curtidas + (passaACurtir ? 1 : -1)),
+                      }
+                    : item
+            )
         );
 
-        if (!alvo) return;
-        const anterior = alvo;
-
-        alternarCurtida(publicacaoId, !anterior.curtidoPorMim).catch(() => {
+        alternarCurtida(
+            { origem: publicacao.origem, referenciaId: publicacao.referenciaId },
+            passaACurtir
+        ).catch(() => {
             setItens((atuais) =>
-                atuais.map((item) =>
-                    item.id === publicacaoId
-                        ? { ...item, curtidoPorMim: anterior.curtidoPorMim, curtidas: anterior.curtidas }
-                        : item
-                )
+                atuais.map((item) => (item.id === publicacao.id ? { ...item, ...anterior } : item))
             );
+            toast.error("Não deu para registrar sua curtida.");
         });
     }, []);
 

@@ -181,8 +181,30 @@ export default function SettingsScreen() {
                     />
                     <LinhaSwitch
                         rotulo="Sessão pública por padrão"
+                        descricao="Vale para os seus grupos."
                         ligado={prefs.sessaoPublicaPadrao}
                         onToggle={() => alternar("sessaoPublicaPadrao")}
+                    />
+                    {/*
+                      Separado de "sessão pública" de propósito: aquele interruptor sempre
+                      quis dizer "o meu grupo vê", e vale TRUE por padrão. Deixar o feed
+                      pendurado nele publicaria para estranhos as fotos de quem só tinha
+                      consentido com o grupo. Ver 20260807190000_feed_publico_opt_in.
+                    */}
+                    <LinhaSwitch
+                        rotulo="Participar do feed público"
+                        descricao="Suas fotos de sessões públicas aparecem no Explorar, para qualquer pessoa do app."
+                        ligado={prefs.feedPublico}
+                        onToggle={() => alternar("feedPublico")}
+                    />
+                    {/*
+                      Bloquear alguém no Explorar precisa ter volta: sem esta tela, um toque
+                      errado no menu de um card seria definitivo.
+                    */}
+                    <LinhaEscolha
+                        rotulo="Contas bloqueadas"
+                        valor="Gerenciar"
+                        onPress={() => router.push("/(modals)/contas-bloqueadas")}
                         ultima
                     />
                 </SecaoConfig>

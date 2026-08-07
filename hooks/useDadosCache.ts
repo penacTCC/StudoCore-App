@@ -1,6 +1,7 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
+    buscaTravada,
     buscarNoCache,
     definirCache,
     lerCache,
@@ -81,7 +82,10 @@ export function useDadosCache<T>(
             const naoTemNada = gravadoEm === 0;
             const venceu = Date.now() - gravadoEm > tempoFresco;
 
-            if (buscando) return;
+            // Sair daqui por causa de uma busca em andamento só faz sentido enquanto ela
+            // ainda pode responder. Uma busca travada precisa ser insistida — é o que tira
+            // a tela do skeleton quando a anterior se perdeu na rede.
+            if (buscando && !buscaTravada(chave)) return;
             if (naoTemNada || (revalidarAoFocar && venceu)) {
                 // A falha já fica registrada em `erro`; o catch aqui só evita rejeição solta.
                 buscarNoCache<T>(chave, () => buscarRef.current()).catch(() => {});
@@ -121,4 +125,5 @@ const VAZIO = Object.freeze({
     erro: null,
     gravadoEm: 0,
     buscando: false,
+    buscandoDesde: 0,
 }) as ReturnType<typeof lerCache<never>>;

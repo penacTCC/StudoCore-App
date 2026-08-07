@@ -83,7 +83,21 @@ export function CarregandoMais() {
     );
 }
 
-export function ExplorarVazio() {
+/**
+ * @param naoParticipa O usuário está fora do feed público (opt-in desligado).
+ *
+ * Sem esse aviso o opt-in seria indescobrível: quem não participa veria um feed vazio,
+ * concluiria que ninguém publica nada e nunca saberia que existe um interruptor — e um
+ * feed onde ninguém opta fica vazio para sempre. O convite mora aqui, e não numa tela de
+ * boas-vindas, porque é aqui que a pessoa está olhando o buraco que ele preenche.
+ */
+export function ExplorarVazio({
+    naoParticipa,
+    onParticipar,
+}: {
+    naoParticipa?: boolean;
+    onParticipar?: () => void;
+} = {}) {
     return (
         <View style={{ alignItems: "center", paddingHorizontal: 40, paddingVertical: 70 }}>
             <View
@@ -112,6 +126,26 @@ export function ExplorarVazio() {
             >
                 Fotos públicas de sessão, arquivos do Vault e planos compartilhados vão aparecer neste feed.
             </Text>
+
+            {naoParticipa && (
+                <TouchableOpacity
+                    onPress={onParticipar}
+                    activeOpacity={0.85}
+                    style={{
+                        marginTop: 20,
+                        paddingVertical: 11,
+                        paddingHorizontal: 18,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: HADES.accentTintBorder,
+                        backgroundColor: HADES.accentTint,
+                    }}
+                >
+                    <Text style={{ fontSize: 13.5, fontWeight: "700", color: HADES.accentSolid }}>
+                        Participar do feed público
+                    </Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 }
