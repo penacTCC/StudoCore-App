@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Share, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ChevronLeft, Share2, Crown, Clock, ListChecks, Trophy, Medal, Flame, BookOpen, Swords, Lock } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import Avatar from "@/components/ui/Avatar";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { buscarEstatisticasParaDuelo } from "@/services/profileStats";
@@ -34,9 +35,6 @@ export default function CompareProfileScreen() {
     const { userId } = useLocalSearchParams<{ userId: string }>();
     const { userId: meuId } = useAuth();
 
-    const [eu, setEu] = useState<PerfilComparavel | null>(null);
-    const [ele, setEle] = useState<PerfilComparavel | null>(null);
-
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
 
@@ -48,7 +46,7 @@ export default function CompareProfileScreen() {
       linha de `profiles` vinha inteira. Quem corta agora é o banco (migration
       20260806200000): de perfil fechado chegam nome e foto, e número nenhum.
     */
-    const carregarLado = useCallback(async (id: string): Promise<PerfilComparavel | null> => {
+    const carregarLado = async (id: string): Promise<PerfilComparavel | null> => {
         const dados = await buscarEstatisticasParaDuelo(id);
         if (!dados) return null;
 
@@ -62,6 +60,7 @@ export default function CompareProfileScreen() {
                 horas_totais: dados.horas_totais,
                 questoes_feitas: dados.questoes_feitas,
                 medalhas_desbloqueadas: dados.medalhas_desbloqueadas,
+                materia_favorita: dados.materia_favorita,
             },
             // Sem ofensiva não há gamificação a mostrar — é o perfil fechado, ou alguém
             // que ainda não tem linha em `gamificacoes`.
@@ -75,21 +74,29 @@ export default function CompareProfileScreen() {
                           ultima_data_estudo: null,
                       },
         };
-    }, []);
+    };
 
-    useEffect(() => {
-        if (!meuId || !userId) return;
-        carregarLado(meuId).then(setEu);
-        carregarLado(userId).then(setEle);
-    }, [meuId, userId, carregarLado]);
+    /*
+      Cada lado do duelo tem a própria chave, então o "eu" já está em memória quando se
+      compara com um segundo colega — só o lado dele é buscado de fato.
+    */
+    const { dados: eu, recarregar: recarregarEu } = useDadosCache(
+        meuId ? `duelo:${meuId}` : null,
+        () => carregarLado(meuId!),
+        { tempoFresco: 60_000 }
+    );
+
+    const { dados: ele, recarregar: recarregarEle } = useDadosCache(
+        userId ? `duelo:${userId}` : null,
+        () => carregarLado(userId),
+        { tempoFresco: 60_000 }
+    );
 
     const handleRefresh = async () => {
         if (!meuId || !userId) return;
         setAtualizando(true);
         try {
-            const [novoEu, novoEle] = await Promise.all([carregarLado(meuId), carregarLado(userId)]);
-            setEu(novoEu);
-            setEle(novoEle);
+            await Promise.all([recarregarEu(), recarregarEle()]);
         } finally {
             setAtualizando(false);
         }

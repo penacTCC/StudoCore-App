@@ -7,8 +7,9 @@ import { getAvatarColor } from "@/constants/helpers";
 import Avatar from "@/components/ui/Avatar";
 import { buscarGrupoPorId, entrarEmGrupoPublico, horasSemanaisGrupo } from "@/services/grupos";
 import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useAuth } from "@/hooks/useAuth";
 import { GrupoComTotalMembros } from "@/types/grupos";
@@ -42,9 +43,6 @@ function StatBox({ value, label, valueColor }: { value: string | number; label: 
 
 export default function GroupDetailsScreen() {
     const { groupId } = useLocalSearchParams<{ groupId: string }>();
-    const [group, setGroup] = useState<GrupoComTotalMembros | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [weeklyGroupHours, setWeeklyGroupHours] = useState(0);
 
     //Pega membros do grupo
     const { membros, recarregar: recarregarMembros } = useMembrosGrupo({ grupoId: groupId });
@@ -55,33 +53,33 @@ export default function GroupDetailsScreen() {
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
 
-    //Pega as informações do grupo pelo ID
-    const loadGroup = useCallback(async () => {
-        const fetchedGroup = await buscarGrupoPorId(groupId!);
-        setGroup(fetchedGroup);
-    }, [groupId]);
+    /*
+      Dados do grupo e horas da semana, do cache e em paralelo.
 
-    useEffect(() => {
-        setIsLoading(true);
-        loadGroup().finally(() => setIsLoading(false));
-    }, [loadGroup]);
+      Eram dois efeitos separados, cada um com a própria ida ao servidor, e ambos
+      recomeçavam do zero a cada abertura da tela — que é uma tela para a qual se volta o
+      tempo todo vindo da home.
+    */
+    const { dados, carregando: isLoading, recarregar: recarregarGrupo } = useDadosCache(
+        groupId ? `detalhes-grupo:${groupId}` : null,
+        async () => {
+            const [grupo, horas] = await Promise.all([
+                buscarGrupoPorId(groupId!),
+                horasSemanaisGrupo(groupId!),
+            ]);
+            return { grupo: grupo as GrupoComTotalMembros | null, horas };
+        },
+        // O progresso muda a cada sessão encerrada por qualquer membro.
+        { tempoFresco: 0 }
+    );
 
-    // Busca as horas reais da semana para mostrar o progresso correto nos detalhes do grupo.
-    const loadWeeklyProgress = useCallback(async () => {
-        if (!groupId) return;
-
-        const weeklyHours = await horasSemanaisGrupo(groupId);
-        setWeeklyGroupHours(weeklyHours);
-    }, [groupId]);
-
-    useEffect(() => {
-        loadWeeklyProgress();
-    }, [loadWeeklyProgress]);
+    const group = dados?.grupo ?? null;
+    const weeklyGroupHours = dados?.horas ?? 0;
 
     const handleRefresh = async () => {
         setAtualizando(true);
         try {
-            await Promise.all([loadGroup(), loadWeeklyProgress(), recarregarMembros()]);
+            await Promise.all([recarregarGrupo(), recarregarMembros()]);
         } finally {
             setAtualizando(false);
         }

@@ -18,6 +18,7 @@ import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
 import { SecaoConfig, LinhaSwitch, LinhaStepper, LinhaEscolha, LinhaPerigo } from "@/components/cronograma/LinhasConfig";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import {
     atualizarDadosGrupo,
     buscarGrupoPorId,
@@ -35,11 +36,15 @@ import { limparUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 
 type ModalEdicao = "dados" | "meta" | "convite" | null;
 
+/* O tipo exato que `buscarMembrosGrupo` devolve — mais estreito que `MembroGrupoComPerfil`
+   nas propriedades opcionais, e é ele que precisa casar com o que vai para o cache. */
+type MembroConfig = Awaited<ReturnType<typeof buscarMembrosGrupo>>[number];
+
+const SEM_MEMBROS: MembroConfig[] = [];
+
 export default function GroupSettingsScreen() {
     const { groupId } = useLocalSearchParams();
     const { userId } = useAuth();
-    const [grupo, setGrupo] = useState<Grupo | null>(null);
-    const [loading, setLoading] = useState(true);
     const [salvando, setSalvando] = useState(false);
     const [isPublic, setIsPublic] = useState(true);
     const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -47,10 +52,49 @@ export default function GroupSettingsScreen() {
     const [nomeGrupo, setNomeGrupo] = useState("");
     const [descricaoGrupo, setDescricaoGrupo] = useState("");
     const [metaHoras, setMetaHoras] = useState(10);
-    const [qtdMembros, setQtdMembros] = useState<number | null>(0);
-    const [membros, setMembros] = useState<MembroGrupoComPerfil[]>([]);
     const [modalTransferenciaAdmin, setModalTransferenciaAdmin] = useState(false);
     const [novoAdminId, setNovoAdminId] = useState<string | null>(null);
+
+    /*
+      Grupo, contagem e membros vêm do cache — as três consultas já saíam em paralelo, o
+      que faltava era não refazê-las a cada abertura da tela.
+
+      As alterações otimistas (switch de permissão, privacidade, salvar dados) escrevem
+      direto no cache com `alterarDados`, então a tela responde na hora e quem voltar para
+      cá em seguida já encontra o valor novo, sem esperar o servidor.
+    */
+    const { dados, carregando: loading, definir } = useDadosCache(
+        groupId ? `config-grupo:${groupId}` : null,
+        async () => {
+            const [grupoEncontrado, quantidade, membrosGrupo] = await Promise.all([
+                buscarGrupoPorId(groupId as string),
+                contarMembrosGrupo(groupId as string),
+                buscarMembrosGrupo(groupId as string),
+            ]);
+            return { grupo: grupoEncontrado, qtdMembros: quantidade, membros: membrosGrupo };
+        },
+        { tempoFresco: 30_000 }
+    );
+
+    const grupo = dados?.grupo ?? null;
+    const qtdMembros = dados?.qtdMembros ?? 0;
+    const membros = dados?.membros ?? SEM_MEMBROS;
+
+    type DadosConfig = NonNullable<typeof dados>;
+
+    /** Aplica uma alteração local no que está em cache, sem ir à rede. */
+    const alterarDados = (transformar: (atual: DadosConfig) => DadosConfig) => {
+        if (dados) definir(transformar(dados));
+    };
+
+    const setGrupo = (valor: Grupo | null | ((atual: Grupo | null) => Grupo | null)) =>
+        alterarDados((atual) => ({
+            ...atual,
+            grupo: typeof valor === "function" ? valor(atual.grupo) : valor,
+        }));
+
+    const setMembros = (transformar: (atuais: MembroConfig[]) => MembroConfig[]) =>
+        alterarDados((atual) => ({ ...atual, membros: transformar(atual.membros) }));
 
     /*
       Membro comum também chega nesta tela — é por aqui que ele sai do grupo. Tudo que só o
@@ -157,32 +201,6 @@ export default function GroupSettingsScreen() {
         );
     };
 
-    //useEffect para buscar todas as informações do grupo
-    useEffect(() => {
-        if (!groupId) return;
-
-        //Carrega os dados do grupo
-        const carregarDados = async () => {
-            setLoading(true);
-
-            //Aqui a gente utiliza o Promise all para realizar duas funções, e retornar em duas variáveis
-            const [grupoEncontrado, qtdMembros, membrosGrupo] = await Promise.all([
-                buscarGrupoPorId(groupId as string),
-                contarMembrosGrupo(groupId as string),
-                buscarMembrosGrupo(groupId as string),
-            ]);
-
-            //Damos valor aos states, com a data retornada das funções
-            setGrupo(grupoEncontrado);
-            setQtdMembros(qtdMembros);
-            setMembros(membrosGrupo);
-
-            setLoading(false);
-        };
-
-        //roda a função
-        carregarDados();
-    }, [groupId]);
 
     useEffect(() => {
         if (!grupo) return;

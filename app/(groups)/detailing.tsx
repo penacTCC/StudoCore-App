@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { router, useLocalSearchParams } from "expo-router";
 import { tempoTotalSessoesFocoOntem, tempoTotalSessoesFoco } from "@/services/sessions";
 import { useMembrosOnline } from "@/hooks/useMembrosOnline";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import type { SessaoFocoRow } from "@/types/sessions";
 
 const ehMesmoDia = (a: Date, b: Date) =>
@@ -59,8 +60,6 @@ export default function DetailingScreen() {
     const { groupId } = useLocalSearchParams<{ groupId?: string }>();
     const { userId } = useAuth();
 
-    const [totalMinutos, setTotalMinutos] = useState(0);
-    const [minutosOntem, setMinutosOntem] = useState(0);
 
     // Busca o histórico público do grupo atual para não misturar sessões de outros grupos.
     const { sessions, loading, refresh: refreshSessions } = useSessoesFoco(50, groupId);
@@ -77,17 +76,21 @@ export default function DetailingScreen() {
 
     const [atualizando, setAtualizando] = useState(false);
 
-    const buscarTotal = useCallback(async () => {
-        const resultado = await tempoTotalSessoesFoco(groupId);
-        const ontem = await tempoTotalSessoesFocoOntem(groupId);
+    // Os dois totais são independentes: saem juntos em vez de um esperar o outro.
+    const { dados: totais, recarregar: buscarTotal } = useDadosCache(
+        `totais-foco-grupo:${groupId ?? "todos"}`,
+        async () => {
+            const [resultado, ontem] = await Promise.all([
+                tempoTotalSessoesFoco(groupId),
+                tempoTotalSessoesFocoOntem(groupId),
+            ]);
+            return { totalMinutos: resultado.totalMinutos, minutosOntem: ontem };
+        },
+        { tempoFresco: 15_000 }
+    );
 
-        setTotalMinutos(resultado.totalMinutos);
-        setMinutosOntem(ontem);
-    }, [groupId]);
-
-    useEffect(() => {
-        buscarTotal();
-    }, [buscarTotal]);
+    const totalMinutos = totais?.totalMinutos ?? 0;
+    const minutosOntem = totais?.minutosOntem ?? 0;
 
     const handleRefresh = async () => {
         setAtualizando(true);

@@ -88,7 +88,14 @@ export default function EditarPerfilScreen() {
             const { data } = await buscarUsuarioLogado();
             if (data?.user) {
                 setUserId(data.user.id);
-                const { data: prof } = await buscarPerfil(data.user.id);
+
+                // As duas leituras são independentes: uma esperava a outra sem motivo, e
+                // este é um editor — o tempo até os campos aparecerem preenchidos conta.
+                const [{ data: prof }, s] = await Promise.all([
+                    buscarPerfil(data.user.id),
+                    loadProfileStats(),
+                ]);
+
                 if (prof) {
                     setProfileData(prof);
                     setUsername(prof.nome_usuario || "");
@@ -98,7 +105,6 @@ export default function EditarPerfilScreen() {
                     setIsPublic(prof.perfil_publico ?? true);
                     setShowStreak(prof.mostrar_ofensiva ?? true);
                 }
-                const s = await loadProfileStats();
                 if (s) setWeeklyGoalIdx(Math.max(0, Math.min(49, s.weeklyGoal - 1)));
             }
             setLoading(false);

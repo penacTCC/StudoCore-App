@@ -1,32 +1,24 @@
 import { buscarSessoesPorGrupo } from "@/services/sessions";
 import { toast } from "@/services/toast";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import { SessaoFocoRow } from "@/types/sessions";
-import { useCallback, useEffect, useState } from "react";
+
+const SEM_SESSOES: SessaoFocoRow[] = [];
 
 export const useSessoesGrupo = (groupId?: string | null) => {
-    const [sessions, setSessions] = useState<SessaoFocoRow[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { dados, carregando, recarregar } = useDadosCache<SessaoFocoRow[]>(
+        groupId ? `sessoes-grupo:${groupId}` : null,
+        async () => {
+            const { data, error } = await buscarSessoesPorGrupo(groupId!);
+            if (error) {
+                console.error("Erro ao buscar sessões de foco:", error);
+                toast.error("Não foi possível carregar as sessões do grupo.");
+                throw error;
+            }
+            return (data as SessaoFocoRow[]) || [];
+        },
+        { tempoFresco: 15_000 }
+    );
 
-    const fetchSessions = useCallback(async () => {
-        if(!groupId) {
-            setSessions([]);
-            setLoading(false);
-            return
-        }
-        setLoading(true);
-        const { data, error } = await buscarSessoesPorGrupo(groupId);
-        if (error) {
-            console.error("Erro ao buscar sessões de foco:", error);
-            toast.error("Não foi possível carregar as sessões do grupo.");
-        } else {
-            setSessions((data as SessaoFocoRow[]) || []);
-        }
-        setLoading(false);
-    }, [groupId]);
-
-    useEffect(() => {
-        fetchSessions();
-    }, [fetchSessions]);
-
-    return { sessions, loading, refresh: fetchSessions };
+    return { sessions: dados ?? SEM_SESSOES, loading: carregando, refresh: recarregar };
 };

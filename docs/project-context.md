@@ -14,7 +14,10 @@ A interface do usuário já possui diversas rotas implementadas com Expo Router,
 
 ### Navegação Principal (Tabs - `app/(tabs)/`)
 A navegação inferior (bottom tabs) é o centro da experiência do usuário:
-- `index.tsx`: Tela inicial (Home).
+- `index.tsx`: **Comunidade** (antiga aba "Grupos"). A casca traz só o título, a busca e um alternador de escopo entre **Meu grupo** e **Explorar**:
+  - *Meu grupo* é a home de grupo de sempre, movida sem alterações para `components/comunidade/AbaMeuGrupo.tsx` (meta, ranking, sessões ao vivo, feed e membros). A única mudança é o cabeçalho de identidade do grupo, que desceu para dentro do scroll.
+  - *Explorar* (`components/comunidade/AbaExplorar.tsx`) é o feed público que mistura fotos de sessão (Galeria), arquivos do Vault e planos compartilhados de qualquer usuário, com filtro por tipo, scroll infinito, curtida, comentários em um nível e as ações de denunciar/bloquear. **Ainda mockado** em `services/comunidade.ts` — nenhuma tabela existe no banco; a tela já está escrita contra a interface que o serviço real vai expor.
+  - Quem não tem grupo abre direto no Explorar; o escopo *Meu grupo* mostra o convite a criar ou procurar um.
 - `focus.tsx`: Ferramenta principal para gerenciar tempo de estudo (Pomodoro/Sessões de foco).
 - `vault.tsx`: O "Cofre", espaço para armazenamento, organização e compartilhamento de materiais e arquivos.
 - `brain.tsx`: Dashboard/Mente do usuário (Visão geral de aprendizado/atividades).
@@ -53,6 +56,7 @@ Toda a comunicação com banco de dados e APIs externas está centralizada em se
 - **`archives.ts`, `supabaseStorage.ts`, `backblaze.ts`**: Abstrações para upload, download e listagem de materiais do Vault (com suporte ao armazenamento da Backblaze/Supabase).
 - **`fotosSessao.ts`**: Foto opcional do momento de estudo, registrada na etapa pós-sessão e exibida na Galeria do perfil. Vive num bucket **privado** (`sessao-fotos`), com leitura por signed URL de 1h — a policy do bucket só libera pra terceiros se a sessão for pública e o perfil também. Inspirado no check-in por foto do GymRats, mas com uma diferença deliberada: a foto **não valida** a sessão (quem valida é o cronômetro), é memória e prova social, e por isso é sempre pulável.
 - **`onlineUsers.ts`**: Real-time tracking para saber quem está estudando naquele momento.
+- **`comunidade.ts`**: Feed público da aba Comunidade — **mock em memória por enquanto**. Expõe a interface definitiva (página por cursor, curtir, comentar, apagar comentário, denunciar, bloquear autor, importar plano); trocar pelo Supabase é substituir o corpo das funções. Falta no banco: tabelas de publicação, curtida, comentário, denúncia e bloqueio, e a decisão de como a foto privada da sessão vira URL pública no feed.
 - **`ranking.ts`**: Lógica de leaderboard (classificação de usuários/grupos).
 - **`armazenamentoOffline.ts`**: Gerenciador de cache ou estado persistido localmente (possivelmente usando AsyncStorage).
 

@@ -15,6 +15,7 @@
 // Deploy: `supabase functions deploy mandar-forca` (sem secret novo).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { enviarPush } from "../_shared/push.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -25,63 +26,6 @@ const CORS_HEADERS = {
 // Estourou, só libera quando a mais antiga das 3 sair da janela.
 const JANELA_MS = 15 * 60 * 1000;
 const LIMITE_ENVIOS = 3;
-
-const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
-// Precisa bater com CANAL_FORCAS em services/pushTokens.ts: é o canal que o app cria no
-// Android ao registrar o token. Canal inexistente no aparelho = notificação silenciosa.
-const CANAL_FORCAS = "forcas";
-
-/**
- * Manda o push da força pro aparelho do destinatário.
- *
- * Best-effort de ponta a ponta: a força já está gravada quando isto roda, então nenhuma
- * falha aqui pode virar erro pro remetente — no pior caso a pessoa vê a força na torcida
- * quando abrir o app.
- */
-async function enviarPushDeForca(
-  admin: ReturnType<typeof createClient>,
-  destinatarioId: string,
-  nomeRemetente: string,
-) {
-  // Service role: a RLS de `push_tokens` só deixa o dono ler o próprio token, e quem lê
-  // aqui é o remetente.
-  const { data: registro } = await admin
-    .from("push_tokens")
-    .select("expo_push_token")
-    .eq("user_id", destinatarioId)
-    .maybeSingle();
-
-  const token = (registro as { expo_push_token: string } | null)?.expo_push_token;
-  if (!token) return; // sem token: o app do destinatário cai na notificação local.
-
-  const resposta = await fetch(EXPO_PUSH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      to: token,
-      title: "💪 Hora de focar!",
-      body: `${nomeRemetente} está te chamando pra estudar.`,
-      data: { tipo: "forca" },
-      sound: "default",
-      channelId: CANAL_FORCAS,
-      priority: "high",
-    }),
-  });
-
-  const resultado = await resposta.json().catch(() => null);
-  const ticket = resultado?.data;
-
-  // Token velho (app desinstalado, restaurado de backup, etc). Se ficar no banco, toda
-  // força futura pra essa pessoa gasta uma chamada que nunca entrega.
-  if (ticket?.status === "error" && ticket?.details?.error === "DeviceNotRegistered") {
-    await admin.from("push_tokens").delete().eq("user_id", destinatarioId);
-    return;
-  }
-
-  if (ticket?.status === "error") {
-    console.error("Push recusado pelo Expo:", ticket?.message, ticket?.details);
-  }
-}
 
 const jsonResponse = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), {
@@ -181,7 +125,14 @@ Deno.serve(async (req: Request) => {
         (perfil as { nome_usuario?: string; nome_real?: string } | null)?.nome_real ||
         "Alguém";
 
-      await enviarPushDeForca(admin, destinatarioId, nomeRemetente);
+      await enviarPush(admin, [
+        {
+          destinatarioId,
+          title: "💪 Hora de focar!",
+          body: `${nomeRemetente} está te chamando pra estudar.`,
+          data: { tipo: "forca" },
+        },
+      ]);
     } catch (erroPush) {
       console.error("Erro ao mandar push da força:", erroPush);
     }

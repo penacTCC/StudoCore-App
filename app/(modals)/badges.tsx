@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { View, Text, ScrollView, TouchableOpacity, DeviceEventEmitter, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import { ArrowLeft, Check, Lock, Star } from "lucide-react-native";
 import { HADES } from "@/constants/hades";
 import {
@@ -51,24 +52,27 @@ function getCurrentVal(badge: BadgeType, stats: UserStats): number {
 }
 
 export default function BadgesScreen() {
-    const [stats, setStats] = useState<UserStats | null>(null);
     const [selected, setSelected] = useState<BadgeType | null>(null);
     const [atualizando, setAtualizando] = useState(false);
 
-    const loadData = async () => {
-        const s = await loadProfileStats();
-        setStats(s);
-    };
+    /*
+      As estatísticas ficam no cache, então reabrir a galeria de medalhas não volta ao
+      skeleton. `tempoFresco: 0` mantém a releitura a cada foco — é aqui que se confere
+      uma medalha recém-desbloqueada.
+    */
+    const { dados: stats, recarregar: loadData } = useDadosCache(
+        "estatisticas-perfil",
+        () => loadProfileStats(),
+        { tempoFresco: 0 }
+    );
 
     useFocusEffect(
         useCallback(() => {
-            loadData();
-
             const sub = DeviceEventEmitter.addListener('badgesUnlocked', () => {
                 loadData();
             });
             return () => sub.remove();
-        }, [])
+        }, [loadData])
     );
 
     const handleRefresh = async () => {

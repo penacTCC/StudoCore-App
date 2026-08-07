@@ -39,6 +39,7 @@ export type EstatisticasDuelo = ProfilePreview & {
   horas_totais: number | null;
   questoes_feitas: number | null;
   medalhas_desbloqueadas: string[] | null;
+  materia_favorita: string | null;
   ofensiva: number | null;
   melhor_ofensiva: number | null;
 };

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -11,13 +11,12 @@ import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { buscarPerfil } from "@/services/auth";
 import { buscarGamificacao } from "@/services/gamificacao";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import { APP_BADGES } from "@/constants/badges";
 import { getSubjectColor, formatDuration, getIdentityColor, getInitials, getBioFromObjetivo } from "@/constants/helpers";
 import { AvatarComOfensiva, BannerPerfil } from "@/components/profile/PerfilBanner";
 import CardMedalhas, { CardMedalhasVazioOutro } from "@/components/profile/CardMedalhas";
 import GaleriaSessoes from "@/components/profile/GaleriaSessoes";
-import type { Profile } from "@/types/profile";
-import type { Gamificacao } from "@/types/gamificacao";
 import type { SessaoFocoRow } from "@/types/sessions";
 
 const BANNER_H = 158;
@@ -100,8 +99,6 @@ export default function MemberProfileScreen() {
         rank?: string;
     }>();
 
-    const [profile, setProfile] = useState<Profile | null>(null);
-    const [gamificacao, setGamificacao] = useState<Gamificacao | null>(null);
     const [aba, setAba] = useState<AbaKey>("estatisticas");
 
     const { savedSessions, loading: loadingSessions, refresh: refreshSessions } = useSessoesUsuario(userId);
@@ -109,17 +106,22 @@ export default function MemberProfileScreen() {
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
 
-    const carregarPerfilEGamificacao = useCallback(async () => {
-        if (!userId) return;
-        await Promise.all([
-            buscarPerfil(userId).then(({ data }) => setProfile(data)),
-            buscarGamificacao(userId).then(setGamificacao),
-        ]);
-    }, [userId]);
+    // Perfil + gamificação do colega, do cache: voltar ao mesmo perfil (do ranking, do
+    // feed) não repete as duas consultas.
+    const { dados: perfilDoMembro, recarregar: carregarPerfilEGamificacao } = useDadosCache(
+        userId ? `perfil-membro:${userId}` : null,
+        async () => {
+            const [perfil, gamificacao] = await Promise.all([
+                buscarPerfil(userId!),
+                buscarGamificacao(userId!),
+            ]);
+            return { profile: perfil.data, gamificacao };
+        },
+        { tempoFresco: 60_000 }
+    );
 
-    useEffect(() => {
-        carregarPerfilEGamificacao();
-    }, [carregarPerfilEGamificacao]);
+    const profile = perfilDoMembro?.profile ?? null;
+    const gamificacao = perfilDoMembro?.gamificacao ?? null;
 
     const handleRefresh = async () => {
         setAtualizando(true);

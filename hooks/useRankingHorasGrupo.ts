@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { buscarRankingHorasMembros } from "@/services/ranking";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import type { LeaderboardFilter } from "@/constants/ranking";
 import type { MembroGrupoComPerfil } from "@/types/grupos";
 import type { RankingMembroComPerfil } from "@/types/ranking";
@@ -12,40 +13,38 @@ export function useRankingHorasGrupo(
     periodo: LeaderboardFilter,
     membros: MembroGrupoComPerfil[]
 ) {
-    const [rankingMembros, setRankingMembros] = useState<RankingMembroComPerfil[]>([]);
-    const [carregando, setCarregando] = useState(true);
+    /*
+      Só a RPC entra no cache; o cruzamento com os membros é cálculo local.
 
-    useEffect(() => {
-        const carregarRankingHoras = async () => {
-            if (!grupoId) {
-                setRankingMembros([]);
-                setCarregando(false);
-                return;
-            }
+      Antes as duas coisas viviam no mesmo efeito, com `membros` nas dependências — e como
+      aquele array é recriado a cada busca de membros, a RPC era refeita sem necessidade.
+      Trocar de filtro (semanal/mensal/geral) e voltar também refazia tudo; agora cada
+      filtro tem a própria chave e a volta é instantânea.
+    */
+    const { dados, carregando } = useDadosCache(
+        grupoId ? `ranking-horas:${grupoId}:${periodo}` : null,
+        () => buscarRankingHorasMembros(grupoId!, periodo),
+        { tempoFresco: 15_000 }
+    );
 
-            setCarregando(true);
+    const rankingMembros: RankingMembroComPerfil[] = useMemo(() => {
+        const ranking = dados ?? [];
 
-            const ranking = await buscarRankingHorasMembros(grupoId, periodo);
+        const rankingComMembros = ranking.map((item) => ({
+            ...item,
+            membro: membros.find((m) => m.user_id === item.user_id),
+        }));
 
-            const rankingComMembros = ranking.map((item) => {
-                const membro = membros.find((m) => m.user_id === item.user_id);
-                return { ...item, membro };
-            });
+        const membrosSemRanking = membros
+            .filter((membro) => !ranking.some((item) => item.user_id === membro.user_id))
+            .map((membro) => ({
+                user_id: membro.user_id,
+                total_minutos: 0,
+                membro,
+            }));
 
-            const membrosSemRanking = membros
-                .filter((membro) => !ranking.some((item) => item.user_id === membro.user_id))
-                .map((membro) => ({
-                    user_id: membro.user_id,
-                    total_minutos: 0,
-                    membro,
-                }));
-
-            setRankingMembros([...rankingComMembros, ...membrosSemRanking]);
-            setCarregando(false);
-        };
-
-        carregarRankingHoras();
-    }, [grupoId, periodo, membros]);
+        return [...rankingComMembros, ...membrosSemRanking];
+    }, [dados, membros]);
 
     return { rankingMembros, carregando };
 }

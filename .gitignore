@@ -17,6 +17,9 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+# Chave da conta de serviço do Firebase (push via FCM V1). Secreta — quem tem ela manda
+# push como se fosse o app. Não confundir com google-services.json, que vai commitado.
+*-firebase-adminsdk-*.json
 
 # Metro
 .metro-health-check*

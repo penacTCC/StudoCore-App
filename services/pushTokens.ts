@@ -73,7 +73,16 @@ export async function registrarTokenPush(userId: string): Promise<void> {
         const { error } = await supabase
             .from("push_tokens")
             .upsert(
-                { user_id: userId, expo_push_token: token, updated_at: new Date().toISOString() },
+                {
+                    user_id: userId,
+                    expo_push_token: token,
+                    // O servidor roda em UTC e a janela de "não perturbar" é horário local.
+                    // Sem isto a Edge Function não tem como saber que são 3h da manhã pra
+                    // quem vai receber. Regravado a cada abertura, então acompanha viagem e
+                    // horário de verão.
+                    fuso_offset_min: new Date().getTimezoneOffset(),
+                    updated_at: new Date().toISOString(),
+                },
                 { onConflict: "user_id" }
             );
 

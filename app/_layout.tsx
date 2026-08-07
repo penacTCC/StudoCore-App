@@ -12,6 +12,7 @@ import { useStatusMembroGrupo } from "@/hooks/useStatusMembroGrupo";
 import { useRouteGuard } from "@/hooks/useRoutGuard";
 import { useForcasRecebidas } from "@/hooks/useForcasRecebidas";
 import { usePushToken } from "@/hooks/usePushToken";
+import { useLembreteDeOfensiva } from "@/hooks/useLembreteDeOfensiva";
 import { useRecuperarSessoesAbandonadas } from "@/hooks/useRecuperarSessoesAbandonadas";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { ToastHost } from "@/components/ui/Toast";
@@ -20,6 +21,7 @@ import { HADES } from "@/constants/hades";
 import MedalAlert from "@/components/MedalAlert";
 import { validarSessaoPorTokens } from "@/services/auth";
 import { carregarModoTeste } from "@/services/modoTeste";
+import { ligarInvalidacaoDeCache } from "@/services/invalidacaoCache";
 import { toast } from "@/services/toast";
 
 SplashScreen.preventAutoHideAsync();
@@ -42,6 +44,9 @@ export default function RootLayout() {
     // quando o aparelho não conseguiu token de push.
     useForcasRecebidas(session?.user?.id);
 
+    // Reagenda o lembrete da noite pra quem tem ofensiva pra perder e ainda não estudou.
+    useLembreteDeOfensiva(session?.user?.id);
+
     // Fecha sessões de foco que ficaram abertas de um fechamento forçado do app.
     useRecuperarSessoesAbandonadas(session?.user?.id);
 
@@ -49,6 +54,12 @@ export default function RootLayout() {
     // durante o render, onde não dá pra esperar o AsyncStorage (ver services/modoTeste.ts).
     useEffect(() => {
         carregarModoTeste();
+    }, []);
+
+    // Faz os avisos de mutação (entrar/sair de grupo, medalha desbloqueada) vencerem as
+    // chaves correspondentes do cache de navegação.
+    useEffect(() => {
+        ligarInvalidacaoDeCache();
     }, []);
 
     //Roteia o usuário para as telas

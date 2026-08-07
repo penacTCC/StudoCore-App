@@ -47,7 +47,21 @@ export const criarSala = async (params: {
         return { sala: null as SalaFoco | null, error };
     }
 
-    return { sala: data as SalaFoco, error: null };
+    const sala = data as SalaFoco;
+
+    /*
+      Avisa o grupo que tem sala aberta. Sem `await` de propósito: quem chamou está no meio
+      de começar a estudar, e essa pessoa não pode esperar (nem ver falhar) uma notificação
+      que é dos OUTROS. A função no servidor é que decide se avisa — ela tem o rate limit
+      por grupo e as preferências de quem recebe.
+    */
+    if (sala.grupo_id) {
+        supabase.functions
+            .invoke("avisar-sala-aberta", { body: { salaId: sala.id } })
+            .catch((erro) => console.warn("Não foi possível avisar o grupo da sala:", erro));
+    }
+
+    return { sala, error: null };
 };
 
 export const buscarSala = async (salaId: string) => {

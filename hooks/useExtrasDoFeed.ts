@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { buscarParticipantesDasSalas } from "@/services/sessions";
 import type { ParticipanteResumido } from "@/types/sala";
 import { assinarCaminhosDeFoto } from "@/services/fotosSessao";
+import { useDadosCache } from "@/hooks/useDadosCache";
 import type { SessaoFocoRow } from "@/types/sessions";
 
 const SEM_PARTICIPANTES: ParticipanteResumido[] = [];
+const SEM_MAPA = new Map<string, never>();
 
 /**
  * Completa o feed com o que não cabe na linha de `sessoes_foco`: quem participou de cada
@@ -18,11 +20,6 @@ const SEM_PARTICIPANTES: ParticipanteResumido[] = [];
  * fica sem miniatura. Nenhum dos dois é obrigatório para o card fazer sentido.
  */
 export function useExtrasDoFeed(sessoes: SessaoFocoRow[]) {
-    const [participantesPorSessao, setParticipantesPorSessao] = useState<
-        Map<string, ParticipanteResumido[]>
-    >(new Map());
-    const [urlPorPath, setUrlPorPath] = useState<Map<string, string>>(new Map());
-
     /*
       Chaves em string para o efeito não reagir à identidade nova do array a cada render.
 
@@ -45,48 +42,34 @@ export function useExtrasDoFeed(sessoes: SessaoFocoRow[]) {
         [sessoes]
     );
 
-    useEffect(() => {
-        let cancelado = false;
-        const ids = chaveIds ? chaveIds.split(",") : [];
+    /*
+      As duas buscas entram no cache pela própria chave de conteúdo.
 
-        if (ids.length === 0) {
-            setParticipantesPorSessao(new Map());
-            return;
-        }
+      Isso importa mais aqui do que numa tela comum: o realtime do grupo refaz o feed a cada
+      pausa de qualquer colega, e antes cada refação re-assinava todas as URLs de foto de
+      novo. Com a chave sendo a lista de caminhos, um feed que não mudou não gera trabalho
+      nenhum — e o mesmo vale para voltar à home.
+    */
+    const { dados: participantesPorSessao } = useDadosCache(
+        chaveIds ? `participantes-salas:${chaveIds}` : null,
+        () => buscarParticipantesDasSalas(chaveIds.split(",")),
+        { tempoFresco: 30_000 }
+    );
 
-        buscarParticipantesDasSalas(ids).then((mapa) => {
-            if (!cancelado) setParticipantesPorSessao(mapa);
-        });
-
-        return () => {
-            cancelado = true;
-        };
-    }, [chaveIds]);
-
-    useEffect(() => {
-        let cancelado = false;
-        const caminhos = chaveFotos ? chaveFotos.split(",") : [];
-
-        if (caminhos.length === 0) {
-            setUrlPorPath(new Map());
-            return;
-        }
-
-        assinarCaminhosDeFoto(caminhos).then((mapa) => {
-            if (!cancelado) setUrlPorPath(mapa);
-        });
-
-        return () => {
-            cancelado = true;
-        };
-    }, [chaveFotos]);
+    const { dados: urlPorPath } = useDadosCache(
+        chaveFotos ? `fotos-assinadas:${chaveFotos}` : null,
+        () => assinarCaminhosDeFoto(chaveFotos.split(",")),
+        // URL assinada tem validade; renovar de minuto em minuto sobra folga de sobra.
+        { tempoFresco: 60_000 }
+    );
 
     return useMemo(
         () => ({
             participantesDe: (sessao: SessaoFocoRow) =>
-                (sessao.sala_id ? participantesPorSessao.get(sessao.sala_id) : null) ?? SEM_PARTICIPANTES,
+                (sessao.sala_id ? (participantesPorSessao ?? SEM_MAPA).get(sessao.sala_id) : null) ??
+                SEM_PARTICIPANTES,
             fotoDe: (sessao: SessaoFocoRow) =>
-                sessao.foto_path ? urlPorPath.get(sessao.foto_path) ?? null : null,
+                sessao.foto_path ? (urlPorPath ?? SEM_MAPA).get(sessao.foto_path) ?? null : null,
         }),
         [participantesPorSessao, urlPorPath]
     );

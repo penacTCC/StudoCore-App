@@ -7,6 +7,7 @@ import type { Gamificacao } from "@/types/gamificacao";
   um dia. O de utils/tempo lê o dia no fuso do aparelho, igual ao `data_sessao` das sessões.
 */
 import { paraDataISO } from "@/utils/tempo";
+import { sincronizarLembreteDeOfensiva } from "@/services/notificacoesOfensiva";
 
 const SELECT_GAMIFICACAO = "user_id, ofensiva, melhor_ofensiva, ultima_data_estudo";
 
@@ -42,6 +43,9 @@ export const registrarSessaoConcluida = async (userId: string): Promise<Gamifica
 
   // Já contabilizou hoje, não há o que recalcular.
   if (atual?.ultima_data_estudo === hojeStr) {
+    // Ainda assim reagenda: o lembrete de hoje tem que sair da fila (a pessoa já estudou),
+    // e o caminho normal de quem faz duas sessões no mesmo dia passa por aqui.
+    await sincronizarLembreteDeOfensiva(atual);
     return atual;
   }
 
@@ -68,6 +72,9 @@ export const registrarSessaoConcluida = async (userId: string): Promise<Gamifica
     console.error("Erro ao registrar ofensiva:", error);
     return null;
   }
+
+  // Estudou hoje: joga o lembrete de "ofensiva em risco" pra amanhã, já com o número novo.
+  await sincronizarLembreteDeOfensiva(data);
 
   return data;
 };
