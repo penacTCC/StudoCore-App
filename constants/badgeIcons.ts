@@ -49,7 +49,7 @@ export const BADGE_IMAGE_MAP: Record<string, number> = {
     questions_25: require("@/assets/badges/questions_25.png"),
     weekly_goal: require("@/assets/badges/weekly_goal.png"),
     sessions_3: require("@/assets/badges/streak.png"),
-    sessions_5: require("@/assets/badges/raio.png"),
+    sessions_5: require("@/assets/badges/capelo_roxo_1.png"),
     sessions_10: require("@/assets/badges/luminaria_1.png"),
     questions_50: require("@/assets/badges/livro_aberto_1.png"),
     hours_15: require("@/assets/badges/relogio.png"),
@@ -73,8 +73,28 @@ export const BADGE_IMAGE_MAP: Record<string, number> = {
     sessions_50: require("@/assets/badges/capelo_roxo_2.png"),
     weekly_goal_5: require("@/assets/badges/estrela_check_2.png"),
     weekly_goal_8: require("@/assets/badges/chave_estrela_2.png"),
+    weekly_goal_12: require("@/assets/badges/calendario.png"),
 
-    // Elite — arte exclusiva para cada uma das cinco.
+    //Avançado
+
+    hours_200: require("@/assets/badges/prancheta_expert.png"),
+    hours_300: require("@/assets/badges/capelo_mestre.png"),
+    hours_400: require("@/assets/badges/estrela_de_oculos.png"),
+    hours_500: require("@/assets/badges/quinhentas_horas.png"),
+    questions_750: require("@/assets/badges/mira_cacador.png"),
+    questions_1000: require("@/assets/badges/um_milhar.png"),
+    sessions_100: require("@/assets/badges/centuriao_espadas.png"),
+    sessions_150: require("@/assets/badges/foco_inabalavel.png"),
+    weekly_goal_20: require("@/assets/badges/imbativel_peso.png"),
+    weekly_goal_26: require("@/assets/badges/meio_ano.png"),
+    hours_600: require("@/assets/badges/guru_bussola.png"),
+    questions_1500: require("@/assets/badges/raio_imparavel.png"),
+    sessions_200: require("@/assets/badges/200_sessoes.png"),
+    hours_750: require("@/assets/badges/ascensao_estrela.png"),
+    weekly_goal_36: require("@/assets/badges/fogos_artificio.png"),
+
+
+    // Elite — arte exclusiva para cada uma das cinco. --vcs tem certeza que ta exclusivo?? S:(
     hours_1000: require("@/assets/badges/elite_horas_1000.png"),
     hours_2000: require("@/assets/badges/elite_horas_2000.png"),
     questions_2000: require("@/assets/badges/elite_questoes_2000.png"),
