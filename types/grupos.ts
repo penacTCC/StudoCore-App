@@ -69,8 +69,12 @@ export type MembroGrupo = {
 };
 
 // Perfil com a gamificação (ofensiva) embutida via join do PostgREST em buscarMembrosGrupo.
+// `ultima_data_estudo` vem junto porque a ofensiva gravada pode estar vencida — quem decide
+// se ela ainda vale é `ofensivaVigente` (services/gamificacao).
+type GamificacaoDoMembro = { ofensiva: number; ultima_data_estudo: string | null };
+
 type PerfilComGamificacao = ProfilePreview & {
-  gamificacoes?: { ofensiva: number } | { ofensiva: number }[] | null;
+  gamificacoes?: GamificacaoDoMembro | GamificacaoDoMembro[] | null;
 };
 
 export type MembroGrupoComPerfil = MembroGrupo & {

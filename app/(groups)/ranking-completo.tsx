@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Calendar, ChevronDown } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { ArrowLeft, Calendar, ChevronDown } from "@/components/ui/icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { LEADERBOARD_TABS, LeaderboardFilter, ROTULO_PERIODO, formatarMinutos } from "@/constants/ranking";
@@ -388,18 +388,25 @@ function RankingCompletoSkeleton() {
     return (
         <>
             <View style={{ paddingTop: 22, paddingHorizontal: 4, marginBottom: 8 }}>
+                {/* Mesmas medidas de TAMANHOS.completa em PodioRanking, na ordem 2º / 1º / 3º. */}
                 <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
-                    {[64, 70, 64].map((altura, i) => (
+                    {[
+                        { avatar: 56, barra: 66 },
+                        { avatar: 70, barra: 98 },
+                        { avatar: 56, barra: 52 },
+                    ].map(({ avatar, barra }, i) => (
                         <View key={i} style={{ flex: 1, alignItems: "center" }}>
-                            <SkeletonCircle size={altura} hades />
-                            <Skeleton width={60} height={12} hades style={{ marginTop: 8 }} />
-                            <Skeleton width={40} height={12} hades style={{ marginTop: 4 }} />
+                            {/* O 1º lugar tem coroa acima do avatar; sem ela o pódio inteiro sobe ao carregar. */}
+                            {i === 1 && <Skeleton width={22} height={22} hades style={{ marginBottom: 5 }} />}
+                            <SkeletonCircle size={avatar} hades />
+                            <Skeleton width={60} height={i === 1 ? 14 : 12.5} hades style={{ marginTop: 8 }} />
+                            <Skeleton width={40} height={i === 1 ? 13.5 : 12} hades style={{ marginTop: 2 }} />
                             <Skeleton
                                 width="100%"
-                                height={i === 1 ? 98 : 52}
+                                height={barra}
                                 borderRadius={12}
                                 hades
-                                style={{ marginTop: 9 }}
+                                style={{ marginTop: 9, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
                             />
                         </View>
                     ))}

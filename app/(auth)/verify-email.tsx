@@ -4,7 +4,6 @@ import {
     TextInput,
     TouchableOpacity,
     StatusBar,
-    Image,
     ActivityIndicator,
 } from "react-native";
 
@@ -12,17 +11,21 @@ import {
 import { router } from "expo-router";
 
 //Componentes do Lucide React Native
-import { ArrowLeft, Mail, RefreshCw, CheckCircle } from "lucide-react-native";
+import { ArrowLeft, Mail, RefreshCw, CheckCircle } from "@/components/ui/icons";
 
 //Constantes
 import { HADES } from "@/constants/hades";
 
 //Componentes do Projeto
+import { LogoMark } from "@/components/auth";
 import { useEffect, useState } from "react";
 
 //Serviços
 import { confirmarCodigoCadastro, obtemEmailUsuario, reenviarEmailConfirmacao } from "@/services/auth";
 import { toast } from "@/services/toast";
+
+//Utilitários
+import { traduzirErroAuth } from "@/utils/errosAuth";
 
 export default function VerifyEmailScreen() {
     const [code, setCode] = useState("");
@@ -30,9 +33,19 @@ export default function VerifyEmailScreen() {
     const [isChecking, setIsChecking] = useState(false);
     const [isResending, setIsResending] = useState(false);
 
+    // O Supabase recusa reenvios seguidos com um 429. Sem este contador o botão aceitava
+    // o toque, ia até o servidor e voltava com erro — o usuário só descobria depois.
+    const [esperaReenvio, setEsperaReenvio] = useState(0);
+
     useEffect(() => {
         obtemEmailUsuario().then(({ email }) => setEmail(email));
     }, []);
+
+    useEffect(() => {
+        if (esperaReenvio <= 0) return;
+        const relogio = setTimeout(() => setEsperaReenvio((s) => s - 1), 1000);
+        return () => clearTimeout(relogio);
+    }, [esperaReenvio]);
 
     const handleConfirmed = async () => {
         if (code.trim().length !== 6) {
@@ -61,6 +74,7 @@ export default function VerifyEmailScreen() {
     };
 
     const handleResend = async () => {
+        if (esperaReenvio > 0) return;
         setIsResending(true);
 
         //Obtém o email do usuário
@@ -76,9 +90,10 @@ export default function VerifyEmailScreen() {
         const { error } = await reenviarEmailConfirmacao(currentEmail);
 
         if (error) {
-            toast.error(error.message, "Erro ao reenviar");
+            toast.error(traduzirErroAuth(error.message), "Erro ao reenviar");
         } else {
             setCode("");
+            setEsperaReenvio(60);
             toast.success("Um novo código foi enviado para " + currentEmail + ".", "Código reenviado!");
         }
         setIsResending(false);
@@ -117,24 +132,7 @@ export default function VerifyEmailScreen() {
                 </TouchableOpacity>
 
                 {/* Logo */}
-                <View
-                    style={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 20,
-                        backgroundColor: "#000",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.3,
-                        shadowRadius: 16,
-                        elevation: 10,
-                        marginBottom: 14,
-                    }}
-                >
-                    <Image source={require("../../assets/LogoStudoCore.png")} style={{ width: 47, height: 47 }} />
-                </View>
+                <LogoMark size={72} borderRadius={20} marginBottom={14} />
 
                 <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, letterSpacing: -0.5 }}>
                     Verifique seu e-mail
@@ -276,14 +274,14 @@ export default function VerifyEmailScreen() {
                     {/* Resend link */}
                     <TouchableOpacity
                         onPress={handleResend}
-                        disabled={isResending}
+                        disabled={isResending || esperaReenvio > 0}
                         style={{
                             flexDirection: "row",
                             alignItems: "center",
                             justifyContent: "center",
                             gap: 6,
                             paddingVertical: 12,
-                            opacity: isResending ? 0.6 : 1,
+                            opacity: isResending || esperaReenvio > 0 ? 0.6 : 1,
                         }}
                     >
                         {isResending ? (
@@ -292,7 +290,11 @@ export default function VerifyEmailScreen() {
                             <RefreshCw size={15} color={HADES.textMuted} />
                         )}
                         <Text style={{ fontSize: 14, color: HADES.textMuted, fontWeight: "600" }}>
-                            {isResending ? "Reenviando..." : "Reenviar código"}
+                            {isResending
+                                ? "Reenviando..."
+                                : esperaReenvio > 0
+                                    ? `Reenviar código em ${esperaReenvio}s`
+                                    : "Reenviar código"}
                         </Text>
                     </TouchableOpacity>
                 </View>

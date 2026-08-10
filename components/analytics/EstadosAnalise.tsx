@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, View, Text, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Flame, Clock, Target, Lock, BarChart3, PieChart, Rocket, Play, Users, Swords } from "lucide-react-native";
+import { Flame, Clock, Target, Lock, BarChart3, PieChart, Rocket, Play, Users, Swords } from "@/components/ui/icons";
 
 import { CartaoMetrica, CORES } from "@/components/analytics/GraficosAnalise";
 

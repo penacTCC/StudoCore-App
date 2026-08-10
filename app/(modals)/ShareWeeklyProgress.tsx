@@ -8,7 +8,7 @@ import {
     StatusBar,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Share2, Check, Flame, Trophy } from "lucide-react-native";
+import { Share2, Check, Flame, Trophy } from "@/components/ui/icons";
 import ViewShot from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth } from "@/hooks/useAuth";

@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { Flame, SlidersHorizontal, ChevronDown, ChevronUp, ChevronRight } from "lucide-react-native";
+import { Flame, SlidersHorizontal, ChevronDown, ChevronUp, ChevronRight } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import Avatar from "@/components/ui/Avatar";
 import PodioRanking, { corDaPosicao } from "@/components/grupo/PodioRanking";

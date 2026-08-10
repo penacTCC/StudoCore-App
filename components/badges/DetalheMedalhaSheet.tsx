@@ -1,5 +1,5 @@
 import { View, Text, Modal, Pressable } from "react-native";
-import { Lock, Star, Timer } from "lucide-react-native";
+import { Lock, Star, Timer } from "@/components/ui/icons";
 import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { BADGE_LEVEL_COLORS, BADGE_LEVEL_LABELS, BadgeType } from "@/constants/badges";

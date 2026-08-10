@@ -11,7 +11,7 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from "react-native";
-import { ArrowUp, Flag, Trash2 } from "lucide-react-native";
+import { ArrowUp, Flag, Trash2 } from "@/components/ui/icons";
 
 import Avatar from "@/components/ui/Avatar";
 import { tempoRelativo } from "@/components/comunidade/CardPublicacao";

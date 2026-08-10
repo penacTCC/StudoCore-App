@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { X, Plus, BookOpen, AlertCircle, Check, Users } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { X, Plus, BookOpen, AlertCircle, Check, Users } from "@/components/ui/icons";
 import { router } from "expo-router";
 
 import { HADES } from "@/constants/hades";

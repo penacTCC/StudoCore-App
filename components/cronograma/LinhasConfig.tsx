@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
-import { ChevronRight, Lock } from "lucide-react-native";
+import { ChevronRight, Lock } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 
 export function SecaoConfig({ titulo, children }: { titulo: string; children: ReactNode }) {

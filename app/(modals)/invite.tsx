@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 
 //Componentes do react native
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Image } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { X } from "lucide-react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { Search, X } from "@/components/ui/icons";
+import { Ionicons } from "@expo/vector-icons"; // só pelo logo do WhatsApp, que não existe no Solar
 
 //Componentes do expo router
 import { router, useLocalSearchParams } from "expo-router";
@@ -218,6 +218,9 @@ export default function InviteScreen() {
                                 >
                                     <SkeletonCircle size={36} hades style={{ marginRight: 12 }} />
                                     <Skeleton width="50%" height={14} hades />
+                                    <View style={{ flex: 1 }} />
+                                    {/* Botão de convite por WhatsApp, na ponta da linha. */}
+                                    <SkeletonCircle size={34} hades />
                                 </View>
                             ))}
                         </View>
@@ -242,7 +245,7 @@ export default function InviteScreen() {
                                 marginBottom: 16,
                             }}
                         >
-                            <Ionicons name="search" size={16} color={HADES.textFaint} />
+                            <Search size={16} color={HADES.textFaint} />
                             <TextInput
                                 value={buscaContato}
                                 onChangeText={setBuscaContato}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Modal, Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { CalendarPlus, ChevronRight } from "lucide-react-native";
+import { CalendarPlus, ChevronRight } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { minParaPx } from "@/constants/cronograma";
 import AbaSemanaBlocos from "@/components/cronograma/AbaSemanaBlocos";
@@ -468,18 +468,24 @@ function AbaSemanaSkeleton() {
         <View style={{ flex: 1 }}>
             <View style={{ paddingHorizontal: 12, flexDirection: "row" }}>
                 <View style={{ width: LARGURA_EIXO }} />
+                {/* Letra e número colados, como no cabeçalho da grade (marginTop 2, sem gap). */}
                 {letras.map((letra, i) => (
-                    <View key={i} style={{ flex: 1, alignItems: "center", gap: 6 }}>
+                    <View key={i} style={{ flex: 1, alignItems: "center" }}>
                         <Skeleton width={12} height={11} hades />
-                        <Skeleton width={22} height={16} borderRadius={6} hades />
+                        <Skeleton width={22} height={15} borderRadius={6} hades style={{ marginTop: 2 }} />
                     </View>
                 ))}
             </View>
 
-            <View style={{ flex: 1, paddingTop: 16, paddingHorizontal: 12, flexDirection: "row", gap: 4 }}>
-                <View style={{ width: LARGURA_EIXO }} />
+            {/* Colunas coladas uma na outra e paddingTop 10: os mesmos da grade real. */}
+            <View style={{ flex: 1, paddingTop: 10, paddingHorizontal: 12, flexDirection: "row" }}>
+                <View style={{ width: LARGURA_EIXO, paddingRight: 4, gap: 42 }}>
+                    {[0, 1, 2, 3].map((i) => (
+                        <Skeleton key={i} width={22} height={10} hades style={{ alignSelf: "flex-end" }} />
+                    ))}
+                </View>
                 {letras.map((_, dia) => (
-                    <View key={dia} style={{ flex: 1, paddingHorizontal: 2, gap: 10 }}>
+                    <View key={dia} style={{ flex: 1, paddingHorizontal: 2 }}>
                         {dia % 2 === 0 && (
                             <Skeleton width="100%" height={54} borderRadius={6} hades style={{ marginTop: dia * 14 }} />
                         )}

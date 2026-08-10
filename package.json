@@ -16,6 +16,7 @@
     "@expo/metro-runtime": "~55.0.9",
     "@expo/ngrok": "^4.1.0",
     "@expo/vector-icons": "^15.1.1",
+    "@lottiefiles/dotlottie-react": "^0.13.5",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-clipboard/clipboard": "^1.16.3",
     "@react-native-masked-view/masked-view": "0.3.2",

@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
-import { ClipboardList, ChevronRight, Pencil } from "lucide-react-native";
+import { ClipboardList, ChevronRight, Pencil } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import type { SessaoFocoRow } from "@/types/sessions";
 

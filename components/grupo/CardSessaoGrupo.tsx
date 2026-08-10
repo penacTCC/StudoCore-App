@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Image } from "react-native";
-import { Lock, Pause, Timer, LogIn, Wind } from "lucide-react-native";
+import { Lock, Pause, Timer, LogIn, Wind } from "@/components/ui/icons";
 import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { getSubjectColor } from "@/constants/helpers";
@@ -555,7 +555,7 @@ export function FeedVazio({ carregando }: { carregando?: boolean }) {
     );
 }
 
-function CardSessaoGrupoSkeleton({ style }: { style?: object }) {
+export function CardSessaoGrupoSkeleton({ style }: { style?: object }) {
     return (
         <View
             style={[

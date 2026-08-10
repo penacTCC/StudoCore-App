@@ -42,6 +42,8 @@ export type EstatisticasDuelo = ProfilePreview & {
   materia_favorita: string | null;
   ofensiva: number | null;
   melhor_ofensiva: number | null;
+  /** Último dia estudado ("YYYY-MM-DD"): sem ele não dá pra saber se a ofensiva ainda vale. */
+  ultima_data_estudo: string | null;
 };
 
 export type UserStats = {

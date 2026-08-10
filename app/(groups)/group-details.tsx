@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, ScrollView, Image, DeviceEventEmitter, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Globe, Lock, Users } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { ArrowLeft, Globe, Lock, Users } from "@/components/ui/icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { getAvatarColor } from "@/constants/helpers";
@@ -425,8 +425,8 @@ function GroupDetailsSkeleton() {
                 }}
             >
                 <ArrowLeft size={22} color={HADES.textSecondary} />
-                <View style={{ flex: 1, gap: 6 }}>
-                    <Skeleton width="55%" height={18} hades />
+                <View style={{ flex: 1, gap: 5 }}>
+                    <Skeleton width="55%" height={20} hades />
                     <Skeleton width={90} height={13} hades />
                 </View>
             </View>
@@ -488,7 +488,18 @@ function GroupDetailsSkeleton() {
                         marginBottom: 16,
                     }}
                 >
-                    <Skeleton width={130} height={14} hades style={{ marginBottom: 12 }} />
+                    {/* Título à esquerda + pílula "N estudando" à direita, como no cartão pronto. */}
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: 12,
+                        }}
+                    >
+                        <Skeleton width={110} height={14} hades />
+                        <Skeleton width={104} height={22} borderRadius={999} hades />
+                    </View>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                         {[0, 1, 2].map((i) => (
                             <View
@@ -519,7 +530,17 @@ function GroupDetailsSkeleton() {
                         padding: 14,
                     }}
                 >
-                    <Skeleton width={150} height={14} hades style={{ marginBottom: 12 }} />
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: 12,
+                        }}
+                    >
+                        <Skeleton width={130} height={14} hades />
+                        <Skeleton width={78} height={12} hades />
+                    </View>
                     <Skeleton width="100%" height={10} borderRadius={5} hades />
                     <Skeleton width={130} height={12} hades style={{ marginTop: 8 }} />
                 </View>

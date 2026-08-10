@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter } from "expo-router";
-import { ChevronLeft, LogOut, Trash2 } from "lucide-react-native";
+import { ChevronLeft, LogOut, Trash2 } from "@/components/ui/icons";
 
 import { HADES } from "@/constants/hades";
 import {
@@ -439,6 +439,47 @@ export default function SettingsScreen() {
     );
 }
 
+/** Uma linha de config: rótulo à esquerda, valor/interruptor à direita. Espelha `Linha` de LinhasConfig. */
+function LinhaSkeleton({ ultima }: { ultima?: boolean }) {
+    return (
+        <View
+            style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 14,
+                borderBottomWidth: ultima ? 0 : 1,
+                borderBottomColor: HADES.borderSettings,
+            }}
+        >
+            <Skeleton width="45%" height={14} hades />
+            <View style={{ flex: 1 }} />
+            <Skeleton width={44} height={27} borderRadius={14} hades />
+        </View>
+    );
+}
+
+/** Espelha `SecaoConfig`: título miúdo em caixa alta + cartão com N linhas. */
+function SecaoConfigSkeleton({ tituloWidth, linhas }: { tituloWidth: number; linhas: number }) {
+    return (
+        <>
+            <Skeleton width={tituloWidth} height={12} hades style={{ marginTop: 20, marginBottom: 10, marginLeft: 4 }} />
+            <View
+                style={{
+                    backgroundColor: HADES.settingsCard,
+                    borderWidth: 1,
+                    borderColor: HADES.borderSettings,
+                    borderRadius: 14,
+                    overflow: "hidden",
+                }}
+            >
+                {Array.from({ length: linhas }).map((_, i) => (
+                    <LinhaSkeleton key={i} ultima={i === linhas - 1} />
+                ))}
+            </View>
+        </>
+    );
+}
+
 function SettingsSkeleton() {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.settingsBg }} edges={["top"]}>
@@ -452,18 +493,20 @@ function SettingsSkeleton() {
                     gap: 12,
                 }}
             >
-                <Skeleton width={22} height={22} borderRadius={6} />
-                <Skeleton width={140} height={20} />
+                <Skeleton width={22} height={22} borderRadius={6} hades />
+                <Skeleton width={140} height={20} hades />
             </View>
 
             <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
                 showsVerticalScrollIndicator={false}
+                scrollEnabled={false}
             >
-                <Skeleton width="100%" height={64} borderRadius={14} style={{ marginBottom: 20 }} />
-                <Skeleton width="100%" height={200} borderRadius={14} style={{ marginBottom: 20 }} />
-                <Skeleton width="100%" height={170} borderRadius={14} />
+                {/* CONTA / PRIVACIDADE / POMODORO — só o que cabe na primeira dobra. */}
+                <SecaoConfigSkeleton tituloWidth={52} linhas={1} />
+                <SecaoConfigSkeleton tituloWidth={86} linhas={5} />
+                <SecaoConfigSkeleton tituloWidth={76} linhas={6} />
             </ScrollView>
         </SafeAreaView>
     );

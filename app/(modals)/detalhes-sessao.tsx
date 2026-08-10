@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
     ArrowLeft,
@@ -13,7 +13,7 @@ import {
     Sparkles,
     Trash2,
     AlertCircle,
-} from "lucide-react-native";
+} from "@/components/ui/icons";
 
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";

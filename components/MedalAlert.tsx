@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet, DeviceEventEmitter, Vibration } from 'react-native';
 import { preferenciasDoUsuarioAtual } from '@/services/preferencias';
-import { X } from 'lucide-react-native';
+import { X } from '@/components/ui/icons';
 import { COLORS } from '@/constants/colors';
 import { BadgeType } from '@/constants/badges';
 import IconeMedalha from '@/components/badges/IconeMedalha';

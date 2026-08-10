@@ -1,5 +1,5 @@
 import { TouchableOpacity } from "react-native";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft } from "@/components/ui/icons";
 import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
 

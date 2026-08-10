@@ -12,6 +12,33 @@ import { sincronizarLembreteDeOfensiva } from "@/services/notificacoesOfensiva";
 const SELECT_GAMIFICACAO = "user_id, ofensiva, melhor_ofensiva, ultima_data_estudo";
 
 /**
+ * Quanto vale a ofensiva HOJE — que não é o mesmo que o número gravado em `gamificacoes`.
+ *
+ * A coluna `ofensiva` só é escrita quando alguém conclui uma sessão; ninguém passa à
+ * meia-noite zerando quem faltou. Sem esta conta, quem parou de estudar continuava vendo
+ * os mesmos foguinhos para sempre (inclusive depois de receber o aviso de que a ofensiva
+ * ia acabar), e só descobria a perda ao estudar de novo e cair para 1.
+ *
+ * A regra é a mesma de `registrarSessaoConcluida`: vale se o último dia estudado foi hoje
+ * ou ontem; qualquer buraco maior já quebrou a sequência. A comparação é por data local
+ * (`paraDataISO`), igual ao que foi gravado.
+ */
+export const ofensivaVigente = (gamificacao: {
+  ofensiva?: number | null;
+  ultima_data_estudo?: string | null;
+} | null | undefined): number => {
+  const ofensiva = gamificacao?.ofensiva ?? 0;
+  const ultima = gamificacao?.ultima_data_estudo;
+  if (ofensiva < 1 || !ultima) return 0;
+
+  const hoje = new Date();
+  const ontem = new Date(hoje);
+  ontem.setDate(ontem.getDate() - 1);
+
+  return ultima === paraDataISO(hoje) || ultima === paraDataISO(ontem) ? ofensiva : 0;
+};
+
+/**
  * Busca o estado de gamificação (ofensiva atual, melhor ofensiva, último dia estudado) de um usuário.
  */
 export const buscarGamificacao = async (userId: string): Promise<Gamificacao | null> => {
@@ -27,7 +54,8 @@ export const buscarGamificacao = async (userId: string): Promise<Gamificacao | n
     return null;
   }
 
-  return data;
+  // O valor gravado pode estar vencido (ver `ofensivaVigente`); quem lê daqui recebe o de hoje.
+  return data && { ...data, ofensiva: ofensivaVigente(data) };
 };
 
 /**

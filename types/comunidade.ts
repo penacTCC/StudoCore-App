@@ -6,6 +6,12 @@
  * forma própria, mas todos compartilham autor, data e as reações.
  */
 
+/**
+ * Qual dos dois lados da aba está em cena. Quem troca é o painel lateral
+ * (`components/comunidade/PainelComunidade.tsx`).
+ */
+export type EscopoComunidade = "meu-grupo" | "explorar";
+
 export type TipoPublicacao = "galeria" | "arquivo" | "plano";
 
 /** Chip de filtro do topo do Explorar. `tudo` não filtra nada. */
@@ -80,6 +86,37 @@ export type PublicacaoPlano = PublicacaoBase & {
 };
 
 export type Publicacao = PublicacaoGaleria | PublicacaoArquivo | PublicacaoPlano;
+
+/**
+ * Um bloco do plano como a prévia mostra — leitura só, e já resolvido.
+ *
+ * Não é `BlocoPlano` (types/cronograma) de propósito: ali `materia_id` aponta para uma
+ * linha de `materias_usuario` DO AUTOR, que quem está lendo não tem no acervo. A prévia
+ * recebe o nome e a cor já vindos do join, porque não há nada para reconciliar antes de
+ * importar — a reconciliação por nome acontece dentro de `comunidade_importar_plano`.
+ */
+export type BlocoDaPrevia = {
+    id: string;
+    /** "08:00" — sem segundos, já cortado para caber na linha. */
+    horaInicio: string;
+    duracaoMin: number;
+    tipo: "estudo" | "descanso";
+    /** Descanso não tem matéria; bloco cuja matéria o autor apagou também não. */
+    materia: string | null;
+    materiaCor: string | null;
+    topico: string | null;
+};
+
+/** O plano público inteiro, do jeito que a tela de prévia precisa dele. */
+export type PreviaPlano = {
+    id: string;
+    nome: string;
+    cor: string;
+    /** Em ordem de horário — é a ordem em que o dia acontece. */
+    blocos: BlocoDaPrevia[];
+    minutosEstudo: number;
+    minutosDescanso: number;
+};
 
 export type ComentarioPublicacao = {
     id: string;

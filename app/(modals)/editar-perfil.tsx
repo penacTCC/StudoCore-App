@@ -11,16 +11,16 @@ import {
     Pressable,
 } from "react-native";
 import { toast } from "@/services/toast";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter } from "expo-router";
-import { X, Eye, Flame, Camera, Image as ImageIcon, Check, CircleAlert } from "lucide-react-native";
+import { X, Eye, Flame, Camera, Image as ImageIcon, Check, CircleAlert } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { getIdentityColor, getInitials } from "@/constants/helpers";
 import {
     buscarPerfil,
     buscarUsuarioLogado,
     atualizarPerfil,
-    verificarNomeUsuario,
+    nomeUsuarioDisponivel,
 } from "@/services/auth";
 import { escolherEEnviarImagem } from "@/services/imagens";
 import { updateWeeklyGoal, loadProfileStats } from "@/services/profileStats";
@@ -134,14 +134,14 @@ export default function EditarPerfilScreen() {
         setStatusUsuario("checando");
         const busca = ++buscaEmVoo.current;
         const timer = setTimeout(async () => {
-            const { data, error } = await verificarNomeUsuario(nome);
+            const { disponivel, error } = await nomeUsuarioDisponivel(nome);
             // Uma resposta antiga não pode sobrescrever o resultado de uma digitação mais nova.
             if (busca !== buscaEmVoo.current) return;
             if (error) {
                 setStatusUsuario("disponivel");
                 return;
             }
-            setStatusUsuario(data && data.length > 0 ? "emUso" : "disponivel");
+            setStatusUsuario(disponivel ? "disponivel" : "emUso");
         }, 500);
 
         return () => clearTimeout(timer);
@@ -187,12 +187,10 @@ export default function EditarPerfilScreen() {
             // Revalida no servidor: o debounce acima pode ter ficado pra trás, e entre a
             // digitação e o toque em "Salvar" alguém pode ter registrado o mesmo @.
             if (username.trim() !== profileData?.nome_usuario) {
-                const { data, error: selectError } = await verificarNomeUsuario(username);
-                if (selectError) {
-                    toast.error("Não foi possível verificar seu nome de usuário.");
-                    return;
-                }
-                if (data && data.length > 0) {
+                // Falha na checagem não impede o salvamento: o UNIQUE do banco barra o
+                // duplicado e o 23505 abaixo explica o que houve.
+                const { disponivel, error: selectError } = await nomeUsuarioDisponivel(username);
+                if (!selectError && !disponivel) {
                     setStatusUsuario("emUso");
                     toast.warning("Este nome de usuário já está sendo usado por outra pessoa. Escolha outro!", "Aviso");
                     return;
@@ -209,6 +207,11 @@ export default function EditarPerfilScreen() {
             });
 
             if (error) {
+                if (error.code === "23505") {
+                    setStatusUsuario("emUso");
+                    toast.warning("Este nome de usuário já está sendo usado por outra pessoa. Escolha outro!", "Aviso");
+                    return;
+                }
                 toast.error("Não foi possível salvar os dados. " + error.message);
                 return;
             }
@@ -651,12 +654,24 @@ function EditarPerfilSkeleton() {
                 </View>
 
                 <View style={{ paddingHorizontal: 20, gap: 12 }}>
-                    <Skeleton width="100%" height={62} borderRadius={14} hades />
-                    <Skeleton width="100%" height={62} borderRadius={14} hades />
-                    <Skeleton width="100%" height={124} borderRadius={14} hades />
-                    <Skeleton width="100%" height={120} borderRadius={14} hades />
-                    <Skeleton width="100%" height={260} borderRadius={13} hades />
-                    <Skeleton width="100%" height={48} borderRadius={13} hades />
+                    {/* Nome, Usuário, Bio */}
+                    <Skeleton width="100%" height={64} borderRadius={14} hades />
+                    <Skeleton width="100%" height={64} borderRadius={14} hades />
+                    <Skeleton width="100%" height={119} borderRadius={14} hades />
+                    {/* "Sua bio aparece para o grupo e no ranking." */}
+                    <Skeleton width={240} height={11.5} hades style={{ marginLeft: 4 }} />
+
+                    {/* Privacidade: dois interruptores no mesmo cartão */}
+                    <Skeleton width="100%" height={128} borderRadius={14} hades style={{ marginTop: 6 }} />
+
+                    {/* Meta semanal: título, roda de horas e a legenda embaixo */}
+                    <View style={{ marginTop: 8 }}>
+                        <Skeleton width={110} height={13} hades style={{ marginBottom: 14 }} />
+                        <Skeleton width="100%" height={260} borderRadius={13} hades />
+                        <Skeleton width={200} height={11.5} hades style={{ marginTop: 9, marginLeft: 4 }} />
+                    </View>
+
+                    <Skeleton width="100%" height={48} borderRadius={13} hades style={{ marginTop: 8 }} />
                 </View>
             </ScrollView>
         </SafeAreaView>

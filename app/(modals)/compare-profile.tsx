@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Share, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, Share2, Crown, Clock, ListChecks, Trophy, Medal, Flame, BookOpen, Swords, Lock } from "lucide-react-native";
+import { ChevronLeft, Share2, Crown, Clock, ListChecks, Trophy, Medal, Flame, BookOpen, Swords, Lock } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { useDadosCache } from "@/hooks/useDadosCache";
 import Avatar from "@/components/ui/Avatar";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { buscarEstatisticasParaDuelo } from "@/services/profileStats";
+import { ofensivaVigente } from "@/services/gamificacao";
 import { APP_BADGES } from "@/constants/badges";
 import { getAvatarColor } from "@/constants/helpers";
 import type { Profile } from "@/types/profile";
 import type { Gamificacao } from "@/types/gamificacao";
-import type { LucideIcon } from "lucide-react-native";
+import type { IconeComponente } from "@/components/ui/icons";
 import { toast } from "@/services/toast";
 
 type PerfilComparavel = {
@@ -69,9 +70,11 @@ export default function CompareProfileScreen() {
                     ? null
                     : {
                           user_id: dados.id ?? id,
-                          ofensiva: dados.ofensiva,
+                          // O banco guarda a ofensiva do último dia estudado e nunca a zera
+                          // sozinho; quem diz se ela ainda vale hoje é `ofensivaVigente`.
+                          ofensiva: ofensivaVigente(dados),
                           melhor_ofensiva: dados.melhor_ofensiva ?? 0,
-                          ultima_data_estudo: null,
+                          ultima_data_estudo: dados.ultima_data_estudo,
                       },
         };
     };
@@ -121,7 +124,7 @@ export default function CompareProfileScreen() {
     const minhasMedalhas = APP_BADGES.filter((b) => eu.profile.medalhas_desbloqueadas?.includes(b.id)).length;
     const medalhasDele = APP_BADGES.filter((b) => ele.profile.medalhas_desbloqueadas?.includes(b.id)).length;
 
-    const metricas: { label: string; icon: LucideIcon; meu: number; dele: number; sufixo?: string }[] = [
+    const metricas: { label: string; icon: IconeComponente; meu: number; dele: number; sufixo?: string }[] = [
         { label: "Horas Totais", icon: Clock, meu: eu.profile.horas_totais ?? 0, dele: ele.profile.horas_totais ?? 0, sufixo: "h" },
         { label: "Questões", icon: ListChecks, meu: eu.profile.questoes_feitas ?? 0, dele: ele.profile.questoes_feitas ?? 0 },
         { label: "Melhor Ofensiva", icon: Trophy, meu: eu.gamificacao?.melhor_ofensiva ?? 0, dele: ele.gamificacao?.melhor_ofensiva ?? 0, sufixo: " dias" },
@@ -369,7 +372,6 @@ function CompareProfileSkeleton() {
             >
                 <View style={estilos.botaoCircular} />
                 <Skeleton width={50} height={16} hades />
-                <View style={estilos.botaoCircular} />
             </View>
 
             <ScrollView
@@ -378,21 +380,26 @@ function CompareProfileSkeleton() {
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
             >
                 <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingVertical: 24 }}>
+                    {/* 78 de avatar + o anel de 3px e a borda de 3px = 90 na tela pronta. */}
                     <View style={{ width: 110, alignItems: "center", gap: 10 }}>
-                        <SkeletonCircle size={78} hades />
-                        <Skeleton width={80} height={14} hades />
-                        <Skeleton width={40} height={11} hades />
+                        <SkeletonCircle size={90} hades />
+                        <View style={{ alignItems: "center" }}>
+                            <Skeleton width={80} height={16} hades />
+                            <Skeleton width={40} height={12} hades style={{ marginTop: 1 }} />
+                        </View>
                     </View>
 
-                    <View style={{ flex: 1, alignItems: "center", paddingTop: 20, gap: 8 }}>
-                        <Skeleton width={100} height={30} hades />
-                        <Skeleton width={60} height={10} hades />
+                    <View style={{ flex: 1, alignItems: "center", paddingTop: 20 }}>
+                        <Skeleton width={110} height={36} hades />
+                        <Skeleton width={60} height={11} hades style={{ marginTop: 8 }} />
                     </View>
 
                     <View style={{ width: 110, alignItems: "center", gap: 10 }}>
-                        <SkeletonCircle size={78} hades />
-                        <Skeleton width={80} height={14} hades />
-                        <Skeleton width={40} height={11} hades />
+                        <SkeletonCircle size={90} hades />
+                        <View style={{ alignItems: "center" }}>
+                            <Skeleton width={80} height={16} hades />
+                            <Skeleton width={40} height={12} hades style={{ marginTop: 1 }} />
+                        </View>
                     </View>
                 </View>
 

@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, Image, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Camera, Flame } from "lucide-react-native";
+import { Camera, Flame } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import Avatar from "@/components/ui/Avatar";
 

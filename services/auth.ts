@@ -48,12 +48,26 @@ export const redefinirSenha = async (password: string) => {
   return await supabase.auth.updateUser({ password });
 };
 
-//Verificar nome de usuário
-export const verificarNomeUsuario = async (username: string) => {
-  return await supabase
-    .from("profiles")
-    .select("nome_usuario")
-    .eq("nome_usuario", username.trim());
+/**
+ * Diz se um @usuário está livre.
+ *
+ * Passa por RPC em vez de consultar `profiles` direto porque a policy de SELECT da tabela
+ * exige `authenticated`: na tela de cadastro ninguém está logado, a consulta voltava vazia
+ * por RLS e o formulário carimbava "disponível" em nome já tomado. A função no banco roda
+ * como SECURITY DEFINER e devolve só um booleano (ver a migration
+ * `20260808120000_nome_usuario_disponivel.sql`).
+ *
+ * Em caso de erro devolve `disponivel: false` e o erro: quem chama decide se avisa ou se
+ * deixa passar — o UNIQUE de `nome_usuario` continua sendo a garantia final.
+ */
+export const nomeUsuarioDisponivel = async (
+  username: string,
+): Promise<{ disponivel: boolean; error: unknown }> => {
+  const { data, error } = await supabase.rpc("nome_usuario_disponivel", {
+    p_nome: username.trim(),
+  });
+
+  return { disponivel: data === true, error };
 };
 
 //Salvar dados do perfil
@@ -159,7 +173,7 @@ export const cadastrarUsuario = async (
   nomeReal?: string,
   nomeUsuario?: string,
 ) => {
-  return await supabase.auth.signUp({
+  const resposta = await supabase.auth.signUp({
     email,
     password,
     // Nome e @usuário são coletados no signup mas só podem ser gravados em
@@ -172,6 +186,22 @@ export const cadastrarUsuario = async (
       },
     },
   });
+
+  /**
+   * Com a confirmação de e-mail ligada, o Supabase NÃO devolve erro quando o e-mail já tem
+   * conta — se devolvesse, o cadastro viraria um oráculo para descobrir quem usa o app.
+   * No lugar disso responde 200 com um usuário falso, sem sessão e com `identities` vazio.
+   *
+   * Sem olhar esse array o app tratava tudo como sucesso e mandava a pessoa para a tela do
+   * código de 6 dígitos, onde o e-mail nunca chegava e o reenvio também falhava.
+   */
+  const emailJaCadastrado =
+    !resposta.error &&
+    !!resposta.data.user &&
+    Array.isArray(resposta.data.user.identities) &&
+    resposta.data.user.identities.length === 0;
+
+  return { ...resposta, emailJaCadastrado };
 };
 
 //Reenviar email de confirmação

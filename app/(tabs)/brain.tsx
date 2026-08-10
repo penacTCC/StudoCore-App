@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight, AlertCircle, BookOpen, Clock, Timer, Layers, Search, Play, Edit, Trash2, SlidersHorizontal, Check } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { ChevronRight, AlertCircle, BookOpen, Clock, Timer, Layers, Search, Play, Edit, Trash2, SlidersHorizontal, Check } from "@/components/ui/icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
@@ -886,89 +886,76 @@ export default function BrainScreen() {
     );
 }
 
-/** Esqueleto dos cartões "Formulários pendentes" / "Formulários salvos", exibido enquanto as sessões do usuário ainda carregam. */
+/** Esqueleto da aba Banco de Dados: contadores, busca, abas e os cartões de formulário. */
 function BancoDadosSkeleton() {
     return (
         <>
-            <View
-                style={{
-                    backgroundColor: HADES.surface,
-                    borderWidth: 1,
-                    borderColor: HADES.border,
-                    borderRadius: 16,
-                    padding: 16,
-                }}
-            >
-                <View
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        marginBottom: 16,
-                    }}
-                >
-                    <Skeleton width={150} height={16} hades />
-                    <Skeleton width={70} height={20} borderRadius={7} hades />
-                </View>
+            {/* Contadores "Salvos" e "Refazer" */}
+            <View style={{ flexDirection: "row", gap: 10, marginBottom: 18 }}>
                 {[0, 1].map((i) => (
                     <View
                         key={i}
                         style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 12,
+                            flex: 1,
+                            backgroundColor: HADES.surface,
+                            borderWidth: 1,
+                            borderColor: HADES.border,
+                            borderRadius: 16,
                             padding: 14,
-                            borderRadius: 13,
-                            marginBottom: 10,
-                            backgroundColor: HADES.bg,
                         }}
                     >
-                        <SkeletonCircle size={40} hades />
-                        <View style={{ flex: 1, gap: 6 }}>
-                            <Skeleton width="55%" height={13} hades />
-                            <Skeleton width="75%" height={11} hades />
-                        </View>
+                        <Skeleton width={64} height={14} hades style={{ marginBottom: 8 }} />
+                        <Skeleton width={44} height={34} hades />
+                        <Skeleton width={110} height={11.5} hades style={{ marginTop: 6 }} />
                     </View>
                 ))}
             </View>
 
+            {/* Busca */}
+            <Skeleton height={42} borderRadius={13} hades style={{ marginBottom: 14 }} />
+
+            {/* Abas "Salvos" / "Refazer" */}
             <View
                 style={{
-                    backgroundColor: HADES.surface,
-                    borderWidth: 1,
-                    borderColor: HADES.border,
-                    borderRadius: 16,
-                    padding: 16,
+                    flexDirection: "row",
+                    gap: 24,
+                    borderBottomWidth: 1,
+                    borderBottomColor: HADES.border,
+                    marginTop: 16,
+                    paddingBottom: 11,
                 }}
             >
-                <View
-                    style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        marginBottom: 16,
-                    }}
-                >
-                    <Skeleton width={140} height={16} hades />
-                    <Skeleton width={60} height={20} borderRadius={7} hades />
-                </View>
-                {[0, 1, 2].map((i) => (
+                <Skeleton width={90} height={13.5} hades />
+                <Skeleton width={90} height={13.5} hades />
+            </View>
+
+            {/* Cartões de formulário */}
+            <View style={{ marginTop: 16, marginBottom: 16, gap: 12 }}>
+                {[0, 1].map((i) => (
                     <View
                         key={i}
                         style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 12,
+                            backgroundColor: HADES.surface,
+                            borderWidth: 1,
+                            borderColor: HADES.border,
+                            borderRadius: 15,
                             padding: 14,
-                            borderRadius: 13,
-                            marginBottom: 10,
-                            backgroundColor: HADES.bg,
                         }}
                     >
-                        <SkeletonCircle size={40} hades />
-                        <View style={{ flex: 1, gap: 6 }}>
-                            <Skeleton width="50%" height={13} hades />
-                            <Skeleton width="70%" height={11} hades />
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                            <Skeleton width={9} height={9} borderRadius={4.5} hades />
+                            <Skeleton width="45%" height={14.5} hades style={{ flex: 1 }} />
+                            <Skeleton width={72} height={20} borderRadius={7} hades />
+                        </View>
+                        {/* paddingLeft 19 = alinhado com o texto, depois do ponto da matéria. */}
+                        <Skeleton width="60%" height={12.5} hades style={{ marginTop: 5, marginLeft: 19 }} />
+                        <View style={{ flexDirection: "row", gap: 16, marginTop: 11, marginLeft: 19 }}>
+                            <Skeleton width={70} height={11.5} hades />
+                            <Skeleton width={70} height={11.5} hades />
+                        </View>
+                        <View style={{ flexDirection: "row", gap: 10, marginTop: 14, marginLeft: 19 }}>
+                            <Skeleton height={38} borderRadius={11} hades style={{ flex: 1 }} />
+                            <Skeleton width={38} height={38} borderRadius={11} hades />
                         </View>
                     </View>
                 ))}
@@ -981,10 +968,12 @@ function BancoDadosSkeleton() {
 function AnalisePessoalSkeleton() {
     return (
         <View className="gap-8">
-            <View style={{ gap: 10 }}>
-                <Skeleton width={90} height={11} hades />
-                <Skeleton width={130} height={26} hades />
-                <Skeleton height={130} borderRadius={12} hades />
+            {/* Horas estudadas: rótulo, número grande, variação e a área de 130px */}
+            <View>
+                <Skeleton width={100} height={13} hades />
+                <Skeleton width={130} height={30} hades style={{ marginTop: 4 }} />
+                <Skeleton width={170} height={12} hades style={{ marginTop: 4 }} />
+                <Skeleton height={130} borderRadius={12} hades style={{ marginTop: 14 }} />
             </View>
 
             <View className="flex-row gap-[10px]">
@@ -992,9 +981,20 @@ function AnalisePessoalSkeleton() {
                 <Skeleton height={84} borderRadius={16} hades style={{ flex: 1 }} />
             </View>
 
-            <View style={{ gap: 12 }}>
-                <Skeleton width={160} height={16} hades />
+            {/* Comparativo: título, legenda "Atual / Anterior" e as barras */}
+            <View>
+                <Skeleton width={160} height={16} hades style={{ marginBottom: 14 }} />
+                <View style={{ flexDirection: "row", gap: 16, marginBottom: 12 }}>
+                    <Skeleton width={54} height={12} hades />
+                    <Skeleton width={64} height={12} hades />
+                </View>
                 <Skeleton height={130} borderRadius={12} hades />
+            </View>
+
+            {/* Planejado vs. realizado */}
+            <View style={{ gap: 12 }}>
+                <Skeleton width={180} height={16} hades />
+                <Skeleton height={140} borderRadius={12} hades />
             </View>
 
             <View style={{ gap: 12 }}>

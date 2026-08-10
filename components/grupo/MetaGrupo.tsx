@@ -1,5 +1,5 @@
 import { View, Text } from "react-native";
-import { PartyPopper } from "lucide-react-native";
+import IlustracaoMetaBatida from "@/components/grupo/IlustracaoMetaBatida";
 import { HADES } from "@/constants/hades";
 
 type Props = {
@@ -17,43 +17,54 @@ export default function MetaGrupo({ percentual, horasFeitas, metaTotal, metaPorM
         const acima = Math.round(horasFeitas - metaTotal);
         const percentualReal = Math.round((horasFeitas / metaTotal) * 100);
 
+        /*
+          Semana batida é um estado, não uma medição — por isso este ramo é montado como um
+          empty state (ilustração, título, uma frase) e não como o cartão de progresso do
+          ramo de baixo. A barra cheia saiu junto: 100% desenhado é o único número que a
+          própria frase já diz, e era ele que fazia o cartão parecer um gráfico de enfeite.
+        */
         return (
             <View
                 style={{
-                    backgroundColor: "rgba(48,209,88,0.07)",
                     borderWidth: 1,
-                    borderColor: "rgba(48,209,88,0.35)",
+                    borderColor: "rgba(48,209,88,0.28)",
                     borderRadius: 16,
-                    padding: 18,
+                    paddingVertical: 22,
+                    paddingHorizontal: 20,
                     marginBottom: 18,
+                    alignItems: "center",
                 }}
             >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <PartyPopper size={20} color={HADES.green} />
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: "#eafff2" }}>
-                        Meta da semana batida!
-                    </Text>
-                </View>
+                <IlustracaoMetaBatida size={112} />
 
-                <View
+                <Text
                     style={{
-                        flexDirection: "row",
-                        alignItems: "baseline",
-                        justifyContent: "space-between",
+                        fontSize: 16.5,
+                        fontWeight: "700",
+                        color: "#eafff2",
+                        letterSpacing: -0.2,
                         marginTop: 14,
-                        marginBottom: 11,
                     }}
                 >
-                    <Text style={{ fontSize: 13, color: "#7fae91" }}>
-                        {Math.round(horasFeitas)}h de {Math.round(metaTotal)}h
-                    </Text>
-                    <Text style={{ fontSize: 13, color: HADES.green, fontWeight: "700" }}>
-                        {percentualReal}%{acima > 0 ? ` · +${acima}h acima` : ""}
-                    </Text>
-                </View>
+                    Meta da semana batida!
+                </Text>
 
-                <Barra largura="100%" cor={HADES.green} />
-
+                <Text
+                    style={{
+                        fontSize: 13,
+                        color: "#7fae91",
+                        textAlign: "center",
+                        lineHeight: 19,
+                        marginTop: 6,
+                    }}
+                >
+                    O grupo fez{" "}
+                    <Text style={{ color: HADES.green, fontWeight: "700" }}>
+                        {Math.round(horasFeitas)}h
+                    </Text>{" "}
+                    das {Math.round(metaTotal)}h combinadas
+                    {acima > 0 ? ` — ${acima}h a mais que o combinado.` : "."}
+                </Text>
             </View>
         );
     }

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, HandMetal, MessageCircle } from "lucide-react-native";
+import { ChevronLeft, HandMetal, MessageCircle } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { useIncentivos } from "@/hooks/useIncentivos";

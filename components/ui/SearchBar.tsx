@@ -1,5 +1,5 @@
 import { View, TextInput } from "react-native";
-import { Search } from "lucide-react-native";
+import { Search } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 
 interface SearchBarProps {

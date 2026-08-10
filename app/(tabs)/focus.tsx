@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { Vibration, View, Text, TouchableOpacity, AppState } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Play } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { Play } from "@/components/ui/icons";
 import * as Notifications from "expo-notifications";
 import * as Crypto from "expo-crypto";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
@@ -39,6 +39,7 @@ import { criarSala, buscarSala, entrarNaSala, atualizarParticipacao, sairDaSala,
 import { observarIncentivosDaSala, buscarIncentivosDaSala } from "@/services/incentivos";
 import { FaixaBlocoCronograma, FaixaSessaoRestaurada } from "@/components/focus/PecasFoco";
 import { toast } from "@/services/toast";
+import { agendarLembreteDePausa, cancelarLembreteDePausa } from "@/services/lembretePausa";
 import type { ConfigPomodoro, ContextoBloco, FocusState, FaseFoco, ModoFoco, ItemFila, SnapshotSessaoFoco } from "@/types/foco";
 
 // O handler global de notificações (mostrar com o app aberto) agora vive em
@@ -1143,6 +1144,26 @@ export default function FocusScreen() {
         salvarSnapshotSessao(montarSnapshot(startTimeRef.current, currentGroupId));
     }, [focusState, montarSnapshot, currentGroupId, snapshotTick]);
 
+    /*
+      Lembrete de "seu cronômetro está parado", 30 minutos depois da pausa.
+
+      Fica num efeito pelo mesmo motivo do snapshot acima: pausar não acontece num lugar
+      só (o botão, a troca automática de fase, a restauração do app), e cada caminho novo
+      seria mais um lugar para esquecer de agendar. Observando o estado, o par
+      agendar/cancelar não tem como sair de sincronia com a tela.
+
+      `pausaIniciadaEmRef` é lido, e não é dependência, porque ele é sempre escrito ANTES
+      do `setIsPaused` que dispara este efeito. Passá-lo é o que faz a restauração acertar
+      o horário: reabrir o app com 25 minutos de pausa lembra em 5, não em 30.
+
+      Sem limpeza no unmount de propósito: sair da aba Foco não retoma a sessão, e cancelar
+      ali derrubaria justamente o lembrete de quem saiu do app e esqueceu.
+    */
+    useEffect(() => {
+        if (focusState === "active" && isPaused) agendarLembreteDePausa(pausaIniciadaEmRef.current);
+        else cancelarLembreteDePausa();
+    }, [focusState, isPaused]);
+
     /**
      * Registra a presença na sala.
      *
@@ -1715,8 +1736,8 @@ export default function FocusScreen() {
                 groupId: finalGroupId || undefined,
                 sessionId: sessionIdParaFeedback,
                 oldDuration: revisao?.oldDuration || undefined,
-                // O quiz gerado por IA por enquanto só entra no modo cronômetro (ver
-                // focus-feedback.tsx); pomodoro mantém o quiz fixo até isso ser revisitado.
+                // Cronômetro e pomodoro geram quiz por IA do mesmo jeito (ver
+                // focus-feedback.tsx). O modo segue só como contexto da sessão.
                 modo,
             },
         });
@@ -2033,7 +2054,6 @@ function FocusConfigSkeleton() {
                         borderColor: HADES.border,
                         borderRadius: 12,
                         padding: 4,
-                        gap: 4,
                     }}
                 >
                     <Skeleton height={38} borderRadius={9} hades style={{ flex: 1 }} />
@@ -2042,17 +2062,19 @@ function FocusConfigSkeleton() {
             </View>
 
             <View style={{ flex: 1, paddingHorizontal: 20 }}>
-                <Skeleton width={70} height={11} hades style={{ marginBottom: 12 }} />
+                <Skeleton width={70} height={12} hades style={{ marginBottom: 12 }} />
+                {/* Pílulas de matéria: paddingVertical 8 sobre um texto de 13 dão ~33px. */}
                 <View style={{ flexDirection: "row", gap: 9, marginBottom: 24 }}>
-                    <Skeleton width={90} height={38} borderRadius={12} hades />
-                    <Skeleton width={110} height={38} borderRadius={12} hades />
-                    <Skeleton width={80} height={38} borderRadius={12} hades />
+                    <Skeleton width={90} height={33} borderRadius={18} hades />
+                    <Skeleton width={110} height={33} borderRadius={18} hades />
+                    <Skeleton width={80} height={33} borderRadius={18} hades />
                 </View>
 
-                <Skeleton width={150} height={11} hades style={{ marginBottom: 12 }} />
-                <Skeleton height={49} borderRadius={13} hades />
+                <Skeleton width={150} height={12} hades style={{ marginBottom: 12 }} />
+                <Skeleton height={47} borderRadius={13} hades />
+                <Skeleton width={110} height={12} hades style={{ marginTop: 8 }} />
 
-                <Skeleton width={90} height={11} hades style={{ marginTop: 26, marginBottom: 12 }} />
+                <Skeleton width={90} height={12} hades style={{ marginTop: 26, marginBottom: 12 }} />
                 <View style={{ flexDirection: "row", gap: 10 }}>
                     <Skeleton height={90} borderRadius={14} hades style={{ flex: 1 }} />
                     <Skeleton height={90} borderRadius={14} hades style={{ flex: 1 }} />

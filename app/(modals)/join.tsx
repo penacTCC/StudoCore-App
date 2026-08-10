@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 //Componentes do react native
 import { Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 
 //Componentes do expo router
 import { router, useLocalSearchParams } from "expo-router";

@@ -14,7 +14,7 @@ import {
 //Componentes do Expo
 import { router } from "expo-router";
 
-import { Eye, EyeOff, Github } from "lucide-react-native";
+import { Eye, EyeOff, Github } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { toast } from "@/services/toast";
 
@@ -24,6 +24,9 @@ import { PrimaryButton } from "@/components/form";
 
 //Serviços da Aplicação
 import { loginComSenha } from "@/services/auth";
+
+//Utilitários
+import { traduzirErroAuth } from "@/utils/errosAuth";
 
 //Hooks da Aplicação
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
@@ -38,15 +41,19 @@ export default function LoginScreen() {
     const { isLoading: isGoogleLoading, handleGoogleSignIn } = useGoogleAuth();
 
     const handleLogin = async () => {
-        setIsLoading(true);
-        if (!email || !password) {
+        // O teclado do celular gosta de deixar um espaço no fim do e-mail, e o Supabase
+        // compara a string exata: sem o trim, um login válido volta como senha errada.
+        const emailLimpo = email.trim().toLowerCase();
+
+        if (!emailLimpo || !password) {
             toast.warning("Por favor, preencha o e-mail e a senha.", "Campos obrigatórios");
-            setIsLoading(false);
             return;
         }
-        const { error } = await loginComSenha(email, password);
+
+        setIsLoading(true);
+        const { error } = await loginComSenha(emailLimpo, password);
         if (error) {
-            toast.error(error.message, "Erro ao entrar");
+            toast.error(traduzirErroAuth(error.message), "Erro ao entrar");
         }
         setIsLoading(false);
     };
@@ -122,6 +129,9 @@ export default function LoginScreen() {
                         placeholderTextColor={HADES.textFaint}
                         keyboardType="email-address"
                         autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="email"
+                        textContentType="username"
                         style={estilos.campo}
                     />
                 </View>
@@ -134,6 +144,11 @@ export default function LoginScreen() {
                         placeholder="Senha"
                         placeholderTextColor={HADES.textFaint}
                         secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        autoComplete="current-password"
+                        textContentType="password"
+                        onSubmitEditing={handleLogin}
+                        returnKeyType="go"
                         style={[estilos.campo, { paddingRight: 52 }]}
                     />
                     <TouchableOpacity

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { CalendarDays, ChevronLeft, ChevronRight, LayoutGrid, RotateCcw, Settings } from "lucide-react-native";
+import { CalendarDays, ChevronLeft, ChevronRight, LayoutGrid, RotateCcw, Settings } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import AbasCronograma from "@/components/cronograma/AbasCronograma";
 import AbaHoje from "@/components/cronograma/AbaHoje";

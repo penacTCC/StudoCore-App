@@ -8,12 +8,12 @@ import { router, useLocalSearchParams } from "expo-router";
 import * as Linking from "expo-linking";
 import * as QueryParams from "expo-auth-session/build/QueryParams";
 
-import { Mail, CheckCircle, LockKeyhole } from "lucide-react-native";
+import { Mail, CheckCircle, LockKeyhole } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 
 //Componentes da Aplicação
 import { DotPattern, LogoMark, BackButton, DragHandle } from "@/components/auth";
-import { PrimaryButton } from "@/components/form";
+import { PasswordStrength, PrimaryButton } from "@/components/form";
 
 //Serviços da Aplicação
 import {
@@ -24,6 +24,9 @@ import {
     validarSessaoPorTokens,
 } from "@/services/auth";
 import { toast } from "@/services/toast";
+
+//Utilitários
+import { traduzirErroAuth } from "@/utils/errosAuth";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -59,7 +62,7 @@ export default function ForgotPasswordScreen() {
             setIsValidatingLink(false);
 
             if (error) {
-                toast.error(error.message, "Link inválido");
+                toast.error(traduzirErroAuth(error.message), "Link inválido");
                 router.replace("/(auth)/login");
                 return;
             }
@@ -82,19 +85,21 @@ export default function ForgotPasswordScreen() {
         }
 
         setIsLoading(true);
-        const { error } = await recuperarSenha(email.trim());
+        const { error } = await recuperarSenha(email.trim().toLowerCase());
         setIsLoading(false);
 
         if (error) {
-            toast.error(error.message);
+            toast.error(traduzirErroAuth(error.message));
         } else {
             setSent(true);
         }
     };
 
     const handleUpdatePassword = async () => {
-        if (password.length < 6) {
-            toast.warning("Informe uma senha com pelo menos 6 caracteres.", "Senha muito curta");
+        // Mesmo mínimo do cadastro: com 6 aqui, o reset virava uma porta para enfraquecer
+        // uma senha que o signup exigiu com 8.
+        if (password.length < 8) {
+            toast.warning("Informe uma senha com pelo menos 8 caracteres.", "Senha muito curta");
             return;
         }
 
@@ -108,7 +113,7 @@ export default function ForgotPasswordScreen() {
         setIsLoading(false);
 
         if (error) {
-            toast.error(error.message);
+            toast.error(traduzirErroAuth(error.message));
             return;
         }
 
@@ -186,7 +191,7 @@ export default function ForgotPasswordScreen() {
                                 marginBottom: 28,
                             }}
                         >
-                            Aguarde enquanto preparamos a redefinicao da sua senha.
+                            Aguarde enquanto preparamos a redefinição da sua senha.
                         </Text>
                     </View>
                 ) : canResetPassword ? (
@@ -210,6 +215,7 @@ export default function ForgotPasswordScreen() {
                             <View style={estilos.iconeDireita} pointerEvents="none">
                                 <LockKeyhole size={20} color={HADES.textFaint} />
                             </View>
+                            <PasswordStrength password={password} />
                         </View>
 
                         <View style={{ marginBottom: 20, position: "relative" }}>

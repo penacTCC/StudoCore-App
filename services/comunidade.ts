@@ -15,13 +15,14 @@
 
 import { supabase } from "@/repositories/supabase";
 import { assinarCaminhosDeFoto } from "@/services/fotosSessao";
-import { avisarInteracao } from "@/services/notificacoesComunidade";
+import { avisarInteracao } from "@/services/notificacoes";
 import { CORES_PLANO } from "@/constants/hades";
 import type {
     ComentarioPublicacao,
     FiltroComunidade,
     MateriaDoPlano,
     PaginaDoFeed,
+    PreviaPlano,
     Publicacao,
     PublicacaoArquivo,
     PublicacaoGaleria,
@@ -522,6 +523,75 @@ export type AutorBloqueado = {
     foto: string | null;
     bloqueadoEm: string;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Prévia de um plano público
+// ─────────────────────────────────────────────────────────────────────────────
+
+type LinhaBlocoDaPrevia = {
+    id: string;
+    hora_inicio: string;
+    duracao_min: number;
+    tipo: "estudo" | "descanso";
+    topico: string | null;
+    materias_usuario: { nome_exibicao: string; cor: string } | null;
+};
+
+/**
+ * Os blocos de um plano público, para a tela que a pessoa vê ANTES de importar.
+ *
+ * Sem RPC: as policies de 20260807210000 já liberam `planos` e `planos_blocos` públicos
+ * em leitura, e `materias_usuario` é legível por qualquer usuário logado — daí o join
+ * trazer nome e cor da matéria do autor de graça. Se a RLS recusar (plano despublicado
+ * entre o card e o toque, autor bloqueado), a consulta volta vazia e isto devolve `null`,
+ * que a tela traduz em "esse plano não está mais disponível".
+ *
+ * O card do feed continua com o resumo da RPC (`comunidade_feed_planos`): trazer os blocos
+ * crus de cada plano do feed só para desenhar três tags é o que essa RPC evita. Aqui é o
+ * contrário — é um plano só, e os blocos são justamente o que a pessoa abriu para ver.
+ */
+export async function buscarPreviaPlano(planoId: string): Promise<PreviaPlano | null> {
+    const [plano, blocos] = await Promise.all([
+        supabase.from("planos").select("id, nome, cor").eq("id", planoId).maybeSingle(),
+        supabase
+            .from("planos_blocos")
+            .select("id, hora_inicio, duracao_min, tipo, topico, materias_usuario(nome_exibicao, cor)")
+            .eq("plano_id", planoId)
+            .order("hora_inicio", { ascending: true }),
+    ]);
+
+    if (plano.error) throw new Error(plano.error.message);
+    if (blocos.error) throw new Error(blocos.error.message);
+    if (!plano.data) return null;
+
+    const linha = plano.data as { id: string; nome: string; cor: string };
+    const linhas = (blocos.data ?? []) as unknown as LinhaBlocoDaPrevia[];
+
+    let minutosEstudo = 0;
+    let minutosDescanso = 0;
+
+    for (const bloco of linhas) {
+        if (bloco.tipo === "descanso") minutosDescanso += bloco.duracao_min;
+        else minutosEstudo += bloco.duracao_min;
+    }
+
+    return {
+        id: linha.id,
+        nome: linha.nome,
+        cor: linha.cor,
+        blocos: linhas.map((bloco) => ({
+            id: bloco.id,
+            horaInicio: bloco.hora_inicio.slice(0, 5),
+            duracaoMin: bloco.duracao_min,
+            tipo: bloco.tipo,
+            materia: bloco.materias_usuario?.nome_exibicao ?? null,
+            materiaCor: bloco.materias_usuario?.cor ?? null,
+            topico: bloco.topico,
+        })),
+        minutosEstudo,
+        minutosDescanso,
+    };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Importar um plano público

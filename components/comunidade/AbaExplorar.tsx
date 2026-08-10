@@ -19,7 +19,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFeedComunidade } from "@/hooks/useFeedComunidade";
 import { usePreferencias } from "@/hooks/usePreferencias";
 import { useProfile } from "@/hooks/useProfile";
-import { denunciar, importarPlano } from "@/services/comunidade";
+import { denunciar } from "@/services/comunidade";
 import { confirm } from "@/services/confirm";
 import { toast } from "@/services/toast";
 import { abrirArquivoDoBucket } from "@/services/visualizarArquivo";
@@ -36,7 +36,7 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
     const [filtro, setFiltro] = useState<FiltroComunidade>("tudo");
     const [menuAberto, setMenuAberto] = useState<Publicacao | null>(null);
     const [comentariosDe, setComentariosDe] = useState<Publicacao | null>(null);
-    // Id da publicação cuja ação demorada está em curso (baixar arquivo, importar plano).
+    // Id da publicação cuja ação demorada está em curso — hoje só baixar arquivo.
     const [ocupada, setOcupada] = useState<string | null>(null);
 
     const { userId } = useAuth();
@@ -119,28 +119,24 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
     }, []);
 
     /**
-     * Importar é copiar: o plano vira um plano seu, sem agenda, e não muda mais junto com
-     * o original. Confirmar antes porque o cronograma é da pessoa e ninguém espera que um
-     * toque no feed acrescente coisa lá dentro.
+     * O card não importa nada: abre a prévia, e é lá que o "Importar" mora.
+     *
+     * Antes daqui saía um alerta de confirmação, o que pedia "tem certeza?" sobre um plano
+     * que a pessoa só conhecia por "24 blocos · 6h". A prévia mostra o dia inteiro e faz o
+     * mesmo trabalho de confirmar melhor — o cronograma é da pessoa, e ninguém espera que
+     * um toque no feed acrescente coisa lá dentro.
      */
-    const importar = useCallback((publicacao: Publicacao) => {
+    const abrirPrevia = useCallback((publicacao: Publicacao) => {
         if (publicacao.tipo !== "plano") return;
 
-        confirm({
-            title: `Importar "${publicacao.titulo}"?`,
-            message:
-                "Uma cópia vai para os seus planos, sem dias marcados. Você escolhe depois quando ela vale.",
-            confirmText: "Importar",
-            onConfirm: async () => {
-                setOcupada(publicacao.id);
-                try {
-                    await importarPlano(publicacao.referenciaId);
-                    toast.success("Plano copiado para os seus planos.");
-                } catch {
-                    toast.error("Não deu para importar esse plano.");
-                } finally {
-                    setOcupada(null);
-                }
+        router.push({
+            pathname: "/(modals)/plano-preview",
+            params: {
+                planoId: publicacao.referenciaId,
+                // Autor vai por parâmetro porque o feed já o tem na mão: a prévia mostra de
+                // quem é o plano sem uma segunda consulta ao perfil.
+                autorNome: publicacao.autor.nome,
+                autorFoto: publicacao.autor.foto ?? "",
             },
         });
     }, []);
@@ -179,10 +175,10 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
                 data={itens}
                 keyExtractor={(item) => item.id}
                 ListHeaderComponent={cabecalho}
-                contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20, gap: 12 }}
+                // Sem padding lateral nem gap: cada publicação ocupa a largura toda e traz o
+                // próprio respiro, separada da seguinte pela linha de baixo.
+                contentContainerStyle={{ paddingBottom: 20 }}
                 showsVerticalScrollIndicator={false}
-                // O cabeçalho tem margem própria e não deve herdar o padding lateral da lista.
-                ListHeaderComponentStyle={{ marginHorizontal: -18 }}
                 refreshControl={
                     <RefreshControl
                         refreshing={atualizando}
@@ -206,7 +202,7 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
                         onCurtir={() => curtir(item)}
                         onComentar={() => setComentariosDe(item)}
                         onAbrirMenu={() => setMenuAberto(item)}
-                        onImportarPlano={() => importar(item)}
+                        onVerPlano={() => abrirPrevia(item)}
                         onBaixarArquivo={() => baixarArquivo(item)}
                     />
                 )}

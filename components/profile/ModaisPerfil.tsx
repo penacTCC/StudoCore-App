@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, ScrollView, Pressable } from "react-native";
-import { Target, X, MousePointerClick } from "lucide-react-native";
+import { Target, X, MousePointerClick } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { GradeHeatmap, LegendaHeatmap } from "@/components/profile/Heatmap";
 import type { MateriaComCor } from "@/types/materias";

@@ -5,10 +5,14 @@ import {
     definirNotificacoesNaoLidas,
     obterNotificacoesNaoLidas,
     observarNotificacoes,
-} from "@/services/notificacoesComunidade";
+} from "@/services/notificacoes";
 
 /**
- * Quantas notificações do feed público estão por ler — alimenta o badge da aba Comunidade.
+ * Quantas notificações estão por ler — alimenta o badge da aba Comunidade e o sino.
+ *
+ * Conta a caixa INTEIRA (curtida, comentário, força, grupo), não só a Comunidade: desde a
+ * migration 20260807240000 a caixa é do app todo. O badge continua na aba Comunidade
+ * porque é de lá que se chega nela, pelo sino do cabeçalho.
  *
  * Mesmo desenho do `useFormulariosPendentes`: o número vive num store fora do React,
  * porque a tab bar precisa dele sem estar dentro de nenhuma tela. A diferença é que aqui

@@ -1,8 +1,8 @@
 import { View, Text, TextInput, TouchableOpacity } from "react-native";
 
 //Componentes do react native
-import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Link as LinkIcon } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { ArrowLeft, Link as LinkIcon } from "@/components/ui/icons";
 
 //Componentes do expo router
 import { router } from "expo-router";

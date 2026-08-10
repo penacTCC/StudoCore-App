@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Pressable, StyleSheet, useWindowDimensions } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Plus, Timer, Clock, Coffee, Bell, Layers, ChevronRight, Zap } from "lucide-react-native";
+import { Plus, Timer, Clock, Coffee, Bell, Layers, ChevronRight, Zap } from "@/components/ui/icons";
 import * as Crypto from "expo-crypto";
 import { HADES, CORES_PLANO } from "@/constants/hades";
 import WheelPicker from "@/components/ui/WheelPicker";

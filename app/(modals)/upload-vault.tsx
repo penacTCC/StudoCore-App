@@ -3,7 +3,7 @@ import { uploadArquivo } from "@/services/archives";
 
 //Componentes do Native
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
-import { Image as FileUp, X } from "lucide-react-native";
+import { Image as FileUp, X } from "@/components/ui/icons";
 
 //Componentes do Projeto
 import DocumentPickerVault from "@/components/ui/DocumentPickerVault";

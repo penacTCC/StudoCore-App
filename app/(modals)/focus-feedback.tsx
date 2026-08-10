@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { X, Lightbulb, CheckCheck, Trophy, RotateCw, Lock, Send, Bookmark, Clock, Check } from "lucide-react-native";
+import { X, Lightbulb, CheckCheck, Trophy, RotateCw, Lock, Send, Bookmark, Clock, Check, AlertTriangle } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { salvarSessaoFoco, atualizarSessaoFoco, calculateFocusSessionMinutes, buscarSessoesPorExecucao } from "@/services/sessions";
@@ -51,13 +51,12 @@ const calcularIdade = (dataNascimento?: string | null): number | null => {
 export default function FocusFeedbackModal() {
     const router = useRouter();
     const params = useLocalSearchParams();
-    const modo = (params.modo as string) || "cronometro";
     // Presente quando a sessão veio de um encadeamento de plano com mais de uma matéria
     // (ver app/(tabs)/focus.tsx) — o quiz combina todas elas em vez de uma matéria só.
     const execucaoId = (params.execucaoId as string) || null;
 
     // Pega o ID do usuário para salvar no Supabase
-    const { userId } = useAuth();
+    const { userId, isLoading: carregandoAuth } = useAuth();
 
     // Respostas dadas pelo usuário, por id de questão. Começa vazio porque a quantidade de
     // questões varia (10 numa sessão normal, até 15 numa execução de plano combinada).
@@ -70,7 +69,12 @@ export default function FocusFeedbackModal() {
     // existe, pra distribuir os acertos de volta pra cada matéria ao salvar o resultado.
     const [linhasExecucao, setLinhasExecucao] = useState<SessionCardItem[]>([]);
 
-    // Quiz fixo de fallback: usado quando a IA falha, ou (por enquanto) em sessões pomodoro.
+    /*
+      Quiz fixo de último recurso, usado só quando a IA falha (rede, cota, resposta
+      inválida). Encerrar a sessão nunca pode travar por causa do quiz — mas quando ele
+      entra, `motivoFallback` guarda o porquê e a tela avisa, em vez de passar questões de
+      fração como se fossem geradas sobre o que a pessoa estudou.
+    */
     const perguntasGenericas: QuizPergunta[] = [
         { id: 1, text: "Qual é o resultado da soma de 1/2 e 1/4?", options: ["3/4", "1/6", "2/6", "1/8"], correctAnswer: "3/4" },
         { id: 2, text: "Qual a forma irredutível da fração 8/12?", options: ["2/3", "4/6", "3/4", "1/2"], correctAnswer: "2/3" },
@@ -85,25 +89,43 @@ export default function FocusFeedbackModal() {
     ];
 
     // Aqui guardamos no STATE a versão final (e já embaralhada) das perguntas. Começa `null`
-    // porque no modo cronômetro elas vêm da IA (assíncrono); só troca UMA VEZ, quando a
+    // porque elas sempre vêm da IA (assíncrono); só troca UMA VEZ, quando a
     // geração termina, para as opções não mudarem de lugar depois que o usuário já respondeu.
     const [shuffledQuestions, setShuffledQuestions] = useState<QuizPergunta[] | null>(null);
     const [carregandoQuiz, setCarregandoQuiz] = useState(true);
+    // Motivo da queda pro quiz genérico (null = as questões vieram da IA).
+    const [motivoFallback, setMotivoFallback] = useState<string | null>(null);
     const perguntasAtuais = shuffledQuestions ?? [];
 
+    /*
+      O efeito abaixo depende de `userId`, que numa abertura a frio do app pode ainda ser
+      null no primeiro render. Sem esta trava ele geraria o quiz duas vezes (e trocaria as
+      perguntas debaixo de quem já estivesse respondendo); com ela, roda uma vez só, no
+      primeiro render em que a sessão de auth já está resolvida.
+    */
+    const quizIniciado = useRef(false);
+
     useEffect(() => {
+        // Espera a auth resolver: cair no quiz genérico só porque o `userId` ainda não
+        // chegou era o motivo de sessões legítimas nunca verem questões da IA.
+        if (carregandoAuth || quizIniciado.current) return;
+        quizIniciado.current = true;
+
         let cancelado = false;
 
-        const aplicarPerguntas = (perguntas: QuizPergunta[]) => {
+        const aplicarPerguntas = (perguntas: QuizPergunta[], motivo: string | null = null) => {
             if (cancelado) return;
             setShuffledQuestions(perguntas.map((pergunta) => ({ ...pergunta, options: shuffleArray(pergunta.options) })));
+            setMotivoFallback(motivo);
             setCarregandoQuiz(false);
         };
 
         const carregarQuiz = async () => {
-            // Pomodoro mantém o quiz fixo por enquanto — a IA entra só no modo cronômetro.
-            if ((modo === "pomodoro" && !execucaoId) || !userId) {
-                aplicarPerguntas(perguntasGenericas);
+            // Sem usuário não dá pra ler o perfil que calibra o quiz. Pomodoro e cronômetro
+            // seguem o mesmo caminho: os dois têm matéria e conteúdo (ver startSession em
+            // app/(tabs)/focus.tsx), então os dois geram quiz por IA.
+            if (!userId) {
+                aplicarPerguntas(perguntasGenericas, "Sessão expirada — não deu para personalizar o quiz.");
                 return;
             }
 
@@ -122,43 +144,44 @@ export default function FocusFeedbackModal() {
                 if (!cancelado) setLinhasExecucao(linhas);
 
                 if (error || linhas.length === 0) {
-                    aplicarPerguntas(perguntasGenericas);
+                    aplicarPerguntas(perguntasGenericas, "Não foi possível recuperar as matérias desta execução.");
                     return;
                 }
 
-                const { data: perguntasGeradas } = await gerarQuizIA({
+                const { data: perguntasGeradas, error: erroIA } = await gerarQuizIA({
                     ...perfilComum,
                     maxQuestoes: MAX_QUESTOES_EXECUCAO,
                     materias: linhas.map((linha) => ({
                         materia: linha.disciplina,
-                        conteudo: linha.conteudo_especifico || "",
+                        conteudo: linha.conteudo_especifico || null,
                         minutosEstudados: linha.tempo_minutos,
                     })),
                 });
 
-                aplicarPerguntas(perguntasGeradas ?? perguntasGenericas);
+                aplicarPerguntas(perguntasGeradas ?? perguntasGenericas, perguntasGeradas ? null : erroIA);
                 return;
             }
 
-            const { data: perguntasGeradas } = await gerarQuizIA({
+            const { data: perguntasGeradas, error: erroIA } = await gerarQuizIA({
                 ...perfilComum,
                 materias: [{
                     materia: (params.subject as string) || "Estudo Geral",
-                    conteudo: (params.content as string) || "",
+                    conteudo: (params.content as string) || null,
                 }],
             });
 
             // Falha ou resposta vazia da IA nunca pode travar o encerramento da sessão.
-            aplicarPerguntas(perguntasGeradas ?? perguntasGenericas);
+            aplicarPerguntas(perguntasGeradas ?? perguntasGenericas, perguntasGeradas ? null : erroIA);
         };
 
         carregarQuiz();
         return () => {
             cancelado = true;
         };
-        // Roda uma única vez, ao abrir a tela: o quiz não pode trocar no meio da resposta.
+        // Reavaliado quando a auth resolve, mas o `quizIniciado` garante uma execução só:
+        // o quiz não pode trocar no meio da resposta.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [carregandoAuth, userId]);
 
     const isComplete = !!shuffledQuestions && perguntasAtuais.every((q) => answers[q.id] != null);
     const answeredCount = perguntasAtuais.filter((q) => answers[q.id] != null).length;
@@ -584,6 +607,26 @@ export default function FocusFeedbackModal() {
                 contentContainerStyle={{ paddingBottom: 24 }}
                 showsVerticalScrollIndicator={false}
             >
+                {/*
+                    Aviso do quiz genérico: sem ele o aluno respondia questões de fração
+                    achando que a IA tinha gerado sobre a matéria dele. Aparece nas duas
+                    fases (respondendo e resultado) porque o placar sai desse quiz.
+                */}
+                {!carregandoQuiz && motivoFallback && (
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 9, backgroundColor: "rgba(240,85,107,0.12)", borderWidth: 1, borderColor: "rgba(240,85,107,0.28)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                        <AlertTriangle size={18} color={HADES.red} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 13, color: HADES.text, fontWeight: "700", lineHeight: 18 }}>
+                                Quiz genérico de treino
+                            </Text>
+                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, lineHeight: 17, marginTop: 3 }}>
+                                Não deu para gerar as perguntas sobre o que você estudou, então estas são de
+                                exemplo. {motivoFallback}
+                            </Text>
+                        </View>
+                    </View>
+                )}
+
                 {!showResults ? (
                     carregandoQuiz ? (
                         <View style={{ alignItems: "center", paddingVertical: 6, paddingBottom: 22 }}>

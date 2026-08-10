@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity } from "react-native";
-import { Globe, Pause, CalendarClock, RotateCcw } from "lucide-react-native";
+import { Globe, Pause, CalendarClock, RotateCcw } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { CORES_AVATAR } from "@/constants/foco";
 import type { ContextoBloco } from "@/types/foco";

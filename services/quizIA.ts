@@ -18,8 +18,23 @@ export const gerarQuizIA = async (
     });
 
     if (error) {
-        console.warn("Erro ao gerar quiz por IA:", error);
-        return { data: null, error: error.message ?? "Erro ao gerar quiz." };
+        /*
+          Mesmo tratamento do `analisarAnexoSessao` logo abaixo: `invoke` transforma qualquer
+          resposta não-2xx num FunctionsHttpError cuja `message` é sempre genérica ("Edge
+          Function returned a non-2xx status code"). O motivo real (400 de matéria faltando,
+          502 do Gemini, chave ausente) só existe no corpo da resposta, guardado em `context`.
+          Sem ler isso a falha era invisível — o aluno recebia o quiz fixo achando que era IA.
+        */
+        let detalhe: string | null = null;
+        try {
+            const corpo = await (error as any)?.context?.json?.();
+            detalhe = corpo?.detalhe ?? corpo?.error ?? null;
+        } catch {
+            // Corpo não era JSON — segue com a mensagem genérica mesmo.
+        }
+
+        console.warn("Erro ao gerar quiz por IA:", detalhe ?? error);
+        return { data: null, error: detalhe ?? error.message ?? "Erro ao gerar quiz." };
     }
 
     if (!data?.questions || !Array.isArray(data.questions) || data.questions.length === 0) {

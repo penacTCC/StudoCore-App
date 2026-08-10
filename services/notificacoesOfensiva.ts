@@ -1,6 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { preferenciasDoUsuarioAtual } from "@/services/preferencias";
-import { paraDataISO } from "@/utils/tempo";
+import { dentroDoNaoPerturbar, paraDataISO } from "@/utils/tempo";
 import type { Gamificacao } from "@/types/gamificacao";
 
 /**
@@ -17,20 +17,6 @@ import type { Gamificacao } from "@/types/gamificacao";
  */
 
 const HORA_DO_LEMBRETE = 20; // 20h local, antes da janela padrão de não perturbar (22h).
-
-function paraMinutosDoDia(hora: string) {
-    const [h, m] = hora.split(":").map(Number);
-    return h * 60 + m;
-}
-
-/** Mesma regra de services/lembretes.ts: a janela pode virar a meia-noite. */
-function dentroDoNaoPerturbar(hora: number, minuto: number, inicio: string, fim: string) {
-    const alvo = hora * 60 + minuto;
-    const inicioMin = paraMinutosDoDia(inicio);
-    const fimMin = paraMinutosDoDia(fim);
-
-    return inicioMin <= fimMin ? alvo >= inicioMin && alvo < fimMin : alvo >= inicioMin || alvo < fimMin;
-}
 
 async function garantirPermissao(): Promise<boolean> {
     const atual = await Notifications.getPermissionsAsync();

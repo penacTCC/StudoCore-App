@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
     ChevronLeft, Flame, GitCompareArrows, Trophy,
     ListChecks, Timer, Lock,
-} from "lucide-react-native";
+} from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { buscarPerfil } from "@/services/auth";
@@ -532,17 +532,44 @@ function SessoesVazias({ primeiroNome }: { primeiroNome: string }) {
 
 function SessoesSkeleton() {
     return (
-        <View style={{ gap: 12 }}>
+        <View>
             {[0, 1].map((i) => (
                 <View key={i}>
-                    <Skeleton width={70} height={12} hades style={{ marginBottom: 12 }} />
-                    <View style={{ flexDirection: "row", gap: 8, marginBottom: 4 }}>
-                        <SkeletonCircle size={10} hades style={{ marginTop: 4 }} />
-                        <View style={{ flex: 1, gap: 6 }}>
-                            <Skeleton width="60%" height={14} hades />
-                            <Skeleton width={90} height={11} hades />
-                        </View>
+                    {/* Cabeçalho do dia: data, fio e o total de horas na ponta. */}
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                            marginTop: i === 0 ? 0 : 6,
+                            marginBottom: 4,
+                        }}
+                    >
+                        <Skeleton width={82} height={12} hades />
+                        <View style={{ flex: 1, height: 1, backgroundColor: HADES.border }} />
+                        <Skeleton width={44} height={11.5} hades />
                     </View>
+
+                    {[0, 1].map((linha) => (
+                        <View key={linha} style={{ flexDirection: "row", gap: 13, paddingVertical: 13 }}>
+                            <View style={{ alignItems: "center", width: 14, flexShrink: 0 }}>
+                                <SkeletonCircle size={10} hades style={{ marginTop: 4 }} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <View
+                                    style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}
+                                >
+                                    <Skeleton width="55%" height={14.5} hades />
+                                    <Skeleton width={52} height={15} hades />
+                                </View>
+                                <Skeleton width={62} height={11.5} hades style={{ marginTop: 3 }} />
+                                <View style={{ flexDirection: "row", gap: 14, marginTop: 8 }}>
+                                    <Skeleton width={78} height={11.5} hades />
+                                    <Skeleton width={62} height={11.5} hades />
+                                </View>
+                            </View>
+                        </View>
+                    ))}
                 </View>
             ))}
         </View>
@@ -565,18 +592,64 @@ function MemberProfileSkeleton() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingTop: AVATAR_SIZE / 2 + 18, paddingBottom: 32, paddingHorizontal: 20 }}
             >
-                <View style={{ alignItems: "center", marginBottom: 16, gap: 8 }}>
-                    <Skeleton width={150} height={18} hades />
-                    <Skeleton width={100} height={13} hades />
-                    <Skeleton width={110} height={11} hades />
+                {/* Nome, "Desde ..." e a bio */}
+                <View style={{ alignItems: "center", paddingHorizontal: 12 }}>
+                    <Skeleton width={150} height={21} hades />
+                    <Skeleton width={110} height={12.5} hades style={{ marginTop: 4 }} />
+                    <Skeleton width={230} height={13} hades style={{ marginTop: 10 }} />
+                    <Skeleton width={170} height={13} hades style={{ marginTop: 6 }} />
                 </View>
 
-                <Skeleton width="100%" height={40} borderRadius={0} hades style={{ marginBottom: 20 }} />
-                <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
-                    <Skeleton width="100%" height={40} hades style={{ flex: 1 }} />
-                    <Skeleton width="100%" height={40} hades style={{ flex: 1 }} />
+                {/* Abas: três, sobre a linha divisória */}
+                <View
+                    style={{
+                        flexDirection: "row",
+                        marginTop: 20,
+                        borderBottomWidth: 1,
+                        borderBottomColor: HADES.border,
+                        paddingBottom: 11,
+                    }}
+                >
+                    {[0, 1, 2].map((i) => (
+                        <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                            <Skeleton width={74} height={13.5} hades />
+                        </View>
+                    ))}
                 </View>
-                <Skeleton width="100%" height={80} borderRadius={16} hades />
+
+                {/* Aba Estatísticas: duas colunas, fio, e a linha da meta semanal */}
+                <View style={{ paddingTop: 20 }}>
+                    <View style={{ flexDirection: "row" }}>
+                        <View style={{ flex: 1, alignItems: "center" }}>
+                            <Skeleton width={62} height={26} hades />
+                            <Skeleton width={70} height={11} hades style={{ marginTop: 3 }} />
+                        </View>
+                        <View style={{ width: 1, backgroundColor: HADES.border }} />
+                        <View style={{ flex: 1, alignItems: "center" }}>
+                            <Skeleton width={48} height={26} hades />
+                            <Skeleton width={86} height={11} hades style={{ marginTop: 3 }} />
+                        </View>
+                    </View>
+
+                    <View style={{ height: 1, backgroundColor: HADES.border, marginVertical: 20 }} />
+
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 13, marginTop: 14 }}>
+                        <SkeletonCircle size={44} hades />
+                        <View style={{ flex: 1 }}>
+                            <View
+                                style={{
+                                    flexDirection: "row",
+                                    justifyContent: "space-between",
+                                    marginBottom: 7,
+                                }}
+                            >
+                                <Skeleton width={86} height={12.5} hades />
+                                <Skeleton width={70} height={12.5} hades />
+                            </View>
+                            <Skeleton height={7} borderRadius={4} hades />
+                        </View>
+                    </View>
+                </View>
             </ScrollView>
         </View>
     );

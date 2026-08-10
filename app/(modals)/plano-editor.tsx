@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { GripVertical, Coffee, Plus, ChevronDown, ChevronRight, Check, Trash2, Timer, Share2 } from "lucide-react-native";
+import { GripVertical, Coffee, Plus, ChevronDown, ChevronRight, Check, Trash2, Timer, Share2 } from "@/components/ui/icons";
 import { HADES, CORES_PLANO } from "@/constants/hades";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatarDuracao } from "@/utils/tempo";
@@ -738,19 +738,48 @@ function PlanoEditorSkeleton() {
                     <View style={{ width: 56 }} />
                 </View>
 
-                <View style={{ paddingHorizontal: 20 }}>
+                <View style={{ flex: 1, paddingHorizontal: 20 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 }}>
                         <Skeleton width="100%" height={50} borderRadius={12} hades style={{ flex: 1 }} />
                         <Skeleton width={64} height={50} borderRadius={12} hades />
                     </View>
 
-                    <Skeleton width={56} height={11} hades style={{ marginBottom: 12 }} />
+                    {/* Cartão de "Compartilhar este plano" */}
+                    <Skeleton width="100%" height={65} borderRadius={12} hades style={{ marginBottom: 20 }} />
+
+                    <Skeleton width={56} height={12} hades style={{ marginBottom: 12 }} />
 
                     <View style={{ gap: 10 }}>
                         {[0, 1, 2].map((i) => (
                             <Skeleton key={i} width="100%" height={58} borderRadius={13} hades />
                         ))}
                     </View>
+
+                    {/* Botões de adicionar bloco / descanso */}
+                    <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                        <Skeleton height={46} borderRadius={12} hades style={{ flex: 1 }} />
+                        <Skeleton height={46} borderRadius={12} hades style={{ flex: 1 }} />
+                    </View>
+                </View>
+
+                {/* Rodapé fixo: resumo à esquerda, "Salvar" à direita */}
+                <View
+                    style={{
+                        paddingTop: 12,
+                        paddingBottom: 12,
+                        paddingHorizontal: 20,
+                        borderTopWidth: 1,
+                        borderTopColor: "rgba(255,255,255,0.07)",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 14,
+                    }}
+                >
+                    <View style={{ flex: 1 }}>
+                        <Skeleton width={110} height={14} hades />
+                        <Skeleton width={150} height={12} hades style={{ marginTop: 1 }} />
+                    </View>
+                    <Skeleton width={120} height={48} borderRadius={13} hades />
                 </View>
             </SafeAreaView>
         </View>

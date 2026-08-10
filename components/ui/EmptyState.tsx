@@ -1,9 +1,9 @@
 import { View, Text, TouchableOpacity, StyleProp, ViewStyle } from "react-native";
-import type { LucideIcon } from "lucide-react-native";
+import type { IconeComponente } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 
 type EmptyStateProps = {
-    icon: LucideIcon;
+    icon: IconeComponente;
     title: string;
     subtitle?: string;
     actionLabel?: string;

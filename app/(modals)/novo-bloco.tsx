@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, TextInput } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Plus } from "lucide-react-native";
+import { Plus } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { Skeleton } from "@/components/ui/Skeleton";
 import WheelPicker from "@/components/ui/WheelPicker";
@@ -554,33 +554,37 @@ function NovoBlocoSkeleton() {
                         justifyContent: "space-between",
                     }}
                 >
-                    <View style={{ width: 56 }} />
+                    <View style={{ width: 56 }}>
+                        <Skeleton width={56} height={14} hades />
+                    </View>
                     <Skeleton width={110} height={16} hades />
                     <View style={{ width: 56 }} />
                 </View>
 
                 <View style={{ paddingHorizontal: 20 }}>
-                    <Skeleton width={110} height={11} hades style={{ marginBottom: 10 }} />
+                    <Skeleton width={110} height={12} hades style={{ marginBottom: 10 }} />
                     <View style={{ flexDirection: "row", gap: 8 }}>
                         {[0, 1, 2, 3, 4].map((i) => (
-                            <Skeleton key={i} width={48} height={34} borderRadius={18} hades />
+                            <Skeleton key={i} width={48} height={33} borderRadius={18} hades />
                         ))}
                     </View>
 
-                    <Skeleton width={70} height={11} hades style={{ marginTop: 18, marginBottom: 10 }} />
+                    <Skeleton width={70} height={12} hades style={{ marginTop: 18, marginBottom: 10 }} />
                     <View style={{ flexDirection: "row", gap: 8 }}>
                         {[0, 1, 2].map((i) => (
-                            <Skeleton key={i} width={90} height={34} borderRadius={18} hades />
+                            <Skeleton key={i} width={90} height={33} borderRadius={18} hades />
                         ))}
                     </View>
 
-                    <Skeleton width="100%" height={49} borderRadius={12} hades style={{ marginTop: 12 }} />
-                    <Skeleton width="100%" height={54} borderRadius={12} hades style={{ marginTop: 10 }} />
+                    {/* Tópico e horário de início */}
+                    <Skeleton width="100%" height={47} borderRadius={12} hades style={{ marginTop: 12 }} />
+                    <Skeleton width="100%" height={52} borderRadius={12} hades style={{ marginTop: 10 }} />
 
-                    <Skeleton width={70} height={11} hades style={{ marginTop: 18, marginBottom: 10 }} />
-                    <Skeleton width="100%" height={70} borderRadius={14} hades />
+                    {/* Duração: a roda de horas ocupa 5 itens de 52px. */}
+                    <Skeleton width={70} height={12} hades style={{ marginTop: 18, marginBottom: 10 }} />
+                    <Skeleton width="100%" height={260} borderRadius={14} hades />
 
-                    <Skeleton width="100%" height={70} borderRadius={14} hades style={{ marginTop: 14 }} />
+                    <Skeleton width="100%" height={66} borderRadius={14} hades style={{ marginTop: 14 }} />
                 </View>
             </SafeAreaView>
         </View>

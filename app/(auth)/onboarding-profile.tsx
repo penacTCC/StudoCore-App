@@ -28,7 +28,7 @@ import {
     Shuffle,
     User,
     AtSign,
-} from "lucide-react-native";
+} from "@/components/ui/icons";
 
 //Constantes
 import { HADES } from "@/constants/hades";
@@ -45,7 +45,7 @@ import {
     refreshSessao,
     salvarDadosPerfil,
     validarSessaoGoogle,
-    verificarNomeUsuario,
+    nomeUsuarioDisponivel,
 } from "@/services/auth";
 
 // ── Dados das opções ──────────────────────────────────────────────────────────
@@ -372,14 +372,12 @@ export default function OnboardingCarousel() {
         const dia = String(dayIdx + 1).padStart(2, "0");
         const dataFormatada = `${ano}-${mes}-${dia}`;
 
-        // Verifica se o nome de usuário já existe (o banco também garante via UNIQUE).
-        const { data: existentes, error: selectError } = await verificarNomeUsuario(user_name);
-        if (selectError) {
-            toast.error(selectError.message, "Erro ao buscar");
-            setLoading(false);
-            return;
-        }
-        if (existentes && existentes.length > 0) {
+        // Verifica se o nome de usuário já existe. Se a checagem em si falhar, segue mesmo
+        // assim: o UNIQUE de `nome_usuario` é a garantia de verdade e o 23505 logo abaixo já
+        // dá a mensagem certa. Barrar aqui só trocaria um aviso claro por um onboarding
+        // travado quando o problema é de rede.
+        const { disponivel, error: selectError } = await nomeUsuarioDisponivel(user_name);
+        if (!selectError && !disponivel) {
             toast.warning("Esse nome de usuário já existe. Escolha outro.", "Nome de usuário indisponível");
             setLoading(false);
             if (needsIdentity) setStep(0);

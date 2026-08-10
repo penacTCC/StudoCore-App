@@ -1,43 +1,90 @@
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
-import { CloudOff, RotateCw, Telescope, Users } from "lucide-react-native";
+import { CloudOff, RotateCw, Telescope, Users } from "@/components/ui/icons";
 
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { HADES } from "@/constants/hades";
 
-/** Placeholder do feed público quando não há nada em cache para mostrar. */
+/**
+ * Placeholder do feed público quando não há nada em cache para mostrar.
+ *
+ * Imita a coluna contínua do feed — avatar à esquerda, corpo à direita, linha entre um e
+ * outro —, e cada bloco imita um tipo diferente: foto, arquivo e plano, na mesma ordem em
+ * que costumam chegar misturados.
+ */
 export function ExplorarSkeleton() {
     return (
-        <View style={{ paddingHorizontal: 18, paddingTop: 2, gap: 12 }}>
+        <View>
             {[0, 1, 2].map((i) => (
                 <View
                     key={i}
                     style={{
-                        backgroundColor: HADES.surface,
-                        borderWidth: 1,
-                        borderColor: HADES.border,
-                        borderRadius: 16,
-                        padding: 14,
+                        flexDirection: "row",
+                        gap: 11,
+                        paddingHorizontal: 18,
+                        paddingTop: 15,
+                        paddingBottom: 12,
+                        borderBottomWidth: 1,
+                        borderBottomColor: "rgba(255,255,255,0.07)",
                     }}
                 >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
-                        <SkeletonCircle size={32} hades />
-                        <Skeleton width={110} height={12} hades />
-                    </View>
+                    <SkeletonCircle size={36} hades />
 
-                    {/* O card do meio imita um arquivo (bloco baixo); os outros, uma foto. */}
-                    <Skeleton
-                        width="100%"
-                        height={i === 1 ? 66 : 172}
-                        borderRadius={12}
-                        hades
-                        style={{ marginTop: 11 }}
-                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                        {/* Autor · momento, e o "..." do menu na ponta. */}
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                marginBottom: 7,
+                            }}
+                        >
+                            <Skeleton width={i === 2 ? 120 : i === 1 ? 90 : 110} height={14.5} hades />
+                            <Skeleton width={16} height={16} borderRadius={5} hades />
+                        </View>
 
-                    <Skeleton width={150} height={12} hades style={{ marginTop: 12 }} />
+                        {i === 2 ? (
+                            <>
+                                <Skeleton width={220} height={15.5} hades />
+                                {/* "N blocos · Xh no total" */}
+                                <View style={{ flexDirection: "row", gap: 14, marginTop: 6 }}>
+                                    <Skeleton width={62} height={12.5} hades />
+                                    <Skeleton width={84} height={12.5} hades />
+                                </View>
+                                <View style={{ flexDirection: "row", gap: 6, marginTop: 10 }}>
+                                    <Skeleton width={74} height={21} borderRadius={6} hades />
+                                    <Skeleton width={58} height={21} borderRadius={6} hades />
+                                </View>
+                                <Skeleton
+                                    width={180}
+                                    height={36}
+                                    borderRadius={10}
+                                    hades
+                                    style={{ marginTop: 12 }}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                {/* A matéria (e a duração, na foto) vem antes do anexo nos dois tipos. */}
+                                <Skeleton
+                                    width={i === 1 ? 110 : 170}
+                                    height={13.5}
+                                    hades
+                                    style={{ marginBottom: 10 }}
+                                />
+                                <Skeleton
+                                    width="100%"
+                                    height={i === 1 ? 66 : 180}
+                                    borderRadius={i === 1 ? 14 : 12}
+                                    hades
+                                />
+                            </>
+                        )}
 
-                    <View style={{ flexDirection: "row", gap: 16, marginTop: 14 }}>
-                        <Skeleton width={44} height={12} hades />
-                        <Skeleton width={44} height={12} hades />
+                        <View style={{ flexDirection: "row", gap: 20, marginTop: 12 }}>
+                            <Skeleton width={44} height={12.5} hades />
+                            <Skeleton width={44} height={12.5} hades />
+                        </View>
                     </View>
                 </View>
             ))}

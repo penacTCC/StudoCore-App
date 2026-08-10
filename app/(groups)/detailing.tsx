@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { useMemo, useState } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { ArrowLeft } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import CardSessaoGrupo, { FeedVazio } from "@/components/grupo/CardSessaoGrupo";
 import ResumoDeHoje from "@/components/grupo/ResumoDeHoje";

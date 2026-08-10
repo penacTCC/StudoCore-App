@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
@@ -7,21 +6,26 @@ import Animated, {
     withSpring,
     withTiming,
 } from "react-native-reanimated";
+import { BarChart3, CalendarDays, Home, Timer, User } from "@/components/ui/icons";
 
 /**
  * Cada aba tem um par de ícones: contorno quando está apagada e preenchido
  * quando está ativa — o mesmo truque que o Spotify usa pra marcar a aba atual
- * sem depender só da cor.
+ * sem depender só da cor. As duas variantes vêm do mesmo desenho Solar que o
+ * resto do app usa (components/ui/icons).
  */
 const ICONES = {
-    grupos: { ativo: "people", inativo: "people-outline" },
-    cronograma: { ativo: "calendar", inativo: "calendar-outline" },
-    foco: { ativo: "timer", inativo: "timer-outline" },
-    analise: { ativo: "stats-chart", inativo: "stats-chart-outline" },
-    perfil: { ativo: "person", inativo: "person-outline" },
+    grupos: Home,
+    cronograma: CalendarDays,
+    foco: Timer,
+    analise: BarChart3,
+    perfil: User,
 } as const;
 
 export type NomeIconeAba = keyof typeof ICONES;
+
+/** Lado da caixa do ícone. A tab bar precisa dele pra distribuir as abas. */
+export const TAMANHO_ICONE_ABA = 27;
 
 type Props = {
     nome: NomeIconeAba;
@@ -30,7 +34,12 @@ type Props = {
     size?: number;
 };
 
-export default function IconeAba({ nome, focused, color, size = 23 }: Props) {
+export default function IconeAba({
+    nome,
+    focused,
+    color,
+    size = TAMANHO_ICONE_ABA,
+}: Props) {
     const escala = useSharedValue(1);
     // Sem isto o ícone daria o pulo na primeira montagem, em toda troca de tela.
     const jaMontou = useRef(false);
@@ -52,13 +61,11 @@ export default function IconeAba({ nome, focused, color, size = 23 }: Props) {
         transform: [{ scale: escala.value }],
     }));
 
+    const Icone = ICONES[nome];
+
     return (
         <Animated.View style={estilo}>
-            <Ionicons
-                name={focused ? ICONES[nome].ativo : ICONES[nome].inativo}
-                size={size}
-                color={color}
-            />
+            <Icone variante={focused ? "bold" : "outline"} size={size} color={color} />
         </Animated.View>
     );
 }

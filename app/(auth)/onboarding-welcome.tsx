@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     Animated,
     StatusBar,
-    Image,
     ActivityIndicator,
 } from "react-native";
 
@@ -21,10 +20,13 @@ import Svg, { Defs, RadialGradient, Stop, Circle } from "react-native-svg";
 import { router } from "expo-router";
 
 //Ícones
-import { BrainCircuit, Sparkles, Users } from "lucide-react-native";
+import { BrainCircuit, Sparkles, Users } from "@/components/ui/icons";
 
 //Tokens do design system HADES
 import { HADES } from "@/constants/hades";
+
+//Componentes do Projeto
+import { LogoMark } from "@/components/auth";
 
 //Hooks da Aplicação
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
@@ -197,26 +199,12 @@ export default function OnboardingWelcome() {
             >
                 {/* ── Logo ── */}
                 <View style={{ alignItems: "center", gap: 12, paddingTop: 22 }}>
-                    <View
-                        style={{
-                            width: 64,
-                            height: 64,
-                            borderRadius: 18,
-                            backgroundColor: "#000000",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            shadowColor: HADES.accentSolid,
-                            shadowOffset: { width: 0, height: 10 },
-                            shadowOpacity: 0.3,
-                            shadowRadius: 26,
-                            elevation: 12,
-                        }}
-                    >
-                        <Image
-                            source={require("../../assets/LogoStudoCore.png")}
-                            style={{ width: 46, height: 46 }}
-                        />
-                    </View>
+                    <LogoMark
+                        size={64}
+                        borderRadius={18}
+                        marginBottom={0}
+                        shadowColor={HADES.accentSolid}
+                    />
                     <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, letterSpacing: -0.3 }}>
                         Studo<Text style={{ color: HADES.accentSolid }}>Core</Text>
                     </Text>

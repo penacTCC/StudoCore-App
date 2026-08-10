@@ -1,5 +1,5 @@
 import { View, Text } from "react-native";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react-native";
+import { TrendingUp, TrendingDown, Minus } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 
 function formatarHoras(minutos: number) {

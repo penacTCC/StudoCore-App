@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { router } from "expo-router";
-import { ChevronLeft, UserX } from "lucide-react-native";
+import { ChevronLeft, UserX } from "@/components/ui/icons";
 
 import Avatar from "@/components/ui/Avatar";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
@@ -82,11 +82,26 @@ export default function ContasBloqueadasScreen() {
             </View>
 
             {carregando ? (
-                <View style={{ paddingHorizontal: 20, gap: 12 }}>
+                <View style={{ paddingHorizontal: 20 }}>
                     {[0, 1, 2].map((i) => (
-                        <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        <View
+                            key={i}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 12,
+                                paddingVertical: 12,
+                                borderBottomWidth: 1,
+                                borderBottomColor: HADES.borderSettings,
+                            }}
+                        >
                             <SkeletonCircle size={42} hades />
-                            <Skeleton width={140} height={14} hades />
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                                <Skeleton width={140} height={14.5} hades />
+                                <Skeleton width={110} height={12} hades style={{ marginTop: 2 }} />
+                            </View>
+                            {/* O botão "Desbloquear" fica na ponta de cada linha. */}
+                            <Skeleton width={100} height={33} borderRadius={9} hades />
                         </View>
                     ))}
                 </View>

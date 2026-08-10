@@ -9,12 +9,12 @@ import Animated, {
     withSpring,
     withTiming,
 } from "react-native-reanimated";
-import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react-native";
-import type { LucideIcon } from "lucide-react-native";
+import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "@/components/ui/icons";
+import type { IconeComponente } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { subscribeToast, type ToastInternal, type ToastType } from "@/services/toast";
 
-const VARIANTS: Record<ToastType, { icon: LucideIcon; color: string; tint: string }> = {
+const VARIANTS: Record<ToastType, { icon: IconeComponente; color: string; tint: string }> = {
     success: { icon: CheckCircle2, color: HADES.green, tint: "rgba(48,209,88,0.14)" },
     error: { icon: XCircle, color: HADES.red, tint: "rgba(240,85,107,0.14)" },
     warning: { icon: AlertTriangle, color: HADES.amber, tint: HADES.amberTint },

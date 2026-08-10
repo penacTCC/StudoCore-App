@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { View, Text, Image, TouchableOpacity } from "react-native";
-import { Plus, Users } from "lucide-react-native";
+import { Plus, Users } from "@/components/ui/icons";
 import { COLORS } from "@/constants/colors";
 import { HADES } from "@/constants/hades";
 import { escolherEEnviarImagem } from "@/services/imagens";

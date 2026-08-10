@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, Image } from "react-native";
-import { Users, Clock, Lock } from "lucide-react-native";
+import { Users, Clock, Lock } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import type { Grupo } from "@/types/grupos";
 

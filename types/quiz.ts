@@ -11,7 +11,8 @@ export type QuizPergunta = {
 /** Uma matéria estudada, para a Edge Function distribuir questões entre elas. */
 export type QuizIAMateria = {
     materia: string;
-    conteudo: string;
+    /** Opcional: sem ele a Edge Function gera sobre os temas centrais da matéria. */
+    conteudo?: string | null;
     /** Usado só quando há mais de uma matéria, pra dar mais questões a quem estudou mais. */
     minutosEstudados?: number;
 };

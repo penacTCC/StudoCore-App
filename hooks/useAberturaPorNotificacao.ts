@@ -8,9 +8,10 @@ import { router } from "expo-router";
  * Sem isto, tocar num "fulano curtiu sua foto" abre o app na última tela em que ele
  * estava — o que faz a notificação parecer quebrada.
  *
- * Hoje só as de comunidade (curtida/comentário) têm destino próprio: a caixa de
- * notificações. A força continua sem rota porque ela não aponta para nada que se possa
- * abrir; ela é o próprio recado.
+ * Vão para a caixa de notificações as que TÊM linha lá: curtida, comentário e força. A de
+ * sala aberta fica de fora de propósito — o push dela já carrega `salaId`/`grupoId`, e o
+ * destino certo é a sala, não uma lista falando dela. Enquanto essa rota não existe, ela
+ * abre o app onde estava, que é melhor do que um desvio para a lista.
  *
  * Depende do `userId` de propósito: com o app fechado, o toque chega antes de a sessão
  * ser restaurada, e navegar nesse instante brigaria com o roteamento de entrada
@@ -28,7 +29,7 @@ export function useAberturaPorNotificacao(userId: string | null | undefined) {
             const dados = resposta?.notification?.request?.content?.data as
                 | { tipo?: string }
                 | undefined;
-            if (dados?.tipo !== "comunidade") return;
+            if (dados?.tipo !== "comunidade" && dados?.tipo !== "forca") return;
             router.push("/(modals)/notificacoes");
         };
 

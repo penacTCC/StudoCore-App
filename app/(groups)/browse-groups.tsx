@@ -2,8 +2,8 @@ import { useState } from "react";
 
 //Componentes do Native
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Globe, Compass, Link as LinkIcon } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { ArrowLeft, Globe, Compass, Link as LinkIcon } from "@/components/ui/icons";
 
 //Componentes do Projeto
 import { router } from "expo-router";
@@ -14,7 +14,7 @@ import { useGruposPublicos } from "@/hooks/useGruposPublicos";
 import SearchBar from "@/components/ui/SearchBar";
 import PublicGroupCard from "@/components/groups/PublicGroupCard";
 import { useOnlineUsers } from "@/hooks/useOnlineUsers";
-import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function BrowseGroupsScreen() {
     //Faz sistema de pesquisa
@@ -208,7 +208,7 @@ function BrowseGroupsSkeleton() {
     return (
         <>
             <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-                <Skeleton width="100%" height={44} borderRadius={12} hades />
+                <Skeleton width="100%" height={45} borderRadius={13} hades />
             </View>
 
             <View style={{ paddingHorizontal: 20, marginBottom: 4 }}>
@@ -224,8 +224,9 @@ function BrowseGroupsSkeleton() {
                         padding: 14,
                     }}
                 >
-                    <SkeletonCircle size={44} hades />
-                    <View style={{ gap: 6 }}>
+                    {/* Quadrado arredondado, como o ícone do Globe na tela pronta — não círculo. */}
+                    <Skeleton width={44} height={44} borderRadius={13} hades />
+                    <View style={{ gap: 5 }}>
                         <Skeleton width={140} height={16} hades />
                         <Skeleton width={170} height={13} hades />
                     </View>

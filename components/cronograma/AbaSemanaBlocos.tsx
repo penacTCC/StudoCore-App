@@ -9,7 +9,7 @@ import Animated, {
     type SharedValue,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { Plus, Trash2, Coffee, Pin } from "lucide-react-native";
+import { Plus, Trash2, Coffee, Pin } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import type { BlocoListaDia } from "@/types/cronograma";
 import { confirm } from "@/services/confirm";

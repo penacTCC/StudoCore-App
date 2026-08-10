@@ -1,10 +1,10 @@
-import { useState, useMemo, useCallback } from "react";
+import { Fragment, useState, useMemo, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, DeviceEventEmitter, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import {
-    Settings, Maximize2, Users, ChevronRight,
+    Settings, Maximize2, Users, ChevronRight, FolderArchive,
     Image as ImageIcon, Flame, Pencil, PartyPopper, Plus,
-} from "lucide-react-native";
+} from "@/components/ui/icons";
 import { router, useFocusEffect } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
@@ -556,6 +556,36 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
 
                 {/*
+                  Meus arquivos morava num botão do cabeçalho da Comunidade, dentro do
+                  grupo aberto — mas o acervo é do usuário e reúne todos os grupos de uma
+                  vez, então ficava prometendo menos do que entrega. Aqui fica junto do
+                  resto que é da conta, e o cabeçalho da Comunidade perdeu um botão.
+                */}
+                <TouchableOpacity
+                    onPress={() => router.push("/(tabs)/vault")}
+                    activeOpacity={0.7}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 13, marginTop: 20 }}
+                >
+                    <View
+                        style={{
+                            width: 40, height: 40, borderRadius: 12,
+                            backgroundColor: HADES.accentTint, alignItems: "center", justifyContent: "center",
+                        }}
+                    >
+                        <FolderArchive size={20} color={HADES.accentSolid} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.text }}>
+                            Meus arquivos
+                        </Text>
+                        <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 1 }}>
+                            Materiais seus e dos seus grupos
+                        </Text>
+                    </View>
+                    <ChevronRight size={18} color={HADES.textDim} />
+                </TouchableOpacity>
+
+                {/*
                   Sair da conta e excluir conta moravam aqui, soltas no fim da rolagem.
                   Foram para a zona de perigo das Configurações, junto do resto da conta —
                   o perfil é uma vitrine, não um painel de administração.
@@ -601,7 +631,7 @@ function ProfileSkeleton() {
     return (
         <View style={{ flex: 1, backgroundColor: HADES.bg }}>
             <View style={{ height: BANNER_H, backgroundColor: HADES.surfaceRaised }}>
-                <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
+                <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 10, left: 0, right: 0 }}>
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingTop: 2 }}>
                         <SkeletonCircle size={36} hades />
                     </View>
@@ -618,34 +648,63 @@ function ProfileSkeleton() {
                 contentContainerStyle={{ paddingTop: AVATAR_SIZE / 2 + 18, paddingBottom: 28, paddingHorizontal: 20 }}
                 showsVerticalScrollIndicator={false}
             >
-                <View style={{ alignItems: "center", gap: 8 }}>
-                    <Skeleton width={140} height={22} hades />
-                    <Skeleton width={110} height={13} hades />
+                {/* Nome + lápis, "Desde ...", bio de duas linhas */}
+                <View style={{ alignItems: "center" }}>
+                    <Skeleton width={150} height={22} hades />
+                    <Skeleton width={110} height={12.5} hades style={{ marginTop: 4 }} />
+                    <Skeleton width={240} height={13} hades style={{ marginTop: 10 }} />
+                    <Skeleton width={180} height={13} hades style={{ marginTop: 6 }} />
                 </View>
 
-                <View
-                    style={{
-                        flexDirection: "row", marginTop: 22, paddingVertical: 16,
-                        borderTopWidth: 1, borderBottomWidth: 1, borderColor: HADES.border, gap: 16,
-                    }}
-                >
+                {/* Três colunas separadas por um fio de 1px, sem moldura em volta. */}
+                <View style={{ flexDirection: "row", alignItems: "stretch", marginTop: 22, paddingVertical: 16 }}>
                     {[0, 1, 2].map((i) => (
-                        <View key={i} style={{ flex: 1, alignItems: "center", gap: 6 }}>
-                            <Skeleton width={40} height={21} hades />
-                            <Skeleton width={60} height={11} hades />
-                        </View>
+                        <Fragment key={i}>
+                            {i > 0 && <View style={{ width: 1, backgroundColor: HADES.border }} />}
+                            <View style={{ flex: 1, alignItems: "center" }}>
+                                <Skeleton width={54} height={21} hades />
+                                <Skeleton width={62} height={11} hades style={{ marginTop: 3 }} />
+                            </View>
+                        </Fragment>
                     ))}
                 </View>
 
+                {/* Meta semanal: barra e, ao lado, o "Xh / Yh" */}
                 <View style={{ marginTop: 22 }}>
-                    <Skeleton width={100} height={12} hades style={{ marginBottom: 14 }} />
-                    <Skeleton width="100%" height={9} borderRadius={5} hades />
+                    <Skeleton width={96} height={11.5} hades style={{ marginBottom: 12 }} />
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        <Skeleton height={9} borderRadius={5} hades style={{ flex: 1 }} />
+                        <Skeleton width={72} height={13.5} hades />
+                    </View>
                 </View>
 
-                <View style={{ marginTop: 22 }}>
-                    <Skeleton width={90} height={12} hades style={{ marginBottom: 14 }} />
+                <Divider />
+
+                {/* Histórico: título + "Expandir", e a grade com rótulos de mês e eixo de dias */}
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: 14,
+                    }}
+                >
+                    <Skeleton width={70} height={11.5} hades />
+                    <Skeleton width={80} height={25} borderRadius={8} hades />
+                </View>
+                <View>
+                    <View style={{ height: 12, marginBottom: 6, paddingLeft: 24, flexDirection: "row", gap: 26 }}>
+                        {[0, 1, 2].map((i) => (
+                            <Skeleton key={i} width={22} height={10} hades />
+                        ))}
+                    </View>
                     <View style={{ flexDirection: "row", gap: 4 }}>
-                        {Array.from({ length: 14 }).map((_, col) => (
+                        <View style={{ width: 24, gap: 4 }}>
+                            {Array.from({ length: 7 }).map((_, row) => (
+                                <Skeleton key={row} width={16} height={14} hades />
+                            ))}
+                        </View>
+                        {Array.from({ length: 13 }).map((_, col) => (
                             <View key={col} style={{ gap: 4 }}>
                                 {Array.from({ length: 7 }).map((_, row) => (
                                     <Skeleton key={row} width={14} height={14} borderRadius={3} hades />
@@ -655,16 +714,30 @@ function ProfileSkeleton() {
                     </View>
                 </View>
 
-                <View style={{ marginTop: 22 }}>
-                    <Skeleton width={90} height={12} hades style={{ marginBottom: 16 }} />
-                    <View style={{ flexDirection: "row", gap: 12 }}>
-                        {[0, 1, 2].map((i) => (
-                            <View key={i} style={{ flex: 1, alignItems: "center", gap: 7 }}>
-                                <SkeletonCircle size={48} hades />
-                                <Skeleton width="80%" height={11} hades />
-                            </View>
-                        ))}
+                <Divider />
+
+                {/* Medalhas: cabeçalho com contagem e "Ver Todas", grade de três colunas */}
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "baseline",
+                        justifyContent: "space-between",
+                        marginBottom: 16,
+                    }}
+                >
+                    <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
+                        <Skeleton width={68} height={11.5} hades />
+                        <Skeleton width={30} height={11.5} hades />
                     </View>
+                    <Skeleton width={72} height={11.5} hades />
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 14 }}>
+                    {[0, 1, 2].map((i) => (
+                        <View key={i} style={{ width: "33.33%", alignItems: "center", gap: 7 }}>
+                            <SkeletonCircle size={48} hades />
+                            <Skeleton width="70%" height={11} hades />
+                        </View>
+                    ))}
                 </View>
             </ScrollView>
         </View>

@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, TextInput } from "react-native";
-import { Timer, AlarmClock, Plus, Globe, Lock, Info } from "lucide-react-native";
+import { Timer, AlarmClock, Plus, Globe, Lock, Info } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { PRESETS_POMODORO, QTD_POMODOROS_MIN, QTD_POMODOROS_MAX } from "@/constants/foco";
 import type { ConfigPomodoro, ModoFoco } from "@/types/foco";

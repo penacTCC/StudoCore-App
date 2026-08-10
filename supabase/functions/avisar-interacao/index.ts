@@ -2,7 +2,7 @@
 //
 // Diferente de `mandar-forca`, esta função NÃO grava nada de conteúdo: a curtida e o
 // comentário já foram inseridos pelo app, com a RLS decidindo se podiam, e o gatilho
-// `comunidade_notificar_interacao` já criou a linha em `comunidade_notificacoes`. O que
+// `comunidade_notificar_interacao` já criou a linha em `notificacoes`. O que
 // falta é só o push, que precisa da service role key para ler `push_tokens` de outra
 // pessoa — daí ele viver aqui.
 //
@@ -10,7 +10,7 @@
 // "acabei de interagir com esta publicação", e a função procura a notificação PENDENTE
 // que o banco criou em nome dele. Sem essa linha, nenhum push sai.
 //
-// Chamada em fire-and-forget pelo app (ver services/notificacoesComunidade.ts). Se falhar,
+// Chamada em fire-and-forget pelo app (ver services/notificacoes.ts). Se falhar,
 // a notificação continua na caixa de entrada de quem recebeu — só não toca o aparelho.
 //
 // Deploy: `supabase functions deploy avisar-interacao` (sem secret novo).
@@ -85,8 +85,11 @@ Deno.serve(async (req: Request) => {
     // A notificação que o gatilho criou por esta interação, ainda sem push. Mais de uma
     // só acontece com comentário (um por linha) — todas são avisadas de uma vez, o que
     // também cobre o caso de um push anterior ter falhado.
+    //
+    // A tabela é a caixa do app inteiro desde a migration 20260807240000; `origem` e
+    // `tipo` já restringem à Comunidade, então nenhum filtro por categoria é preciso aqui.
     const { data: pendentes, error: erroPendentes } = await admin
-      .from("comunidade_notificacoes")
+      .from("notificacoes")
       .select("id, destinatario_id, tipo, criado_em")
       .eq("ator_id", atorId)
       .eq("origem", origem)
@@ -126,7 +129,7 @@ Deno.serve(async (req: Request) => {
     if (tipo === "curtida") {
       // Já tocou o aparelho dessa pessoa por uma curtida minha há pouco?
       const { count } = await admin
-        .from("comunidade_notificacoes")
+        .from("notificacoes")
         .select("id", { count: "exact", head: true })
         .eq("ator_id", atorId)
         .eq("destinatario_id", destinatarioId)
@@ -171,7 +174,7 @@ Deno.serve(async (req: Request) => {
     // notificação já foi tratada", não "o Expo aceitou". Sem isso, uma chamada repetida
     // dela recomeçaria a contagem da janela.
     await admin
-      .from("comunidade_notificacoes")
+      .from("notificacoes")
       .update({ push_enviado: true })
       .in("id", pendentes.map((n) => n.id));
 

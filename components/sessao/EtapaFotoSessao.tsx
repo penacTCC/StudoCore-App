@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, TextInput, Image, TouchableOpacity, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Camera, Images, RotateCw } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { Camera, Images, RotateCw } from "@/components/ui/icons";
 
 import { HADES } from "@/constants/hades";
 import { capturarFotoSessao, anexarFotoASessao } from "@/services/fotosSessao";

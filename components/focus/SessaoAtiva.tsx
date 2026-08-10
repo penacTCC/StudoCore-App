@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity } from "react-native";
-import { Pause, Play, Square, SkipForward, Check, Repeat, HandMetal } from "lucide-react-native";
+import { Pause, Play, Square, SkipForward, Check, Repeat, HandMetal } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import AnelPomodoro from "@/components/focus/AnelPomodoro";
 import {

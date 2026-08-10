@@ -9,9 +9,9 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { X, Check, Sparkles } from "lucide-react-native";
+import { X, Check, Sparkles } from "@/components/ui/icons";
 
 import { HADES } from "@/constants/hades";
 import { buscarAnexo, salvarCorrecaoAnexo } from "@/services/anexosSessao";

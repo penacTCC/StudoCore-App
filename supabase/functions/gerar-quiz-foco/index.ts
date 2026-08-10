@@ -9,6 +9,11 @@
 // plano com várias matérias (ver app/(tabs)/focus.tsx) manda todas de uma vez, e as
 // questões (até `maxQuestoes`) saem distribuídas entre elas.
 //
+// Só `materia` é obrigatório. O `conteudo` pode vir vazio (sessão antiga, ou pomodoro
+// iniciado antes do campo virar obrigatório) e nesse caso o quiz cobre o tema geral da
+// matéria — antes isso derrubava a requisição em 400 e o app caía no quiz fixo de frações
+// sem ninguém perceber.
+//
 // Deploy: `supabase functions deploy gerar-quiz-foco`
 // Secret: `supabase secrets set GEMINI_API_KEY=<sua-chave>`
 
@@ -29,7 +34,8 @@ const MAX_QUESTOES_LIMITE = 15;
 
 type MateriaRequisicao = {
   materia: string;
-  conteudo: string;
+  /** Opcional: sem ele o quiz cobre o tema geral da matéria. */
+  conteudo?: string | null;
   minutosEstudados?: number;
 };
 
@@ -100,13 +106,20 @@ function montarPrompt(corpo: CorpoRequisicao, distribuicao: ReturnType<typeof di
     : "Nenhuma informação de perfil disponível — use um nível intermediário genérico.";
 
   const totalQuestoes = distribuicao.reduce((soma, item) => soma + item.quantidade, 0);
+
+  /** Sem conteúdo específico o quiz cobre os temas centrais da matéria, em vez de falhar. */
+  const descreverConteudo = (conteudo?: string | null) =>
+    conteudo?.trim()
+      ? `conteúdo estudado: ${conteudo.trim()}`
+      : "sem conteúdo específico informado — cubra os temas centrais dessa matéria";
+
   const distribuicaoTexto = distribuicao
-    .map((item) => `- ${item.quantidade} questões sobre "${item.materia}" (conteúdo estudado: ${item.conteudo})`)
+    .map((item) => `- ${item.quantidade} questões sobre "${item.materia}" (${descreverConteudo(item.conteudo)})`)
     .join("\n");
 
   const contextoMultiplasMaterias = distribuicao.length > 1
     ? `O aluno estudou várias matérias na mesma sessão. Distribua exatamente:\n${distribuicaoTexto}\n`
-    : `Matéria: ${distribuicao[0].materia}\nConteúdo específico estudado: ${distribuicao[0].conteudo}\n`;
+    : `Matéria: ${distribuicao[0].materia}\nConteúdo específico estudado: ${descreverConteudo(distribuicao[0].conteudo)}\n`;
 
   return `Você é um professor criando um quiz de fixação para um aluno que acabou de estudar.
 
@@ -146,11 +159,13 @@ Deno.serve(async (req: Request) => {
 
   try {
     const corpo = (await req.json()) as CorpoRequisicao;
-    const materias = (corpo.materias ?? []).filter((m) => m?.materia && m?.conteudo);
+    // Só a matéria é exigida: o conteúdo específico é um detalhe a mais no prompt, não um
+    // pré-requisito pra existir quiz.
+    const materias = (corpo.materias ?? []).filter((m) => m?.materia?.trim());
 
     if (materias.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Informe ao menos uma matéria com 'materia' e 'conteudo'." }),
+        JSON.stringify({ error: "Informe ao menos uma matéria em 'materias'." }),
         { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
@@ -210,8 +225,16 @@ Deno.serve(async (req: Request) => {
 
     if (!textoJson) {
       console.error("Resposta do Gemini sem conteúdo:", JSON.stringify(dadosGemini));
+      /*
+        O `detalhe` acompanha a resposta (como na `analisar-anexo-sessao`): é mensagem de
+        erro da API, não segredo, e sem ela o app só consegue dizer "não deu" — o
+        console.error daqui não é legível pela CLI nem pelo MCP.
+      */
       return new Response(
-        JSON.stringify({ error: "O modelo não retornou um quiz válido." }),
+        JSON.stringify({
+          error: "O modelo não retornou um quiz válido.",
+          detalhe: `Sem conteúdo. finishReason: ${dadosGemini?.candidates?.[0]?.finishReason ?? "?"}`,
+        }),
         { status: 502, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
@@ -219,7 +242,10 @@ Deno.serve(async (req: Request) => {
     const quiz = JSON.parse(textoJson) as { questions?: unknown };
     if (!Array.isArray(quiz.questions) || quiz.questions.length === 0) {
       return new Response(
-        JSON.stringify({ error: "O modelo não retornou nenhuma questão." }),
+        JSON.stringify({
+          error: "O modelo não retornou nenhuma questão.",
+          detalhe: `JSON sem 'questions': ${textoJson.slice(0, 250)}`,
+        }),
         { status: 502, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
     }
@@ -231,7 +257,10 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     console.error("Erro inesperado ao gerar quiz:", error);
     return new Response(
-      JSON.stringify({ error: "Erro inesperado ao gerar o quiz." }),
+      JSON.stringify({
+        error: "Erro inesperado ao gerar o quiz.",
+        detalhe: error instanceof Error ? error.message : String(error),
+      }),
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
   }

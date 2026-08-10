@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Plus, Compass, ArrowLeft } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { Plus, Compass, ArrowLeft } from "@/components/ui/icons";
 import { router } from "expo-router";
 import { COLORS } from "@/constants/colors";
 

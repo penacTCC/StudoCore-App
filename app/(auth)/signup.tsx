@@ -9,25 +9,28 @@ import {
     Platform,
     ScrollView,
     StatusBar,
-    Image,
 } from "react-native";
 
 //Componentes do Expo Router
 import { router } from "expo-router";
 
 //Componentes do Lucide React Native
-import { Eye, EyeOff, Mail, Lock, User, AtSign } from "lucide-react-native";
+import { Eye, EyeOff, Mail, Lock, User, AtSign } from "@/components/ui/icons";
 
 //Constantes
 import { HADES } from "@/constants/hades";
 
 //Componentes do Projeto
-import { BackButton, DragHandle } from "@/components/auth";
+import { BackButton, DragHandle, LogoMark } from "@/components/auth";
 import { InputField, PasswordStrength, PrimaryButton } from "@/components/form";
 
 //Serviços
-import { cadastrarUsuario, verificarNomeUsuario } from "@/services/auth";
+import { cadastrarUsuario, nomeUsuarioDisponivel } from "@/services/auth";
 import { toast } from "@/services/toast";
+import { confirm } from "@/services/confirm";
+
+//Utilitários
+import { traduzirErroAuth } from "@/utils/errosAuth";
 
 export default function SignUpScreen() {
     const [realName, setRealName] = useState("");
@@ -50,13 +53,15 @@ export default function SignUpScreen() {
         const currentCheck = ++usernameCheckId.current;
         setUsernameStatus("checking");
         const timeout = setTimeout(async () => {
-            const { data, error } = await verificarNomeUsuario(trimmed);
+            const { disponivel, error } = await nomeUsuarioDisponivel(trimmed);
             if (currentCheck !== usernameCheckId.current) return; // resposta desatualizada
             if (error) {
+                // Sem resposta do servidor não dá para afirmar nada: volta ao estado neutro
+                // em vez de mostrar um "disponível" que pode estar errado.
                 setUsernameStatus("idle");
                 return;
             }
-            setUsernameStatus(data && data.length > 0 ? "taken" : "available");
+            setUsernameStatus(disponivel ? "available" : "taken");
         }, 500);
         return () => clearTimeout(timeout);
     }, [username]);
@@ -78,8 +83,9 @@ export default function SignUpScreen() {
             toast.warning("Escolha outro nome de usuário.", "Nome de usuário indisponível");
             return;
         }
+        const emailLimpo = email.trim().toLowerCase();
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
+        if (!emailRegex.test(emailLimpo)) {
             toast.warning("Por favor, insira um e-mail válido.", "E-mail inválido");
             return;
         }
@@ -95,14 +101,28 @@ export default function SignUpScreen() {
         setIsLoading(true);
 
         //Cadastra o usuário (nome e @usuário viajam em user_metadata até a verificação)
-        const { data, error } = await cadastrarUsuario(email, password, realName, username);
-        if (error) {
-            toast.error(error.message, "Erro no cadastro");
-        } else {
-            console.log("DADOS DO CADASTRO:", data);
-            router.replace("/(auth)/onboarding-profile");
-        }
+        const { error, emailJaCadastrado } = await cadastrarUsuario(emailLimpo, password, realName, username);
         setIsLoading(false);
+
+        if (error) {
+            toast.error(traduzirErroAuth(error.message), "Erro no cadastro");
+            return;
+        }
+
+        if (emailJaCadastrado) {
+            confirm({
+                title: "E-mail já cadastrado",
+                message: `Já existe uma conta usando ${emailLimpo}. Entre com ela ou cadastre-se com outro e-mail.`,
+                confirmText: "Ir para o login",
+                cancelText: "Usar outro e-mail",
+                onConfirm: () => router.replace("/(auth)/login"),
+            });
+            return;
+        }
+
+        // Vai direto para a confirmação: o perfil só pode ser gravado depois que existe
+        // sessão, e sessão só existe depois do código de 6 dígitos.
+        router.replace("/(auth)/verify-email");
     };
 
     return (
@@ -125,24 +145,8 @@ export default function SignUpScreen() {
                 <BackButton top={56} />
 
                 {/* Logo */}
-                <View
-                    style={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 20,
-                        backgroundColor: "#000",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 6 },
-                        shadowOpacity: 0.3,
-                        shadowRadius: 16,
-                        elevation: 10,
-                        marginBottom: 14,
-                    }}
-                >
-                    <Image source={require("../../assets/LogoStudoCore.png")} style={{ width: 47, height: 47 }} />
-                </View>
+                <LogoMark size={72} borderRadius={20} marginBottom={14} />
+
                 <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, letterSpacing: -0.5 }}>
                     Criar conta
                 </Text>

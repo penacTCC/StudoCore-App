@@ -1,5 +1,5 @@
 import { View, Text, Modal, Pressable, TouchableOpacity } from "react-native";
-import { ChevronRight, Flag, User, UserX } from "lucide-react-native";
+import { ChevronRight, Flag, User, UserX } from "@/components/ui/icons";
 
 import Avatar from "@/components/ui/Avatar";
 import { HADES } from "@/constants/hades";

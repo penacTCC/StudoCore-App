@@ -2,8 +2,8 @@ import { useState } from "react";
 
 //Componentes do Native
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, DeviceEventEmitter } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { X, Brain } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { X, Brain } from "@/components/ui/icons";
 
 //Componentes do expo-router
 import { router } from "expo-router";

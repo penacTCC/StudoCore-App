@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity } from "react-native";
-import { ChevronRight, Star, Target } from "lucide-react-native";
+import { ChevronRight, Star, Target } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { BADGE_LEVEL_COLORS, BadgeType } from "@/constants/badges";
 import IconeMedalha from "@/components/badges/IconeMedalha";

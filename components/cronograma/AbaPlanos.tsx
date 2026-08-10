@@ -13,7 +13,7 @@ import {
     ChevronLeft,
     ChevronRight,
     ClipboardList,
-} from "lucide-react-native";
+} from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { Plano } from "@/types/cronograma";
@@ -543,12 +543,16 @@ function CardPlanoSkeleton() {
                 padding: 16,
             }}
         >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
-                <Skeleton width={11} height={11} borderRadius={6} hades />
-                <View style={{ flex: 1, gap: 6 }}>
-                    <Skeleton width="55%" height={16} hades />
-                    <Skeleton width="35%" height={12} hades />
+            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 11, flex: 1 }}>
+                    <Skeleton width={11} height={11} borderRadius={6} hades />
+                    <View style={{ flex: 1 }}>
+                        <Skeleton width="55%" height={16} hades />
+                        <Skeleton width="35%" height={12} hades style={{ marginTop: 3 }} />
+                    </View>
                 </View>
+                {/* O "..." do menu fica na ponta da linha do título. */}
+                <Skeleton width={20} height={20} borderRadius={6} hades />
             </View>
             <Skeleton width="45%" height={12} hades style={{ marginTop: 13 }} />
         </View>

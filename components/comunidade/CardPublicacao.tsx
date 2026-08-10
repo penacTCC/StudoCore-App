@@ -1,32 +1,32 @@
 import { View, Text, Image, TouchableOpacity, ActivityIndicator } from "react-native";
 import {
-    CalendarPlus,
-    CalendarRange,
-    Clock,
     Download,
-    EllipsisVertical,
+    Ellipsis,
+    Eye,
     FileText,
     Heart,
     Image as ImageIcon,
-    LayoutGrid,
     MessageCircle,
-    Timer,
-} from "lucide-react-native";
+} from "@/components/ui/icons";
 
 import Avatar from "@/components/ui/Avatar";
 import { HADES } from "@/constants/hades";
 import type { Publicacao, TipoPublicacao } from "@/types/comunidade";
 
 /**
- * Card do feed público. Um componente para os três tipos porque a moldura é a mesma —
+ * Publicação do feed público. Um componente para os três tipos porque a moldura é a mesma —
  * autor, selo do tipo, menu e a barra de reações; só o miolo muda.
+ *
+ * Não é um card: o feed é uma coluna contínua, cada publicação separada da seguinte só por
+ * uma linha. Empilhar cartões dentro de uma tela que já tem cabeçalho, escopo e filtros
+ * criava molduras dentro de molduras; a foto e o anexo ficam maiores sem elas.
  */
 export default function CardPublicacao({
     publicacao,
     onCurtir,
     onComentar,
     onAbrirMenu,
-    onImportarPlano,
+    onVerPlano,
     onBaixarArquivo,
     ocupado = false,
 }: {
@@ -34,281 +34,284 @@ export default function CardPublicacao({
     onCurtir: () => void;
     onComentar: () => void;
     onAbrirMenu: () => void;
-    onImportarPlano: () => void;
+    onVerPlano: () => void;
     onBaixarArquivo: () => void;
-    /** Baixar e importar levam segundos e saem do app; sem isso o toque parece perdido. */
+    /** Baixar leva segundos e sai do app; sem isso o toque parece perdido. */
     ocupado?: boolean;
 }) {
     return (
         <View
             style={{
-                backgroundColor: HADES.surface,
-                borderWidth: 1,
-                borderColor: HADES.border,
-                borderRadius: 16,
-                padding: 14,
+                flexDirection: "row",
+                gap: 11,
+                paddingHorizontal: 18,
+                paddingTop: 15,
+                paddingBottom: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: "rgba(255,255,255,0.07)",
             }}
         >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
-                <Avatar foto={publicacao.autor.foto} nome={publicacao.autor.nome} size={32} />
+            <Avatar foto={publicacao.autor.foto} nome={publicacao.autor.nome} size={36} />
 
-                <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        marginBottom: 7,
+                    }}
+                >
                     <Text
                         numberOfLines={1}
-                        style={{ fontSize: 14, fontWeight: "600", color: "#fff", flexShrink: 1 }}
+                        style={{
+                            fontSize: 14.5,
+                            fontWeight: "600",
+                            color: "#fff",
+                            letterSpacing: -0.1,
+                            flexShrink: 1,
+                        }}
                     >
                         {publicacao.autor.nome}
                     </Text>
-                    <Text style={{ fontSize: 12, color: HADES.textFaint }}>
+                    <Text style={{ fontSize: 12.5, color: HADES.textFaint }}>
                         · {tempoRelativo(publicacao.criadoEm)}
                     </Text>
+
+                    <Text
+                        style={{
+                            marginLeft: "auto",
+                            fontSize: 10.5,
+                            fontWeight: "700",
+                            color: HADES.textFaint,
+                            letterSpacing: 0.6,
+                            textTransform: "uppercase",
+                        }}
+                    >
+                        {ROTULO_DO_TIPO[publicacao.tipo]}
+                    </Text>
+
+                    <TouchableOpacity
+                        onPress={onAbrirMenu}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                    >
+                        <Ellipsis size={16} color={HADES.textDim} />
+                    </TouchableOpacity>
                 </View>
 
-                <SeloDoTipo tipo={publicacao.tipo} />
-
-                <TouchableOpacity
-                    onPress={onAbrirMenu}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-                >
-                    <EllipsisVertical size={17} color={HADES.textDim} />
-                </TouchableOpacity>
-            </View>
-
-            {publicacao.tipo === "galeria" && (
-                <>
-                    <FotoDaSessao url={publicacao.fotoUrl} />
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 11 }}>
-                        <Text style={{ fontSize: 13.5, fontWeight: "600", color: publicacao.materiaCor }}>
-                            {publicacao.materia}
-                        </Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                            <Timer size={13} color={HADES.textFaint} />
-                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>
+                {publicacao.tipo === "galeria" && (
+                    <>
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 10,
+                                marginBottom: 10,
+                            }}
+                        >
+                            <Text
+                                numberOfLines={1}
+                                style={{
+                                    fontSize: 13.5,
+                                    fontWeight: "600",
+                                    color: publicacao.materiaCor,
+                                    flexShrink: 1,
+                                }}
+                            >
+                                {publicacao.materia}
+                            </Text>
+                            <Text style={{ fontSize: 12.5, color: HADES.textFaint, fontWeight: "500" }}>
                                 {formatarDuracao(publicacao.duracaoMinutos)} de sessão
                             </Text>
                         </View>
-                    </View>
-                </>
-            )}
+                        <FotoDaSessao url={publicacao.fotoUrl} />
+                    </>
+                )}
 
-            {publicacao.tipo === "arquivo" && (
-                <>
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 12,
-                            marginTop: 12,
-                            padding: 12,
-                            backgroundColor: "#101116",
-                            borderWidth: 1,
-                            borderColor: "rgba(255,255,255,0.05)",
-                            borderRadius: 12,
-                        }}
-                    >
-                        <View
-                            style={{
-                                width: 42,
-                                height: 42,
-                                borderRadius: 11,
-                                backgroundColor: "rgba(208,69,94,0.14)",
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <FileText size={20} color="#d0455e" />
-                        </View>
-                        <View style={{ flex: 1, minWidth: 0 }}>
+                {publicacao.tipo === "arquivo" && (
+                    <>
+                        {publicacao.materia && (
                             <Text
                                 numberOfLines={1}
-                                style={{ fontSize: 13.5, fontWeight: "600", color: "#fff" }}
+                                style={{
+                                    fontSize: 13.5,
+                                    fontWeight: "600",
+                                    color: publicacao.materiaCor ?? HADES.textSecondary,
+                                    marginBottom: 10,
+                                }}
                             >
-                                {publicacao.nomeArquivo}
+                                {publicacao.materia}
                             </Text>
-                            <Text style={{ fontSize: 11.5, color: HADES.textFaint, marginTop: 2 }}>
-                                {descreverArquivo(publicacao.extensao, publicacao.tamanhoBytes)}
-                            </Text>
-                        </View>
-                        <TouchableOpacity
-                            onPress={onBaixarArquivo}
-                            disabled={ocupado}
-                            activeOpacity={0.8}
+                        )}
+
+                        <View
                             style={{
-                                width: 34,
-                                height: 34,
-                                borderRadius: 17,
-                                backgroundColor: HADES.surfaceOverlay,
+                                flexDirection: "row",
                                 alignItems: "center",
-                                justifyContent: "center",
+                                gap: 12,
+                                padding: 12,
+                                borderWidth: 1,
+                                borderColor: "rgba(255,255,255,0.1)",
+                                borderRadius: 14,
                             }}
                         >
-                            {ocupado ? (
-                                <ActivityIndicator size="small" color={HADES.textSecondary} />
-                            ) : (
-                                <Download size={16} color={HADES.textSecondary} />
-                            )}
-                        </TouchableOpacity>
-                    </View>
+                            <View
+                                style={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 11,
+                                    backgroundColor: "rgba(208,69,94,0.14)",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                <FileText size={19} color="#d0455e" />
+                            </View>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                                <Text
+                                    numberOfLines={1}
+                                    style={{ fontSize: 13.5, fontWeight: "600", color: "#fff" }}
+                                >
+                                    {publicacao.nomeArquivo}
+                                </Text>
+                                <Text style={{ fontSize: 11.5, color: HADES.textFaint, marginTop: 2 }}>
+                                    {descreverArquivo(publicacao.extensao, publicacao.tamanhoBytes)}
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={onBaixarArquivo}
+                                disabled={ocupado}
+                                activeOpacity={0.7}
+                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
+                            >
+                                {ocupado ? (
+                                    <ActivityIndicator size="small" color={HADES.textSecondary} />
+                                ) : (
+                                    <Download size={18} color={HADES.textSecondary} />
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </>
+                )}
 
-                    {publicacao.materia && (
+                {publicacao.tipo === "plano" && (
+                    <>
                         <Text
                             style={{
-                                fontSize: 13,
-                                fontWeight: "600",
-                                color: publicacao.materiaCor ?? HADES.textSecondary,
-                                marginTop: 10,
+                                fontSize: 15.5,
+                                fontWeight: "700",
+                                color: "#fff",
+                                letterSpacing: -0.2,
                             }}
                         >
-                            {publicacao.materia}
+                            {publicacao.titulo}
                         </Text>
-                    )}
-                </>
-            )}
 
-            {publicacao.tipo === "plano" && (
-                <>
-                    <Text
-                        style={{
-                            fontSize: 15.5,
-                            fontWeight: "700",
-                            color: "#fff",
-                            marginTop: 11,
-                            letterSpacing: -0.2,
-                        }}
-                    >
-                        {publicacao.titulo}
-                    </Text>
-
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 7 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                            <LayoutGrid size={13} color={HADES.textFaint} />
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 14,
+                                marginTop: 6,
+                            }}
+                        >
                             <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>
                                 {publicacao.blocos} blocos
                             </Text>
-                        </View>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                            <Clock size={13} color={HADES.textFaint} />
                             <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>
-                                {formatarDuracao(publicacao.minutosTotais)} de estudo
+                                {formatarDuracao(publicacao.minutosTotais)} no total
                             </Text>
                         </View>
-                    </View>
 
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-                        {publicacao.materias.map((materia) => (
-                            <Text
-                                key={materia.nome}
-                                style={{
-                                    fontSize: 11,
-                                    fontWeight: "600",
-                                    color: materia.cor,
-                                    backgroundColor: `${materia.cor}1f`,
-                                    borderRadius: 6,
-                                    paddingHorizontal: 8,
-                                    paddingVertical: 3,
-                                    overflow: "hidden",
-                                }}
-                            >
-                                {materia.nome}
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                            {publicacao.materias.map((materia) => (
+                                <Text
+                                    key={materia.nome}
+                                    style={{
+                                        fontSize: 11,
+                                        fontWeight: "600",
+                                        color: materia.cor,
+                                        backgroundColor: `${materia.cor}1f`,
+                                        borderRadius: 6,
+                                        paddingHorizontal: 8,
+                                        paddingVertical: 3,
+                                        overflow: "hidden",
+                                    }}
+                                >
+                                    {materia.nome}
+                                </Text>
+                            ))}
+                            {publicacao.materiasExtras > 0 && (
+                                <Text
+                                    style={{
+                                        fontSize: 11,
+                                        fontWeight: "600",
+                                        color: HADES.textMuted,
+                                        backgroundColor: HADES.surfaceOverlay,
+                                        borderRadius: 6,
+                                        paddingHorizontal: 8,
+                                        paddingVertical: 3,
+                                        overflow: "hidden",
+                                    }}
+                                >
+                                    +{publicacao.materiasExtras}
+                                </Text>
+                            )}
+                        </View>
+
+                        {/* Contornado e do tamanho do texto: sem a moldura do card em volta,
+                            um botão preenchido de ponta a ponta pesaria mais que a foto da
+                            publicação de cima.
+
+                            Abre a prévia, não importa: o card mostra três matérias e um total,
+                            e ninguém decide adotar o cronograma de outra pessoa com isso. É lá
+                            que o "Importar" fica — por isso este não tem estado de carregando. */}
+                        <TouchableOpacity
+                            onPress={onVerPlano}
+                            activeOpacity={0.85}
+                            style={{
+                                alignSelf: "flex-start",
+                                height: 36,
+                                paddingHorizontal: 14,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: "rgba(255,154,0,0.45)",
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 7,
+                                marginTop: 12,
+                            }}
+                        >
+                            <Eye size={15} color={HADES.accentSolid} />
+                            <Text style={{ fontSize: 12.5, fontWeight: "700", color: HADES.accentSolid }}>
+                                Ver blocos e importar
                             </Text>
-                        ))}
-                        {publicacao.materiasExtras > 0 && (
-                            <Text
-                                style={{
-                                    fontSize: 11,
-                                    fontWeight: "600",
-                                    color: HADES.textMuted,
-                                    backgroundColor: HADES.surfaceOverlay,
-                                    borderRadius: 6,
-                                    paddingHorizontal: 8,
-                                    paddingVertical: 3,
-                                    overflow: "hidden",
-                                }}
-                            >
-                                +{publicacao.materiasExtras}
-                            </Text>
-                        )}
-                    </View>
+                        </TouchableOpacity>
+                    </>
+                )}
 
-                    <TouchableOpacity
-                        onPress={onImportarPlano}
-                        disabled={ocupado}
-                        activeOpacity={0.85}
-                        style={{
-                            opacity: ocupado ? 0.6 : 1,
-                            height: 40,
-                            borderRadius: 11,
-                            backgroundColor: "rgba(255,154,0,0.12)",
-                            borderWidth: 1,
-                            borderColor: "rgba(255,154,0,0.3)",
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 7,
-                            marginTop: 12,
-                        }}
-                    >
-                        {ocupado ? (
-                            <ActivityIndicator size="small" color={HADES.accentSolid} />
-                        ) : (
-                            <CalendarPlus size={15} color={HADES.accentSolid} />
-                        )}
-                        <Text style={{ fontSize: 13, fontWeight: "700", color: HADES.accentSolid }}>
-                            {ocupado ? "Importando..." : "Importar para meu cronograma"}
-                        </Text>
-                    </TouchableOpacity>
-                </>
-            )}
-
-            <View
-                style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 18,
-                    marginTop: 12,
-                    paddingTop: 11,
-                    borderTopWidth: 1,
-                    borderTopColor: "rgba(255,255,255,0.05)",
-                }}
-            >
-                <Reacao
-                    Icone={Heart}
-                    valor={publicacao.curtidas}
-                    ativo={publicacao.curtidoPorMim}
-                    onPress={onCurtir}
-                />
-                <Reacao Icone={MessageCircle} valor={publicacao.comentarios} onPress={onComentar} />
+                <View
+                    style={{ flexDirection: "row", alignItems: "center", gap: 20, marginTop: 12 }}
+                >
+                    <Reacao
+                        Icone={Heart}
+                        valor={publicacao.curtidas}
+                        ativo={publicacao.curtidoPorMim}
+                        onPress={onCurtir}
+                    />
+                    <Reacao Icone={MessageCircle} valor={publicacao.comentarios} onPress={onComentar} />
+                </View>
             </View>
         </View>
     );
 }
 
-const SELOS: Record<TipoPublicacao, { rotulo: string; Icone: typeof ImageIcon }> = {
-    galeria: { rotulo: "Galeria", Icone: ImageIcon },
-    arquivo: { rotulo: "Arquivo", Icone: FileText },
-    plano: { rotulo: "Plano", Icone: CalendarRange },
+const ROTULO_DO_TIPO: Record<TipoPublicacao, string> = {
+    galeria: "Galeria",
+    arquivo: "Arquivo",
+    plano: "Plano",
 };
-
-function SeloDoTipo({ tipo }: { tipo: TipoPublicacao }) {
-    const { rotulo, Icone } = SELOS[tipo];
-    return (
-        <View
-            style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-                backgroundColor: HADES.surfaceOverlay,
-                borderRadius: 7,
-                paddingHorizontal: 8,
-                paddingVertical: 3,
-            }}
-        >
-            <Icone size={11} color={HADES.textMuted} />
-            <Text style={{ fontSize: 10.5, color: HADES.textMuted, fontWeight: "600" }}>{rotulo}</Text>
-        </View>
-    );
-}
 
 function Reacao({
     Icone,
@@ -344,7 +347,7 @@ function FotoDaSessao({ url }: { url: string | null }) {
         return (
             <Image
                 source={{ uri: url }}
-                style={{ height: 172, borderRadius: 12, marginTop: 11, width: "100%" }}
+                style={{ height: 180, borderRadius: 12, width: "100%" }}
                 resizeMode="cover"
             />
         );
@@ -353,9 +356,8 @@ function FotoDaSessao({ url }: { url: string | null }) {
     return (
         <View
             style={{
-                height: 172,
+                height: 180,
                 borderRadius: 12,
-                marginTop: 11,
                 backgroundColor: "#14151a",
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.05)",

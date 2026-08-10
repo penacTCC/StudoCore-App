@@ -32,6 +32,7 @@ import { LeaderboardFilter } from "@/constants/ranking";
 import { useSessoesGrupo } from "@/hooks/useSessoesGrupo";
 import { MateriaMaisEstudada } from "@/types/materias";
 import { MembroGrupoComPerfil } from "@/types/grupos";
+import { ofensivaVigente } from "@/services/gamificacao";
 
 export function useGraficosAnalytics(
     userId: string | null | undefined,
@@ -464,11 +465,18 @@ export function useGraficosAnalytics(
     const ofensivaGrupo = useMemo(() => {
         const historico = construirHistoricoOfensiva(sessoesGrupo.sessions)
         return {
-            atual: grupoSelecionado?.ofensiva ?? 0,
+            // `grupos.ofensiva` congela no último dia em que a cota foi batida — nada zera a
+            // coluna quando o grupo falha um dia. `ofensivaVigente` é quem desconta isso.
+            atual: ofensivaVigente(grupoSelecionado),
             melhor: grupoSelecionado?.melhor_ofensiva ?? 0,
             pontos: amostrarPontosOfensiva(historico),
         }
-    }, [sessoesGrupo.sessions, grupoSelecionado?.ofensiva, grupoSelecionado?.melhor_ofensiva])
+    }, [
+        sessoesGrupo.sessions,
+        grupoSelecionado?.ofensiva,
+        grupoSelecionado?.melhor_ofensiva,
+        grupoSelecionado?.ultima_data_estudo,
+    ])
 
     //Função para calcular acertos x erros dos membros
 

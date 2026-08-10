@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { Plus, Flame, UserPlus, Share2, Compass, ChevronRight } from "lucide-react-native";
+import { Plus, Flame, UserPlus, Share2, Compass, ChevronRight } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import Avatar from "@/components/ui/Avatar";
 

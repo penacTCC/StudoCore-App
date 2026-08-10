@@ -1,22 +1,35 @@
 import { View, Text, Image, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { router } from "expo-router";
-import { Bell, ChevronLeft, FileText, Heart, MessageCircle, CalendarDays } from "lucide-react-native";
+import {
+    Bell,
+    CalendarDays,
+    ChevronLeft,
+    FileText,
+    Flame,
+    Heart,
+    MessageCircle,
+    UserPlus,
+    Users,
+} from "@/components/ui/icons";
 
 import Avatar from "@/components/ui/Avatar";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { tempoRelativo } from "@/components/comunidade/CardPublicacao";
 import { HADES } from "@/constants/hades";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
-import type { Notificacao } from "@/types/notificacoes";
+import type { Notificacao, TipoNotificacao } from "@/types/notificacoes";
 
 /**
- * Caixa de notificações do feed público.
+ * Caixa de notificações do app.
  *
- * É de leitura, não de ação: mostra quem curtiu e quem comentou nas SUAS publicações, em
- * ordem cronológica. Não tem "responder" nem "abrir publicação" porque o Explorar não tem
- * tela de publicação isolada — a conversa continua na folha de comentários do card, que é
- * onde ela já vive.
+ * É de leitura, não de ação: mostra, em ordem cronológica, o que aconteceu com as suas
+ * coisas — curtida, comentário, força recebida, gente nova no grupo, sala de foco aberta.
+ * Não tem "responder" nem "abrir publicação" porque o Explorar não tem tela de publicação
+ * isolada — a conversa continua na folha de comentários do card, que é onde ela já vive.
+ *
+ * O que NÃO chega aqui são os avisos locais (lembrete do cronograma, ofensiva em risco,
+ * cronômetro parado): eles valem por minutos e não sobrevivem a uma releitura.
  *
  * Abrir a tela zera o badge (ver useNotificacoes), mas a marca de "nova" fica nas linhas
  * desta visita: some o alerta, não a informação.
@@ -59,13 +72,25 @@ export default function NotificacoesScreen() {
             </View>
 
             {carregando ? (
-                <View style={{ paddingHorizontal: 20, gap: 18 }}>
+                <View>
                     {[0, 1, 2, 3].map((i) => (
-                        <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        <View
+                            key={i}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "flex-start",
+                                gap: 12,
+                                paddingVertical: 13,
+                                paddingHorizontal: 20,
+                                borderBottomWidth: 1,
+                                borderBottomColor: HADES.borderSettings,
+                            }}
+                        >
                             <SkeletonCircle size={40} hades />
-                            <View style={{ gap: 6 }}>
-                                <Skeleton width={180} height={13} hades />
-                                <Skeleton width={110} height={11} hades />
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                                <Skeleton width="90%" height={13.5} hades />
+                                <Skeleton width="55%" height={13.5} hades style={{ marginTop: 5 }} />
+                                <Skeleton width={70} height={11.5} hades style={{ marginTop: 6 }} />
                             </View>
                         </View>
                     ))}
@@ -129,8 +154,8 @@ export default function NotificacoesScreen() {
                                     lineHeight: 19,
                                 }}
                             >
-                                Curtidas e comentários nas suas publicações do Explorar aparecem
-                                nesta lista.
+                                Curtidas, comentários, forças recebidas e novidades do seu
+                                grupo aparecem nesta lista.
                             </Text>
                         </View>
                     }
@@ -162,8 +187,25 @@ export default function NotificacoesScreen() {
     );
 }
 
+/**
+ * O selo e a frase de cada tipo, num lugar só.
+ *
+ * Ficam numa tabela, e não numa cadeia de `if`, porque tipo novo é o que mais muda nesta
+ * tela: acrescentar uma entrada aqui é o bastante para a linha aparecer certa, e o
+ * TypeScript cobra a entrada que faltar (o Record é sobre `TipoNotificacao` inteiro).
+ */
+const SELO: Record<TipoNotificacao, { Icone: typeof Heart; cor: string; solido?: boolean }> = {
+    // `solido` preenche o traço: a 9px, coração e balão só se reconhecem cheios. Chama e
+    // bonequinho, ao contrário, viram uma mancha branca se preenchidos — ficam de traço.
+    curtida: { Icone: Heart, cor: HADES.red, solido: true },
+    comentario: { Icone: MessageCircle, cor: HADES.blue, solido: true },
+    forca: { Icone: Flame, cor: HADES.accentSolid },
+    novo_membro: { Icone: UserPlus, cor: HADES.green },
+    sala_aberta: { Icone: Users, cor: HADES.amber },
+};
+
 function LinhaNotificacao({ item, nova }: { item: Notificacao; nova: boolean }) {
-    const curtida = item.tipo === "curtida";
+    const { Icone: IconeSelo, cor: corSelo, solido } = SELO[item.tipo];
 
     return (
         <View
@@ -193,24 +235,19 @@ function LinhaNotificacao({ item, nova }: { item: Notificacao; nova: boolean }) 
                         borderRadius: 10,
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: curtida ? HADES.red : HADES.blue,
+                        backgroundColor: corSelo,
                         borderWidth: 2,
                         borderColor: HADES.settingsBg,
                     }}
                 >
-                    {curtida ? (
-                        <Heart size={9} color="#fff" fill="#fff" />
-                    ) : (
-                        <MessageCircle size={9} color="#fff" fill="#fff" />
-                    )}
+                    <IconeSelo size={solido ? 9 : 11} color="#fff" fill={solido ? "#fff" : "none"} />
                 </View>
             </View>
 
             <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ fontSize: 13.5, color: HADES.textSecondary, lineHeight: 19 }}>
                     <Text style={{ fontWeight: "700", color: HADES.text }}>{item.autor.nome}</Text>
-                    {curtida ? " curtiu " : " comentou em "}
-                    {descreverAlvo(item)}
+                    {descreverAcao(item)}
                 </Text>
 
                 {item.texto && (
@@ -238,8 +275,33 @@ function LinhaNotificacao({ item, nova }: { item: Notificacao; nova: boolean }) 
     );
 }
 
+/**
+ * O que vem depois do nome: " curtiu sua foto de Matemática.", " entrou no Turma do ENEM.".
+ *
+ * O nome do autor já foi escrito em negrito pela linha, então tudo aqui começa com espaço
+ * e é a continuação da mesma frase.
+ */
+function descreverAcao(item: Notificacao): string {
+    switch (item.tipo) {
+        case "curtida":
+            return ` curtiu ${descreverPublicacao(item)}`;
+        case "comentario":
+            return ` comentou em ${descreverPublicacao(item)}`;
+        case "forca":
+            return item.resumo
+                ? ` mandou força na sua sessão de ${item.resumo}.`
+                : " mandou força pra você.";
+        case "novo_membro":
+            return item.resumo ? ` entrou no ${item.resumo}.` : " entrou no seu grupo.";
+        case "sala_aberta":
+            return item.resumo
+                ? ` abriu uma sala de foco no ${item.resumo}.`
+                : " abriu uma sala de foco no seu grupo.";
+    }
+}
+
 /** "sua foto de Matemática", "seu arquivo Resumo.pdf", "seu plano Semana de provas". */
-function descreverAlvo(item: Notificacao): string {
+function descreverPublicacao(item: Notificacao): string {
     if (item.origem === "galeria") {
         return item.resumo ? `sua foto de ${item.resumo}.` : "sua foto de estudo.";
     }
@@ -250,10 +312,11 @@ function descreverAlvo(item: Notificacao): string {
 }
 
 /**
- * O canto direito da linha: a foto da sessão quando existe, um ícone da origem quando não.
+ * O canto direito da linha: a foto da sessão quando existe, um ícone do alvo quando não.
  *
- * Serve para reconhecer QUAL publicação recebeu a interação, que é a primeira pergunta de
- * quem publica mais de uma coisa por dia.
+ * Serve para reconhecer O QUE a notificação toca — qual publicação recebeu a interação,
+ * que é a primeira pergunta de quem publica mais de uma coisa por dia, e qual grupo se
+ * mexeu para quem está em mais de um.
  */
 function MiniaturaDaPublicacao({ item }: { item: Notificacao }) {
     if (item.origem === "galeria" && item.fotoUrl) {
@@ -265,7 +328,7 @@ function MiniaturaDaPublicacao({ item }: { item: Notificacao }) {
         );
     }
 
-    const Icone = item.origem === "plano" ? CalendarDays : FileText;
+    const Icone = iconeDoAlvo(item);
 
     return (
         <View
@@ -283,4 +346,11 @@ function MiniaturaDaPublicacao({ item }: { item: Notificacao }) {
             <Icone size={17} color={HADES.textFaint} />
         </View>
     );
+}
+
+/** O ícone que substitui a miniatura: o do grupo, o da sessão, ou o da publicação. */
+function iconeDoAlvo(item: Notificacao) {
+    if (item.categoria === "grupo") return Users;
+    if (item.categoria === "foco") return Flame;
+    return item.origem === "plano" ? CalendarDays : FileText;
 }

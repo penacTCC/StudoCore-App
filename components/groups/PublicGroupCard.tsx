@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, Image, DeviceEventEmitter } from "react-native";
-import { Users, Target } from "lucide-react-native";
+import { Users, Target } from "@/components/ui/icons";
 import { router } from "expo-router";
 import { HADES } from "@/constants/hades";
 import { entrarEmGrupoPublico } from "@/services/grupos";

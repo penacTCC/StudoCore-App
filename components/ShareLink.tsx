@@ -1,5 +1,5 @@
 import { HADES } from "@/constants/hades";
-import { Check, Copy } from "lucide-react-native";
+import { Check, Copy } from "@/components/ui/icons";
 import { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import * as Clipboard from "expo-clipboard";

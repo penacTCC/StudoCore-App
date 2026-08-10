@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
-import { ArrowRightCircle, Plus, LayoutList } from "lucide-react-native";
+import { ArrowRightCircle, Plus, LayoutList } from "@/components/ui/icons";
 import Svg, { Rect, Line, Circle } from "react-native-svg";
 import { HADES } from "@/constants/hades";
 import BlocoHoje from "@/components/cronograma/BlocoHoje";
@@ -136,8 +136,20 @@ export default function AbaHoje({
 function AbaHojeSkeleton() {
     return (
         <View style={{ flex: 1 }}>
-            <View style={{ paddingTop: 12, paddingBottom: 6, paddingHorizontal: 20, flexDirection: "row", gap: 8 }}>
-                <Skeleton width={130} height={13} hades />
+            {/* "N planejadas · N concluídas" */}
+            <View
+                style={{
+                    paddingTop: 12,
+                    paddingBottom: 6,
+                    paddingHorizontal: 20,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                }}
+            >
+                <Skeleton width={84} height={13} hades />
+                <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: HADES.dot }} />
+                <Skeleton width={84} height={13} hades />
             </View>
 
             <View style={{ paddingTop: 12, paddingHorizontal: 20 }}>
@@ -152,11 +164,24 @@ function AbaHojeSkeleton() {
                             backgroundColor: "rgba(255,255,255,0.07)",
                         }}
                     />
+                    {/*
+                      Hora e marcador saem do fluxo, como em BlocoHoje: em linha eles
+                      encolhiam o cartão uns 20px e a lista inteira nascia estreita.
+                    */}
                     {[0, 1, 2].map((i) => (
-                        <View key={i} style={{ marginBottom: i === 2 ? 0 : 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
-                            <Skeleton width={34} height={12} hades style={{ position: "absolute", left: -56 }} />
-                            <SkeletonCircle size={10} hades />
-                            <Skeleton width="100%" height={58} borderRadius={12} hades style={{ flex: 1 }} />
+                        <View key={i} style={{ position: "relative", marginBottom: i === 2 ? 0 : 16 }}>
+                            <Skeleton
+                                width={34}
+                                height={12}
+                                hades
+                                style={{ position: "absolute", left: -50, top: 0 }}
+                            />
+                            <SkeletonCircle
+                                size={9}
+                                hades
+                                style={{ position: "absolute", left: -12, top: 4 }}
+                            />
+                            <Skeleton width="100%" height={42} borderRadius={14} hades />
                         </View>
                     ))}
                 </View>

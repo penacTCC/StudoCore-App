@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
-import { AlertTriangle } from "lucide-react-native";
+import { AlertTriangle } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { subscribeConfirm, type ConfirmInternal } from "@/services/confirm";
 

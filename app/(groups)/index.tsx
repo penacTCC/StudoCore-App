@@ -1,6 +1,6 @@
 //Componentes do Native
 import { View, Text, FlatList, RefreshControl, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { router } from "expo-router";
 
 //Serviços do Projeto
@@ -11,7 +11,7 @@ import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 //Componentes Lucide Native
-import { Plus, Users, Compass } from "lucide-react-native";
+import { Plus, Users, Compass } from "@/components/ui/icons";
 
 export default function MyGroupsScreen() {
     const { grupos, carregando, atualizando, atualizar } = useMeusGrupos();
@@ -93,24 +93,7 @@ export default function MyGroupsScreen() {
             )}
 
             {/* CTA fixo no rodapé */}
-            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
-                <TouchableOpacity
-                    onPress={() => router.push("/(modals)/create-group")}
-                    activeOpacity={0.85}
-                    style={{
-                        height: 54,
-                        borderRadius: 15,
-                        backgroundColor: HADES.accentSolid,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 9,
-                    }}
-                >
-                    <Plus size={20} color="#000" />
-                    <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>Criar um grupo</Text>
-                </TouchableOpacity>
-
+            <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 28 }}>
                 {/*
                   Esta tela é onde se cai ao sair de um grupo tendo outros. Sem uma saída para
                   os grupos públicos ela virava um beco: criar grupo era o único caminho
@@ -159,10 +142,11 @@ function MeusGruposSkeleton() {
                 >
                     <View style={{ flexDirection: "row", padding: 14, alignItems: "center", gap: 14 }}>
                         <Skeleton width={58} height={58} borderRadius={14} hades />
-                        <View style={{ flex: 1, gap: 8 }}>
-                            <Skeleton width="60%" height={16} hades />
-                            <Skeleton width="85%" height={13} hades />
-                            <Skeleton width={110} height={20} borderRadius={7} hades />
+                        {/* Margens em vez de gap: as do GroupCard são 2 e 8, não uniformes. */}
+                        <View style={{ flex: 1 }}>
+                            <Skeleton width="60%" height={16} hades style={{ marginBottom: 2 }} />
+                            <Skeleton width="85%" height={13} hades style={{ marginBottom: 8 }} />
+                            <Skeleton width={104} height={21} borderRadius={7} hades />
                         </View>
                     </View>
                 </View>

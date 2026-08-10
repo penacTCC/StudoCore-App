@@ -1,11 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 
 //Componentes de Native
-import { View, Text, TouchableOpacity, ScrollView, Image, RefreshControl } from "react-native";
-import { ChevronDown, Users, Settings, FolderArchive, Plus, Compass } from "lucide-react-native";
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
+import { Users, Plus, Compass } from "@/components/ui/icons";
 
 //Componentes de Expo
-import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 
 //Constantes
@@ -36,7 +35,7 @@ import { LEADERBOARD_TABS, LeaderboardFilter, formatarMinutos } from "@/constant
  *
  * Saiu de `app/(tabs)/index.tsx` para virar componente quando a aba passou a abrigar
  * dois escopos; o conteúdo é o mesmo, só o cabeçalho de identidade do grupo desceu para
- * dentro do scroll, já que o título "Comunidade" e o alternador agora ocupam o topo fixo.
+ * dentro do scroll, já que o alternador de escopo agora ocupa o topo fixo.
  */
 export default function AbaMeuGrupo() {
     const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("semanal");
@@ -278,90 +277,6 @@ export default function AbaMeuGrupo() {
                         gap: 12,
                     }}
                 >
-                    <View
-                        style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 12,
-                            overflow: "hidden",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        {grupo?.foto_grupo ? (
-                            <Image
-                                source={{ uri: Array.isArray(grupo?.foto_grupo) ? grupo?.foto_grupo[0] : grupo?.foto_grupo }}
-                                style={{ width: "100%", height: "100%" }}
-                                resizeMode="cover"
-                            />
-                        ) : (
-                            <LinearGradient
-                                colors={["#1c2a4a", "#0e1730"]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={{ width: "100%", height: "100%", alignItems: "center", justifyContent: "center" }}
-                            >
-                                <Users size={22} color={HADES.subjectBlue} />
-                            </LinearGradient>
-                        )}
-                    </View>
-        
-                    <TouchableOpacity
-                        onPress={() => router.push("/(groups)")}
-                        activeOpacity={0.7}
-                        style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 }}
-                    >
-                        <Text
-                            style={{ fontSize: 21, fontWeight: "700", color: HADES.text, letterSpacing: -0.3, flexShrink: 1 }}
-                            numberOfLines={1}
-                        >
-                            {grupo?.nome_grupo || "Nome não encontrado"}
-                        </Text>
-                        <ChevronDown size={18} color={HADES.textMuted} />
-                    </TouchableOpacity>
-        
-                    <TouchableOpacity
-                        onPress={() => router.push("/(tabs)/vault")}
-                        activeOpacity={0.8}
-                        style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 19,
-                            backgroundColor: HADES.surfaceRaised,
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <FolderArchive size={18} color={HADES.textSecondary} />
-                    </TouchableOpacity>
-        
-                    {/*
-                      Sem gate de admin: esta é a única porta para "Sair do grupo", e escondê-la
-                      de quem não é administrador deixava o membro comum preso no grupo sem
-                      nenhuma saída pela interface. A tela de configurações esconde por conta
-                      própria o que é exclusivo do administrador.
-                    */}
-                    <TouchableOpacity
-                        onPress={() =>
-                            router.push({
-                                pathname: "/(groups)/settings",
-                                params: {
-                                    groupId
-                                }
-                            })
-                        }
-                        activeOpacity={0.8}
-                        style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 19,
-                            backgroundColor: HADES.surfaceRaised,
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <Settings size={18} color={HADES.textSecondary} />
-                    </TouchableOpacity>
                 </View>
 
                 {grupoSozinho && podeConvidar && <ConviteDestaque onConvidar={abrirConvite} />}
@@ -483,6 +398,7 @@ export default function AbaMeuGrupo() {
 
                 <CtaGruposPublicos onPress={() => router.push("/browse-groups")} />
             </ScrollView>
+
         </View>
     );
 }
@@ -589,19 +505,12 @@ function HomeSkeleton() {
                 contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 20, paddingTop: 4 }}
                 showsVerticalScrollIndicator={false}
             >
-                <View
-                    style={{
-                        paddingBottom: 14,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 12,
-                    }}
-                >
-                    <Skeleton width={44} height={44} borderRadius={12} hades />
-                    <Skeleton width={140} height={21} borderRadius={6} hades style={{ flex: 1 }} />
-                    <SkeletonCircle size={38} hades />
-                    <SkeletonCircle size={38} hades />
-                </View>
+                {/*
+                  Só o respiro: o cabeçalho (hambúrguer, foto do grupo, sino) vive na tab e
+                  fica na tela durante o carregamento — desenhá-lo aqui duplicava a faixa e
+                  empurrava todo o resto 21px para baixo quando os dados chegavam.
+                */}
+                <View style={{ paddingBottom: 14 }} />
 
                 {/* Meta do grupo */}
                 <View
@@ -612,23 +521,67 @@ function HomeSkeleton() {
                         paddingVertical: 15,
                         paddingHorizontal: 16,
                         marginBottom: 18,
-                        gap: 11,
                     }}
                 >
-                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <View
+                        style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 11 }}
+                    >
                         <Skeleton width={100} height={14} hades />
-                        <Skeleton width={70} height={13} hades />
+                        <Skeleton width={82} height={13} hades />
                     </View>
                     <Skeleton width="100%" height={9} borderRadius={5} hades />
-                    <Skeleton width={120} height={12} hades />
+                    <Skeleton width={120} height={12} hades style={{ marginTop: 9 }} />
                 </View>
 
-                {/* Ranking */}
-                <Skeleton width={90} height={16} hades style={{ marginTop: 15, marginBottom: 14 }} />
-                <View style={{ flexDirection: "row", justifyContent: "center", gap: 14, marginBottom: 16 }}>
-                    <SkeletonCircle size={56} hades />
-                    <SkeletonCircle size={68} hades />
-                    <SkeletonCircle size={56} hades />
+                {/* Ranking: título + pílula de filtro, e o pódio compacto com as barras */}
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginTop: 15,
+                        marginBottom: 14,
+                    }}
+                >
+                    <Skeleton width={78} height={16} hades />
+                    <Skeleton width={112} height={29} borderRadius={9} hades />
+                </View>
+
+                {/* Medidas de TAMANHOS.compacta em PodioRanking, na ordem 2º / 1º / 3º. */}
+                <View style={{ paddingTop: 22, paddingHorizontal: 4, marginBottom: 8 }}>
+                    <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 9 }}>
+                        {[
+                            { avatar: 52, barra: 58 },
+                            { avatar: 64, barra: 84 },
+                            { avatar: 52, barra: 46 },
+                        ].map(({ avatar, barra }, i) => (
+                            <View key={i} style={{ flex: 1, alignItems: "center" }}>
+                                {i === 1 && (
+                                    <Skeleton width={20} height={20} hades style={{ marginBottom: 5 }} />
+                                )}
+                                <SkeletonCircle size={avatar} hades />
+                                <Skeleton
+                                    width={58}
+                                    height={i === 1 ? 13.5 : 12.5}
+                                    hades
+                                    style={{ marginTop: 8 }}
+                                />
+                                <Skeleton
+                                    width={38}
+                                    height={i === 1 ? 13 : 12}
+                                    hades
+                                    style={{ marginTop: 2 }}
+                                />
+                                <Skeleton
+                                    width="100%"
+                                    height={barra}
+                                    borderRadius={12}
+                                    hades
+                                    style={{ marginTop: 9, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+                                />
+                            </View>
+                        ))}
+                    </View>
                 </View>
                 <View
                     style={{
@@ -652,45 +605,46 @@ function HomeSkeleton() {
                                 borderBottomColor: "rgba(255,255,255,0.05)",
                             }}
                         >
+                            <Skeleton width={18} height={14} hades />
                             <SkeletonCircle size={38} hades />
-                            <Skeleton width="45%" height={14} hades style={{ flex: 1 }} />
+                            <View style={{ flex: 1, gap: 3 }}>
+                                <Skeleton width="55%" height={14} hades />
+                                <Skeleton width={72} height={11} hades />
+                            </View>
                             <Skeleton width={40} height={14} hades />
                         </View>
                     ))}
                 </View>
 
-                {/* Atividades */}
-                <Skeleton width={110} height={16} hades style={{ marginTop: 22, marginBottom: 12 }} />
-                <View style={{ gap: 10, marginBottom: 22 }}>
-                    {[0, 1].map((i) => (
-                        <View
-                            key={i}
-                            style={{
-                                backgroundColor: HADES.surface,
-                                borderWidth: 1,
-                                borderColor: HADES.border,
-                                borderRadius: 16,
-                                padding: 14,
-                                gap: 12,
-                            }}
-                        >
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
-                                <SkeletonCircle size={30} hades />
-                                <Skeleton width={100} height={13} hades />
-                            </View>
-                            <Skeleton width="70%" height={13} hades />
-                            <Skeleton width="100%" height={30} hades />
-                        </View>
-                    ))}
+                {/* "Ver ranking completo" */}
+                <View style={{ alignItems: "center", paddingVertical: 14 }}>
+                    <Skeleton width={132} height={13} hades />
+                </View>
+
+                {/* Atividades: título + "Ver tudo", e os cards do próprio feed */}
+                <View
+                    style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginTop: 22,
+                        marginBottom: 12,
+                    }}
+                >
+                    <Skeleton width={88} height={16} hades />
+                    <Skeleton width={54} height={12.5} hades />
+                </View>
+                <View style={{ marginBottom: 22 }}>
+                    <FeedVazio carregando />
                 </View>
 
                 {/* Membros */}
-                <Skeleton width={100} height={16} hades style={{ marginBottom: 17 }} />
-                <View style={{ flexDirection: "row", gap: 14 }}>
+                <Skeleton width={100} height={16} hades style={{ marginTop: 10, marginBottom: 17 }} />
+                <View style={{ flexDirection: "row", gap: 14, marginBottom: 22 }}>
                     {[0, 1, 2, 3].map((i) => (
-                        <View key={i} style={{ alignItems: "center", gap: 6 }}>
-                            <SkeletonCircle size={54} hades />
-                            <Skeleton width={40} height={10} hades />
+                        <View key={i} style={{ width: 60, alignItems: "center", gap: 7 }}>
+                            <SkeletonCircle size={56} hades />
+                            <Skeleton width={44} height={11} hades />
                         </View>
                     ))}
                 </View>

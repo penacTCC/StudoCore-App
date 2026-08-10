@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { buscarNotificacoes, marcarNotificacoesLidas } from "@/services/notificacoesComunidade";
+import { buscarNotificacoes, marcarNotificacoesLidas } from "@/services/notificacoes";
 import type { Notificacao } from "@/types/notificacoes";
 
 /**

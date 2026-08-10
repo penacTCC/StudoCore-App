@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Check, MinusCircle, Coffee, Play, XCircle } from "lucide-react-native";
+import { Check, MinusCircle, Coffee, Play, XCircle } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import type { BlocoDoDia } from "@/types/cronograma";
 

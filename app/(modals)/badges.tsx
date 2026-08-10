@@ -1,9 +1,9 @@
 import { useState, useCallback } from "react";
 import { View, Text, ScrollView, TouchableOpacity, DeviceEventEmitter, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { router, useFocusEffect } from "expo-router";
 import { useDadosCache } from "@/hooks/useDadosCache";
-import { ArrowLeft, Lock } from "lucide-react-native";
+import { ArrowLeft, Lock } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import {
     APP_BADGES, BADGE_LEVEL_LABELS, BADGE_LEVEL_COLORS,
@@ -320,9 +320,9 @@ function BadgesSkeleton() {
                 >
                     <ArrowLeft size={19} color={HADES.textSecondary} />
                 </TouchableOpacity>
-                <View style={{ flex: 1, gap: 6 }}>
+                <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 22, fontWeight: "700", color: HADES.text, letterSpacing: -0.3 }}>Medalhas</Text>
-                    <Skeleton width={110} height={13} hades />
+                    <Skeleton width={110} height={12.5} hades style={{ marginTop: 1 }} />
                 </View>
             </View>
 
@@ -335,7 +335,7 @@ function BadgesSkeleton() {
                             style={{
                                 flex: 1,
                                 alignItems: "center",
-                                gap: 6,
+                                gap: 4,
                                 paddingVertical: 9,
                                 paddingHorizontal: 4,
                                 borderRadius: 11,
@@ -344,7 +344,6 @@ function BadgesSkeleton() {
                                 borderColor: HADES.border,
                             }}
                         >
-                            <Skeleton width={8} height={8} borderRadius={3} hades />
                             <Skeleton width={34} height={10} hades />
                             <Skeleton width={24} height={10} hades />
                         </View>
@@ -354,13 +353,16 @@ function BadgesSkeleton() {
                 {/* Progresso total */}
                 <View style={{ backgroundColor: HADES.surface, borderWidth: 1, borderColor: HADES.border, borderRadius: 16, padding: 16 }}>
                     <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 13 }}>
-                        <View style={{ gap: 6 }}>
+                        <View>
                             <Skeleton width={90} height={12} hades />
-                            <Skeleton width={110} height={13} hades />
+                            <Skeleton width={110} height={13} hades style={{ marginTop: 3 }} />
                         </View>
                         <Skeleton width={54} height={32} hades />
                     </View>
                     <Skeleton width="100%" height={10} borderRadius={6} hades />
+                    {/* A legenda "Cada faixa colorida..." também ocupa lugar no cartão. */}
+                    <Skeleton width="90%" height={11.5} hades style={{ marginTop: 10 }} />
+                    <Skeleton width="45%" height={11.5} hades style={{ marginTop: 4 }} />
                 </View>
 
                 {/* Seções por nível */}
@@ -368,9 +370,9 @@ function BadgesSkeleton() {
                     <View key={secao} style={{ marginTop: 22 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 9, marginBottom: 12 }}>
                             <Skeleton width={9} height={9} borderRadius={3} hades />
-                            <View style={{ flex: 1, gap: 5 }}>
+                            <View style={{ flex: 1 }}>
                                 <Skeleton width={110} height={15} hades />
-                                <Skeleton width={140} height={11} hades />
+                                <Skeleton width={140} height={11} hades style={{ marginTop: 1 }} />
                             </View>
                             <Skeleton width={40} height={18} borderRadius={7} hades />
                         </View>

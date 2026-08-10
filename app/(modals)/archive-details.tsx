@@ -2,7 +2,7 @@ import { useState } from "react";
 
 //Componentes do Native
 import { View, Text, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
-import { FileText, Image as ImageIcon, FileUp, Trash2 } from "lucide-react-native";
+import { FileText, Image as ImageIcon, FileUp, Trash2 } from "@/components/ui/icons";
 import { File, Paths } from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";

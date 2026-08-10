@@ -65,6 +65,16 @@ export const HADES = {
 } as const;
 
 /**
+ * Altura da tab bar.
+ *
+ * Mora aqui porque duas coisas dependem dela e precisam do mesmo número: a própria barra
+ * (`app/(tabs)/_layout.tsx`) e o painel lateral da Comunidade, que se estende por baixo
+ * dela — o navegador encaixa as telas *acima* da barra, então um painel que parasse na
+ * borda da tela deixaria uma faixa vazia embaixo quando a barra sai deslizando.
+ */
+export const ALTURA_TAB_BAR = 78;
+
+/**
  * Escala do heatmap, do dia vazio ao mais intenso.
  * O design usa `color-mix()` sobre a cor de marca; como o React Native não
  * suporta essa função, os valores já vêm resolvidos aqui.

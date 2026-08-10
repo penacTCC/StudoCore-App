@@ -1,17 +1,24 @@
 /**
- * Caixa de notificações do feed público — curtidas e comentários nas suas publicações.
+ * Caixa de notificações do app: curtidas e comentários, força recebida, gente nova no
+ * grupo, sala de foco aberta.
  *
  * Três partes moram aqui:
  *
  * 1. A LISTA (`buscarNotificacoes`), paginada por cursor, vinda da RPC
- *    `comunidade_notificacoes_listar`.
+ *    `notificacoes_listar`.
  * 2. O CONTADOR do badge, que é um store global no mesmo molde de
  *    services/formulariosPendentes.ts — a tab bar não é uma tela e não roda hook de
  *    ninguém, então o número precisa viver fora do React.
- * 3. O PUSH (`avisarInteracao`), disparado logo depois de curtir/comentar. Ele não manda
- *    o texto da notificação: a Edge Function `avisar-interacao` procura no banco a linha
- *    que o gatilho criou e monta a mensagem de lá. É o que impede alguém de forjar um
- *    push em nome de outro.
+ * 3. O PUSH DA COMUNIDADE (`avisarInteracao`), disparado logo depois de curtir/comentar.
+ *    Ele não manda o texto da notificação: a Edge Function `avisar-interacao` procura no
+ *    banco a linha que o gatilho criou e monta a mensagem de lá. É o que impede alguém de
+ *    forjar um push em nome de outro.
+ *
+ * As outras categorias não têm push aqui porque já têm o seu: força passa por
+ * `mandar-forca` e sala aberta por `avisar-sala-aberta`, as duas chamadas de onde o evento
+ * acontece (services/incentivos.ts, services/salas.ts). Os gatilhos da migration
+ * 20260807240000 só acrescentam a LINHA na caixa; quem toca o aparelho continua sendo
+ * quem já tocava. Gente nova no grupo é caixa e nada mais.
  *
  * Nada aqui lança para fora do caminho de leitura: notificação é acessório, e uma falha
  * dela não pode derrubar a curtida nem a tela.
@@ -20,7 +27,12 @@
 import { supabase } from "@/repositories/supabase";
 import { assinarCaminhosDeFoto } from "@/services/fotosSessao";
 import type { ReferenciaPublicacao, TipoPublicacao } from "@/types/comunidade";
-import type { Notificacao, PaginaDeNotificacoes, TipoNotificacao } from "@/types/notificacoes";
+import type {
+    CategoriaNotificacao,
+    Notificacao,
+    PaginaDeNotificacoes,
+    TipoNotificacao,
+} from "@/types/notificacoes";
 
 const TAMANHO_PAGINA = 20;
 
@@ -41,8 +53,9 @@ function lerCursor(bruto?: string | null): Posicao | null {
 
 type LinhaNotificacao = {
     id: string;
+    categoria: CategoriaNotificacao;
     tipo: TipoNotificacao;
-    origem: TipoPublicacao;
+    origem: TipoPublicacao | null;
     referencia_id: string;
     ator_id: string;
     ator_nome: string | null;
@@ -57,7 +70,7 @@ type LinhaNotificacao = {
 export async function buscarNotificacoes(cursor?: string | null): Promise<PaginaDeNotificacoes> {
     const posicao = lerCursor(cursor);
 
-    const { data, error } = await supabase.rpc("comunidade_notificacoes_listar", {
+    const { data, error } = await supabase.rpc("notificacoes_listar", {
         p_limite: TAMANHO_PAGINA,
         p_cursor_data: posicao?.criadoEm ?? null,
         p_cursor_id: posicao?.id ?? null,
@@ -74,6 +87,7 @@ export async function buscarNotificacoes(cursor?: string | null): Promise<Pagina
 
     const itens: Notificacao[] = linhas.map((linha) => ({
         id: linha.id,
+        categoria: linha.categoria,
         tipo: linha.tipo,
         origem: linha.origem,
         referenciaId: linha.referencia_id,
@@ -102,7 +116,7 @@ export async function buscarNotificacoes(cursor?: string | null): Promise<Pagina
 
 /** Marca tudo como lido — chamado quando a caixa abre, que é quando ela foi vista. */
 export async function marcarNotificacoesLidas(): Promise<void> {
-    const { error } = await supabase.rpc("comunidade_marcar_notificacoes_lidas");
+    const { error } = await supabase.rpc("notificacoes_marcar_lidas");
     if (error) {
         console.warn("Erro ao marcar notificações como lidas:", error.message);
         return;
@@ -144,7 +158,7 @@ export function assinarNotificacoesNaoLidas(listener: Listener) {
  * pé), então incrementar de um em um deixaria o badge maior que a caixa.
  */
 export async function carregarNotificacoesNaoLidas(): Promise<void> {
-    const { data, error } = await supabase.rpc("comunidade_notificacoes_nao_lidas");
+    const { data, error } = await supabase.rpc("notificacoes_nao_lidas");
     if (error) {
         console.warn("Erro ao contar notificações não lidas:", error.message);
         return;
@@ -192,7 +206,7 @@ export function observarNotificacoes(userId: string, aoChegar: () => void) {
                 {
                     event: "INSERT",
                     schema: "public",
-                    table: "comunidade_notificacoes",
+                    table: "notificacoes",
                     filter: `destinatario_id=eq.${userId}`,
                 },
                 () => ouvintes.forEach((ouvinte) => ouvinte())
@@ -220,7 +234,12 @@ export function observarNotificacoes(userId: string, aoChegar: () => void) {
  * chama não espera nem trata erro, porque a notificação já está na caixa de quem recebeu
  * de qualquer jeito — o push só decide se o aparelho toca agora.
  */
-export function avisarInteracao(ref: ReferenciaPublicacao, tipo: TipoNotificacao): void {
+export function avisarInteracao(
+    ref: ReferenciaPublicacao,
+    // Só os dois tipos da Comunidade: a Edge Function recusa qualquer outro, e é ela que
+    // sabe montar o texto.
+    tipo: Extract<TipoNotificacao, "curtida" | "comentario">
+): void {
     supabase.functions
         .invoke("avisar-interacao", {
             body: { tipo, origem: ref.origem, referenciaId: ref.referenciaId },

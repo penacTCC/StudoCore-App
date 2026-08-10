@@ -8,6 +8,9 @@ import {
 } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
 
+// Único lugar que ainda usa o lucide: as medalhas vão virar ilustrações próprias
+// (como as que já existem em assets/badges), então não valeu traduzir os ~50 nomes
+// pro Solar só pra jogar fora depois. O resto do app usa @/components/ui/icons.
 // Mapeia o nome de ícone salvo em cada BadgeType (constants/badges.ts) para o componente real.
 // Compartilhado entre app/(tabs)/profile.tsx e app/(modals)/member-profile.tsx para não duplicar a lista.
 export const BADGE_ICON_MAP: Record<string, LucideIcon> = {

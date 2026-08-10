@@ -3,6 +3,7 @@ import { toast } from "@/services/toast";
 import type { Grupo, MembroGrupoComPerfil, OfensivaGrupo } from "@/types/grupos";
 import { STATUS_SESSAO_FINALIZADA } from "@/services/sessions";
 import { paraDataISO } from "@/utils/tempo";
+import { ofensivaVigente } from "@/services/gamificacao";
 
 /**
  * Função para contar quantos membros tem um grupo específico, usando o ID do grupo.
@@ -114,7 +115,8 @@ export const buscarMembrosGrupo = async (grupoId: string) => {
         nome_usuario,
         foto_usuario,
         gamificacoes (
-          ofensiva
+          ofensiva,
+          ultima_data_estudo
         )
       )
     `)
@@ -129,12 +131,14 @@ export const buscarMembrosGrupo = async (grupoId: string) => {
   return ((usuarioMembro || []) as MembroGrupoComPerfil[]).map((membro) => {
     // `gamificacoes` vem como relação 1:1 (user_id é PK), mas o PostgREST pode devolver objeto ou array de 1 item.
     const gamificacao = membro.profiles?.gamificacoes;
-    const ofensiva = Array.isArray(gamificacao) ? gamificacao[0]?.ofensiva : gamificacao?.ofensiva;
+    // Ofensiva gravada só vale se a pessoa estudou hoje ou ontem — senão o card do grupo
+    // continuaria exibindo o foguinho de quem já quebrou a sequência.
+    const ofensiva = ofensivaVigente(Array.isArray(gamificacao) ? gamificacao[0] : gamificacao);
 
     return {
       ...membro,
       userData: membro.profiles,
-      ofensiva: ofensiva ?? 0,
+      ofensiva,
     };
   });
 };
@@ -522,7 +526,8 @@ export const buscarMembrosDosGrupos = async (gruposIds: string[]): Promise<Recor
         nome_usuario,
         foto_usuario,
         gamificacoes (
-          ofensiva
+          ofensiva,
+          ultima_data_estudo
         )
       )
     `)
@@ -537,12 +542,14 @@ export const buscarMembrosDosGrupos = async (gruposIds: string[]): Promise<Recor
   return ((usuarioMembro || []) as MembroGrupoComPerfil[]).reduce((porGrupo, membro) => {
     // `gamificacoes` vem como relação 1:1 (user_id é PK), mas o PostgREST pode devolver objeto ou array de 1 item.
     const gamificacao = membro.profiles?.gamificacoes;
-    const ofensiva = Array.isArray(gamificacao) ? gamificacao[0]?.ofensiva : gamificacao?.ofensiva;
+    // Ofensiva gravada só vale se a pessoa estudou hoje ou ontem — senão o card do grupo
+    // continuaria exibindo o foguinho de quem já quebrou a sequência.
+    const ofensiva = ofensivaVigente(Array.isArray(gamificacao) ? gamificacao[0] : gamificacao);
 
     const membroTratado: MembroGrupoComPerfil = {
       ...membro,
       userData: membro.profiles,
-      ofensiva: ofensiva ?? 0,
+      ofensiva,
     };
 
     (porGrupo[membro.grupo_id] ??= []).push(membroTratado);

@@ -1,5 +1,5 @@
 import { View, Text, Modal, Pressable, TouchableOpacity } from "react-native";
-import { Pencil, Clock, Check, Coffee } from "lucide-react-native";
+import { Pencil, Clock, Check, Coffee } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import type { BlocoDoDia } from "@/types/cronograma";
 

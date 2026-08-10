@@ -15,6 +15,28 @@ export function paraDataISO(data: Date) {
     return `${ano}-${mes}-${dia}`;
 }
 
+function paraMinutosDoDia(hora: string) {
+    const [h, m] = hora.split(":").map(Number);
+    return h * 60 + m;
+}
+
+/**
+ * Um horário local cai dentro da janela de "não perturbar"?
+ *
+ * A janela costuma virar a meia-noite (22:00–07:00): quando o início é maior que o fim, o
+ * teste deixa de ser "entre os dois" e passa a ser "fora do intervalo do meio".
+ *
+ * Mora aqui, e não em cada serviço de notificação, porque os três que agendam algo
+ * (cronograma, ofensiva, pausa) precisam responder exatamente a mesma coisa.
+ */
+export function dentroDoNaoPerturbar(hora: number, minuto: number, inicio: string, fim: string) {
+    const alvo = hora * 60 + minuto;
+    const inicioMin = paraMinutosDoDia(inicio);
+    const fimMin = paraMinutosDoDia(fim);
+
+    return inicioMin <= fimMin ? alvo >= inicioMin && alvo < fimMin : alvo >= inicioMin || alvo < fimMin;
+}
+
 /**
  * Converte um timestamp vindo do Postgres em milissegundos.
  *

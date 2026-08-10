@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { View, Text, Image, Modal, Pressable, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { Camera, ImageOff, Timer, Trash2, X } from "lucide-react-native";
+import { Camera, ImageOff, Timer, Trash2, X } from "@/components/ui/icons";
 
 import { HADES } from "@/constants/hades";
 import { Skeleton } from "@/components/ui/Skeleton";

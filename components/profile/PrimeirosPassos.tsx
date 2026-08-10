@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity } from "react-native";
-import { Target, ChevronRight, Sparkles } from "lucide-react-native";
+import { Target, ChevronRight, Sparkles } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 
 /** Nudge de "meta semanal ainda não definida", mostrado no dia 1 no lugar da barra de progresso. */

@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Image } from "react-native";
 import Svg, { Path, Line, Rect, Circle, Defs, LinearGradient, Stop, Text as SvgText } from "react-native-svg";
-import { Flame, Swords, ChevronRight, ChevronDown, User, Users } from "lucide-react-native";
-import type { LucideIcon } from "lucide-react-native";
+import { Flame, Swords, ChevronRight, ChevronDown, User, Users } from "@/components/ui/icons";
+import type { IconeComponente } from "@/components/ui/icons";
 import { DIAS_SEMANA_ABREV, NOME_COMPLETO_DIA, formatarHoras } from "@/lib/analytics";
 import { AderenciaMateria, DesempenhoMateria, membrosRankingAnalytics, ParDiaSemana, ParPlanejadoRealizado, PontoSerieDia, ResumoAderencia } from "@/types/analytics";
 import { Grupo, MembroGrupoComPerfil } from "@/types/grupos";
@@ -63,7 +63,7 @@ export function SeletorEscopo({
     valor: EscopoAnalise;
     aoAlterar: (v: EscopoAnalise) => void;
 }) {
-    const opcoes: { key: EscopoAnalise; Icone: LucideIcon; rotulo: string }[] = [
+    const opcoes: { key: EscopoAnalise; Icone: IconeComponente; rotulo: string }[] = [
         { key: "pessoal", Icone: User, rotulo: "Ver sua análise pessoal" },
         { key: "grupo", Icone: Users, rotulo: "Ver a análise do grupo" },
     ];
@@ -248,7 +248,7 @@ export function CartaoMetrica({
     valor,
     legenda,
 }: {
-    icone: LucideIcon;
+    icone: IconeComponente;
     rotulo: string;
     valor: string;
     legenda: string;

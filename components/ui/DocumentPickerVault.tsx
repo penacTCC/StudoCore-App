@@ -1,6 +1,6 @@
 import { View, Text, ActivityIndicator, TouchableOpacity, Image } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import { FileUp, FileText, Image as ImageIcon } from "lucide-react-native";
+import { FileUp, FileText, Image as ImageIcon } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { toast } from "@/services/toast";
 

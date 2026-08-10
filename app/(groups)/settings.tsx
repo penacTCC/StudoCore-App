@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 
 //Componentes do Native
 import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, DeviceEventEmitter } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
 import * as Clipboard from "expo-clipboard";
 
 //Componentes Lucide Native
-import { ChevronLeft, Check, LogOut, Trash2 } from "lucide-react-native";
+import { ChevronLeft, Check, LogOut, Trash2 } from "@/components/ui/icons";
 
 //Componente do expo-router
 import { router, useLocalSearchParams } from "expo-router";
@@ -16,7 +16,7 @@ import { HADES } from "@/constants/hades";
 import Avatar from "@/components/ui/Avatar";
 import ImagePickerAvatar from "@/components/ui/ImagePickerAvatar";
 import { SecaoConfig, LinhaSwitch, LinhaStepper, LinhaEscolha, LinhaPerigo } from "@/components/cronograma/LinhasConfig";
-import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useDadosCache } from "@/hooks/useDadosCache";
 import {
@@ -1046,15 +1046,23 @@ function SecaoConfigSkeleton({ tituloWidth }: { tituloWidth: number }) {
 function GroupSettingsSkeleton() {
     return (
         <>
-            <View style={{ alignItems: "center", marginBottom: 8, marginTop: 2, gap: 10 }}>
-                <SkeletonCircle size={88} hades />
-                <Skeleton width={140} height={18} hades />
-                <Skeleton width={190} height={13} hades />
+            <View style={{ alignItems: "center", marginBottom: 8, marginTop: 2 }}>
+                {/* 128px + mt-2/mb-8: as mesmas medidas do ImagePickerAvatar/Avatar da tela pronta. */}
+                <Skeleton
+                    width={128}
+                    height={128}
+                    borderRadius={16}
+                    hades
+                    style={{ marginTop: 8, marginBottom: 32 }}
+                />
+                <Skeleton width={140} height={20} hades />
+                <Skeleton width={190} height={13} hades style={{ marginTop: 4 }} />
             </View>
 
             <SecaoConfigSkeleton tituloWidth={60} />
             <SecaoConfigSkeleton tituloWidth={150} />
             <SecaoConfigSkeleton tituloWidth={110} />
+            <SecaoConfigSkeleton tituloWidth={130} />
         </>
     );
 }

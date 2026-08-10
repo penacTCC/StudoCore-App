@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
-import { FolderOpen, FileText } from "lucide-react-native";
+import { FolderOpen, FileText } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import type { ArquivoDetalhe } from "@/types/archives";
 

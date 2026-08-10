@@ -1,5 +1,6 @@
 import * as Notifications from "expo-notifications";
 import { supabase } from "@/repositories/supabase";
+import { dentroDoNaoPerturbar } from "@/utils/tempo";
 import { preferenciasDoUsuarioAtual } from "@/services/preferencias";
 import type { BlocoPlano, BlocoRotina, PreferenciasCronograma } from "@/types/cronograma";
 
@@ -15,23 +16,10 @@ async function garantirCanalAndroid() {
     });
 }
 
-function paraMinutosDoDia(hora: string) {
-    const [h, m] = hora.split(":").map(Number);
-    return h * 60 + m;
-}
-
-/**
- * A janela de "não perturbar" pode virar a meia-noite (ex.: 22:00–07:00), então
- * quando o início é maior que o fim o teste passa a ser "fora do intervalo".
- */
-function dentroDoNaoPerturbar(hora: number, minuto: number, prefs: PreferenciasCronograma) {
+/** Envelope do helper compartilhado (utils/tempo.ts) que já respeita o desligado. */
+function noNaoPerturbar(hora: number, minuto: number, prefs: PreferenciasCronograma) {
     if (!prefs.naoPerturbar) return false;
-
-    const alvo = hora * 60 + minuto;
-    const inicio = paraMinutosDoDia(prefs.naoPerturbarInicio);
-    const fim = paraMinutosDoDia(prefs.naoPerturbarFim);
-
-    return inicio <= fim ? alvo >= inicio && alvo < fim : alvo >= inicio || alvo < fim;
+    return dentroDoNaoPerturbar(hora, minuto, prefs.naoPerturbarInicio, prefs.naoPerturbarFim);
 }
 
 async function garantirPermissao(): Promise<boolean> {
@@ -110,7 +98,7 @@ export async function sincronizarLembreteRotina(bloco: BlocoRotina): Promise<voi
 
     const materia = await nomeDaMateria(bloco.materia_id);
     const { weekday, hour, minute } = paraDisparoSemanal(bloco.dia_semana, bloco.hora_inicio, antecedencia);
-    if (dentroDoNaoPerturbar(hour, minute, prefs)) return;
+    if (noNaoPerturbar(hour, minute, prefs)) return;
 
     await Notifications.scheduleNotificationAsync({
         content: {
@@ -169,7 +157,7 @@ export async function sincronizarLembretesPlano(
         if (plano.agenda_tipo === "data" && plano.agenda_data) {
             const disparo = calcularDataDisparo(plano.agenda_data, bloco.hora_inicio, antecedencia);
             if (disparo.getTime() <= Date.now()) continue; // já passou — não agenda no passado
-            if (dentroDoNaoPerturbar(disparo.getHours(), disparo.getMinutes(), prefs)) continue;
+            if (noNaoPerturbar(disparo.getHours(), disparo.getMinutes(), prefs)) continue;
 
             await Notifications.scheduleNotificationAsync({
                 content: { ...conteudo, data: { tipo: "plano", blocoId: bloco.id } },
@@ -182,7 +170,7 @@ export async function sincronizarLembretesPlano(
         } else if (plano.agenda_tipo === "fixado" && plano.agenda_dias) {
             for (const dia of plano.agenda_dias) {
                 const { weekday, hour, minute } = paraDisparoSemanal(dia, bloco.hora_inicio, antecedencia);
-                if (dentroDoNaoPerturbar(hour, minute, prefs)) continue;
+                if (noNaoPerturbar(hour, minute, prefs)) continue;
                 await Notifications.scheduleNotificationAsync({
                     content: { ...conteudo, data: { tipo: "plano", blocoId: bloco.id } },
                     trigger: {

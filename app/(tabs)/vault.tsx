@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 //Componentes do Native
 import {
@@ -12,8 +12,8 @@ import {
     UIManager,
     RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { FileText, Image as ImageIcon, ChevronRight, ChevronDown, FileUp, Folder } from "lucide-react-native";
+import { SafeAreaView } from "@/components/ui/TelaSegura";
+import { FileText, Image as ImageIcon, ChevronRight, ChevronDown, FileUp, Folder } from "@/components/ui/icons";
 
 //Componentes do Projeto
 import { HADES } from "@/constants/hades";
@@ -21,6 +21,8 @@ import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 
 //Componentes gráficos
 import SearchBar from "@/components/ui/SearchBar";
+import Avatar from "@/components/ui/Avatar";
+import FotoDoGrupo from "@/components/ui/FotoDoGrupo";
 import UploadVaultModal from "@/app/(modals)/upload-vault";
 import FileDetailModal from "@/app/(modals)/archive-details";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -28,6 +30,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 //Funções do Projeto
 import { useArchives } from "@/hooks/useArchives";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -47,6 +50,9 @@ export default function VaultScreen() {
     // Chama o hook para buscar os arquivos reais do banco de dados de forma incondicional
     const { archives, isLoading: carregandoArquivos, refresh } = useArchives(userId || undefined);
     const { grupos, atualizando: atualizandoGrupos, atualizar: atualizarGrupos } = useMeusGrupos();
+    // Só pela foto e pelo nome, para o avatar da seção "Meus arquivos". Fica acima do
+    // `return null` de sessão ausente porque hook não pode ficar atrás de saída antecipada.
+    const { profile } = useProfile(userId ?? "");
 
     const handleRefresh = () => {
         refresh();
@@ -154,10 +160,12 @@ export default function VaultScreen() {
             }}
         >
             <Skeleton width={44} height={44} borderRadius={12} hades />
-            <View style={{ flex: 1, gap: 6 }}>
+            <View style={{ flex: 1 }}>
                 <Skeleton width="60%" height={14} hades />
-                <Skeleton width="40%" height={12} hades />
+                <Skeleton width="40%" height={12} hades style={{ marginTop: 2 }} />
             </View>
+            {/* O card pronto tem a seta de "abrir detalhes" na ponta. */}
+            <ChevronRight size={18} color={HADES.dot} />
         </View>
     );
 
@@ -170,6 +178,7 @@ export default function VaultScreen() {
         subtitle,
         files,
         icon: SectionIcon = Folder,
+        visual,
         emptyText = "Nenhum arquivo enviado",
         carregando = false,
     }: {
@@ -178,6 +187,8 @@ export default function VaultScreen() {
         subtitle?: string;
         files: any[];
         icon?: any;
+        /** Substitui o quadrado de ícone genérico — a foto do grupo, ou o avatar do usuário. */
+        visual?: ReactNode;
         emptyText?: string;
         carregando?: boolean;
     }) => {
@@ -203,18 +214,20 @@ export default function VaultScreen() {
                     }}
                 >
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
-                        <View
-                            style={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: 12,
-                                backgroundColor: HADES.accentTint,
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <SectionIcon size={20} color={HADES.accentSolid} />
-                        </View>
+                        {visual ?? (
+                            <View
+                                style={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 12,
+                                    backgroundColor: HADES.accentTint,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                <SectionIcon size={20} color={HADES.accentSolid} />
+                            </View>
+                        )}
                         <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.text }} numberOfLines={1}>
                                 {title}
@@ -292,7 +305,9 @@ export default function VaultScreen() {
                     />
                 }
             >
-                {/* Seções dos grupos */}
+                {/* Seções dos grupos — cada uma com a foto do próprio grupo, e não com a
+                    mesma pasta repetida: numa lista de vários grupos, o ícone genérico
+                    não distinguia um do outro. */}
                 {grupos.map((group: any) => (
                     <AccordionSection
                         key={group.id}
@@ -300,18 +315,20 @@ export default function VaultScreen() {
                         title={group.nome_grupo}
                         subtitle="Arquivos compartilhados no grupo"
                         files={getGroupFiles(group.id)}
+                        visual={<FotoDoGrupo foto={group.foto_grupo} size={40} />}
                         emptyText={`Nenhum arquivo enviado no ${group.nome_grupo}`}
                         carregando={carregandoArquivos}
                     />
                 ))}
 
-                {/* Meus arquivos */}
+                {/* Meus arquivos — o avatar diz, na mesma lista, qual seção é a sua. */}
                 <AccordionSection
                     id="meus_arquivos"
                     title="Meus arquivos"
                     subtitle="Arquivos que eu enviei"
                     files={myFiles}
                     icon={FileUp}
+                    visual={<Avatar foto={profile?.foto_usuario} nome={profile?.nome_usuario} size={40} />}
                     emptyText="Você ainda não enviou nenhum arquivo"
                     carregando={carregandoArquivos}
                 />
