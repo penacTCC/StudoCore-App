@@ -644,18 +644,18 @@ export default function VaultScreen() {
                         {/* Cabeçalho: título + contagem + "Ver tudo" */}
                         <View
                             style={{
-                                flexDirection: "row",
-                                alignItems: "baseline",
-                                justifyContent: "space-between",
-                                marginBottom: 8,
-                                paddingHorizontal: 4,
-                            }}
+                              width: 'auto',
+                              flexDirection: "row",
+                              alignItems: "baseline",
+                              justifyContent: "space-between",
+                              marginVertical: 8,
+                              paddingHorizontal: 4,
+                          }}
                         >
                             <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
                                 Meus arquivos{" "}
-                                <Text style={{ color: HADES.textFaint, fontWeight: "600" }}>{myFiles.length}</Text>
                             </Text>
-                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, fontWeight: "600" }}>Ver tudo</Text>
+                            <Text style={{ color: HADES.textFaint, fontWeight: "600", fontSize: 12.5 }}>{myFiles.length}</Text>
                         </View>
 
                         {/* Linhas de arquivo, só com divisórias entre elas */}

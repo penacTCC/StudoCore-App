@@ -21,8 +21,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePlanos } from "@/hooks/usePlanos";
 import { useAgendaHoje } from "@/hooks/useAgendaHoje";
 import { adiarBlocoRotina } from "@/services/schedule";
-import { adiarBlocoPlano } from "@/services/planos";
+import { adiarBlocoPlano, buscarPlanoPorId } from "@/services/planos";
 import { registrarBlocoComoFeito } from "@/services/sessions";
+import { marcarBlocoRoadmapConcluido } from "@/services/roadmapIA";
 import { toast } from "@/services/toast";
 
 const DIAS_EXTENSO = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
@@ -251,6 +252,14 @@ export default function ScheduleScreen() {
             toast.error("Não foi possível marcar o bloco como feito.");
             return;
         }
+
+        if (bloco.origem === "plano" && bloco.planoId) {
+            const plano = await buscarPlanoPorId(bloco.planoId);
+            if (plano?.roadmapDeGrupo) {
+                await marcarBlocoRoadmapConcluido(userId, bloco.id, true);
+            }
+        }
+
         toast.success("Bloco marcado como feito.");
         recarregarHoje();
     };

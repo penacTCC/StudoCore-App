@@ -36,6 +36,8 @@ import type { ArquivoDetalhe } from "@/types/archives";
 import type { SessaoFocoRow, SessionCardItem } from "@/types/sessions";
 import { salvarSessaoFoco, atualizarSessaoFoco, fetchFocusSession, fetchSessionById, calculateFocusSessionMinutes, registrarProgressoSessao, republicarFilaDaSessao } from "@/services/sessions";
 import { criarSala, buscarSala, entrarNaSala, atualizarParticipacao, sairDaSala, transferirAnfitriaoDaSala, publicarFilaDaSala } from "@/services/salas";
+import { buscarPlanoPorId } from "@/services/planos";
+import { marcarBlocoRoadmapConcluido } from "@/services/roadmapIA";
 import { observarIncentivosDaSala, buscarIncentivosDaSala } from "@/services/incentivos";
 import { FaixaBlocoCronograma, FaixaSessaoRestaurada } from "@/components/focus/PecasFoco";
 import { toast } from "@/services/toast";
@@ -795,8 +797,15 @@ export default function FocusScreen() {
             if (error) {
                 console.error("Erro ao finalizar sessão de foco:", error);
             }
+
+            if (session.bloco_plano_id && session.plano_id) {
+                const plano = await buscarPlanoPorId(session.plano_id);
+                if (plano?.roadmapDeGrupo) {
+                    await marcarBlocoRoadmapConcluido(session.user_id, session.bloco_plano_id, true);
+                }
+            }
         },
-        [session?.id, salaId, isPublicSession, userId]
+        [session?.id, session?.bloco_plano_id, session?.plano_id, salaId, isPublicSession, userId]
     );
 
     /**
@@ -1635,6 +1644,8 @@ export default function FocusScreen() {
         const finalGroupId = currentGroupId || (await carregarUltimoGrupoLocalmente());
         const execucaoId = execucaoIdRef.current;
         const currentSessionId = session?.id;
+        const currentBlocoPlanoId = session?.bloco_plano_id;
+        const currentPlanoId = session?.plano_id;
         const currentSalaId = salaId;
         // Numa execução de plano, parar durante um descanso não deve reabrir a linha da
         // última matéria (já finalizada quando o estudo dela terminou) — só finaliza aqui
@@ -1705,6 +1716,13 @@ export default function FocusScreen() {
                 });
                 if (updateSessionError) {
                     console.error("Erro ao finalizar sessão de foco:", updateSessionError);
+                }
+
+                if (currentBlocoPlanoId && currentPlanoId) {
+                    const plano = await buscarPlanoPorId(currentPlanoId);
+                    if (plano?.roadmapDeGrupo) {
+                        await marcarBlocoRoadmapConcluido(userId!, currentBlocoPlanoId, true);
+                    }
                 }
             }
         }
