@@ -319,12 +319,38 @@ export default function PlanoEditorScreen() {
         });
     };
 
-    // Conflito de horário: um plano não tem conceito de dia, então a lista
-    // inteira de blocos é "um dia" só pro utilitário de conflitos.
-    const conflitos = useMemo(
-        () => encontrarConflitos(blocos.map((b) => ({ id: b.id, horaInicio: b.horaInicio, duracaoMin: b.duracaoMin }))),
-        [blocos]
-    );
+    // Conflito de horário: cada dia da semana é independente — blocos com diaSemana
+    // diferentes (ou com dia vs sem dia) NUNCA conflitam entre si. Só blocos do mesmo
+    // dia (mesmo diaSemana, ou ambos sem dia = vale todo dia) podem se sobrepor.
+    const conflitos = useMemo(() => {
+        const grupos = new Map<number, { id: string; horaInicio: string; duracaoMin: number }[]>();
+        const semDia: { id: string; horaInicio: string; duracaoMin: number }[] = [];
+
+        for (const b of blocos) {
+            const item = { id: b.id, horaInicio: b.horaInicio, duracaoMin: b.duracaoMin };
+            if (b.diaSemana != null) {
+                const lista = grupos.get(b.diaSemana) ?? [];
+                lista.push(item);
+                grupos.set(b.diaSemana, lista);
+            } else {
+                semDia.push(item);
+            }
+        }
+
+        const resultado = new Map<string, { comId: string; minutos: number }[]>();
+        if (semDia.length > 1) {
+            for (const [id, conflitosDoDia] of encontrarConflitos(semDia)) {
+                resultado.set(id, conflitosDoDia);
+            }
+        }
+        for (const [, itens] of grupos) {
+            if (itens.length < 2) continue;
+            for (const [id, conflitosDoDia] of encontrarConflitos(itens)) {
+                resultado.set(id, conflitosDoDia);
+            }
+        }
+        return resultado;
+    }, [blocos]);
     const blocoPorId = useMemo(() => new Map(blocos.map((b) => [b.id, b])), [blocos]);
     const rotuloConflito = (id: string) => {
         const c = conflitos.get(id)?.[0];
@@ -947,7 +973,7 @@ function LinhaBloco({
                         style={{
                             fontSize: 14,
                             fontWeight: "600",
-                            color: concluido ? HADES.textFaint : HADES.text,
+                            color: concluido ? HADES.textFaint : (bloco.cor ?? HADES.text),
                             textDecorationLine: concluido ? "line-through" : "none",
                         }}
                     >
