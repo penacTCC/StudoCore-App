@@ -19,6 +19,7 @@ export type TipoNotificacao =
     | "comentario"
     | "novo_membro"
     | "sala_aberta"
+    | "roadmap_novo"
     | "forca";
 
 export type Notificacao = {

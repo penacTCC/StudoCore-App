@@ -22,6 +22,7 @@ import {
     ressincronizarLembretesDoPlano,
 } from "@/services/planos";
 import { cancelarLembretesPlano } from "@/services/lembretes";
+import { buscarBlocosConcluidos, marcarBlocoRoadmapConcluido } from "@/services/roadmapIA";
 import type { TipoBloco } from "@/types/cronograma";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
@@ -41,6 +42,8 @@ type BlocoEditor = {
     antecedenciaMin: number | null;
     /** Chave compartilhada pelos blocos de uma mesma sessão de pomodoros — ausente fora desse fluxo. */
     sessaoId?: string;
+    /** Dia da semana exclusivo deste bloco (0 = segunda ... 6 = domingo). Ausente = vale em todos os dias. */
+    diaSemana?: number;
 };
 
 function paraMinutos(horaInicio: string) {
@@ -53,6 +56,9 @@ function paraHoraMin(totalMin: number) {
     const m = totalMin % 60;
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 }
+
+/** Rótulo curto de dia da semana — mesma convenção de dia_semana/agenda_dias (0 = segunda). */
+const DIAS_CURTOS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 export default function PlanoEditorScreen() {
     const router = useRouter();
@@ -75,6 +81,10 @@ export default function PlanoEditorScreen() {
     // Compartilhar o plano no Explorar da Comunidade. Como nome e cor, só vale depois do
     // "Salvar" — o editor inteiro é local até lá.
     const [publico, setPublico] = useState(false);
+    // Este plano é um roadmap de grupo (canônico do admin ou cópia de um membro): os
+    // blocos ganham o toggle de "concluído" que alimenta o progresso coletivo.
+    const [roadmapDeGrupo, setRoadmapDeGrupo] = useState(false);
+    const [concluidos, setConcluidos] = useState<Set<string>>(new Set());
     const [corMenuAberto, setCorMenuAberto] = useState(false);
     const [blocos, setBlocos] = useState<BlocoEditor[]>([]);
     const [salvando, setSalvando] = useState(false);
@@ -96,6 +106,11 @@ export default function PlanoEditorScreen() {
                 setNome(plano.nome);
                 setCor(plano.cor);
                 setPublico(plano.publico);
+                setRoadmapDeGrupo(plano.roadmapDeGrupo);
+                if (plano.roadmapDeGrupo) {
+                    const marcados = await buscarBlocosConcluidos(planoId);
+                    setConcluidos(marcados);
+                }
             }
 
             const { data, error } = await buscarBlocosPlano(planoId);
@@ -122,6 +137,7 @@ export default function PlanoEditorScreen() {
                             notificar: row.notificar,
                             antecedenciaMin: row.antecedencia_min,
                             sessaoId: row.sessao_id ?? undefined,
+                            diaSemana: row.dia_semana ?? undefined,
                         };
                     })
                 );
@@ -225,6 +241,33 @@ export default function PlanoEditorScreen() {
         setBlocos((atual) =>
             atual.map((b) => (b.id === id ? { ...b, notificar: !b.notificar } : b))
         );
+
+    /*
+      Toggle "concluí este bloco" — só em planos de roadmap de grupo e só em blocos já
+      salvos (os blocos de roadmap vêm do banco, nunca são rascunho). Otimista: responde
+      na hora e volta sozinho se o banco recusar (RLS do próprio plano).
+    */
+    const alternarConclusao = async (bloco: BlocoEditor) => {
+        if (!bloco.persistido || !roadmapDeGrupo || !userId) return;
+
+        const jaConcluido = concluidos.has(bloco.id);
+        setConcluidos((atual) => {
+            const proximo = new Set(atual);
+            if (jaConcluido) proximo.delete(bloco.id);
+            else proximo.add(bloco.id);
+            return proximo;
+        });
+
+        const { sucesso } = await marcarBlocoRoadmapConcluido(userId, bloco.id, !jaConcluido);
+        if (!sucesso) {
+            setConcluidos((atual) => {
+                const proximo = new Set(atual);
+                if (jaConcluido) proximo.add(bloco.id);
+                else proximo.delete(bloco.id);
+                return proximo;
+            });
+        }
+    };
 
     const removerBloco = (bloco: BlocoEditor) => {
         confirm({
@@ -368,6 +411,7 @@ export default function PlanoEditorScreen() {
                 notificar: bloco.notificar,
                 antecedencia_min: bloco.antecedenciaMin,
                 sessao_id: bloco.sessaoId ?? null,
+                dia_semana: bloco.diaSemana ?? null,
             };
 
             const { error } = bloco.persistido
@@ -603,6 +647,28 @@ export default function PlanoEditorScreen() {
                         BLOCOS
                     </Text>
 
+                    {roadmapDeGrupo && (
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "flex-start",
+                                gap: 9,
+                                padding: 12,
+                                borderRadius: 12,
+                                backgroundColor: "rgba(48,209,88,0.07)",
+                                borderWidth: 1,
+                                borderColor: "rgba(48,209,88,0.25)",
+                                marginBottom: 12,
+                            }}
+                        >
+                            <Check size={14} color={HADES.green} style={{ marginTop: 1 }} />
+                            <Text style={{ flex: 1, fontSize: 12, color: HADES.textSecondary, lineHeight: 17 }}>
+                                Este é o roadmap do grupo. Marque os blocos que você cumpriu para
+                                o progresso coletivo da semana acompanhar.
+                            </Text>
+                        </View>
+                    )}
+
                     {itensAgrupados.length === 0 && (
                         <View
                             style={{
@@ -643,6 +709,9 @@ export default function PlanoEditorScreen() {
                                     key={item.bloco.id}
                                     bloco={item.bloco}
                                     conflitaCom={rotuloConflito(item.bloco.id)}
+                                    roadmap={roadmapDeGrupo}
+                                    concluido={concluidos.has(item.bloco.id)}
+                                    onAlternarConclusao={() => alternarConclusao(item.bloco)}
                                     onRemover={() => removerBloco(item.bloco)}
                                     onAlternarNotificacao={() => alternarNotificacao(item.bloco.id)}
                                 />
@@ -790,11 +859,18 @@ function PlanoEditorSkeleton() {
 function LinhaBloco({
     bloco,
     conflitaCom,
+    roadmap,
+    concluido,
+    onAlternarConclusao,
     onRemover,
     onAlternarNotificacao,
 }: {
     bloco: BlocoEditor;
     conflitaCom?: string;
+    /** Blocos de roadmap de grupo ganham o toggle "concluí este bloco". */
+    roadmap?: boolean;
+    concluido?: boolean;
+    onAlternarConclusao?: () => void;
     onRemover: () => void;
     onAlternarNotificacao: () => void;
 }) {
@@ -847,11 +923,42 @@ function LinhaBloco({
         >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
                 <GripVertical size={16} color={HADES.grip} />
+                {roadmap && bloco.tipo === "estudo" && (
+                    <TouchableOpacity
+                        onPress={onAlternarConclusao}
+                        activeOpacity={0.75}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: 13,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderWidth: 2,
+                            borderColor: concluido ? HADES.green : HADES.grip,
+                            backgroundColor: concluido ? HADES.green : "transparent",
+                        }}
+                    >
+                        {concluido && <Check size={14} color="#000" strokeWidth={3} />}
+                    </TouchableOpacity>
+                )}
                 <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>
+                    <Text
+                        style={{
+                            fontSize: 14,
+                            fontWeight: "600",
+                            color: concluido ? HADES.textFaint : HADES.text,
+                            textDecorationLine: concluido ? "line-through" : "none",
+                        }}
+                    >
                         {bloco.materia}
                     </Text>
                     <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 1 }}>
+                        {bloco.diaSemana != null && (
+                            <Text style={{ color: bloco.cor ?? HADES.accentSolid, fontWeight: "700" }}>
+                                {DIAS_CURTOS[bloco.diaSemana]} ·{" "}
+                            </Text>
+                        )}
                         {bloco.topico} · {bloco.horaInicio} · {formatarDuracao(bloco.duracaoMin)}
                     </Text>
                 </View>

@@ -716,7 +716,8 @@ function ProfileSkeleton() {
 
                 <Divider />
 
-                {/* Medalhas: cabeçalho com contagem e "Ver Todas", grade de três colunas */}
+                {/* Medalhas: cabeçalho com contagem e "Ver Todas", grade de três azulejos
+                    (mesmo cartão da galeria de medalhas) */}
                 <View
                     style={{
                         flexDirection: "row",
@@ -731,11 +732,25 @@ function ProfileSkeleton() {
                     </View>
                     <Skeleton width={72} height={11.5} hades />
                 </View>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 14 }}>
-                    {[0, 1, 2].map((i) => (
-                        <View key={i} style={{ width: "33.33%", alignItems: "center", gap: 7 }}>
-                            <SkeletonCircle size={48} hades />
-                            <Skeleton width="70%" height={11} hades />
+                <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 10 }}>
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                        <View
+                            key={i}
+                            style={{
+                                width: "31.5%",
+                                backgroundColor: HADES.surface,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                borderRadius: 12,
+                                paddingTop: 12,
+                                paddingBottom: 10,
+                                alignItems: "center",
+                                gap: 8,
+                            }}
+                        >
+                            <Skeleton width={58} height={58} borderRadius={12} hades />
+                            <Skeleton width="80%" height={11} hades />
+                            <Skeleton width="55%" height={11} hades />
                         </View>
                     ))}
                 </View>

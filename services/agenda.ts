@@ -31,20 +31,30 @@ function ordenarPorHorario(blocos: BlocoAgenda[]): BlocoAgenda[] {
     return [...blocos].sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 }
 
-function paraBlocosDePlano(plano: { id: string; nome?: string; planos_blocos: BlocoPlano[] }): BlocoAgenda[] {
-    return plano.planos_blocos.map((row) => ({
-        id: row.id,
-        horaInicio: row.hora_inicio.slice(0, 5),
-        duracaoMin: row.duracao_min,
-        tipo: row.tipo,
-        materiaId: row.materia_id,
-        topico: row.topico,
-        notificar: row.notificar,
-        antecedenciaMin: row.antecedencia_min,
-        origem: "plano" as const,
-        planoId: plano.id,
-        planoNome: plano.nome,
-    }));
+/**
+ * Os blocos de um plano, filtrados pelo dia sendo resolvido: bloco com `dia_semana` fixo
+ * só vale no dia dele (NULL = vale em todos os dias da agenda do plano). É o que faz a
+ * estrutura por dia de um roadmap por IA sobreviver à materialização.
+ */
+function paraBlocosDePlano(
+    plano: { id: string; nome?: string; planos_blocos: BlocoPlano[] },
+    diaSemana: number
+): BlocoAgenda[] {
+    return plano.planos_blocos
+        .filter((row) => row.dia_semana == null || row.dia_semana === diaSemana)
+        .map((row) => ({
+            id: row.id,
+            horaInicio: row.hora_inicio.slice(0, 5),
+            duracaoMin: row.duracao_min,
+            tipo: row.tipo,
+            materiaId: row.materia_id,
+            topico: row.topico,
+            notificar: row.notificar,
+            antecedenciaMin: row.antecedencia_min,
+            origem: "plano" as const,
+            planoId: plano.id,
+            planoNome: plano.nome,
+        }));
 }
 
 /**
@@ -71,7 +81,7 @@ export async function resolverAgendaDoDia(usuarioId: string, dataISO: string): P
         houveErro = true;
     }
     if (planoData) {
-        return ordenarPorHorario(paraBlocosDePlano(planoData as { id: string; planos_blocos: BlocoPlano[] }));
+        return ordenarPorHorario(paraBlocosDePlano(planoData as { id: string; planos_blocos: BlocoPlano[] }, diaSemana));
     }
 
     // 2) Plano fixado nesse dia da semana — vence a rotina.
@@ -88,7 +98,7 @@ export async function resolverAgendaDoDia(usuarioId: string, dataISO: string): P
         houveErro = true;
     }
     if (planoFixado) {
-        return ordenarPorHorario(paraBlocosDePlano(planoFixado as { id: string; planos_blocos: BlocoPlano[] }));
+        return ordenarPorHorario(paraBlocosDePlano(planoFixado as { id: string; planos_blocos: BlocoPlano[] }, diaSemana));
     }
 
     // 3) Rotina semanal — o padrão de fundo, quando nada mais se aplica.
@@ -208,9 +218,9 @@ export async function resolverAgendaDaSemana(
         const planoFixado = porDiaFixado.get(diaSemana);
 
         const blocos = planoDaData
-            ? paraBlocosDePlano(planoDaData)
+            ? paraBlocosDePlano(planoDaData, diaSemana)
             : planoFixado
-                ? paraBlocosDePlano(planoFixado)
+                ? paraBlocosDePlano(planoFixado, diaSemana)
                 : (rotinaPorDia.get(diaSemana) ?? []).map(paraBlocoDeRotina);
 
         return { dataISO, diaSemana, blocos: ordenarPorHorario(blocos) };
@@ -314,9 +324,9 @@ export async function resolverAgendaDoIntervalo(
         const planoFixado = porDiaFixado.get(diaSemana);
 
         const blocos = planoDaData
-            ? paraBlocosDePlano(planoDaData)
+            ? paraBlocosDePlano(planoDaData, diaSemana)
             : planoFixado
-                ? paraBlocosDePlano(planoFixado)
+                ? paraBlocosDePlano(planoFixado, diaSemana)
                 : (rotinaPorDia.get(diaSemana) ?? []).map(paraBlocoDeRotina);
 
         return { dataISO, diaSemana, blocos: ordenarPorHorario(blocos) };

@@ -9,6 +9,7 @@ import {
     Flame,
     Heart,
     MessageCircle,
+    Sparkles,
     UserPlus,
     Users,
 } from "@/components/ui/icons";
@@ -202,6 +203,7 @@ const SELO: Record<TipoNotificacao, { Icone: typeof Heart; cor: string; solido?:
     forca: { Icone: Flame, cor: HADES.accentSolid },
     novo_membro: { Icone: UserPlus, cor: HADES.green },
     sala_aberta: { Icone: Users, cor: HADES.amber },
+    roadmap_novo: { Icone: Sparkles, cor: HADES.accentSolid },
 };
 
 function LinhaNotificacao({ item, nova }: { item: Notificacao; nova: boolean }) {
@@ -297,6 +299,10 @@ function descreverAcao(item: Notificacao): string {
             return item.resumo
                 ? ` abriu uma sala de foco no ${item.resumo}.`
                 : " abriu uma sala de foco no seu grupo.";
+        case "roadmap_novo":
+            return item.resumo
+                ? ` publicou um novo roadmap de estudos no ${item.resumo}.`
+                : " publicou um novo roadmap de estudos no grupo.";
     }
 }
 

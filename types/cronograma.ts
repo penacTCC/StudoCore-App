@@ -63,6 +63,11 @@ export type Plano = {
     agenda: AgendaPlano;
     /** Compartilhado no Explorar da Comunidade. */
     publico: boolean;
+    /**
+     * Plano de um roadmap de grupo por IA (canônico do admin ou cópia de um membro).
+     * Os blocos dele ganham o toggle de "concluído" que alimenta o progresso coletivo.
+     */
+    roadmapDeGrupo: boolean;
 };
 
 /** Linha de `planos` — chaves batem com as colunas da tabela. */
@@ -76,6 +81,9 @@ export type PlanoRow = {
     agenda_data: string | null;
     publico: boolean;
     created_at: string;
+    /** Planos de roadmap de grupo — ver migration 20260811090000_roadmap_ia.sql. */
+    origem_grupo_id: string | null;
+    origem_roadmap_plano_id: string | null;
 };
 
 /** Resultado padronizado de operações do service de planos. */
@@ -98,6 +106,12 @@ export type BlocoPlano = {
     antecedencia_min: number | null;
     /** Chave opaca compartilhada pelos blocos gerados de uma vez por uma sessão de pomodoros. NULL fora desse fluxo. */
     sessao_id: string | null;
+    /**
+     * Dia da semana em que SÓ este bloco vale (0 = segunda ... 6 = domingo). NULL = vale em
+     * todos os dias da agenda do plano — o comportamento de sempre. É o que preserva a
+     * estrutura por dia de um roadmap por IA (ex.: Matemática na segunda, Física na quarta).
+     */
+    dia_semana: number | null;
 };
 
 /** Payload de inserção — igual a BlocoPlano sem o id, que o Postgres gera. */

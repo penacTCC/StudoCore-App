@@ -2,6 +2,7 @@ import * as Notifications from "expo-notifications";
 import { supabase } from "@/repositories/supabase";
 import { dentroDoNaoPerturbar } from "@/utils/tempo";
 import { preferenciasDoUsuarioAtual } from "@/services/preferencias";
+import { diaSemanaDe } from "@/services/agenda";
 import type { BlocoPlano, BlocoRotina, PreferenciasCronograma } from "@/types/cronograma";
 
 const CANAL_ANDROID = "lembretes-cronograma";
@@ -154,7 +155,12 @@ export async function sincronizarLembretesPlano(
         const materia = await nomeDaMateria(bloco.materia_id);
         const conteudo = tituloECorpo(materia, bloco.topico, antecedencia);
 
+        // Bloco com `dia_semana` fixo (roadmap por IA) só dispara no dia dele — NULL
+        // vale em todos os dias da agenda do plano.
+        const valeNoDia = (dia: number) => bloco.dia_semana == null || bloco.dia_semana === dia;
+
         if (plano.agenda_tipo === "data" && plano.agenda_data) {
+            if (!valeNoDia(diaSemanaDe(plano.agenda_data))) continue;
             const disparo = calcularDataDisparo(plano.agenda_data, bloco.hora_inicio, antecedencia);
             if (disparo.getTime() <= Date.now()) continue; // já passou — não agenda no passado
             if (noNaoPerturbar(disparo.getHours(), disparo.getMinutes(), prefs)) continue;
@@ -169,6 +175,7 @@ export async function sincronizarLembretesPlano(
             });
         } else if (plano.agenda_tipo === "fixado" && plano.agenda_dias) {
             for (const dia of plano.agenda_dias) {
+                if (!valeNoDia(dia)) continue;
                 const { weekday, hour, minute } = paraDisparoSemanal(dia, bloco.hora_inicio, antecedencia);
                 if (noNaoPerturbar(hour, minute, prefs)) continue;
                 await Notifications.scheduleNotificationAsync({

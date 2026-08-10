@@ -815,6 +815,26 @@ export default function GroupSettingsScreen() {
                                     />
                                 </SecaoConfig>
 
+                                {/* Roadmap de estudos por IA — só o admin gera; cada membro
+                                    recebe a própria cópia e acompanha o progresso na home. */}
+                                <SecaoConfig titulo="ROADMAP">
+                                    <LinhaEscolha
+                                        rotulo="Gerar roadmap do grupo"
+                                        valor="Por IA"
+                                        onPress={() =>
+                                            router.push({
+                                                pathname: "/(modals)/gerar-roadmap",
+                                                params: {
+                                                    escopo: "grupo",
+                                                    grupoId: groupId as string,
+                                                    grupoNome: grupo?.nome_grupo ?? "",
+                                                },
+                                            })
+                                        }
+                                        ultima
+                                    />
+                                </SecaoConfig>
+
                                 <SecaoConfig titulo="PRIVACIDADE E ACESSO">
                                     <LinhaSwitch
                                         rotulo="Grupo público"

@@ -1,8 +1,21 @@
+import { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { ChevronRight, Star, Target } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { BADGE_LEVEL_COLORS, BadgeType } from "@/constants/badges";
-import IconeMedalha from "@/components/badges/IconeMedalha";
+import IconeMedalha, { IconeMedalhaTile } from "@/components/badges/IconeMedalha";
+import DetalheMedalhaSheet from "@/components/badges/DetalheMedalhaSheet";
+
+/*
+  Grades do mesmo azulejo da galeria de medalhas (app/(modals)/badges.tsx): arte
+  quadrada + nome embaixo, dentro de um cartão. As medidas variam com o número de
+  colunas para a arte não espremer num card estreito.
+*/
+const TILE_CONFIG = {
+    2: { largura: "48%", arte: 72, nomeFont: 12, nomeLinha: 15 },
+    3: { largura: "31.5%", arte: 58, nomeFont: 11.5, nomeLinha: 14 },
+    4: { largura: "23.5%", arte: 46, nomeFont: 11, nomeLinha: 13 },
+} as const;
 
 function Cabecalho({ desbloqueadas, total, onVerTodas }: { desbloqueadas: number; total: number; onVerTodas?: () => void }) {
     return (
@@ -46,14 +59,13 @@ type Props = {
     desbloqueadas: number;
     total: number;
     onVerTodas?: () => void;
-    /** Colunas da grade de medalhas recentes: 3 no próprio perfil, 4 no de outro usuário. */
-    colunas?: 3 | 4;
+    /** Colunas da grade de medalhas recentes: 3 no próprio perfil (3×2), 4 no de outro usuário. */
+    colunas?: 2 | 3 | 4;
 };
 
 export default function CardMedalhas({ recentes, proximas, desbloqueadas, total, onVerTodas, colunas = 3 }: Props) {
-    const largura = colunas === 4 ? "25%" : "33.33%";
-    const diametro = colunas === 4 ? 46 : 48;
-    const iconSize = colunas === 4 ? 21 : 23;
+    const cfg = TILE_CONFIG[colunas];
+    const [selecionada, setSelecionada] = useState<BadgeType | null>(null);
 
     return (
         <View>
@@ -66,40 +78,51 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
                     </Text>
                 </View>
             ) : (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 14 }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 10 }}>
                     {recentes.map((badge) => {
                         const cor = BADGE_LEVEL_COLORS[badge.level];
                         return (
-                            <View key={badge.id} style={{ width: largura, alignItems: "center", gap: 7 }}>
-                                <View
-                                    style={{
-                                        width: diametro,
-                                        height: diametro,
-                                        borderRadius: diametro / 2,
-                                        backgroundColor: `${cor}24`,
-                                        borderWidth: 1,
-                                        borderColor: `${cor}59`,
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                    }}
-                                >
-                                    <IconeMedalha badgeId={badge.id} icon={badge.icon} size={iconSize} color={cor} />
+                            <TouchableOpacity
+                                key={badge.id}
+                                activeOpacity={0.75}
+                                onPress={() => setSelecionada(badge)}
+                                style={{
+                                    width: cfg.largura,
+                                    backgroundColor: HADES.surface,
+                                    borderWidth: 1,
+                                    borderColor: HADES.border,
+                                    borderRadius: 12,
+                                    paddingTop: 12,
+                                    paddingBottom: 10,
+                                    paddingHorizontal: 5,
+                                    alignItems: "center",
+                                    gap: 8,
+                                }}
+                            >
+                                <IconeMedalhaTile badgeId={badge.id} icon={badge.icon} size={cfg.arte} color={cor} />
+                                <View style={{ height: cfg.nomeLinha * 2, justifyContent: "center", alignSelf: "stretch" }}>
+                                    <Text
+                                        numberOfLines={2}
+                                        ellipsizeMode="tail"
+                                        style={{
+                                            fontSize: cfg.nomeFont,
+                                            fontWeight: "700",
+                                            lineHeight: cfg.nomeLinha,
+                                            textAlign: "center",
+                                            color: HADES.text,
+                                        }}
+                                    >
+                                        {badge.name}
+                                    </Text>
                                 </View>
-                                <Text
-                                    style={{
-                                        fontSize: 11,
-                                        color: HADES.textSecondary,
-                                        fontWeight: "500",
-                                        lineHeight: 14,
-                                        textAlign: "center",
-                                    }}
-                                    numberOfLines={2}
-                                >
-                                    {badge.name}
-                                </Text>
-                            </View>
+                            </TouchableOpacity>
                         );
                     })}
+
+                    {/* Células vazias para a última linha incompleta não esparramar pelo space-between */}
+                    {Array.from({ length: (colunas - (recentes.length % colunas)) % colunas }).map((_, i) => (
+                        <View key={`vazio-${i}`} style={{ width: cfg.largura }} />
+                    ))}
                 </View>
             )}
 
@@ -136,7 +159,7 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
                                                 justifyContent: "center",
                                             }}
                                         >
-                                            <IconeMedalha badgeId={badge.id} icon={badge.icon} size={15} color={cor} />
+                                            <IconeMedalha badgeId={badge.id} icon={badge.icon} size={18} color={cor} />
                                         </View>
                                         <Text
                                             style={{ flex: 1, fontSize: 13, color: "#e8e9ec", fontWeight: "500" }}
@@ -164,6 +187,14 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
                     </View>
                 </>
             )}
+
+            <DetalheMedalhaSheet
+                badge={selecionada}
+                isUnlocked
+                progress={1}
+                currentVal={selecionada?.requirementValue ?? 0}
+                onClose={() => setSelecionada(null)}
+            />
         </View>
     );
 }

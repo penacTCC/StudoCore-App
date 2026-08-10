@@ -206,6 +206,9 @@ export default function ScheduleScreen() {
             },
         });
 
+    const abrirRoadmapIA = () =>
+        router.push({ pathname: "/(modals)/gerar-roadmap", params: { escopo: "pessoal" } });
+
     const editarBloco = (bloco: BlocoDoDia) => {
         setBlocoEmAcao(null);
         router.push({ pathname: "/(modals)/novo-bloco", params: { blocoId: bloco.id } });
@@ -344,6 +347,7 @@ export default function ScheduleScreen() {
                     onAbrirMenu={setMenuPlanoId}
                     onNovoPlano={() => abrirEditor()}
                     onEditarPlano={(p: Plano) => abrirEditor(p.id)}
+                    onGerarComIA={abrirRoadmapIA}
                     onRecarregar={() => {
                         recarregarPlanos();
                         recarregarHoje();

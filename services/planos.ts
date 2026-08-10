@@ -33,6 +33,7 @@ function paraPlano(row: PlanoRow, blocos: { duracao_min: number }[]): Plano {
         duracaoTotal: formatarDuracao(duracaoTotalMin),
         agenda: paraAgendaPlano(row),
         publico: row.publico ?? false,
+        roadmapDeGrupo: !!(row.origem_grupo_id || row.origem_roadmap_plano_id),
     };
 }
 
@@ -58,12 +59,18 @@ export async function buscarPlanos(usuarioId: string): Promise<Plano[]> {
     );
 }
 
-/** Cria um novo plano, sem agenda definida ainda (fica "nenhuma" até o usuário fixar/agendar). */
+/**
+ * Cria um novo plano, sem agenda definida ainda (fica "nenhuma" até o usuário fixar/agendar).
+ *
+ * `origemGrupoId` (opcional) marca o plano como o canônico de um roadmap de grupo por IA —
+ * a fonte que a RPC `grupo_distribuir_roadmap` copia para os membros. Ver docs/plano-roadmap-ia.md.
+ */
 export async function criarPlano(
     usuarioId: string,
     nome: string,
     cor: string,
-    publico = false
+    publico = false,
+    origemGrupoId?: string
 ): Promise<ResultadoPlano> {
     const nomeLimpo = nome.trim();
     if (!nomeLimpo) {
@@ -72,7 +79,13 @@ export async function criarPlano(
 
     const { data, error } = await supabase
         .from("planos")
-        .insert({ usuario_id: usuarioId, nome: nomeLimpo, cor, publico })
+        .insert({
+            usuario_id: usuarioId,
+            nome: nomeLimpo,
+            cor,
+            publico,
+            ...(origemGrupoId ? { origem_grupo_id: origemGrupoId } : {}),
+        })
         .select()
         .single();
 
@@ -266,6 +279,7 @@ export async function duplicarPlano(usuarioId: string, planoId: string): Promise
             notificar: bloco.notificar,
             antecedencia_min: bloco.antecedencia_min,
             sessao_id: bloco.sessao_id,
+            dia_semana: bloco.dia_semana,
         });
     }
 

@@ -15,6 +15,7 @@ import MetaGrupo from "@/components/grupo/MetaGrupo";
 import RankingGrupo, { LinhaRanking } from "@/components/grupo/RankingGrupo";
 import CardSessaoGrupo, { FeedVazio } from "@/components/grupo/CardSessaoGrupo";
 import MembrosGrupo, { ConviteDestaque, CtaGruposPublicos, MembroCarrossel } from "@/components/grupo/MembrosGrupo";
+import RoadmapGrupo from "@/components/grupo/RoadmapGrupo";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 
 //Hooks
@@ -26,6 +27,7 @@ import { useSessoesAoVivo, useSessoesFoco } from "@/hooks/useSessoesFoco";
 import { useExtrasDoFeed } from "@/hooks/useExtrasDoFeed";
 import TituloDaSecao from "@/components/grupo/TituloDaSecao";
 import { buscarGrupoPorId, horasSemanaisGrupo } from "@/services/grupos";
+import { buscarProgressoRoadmapGrupo } from "@/services/roadmapIA";
 import { buscarRankingHorasMembros } from "@/services/ranking";
 import { RankingMembroComPerfil } from "@/types/ranking";
 import { LEADERBOARD_TABS, LeaderboardFilter, formatarMinutos } from "@/constants/ranking";
@@ -67,6 +69,14 @@ export default function AbaMeuGrupo() {
 
     const grupo = dadosGrupo?.grupo ?? null;
     const horasSemanaGrupo = dadosGrupo?.horas ?? 0;
+
+    // Progresso coletivo do roadmap: muda quando qualquer membro marca um bloco, então
+    // revalida sempre que a tela volta a focar (mesmo espírito da meta).
+    const { dados: progressoRoadmap, recarregar: recarregarRoadmap } = useDadosCache(
+        groupId ? `grupo-roadmap:${groupId}` : null,
+        () => buscarProgressoRoadmapGrupo(groupId as string),
+        { tempoFresco: 0 }
+    );
 
     //Pega os membros do grupo
     const { membros, carregando: carregandoMembros, recarregar: recarregarMembros } = useMembrosGrupo({ grupoId: groupId as string });
@@ -168,13 +178,14 @@ export default function AbaMeuGrupo() {
             await Promise.all([
                 recarregarGrupo(),
                 recarregarMembros(),
+                recarregarRoadmap(),
                 refreshSessions(),
                 refreshAoVivo(),
             ]);
         } finally {
             setAtualizandoTela(false);
         }
-    }, [groupId, recarregarGrupo, recarregarMembros, refreshSessions, refreshAoVivo]);
+    }, [groupId, recarregarGrupo, recarregarMembros, recarregarRoadmap, refreshSessions, refreshAoVivo]);
 
     //Cálculo do progresso do grupo
     const metaPorMembro = Number(Array.isArray(grupo?.meta_horas) ? grupo.meta_horas[0] : grupo?.meta_horas) || 0
@@ -286,6 +297,22 @@ export default function AbaMeuGrupo() {
                     horasFeitas={horasSemanaGrupo}
                     metaTotal={metaTotalGrupo}
                     metaPorMembro={metaPorMembro}
+                />
+
+                {/* Roadmap de estudos do grupo: os blocos de todo mundo e quem já cumpriu a semana. */}
+                <RoadmapGrupo
+                    progresso={progressoRoadmap}
+                    souAdmin={!!meuVinculo?.administrador}
+                    aoGerar={() =>
+                        router.push({
+                            pathname: "/(modals)/gerar-roadmap",
+                            params: {
+                                escopo: "grupo",
+                                grupoId: groupId as string,
+                                grupoNome: grupo?.nome_grupo ?? "",
+                            },
+                        })
+                    }
                 />
 
                 <RankingGrupo

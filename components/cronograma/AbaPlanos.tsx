@@ -13,6 +13,7 @@ import {
     ChevronLeft,
     ChevronRight,
     ClipboardList,
+    Sparkles,
 } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -48,6 +49,8 @@ type Props = {
     onNovoPlano: () => void;
     onEditarPlano: (plano: Plano) => void;
     onRecarregar: () => void;
+    /** Abre o fluxo de roadmap por IA (app/(modals)/gerar-roadmap.tsx). */
+    onGerarComIA: () => void;
 };
 
 export default function AbaPlanos({
@@ -59,6 +62,7 @@ export default function AbaPlanos({
     onNovoPlano,
     onEditarPlano,
     onRecarregar,
+    onGerarComIA,
 }: Props) {
     // Guardado à parte do menuAbertoId: as folhas de "aplicar a uma data" e
     // "fixar em dias" continuam abertas mesmo depois do menu de ações fechar.
@@ -169,7 +173,7 @@ export default function AbaPlanos({
     return (
         <View style={{ flex: 1 }}>
             {!carregando && planos.length === 0 ? (
-                <PlanosVazio onNovoPlano={onNovoPlano} />
+                <PlanosVazio onNovoPlano={onNovoPlano} onGerarComIA={onGerarComIA} />
             ) : (
                 <ScrollView
                     style={{ flex: 1 }}
@@ -398,36 +402,54 @@ export default function AbaPlanos({
                 </Pressable>
             </Modal>
 
-            {/* Novo plano */}
-            <TouchableOpacity
-                onPress={onNovoPlano}
-                activeOpacity={0.85}
-                style={{
-                    position: "absolute",
-                    right: 20,
-                    bottom: 24,
-                    height: 52,
-                    paddingHorizontal: 20,
-                    borderRadius: 26,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                    backgroundColor: HADES.accentSolid,
-                    shadowColor: HADES.accent,
-                    shadowOffset: { width: 0, height: 12 },
-                    shadowOpacity: 0.35,
-                    shadowRadius: 30,
-                    elevation: 10,
-                }}
-            >
-                <Plus size={19} color="#000" />
-                <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>Novo plano</Text>
-            </TouchableOpacity>
+            {/* Novo plano / Gerar com IA */}
+            <View style={{ position: "absolute", right: 20, bottom: 24, alignItems: "flex-end", gap: 10 }}>
+                <TouchableOpacity
+                    onPress={onGerarComIA}
+                    activeOpacity={0.85}
+                    style={{
+                        height: 48,
+                        paddingHorizontal: 18,
+                        borderRadius: 24,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                        backgroundColor: HADES.surfaceRaised,
+                        borderWidth: 1,
+                        borderColor: HADES.borderStrong,
+                    }}
+                >
+                    <Sparkles size={16} color={HADES.accentSolid} />
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: HADES.text }}>Gerar com IA</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={onNovoPlano}
+                    activeOpacity={0.85}
+                    style={{
+                        height: 52,
+                        paddingHorizontal: 20,
+                        borderRadius: 26,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                        backgroundColor: HADES.accentSolid,
+                        shadowColor: HADES.accent,
+                        shadowOffset: { width: 0, height: 12 },
+                        shadowOpacity: 0.35,
+                        shadowRadius: 30,
+                        elevation: 10,
+                    }}
+                >
+                    <Plus size={19} color="#000" />
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>Novo plano</Text>
+                </TouchableOpacity>
+            </View>
         </View>
     );
 }
 
-function PlanosVazio({ onNovoPlano }: { onNovoPlano: () => void }) {
+function PlanosVazio({ onNovoPlano, onGerarComIA }: { onNovoPlano: () => void; onGerarComIA: () => void }) {
     return (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40 }}>
             <View
@@ -461,10 +483,30 @@ function PlanosVazio({ onNovoPlano }: { onNovoPlano: () => void }) {
             </Text>
 
             <TouchableOpacity
+                onPress={onGerarComIA}
+                activeOpacity={0.85}
+                style={{
+                    marginTop: 14,
+                    height: 52,
+                    paddingHorizontal: 22,
+                    borderRadius: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    backgroundColor: HADES.surfaceRaised,
+                    borderWidth: 1,
+                    borderColor: HADES.borderStrong,
+                }}
+            >
+                <Sparkles size={18} color={HADES.accentSolid} />
+                <Text style={{ fontSize: 15, fontWeight: "700", color: HADES.text }}>Gerar meu primeiro com IA</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
                 onPress={onNovoPlano}
                 activeOpacity={0.85}
                 style={{
-                    marginTop: 26,
+                    marginTop: 14,
                     height: 52,
                     paddingHorizontal: 22,
                     borderRadius: 14,
