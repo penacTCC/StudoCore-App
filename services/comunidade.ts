@@ -100,6 +100,8 @@ type LinhaFeedGaleria = {
     curtidas: number;
     curtido_por_mim: boolean;
     comentarios: number;
+    /** Só a Galeria tem "salvar" — ver migration 20260813010000_comunidade_salvos. */
+    salvo_por_mim: boolean;
 };
 
 async function paginaGaleria(
@@ -130,6 +132,7 @@ async function paginaGaleria(
         materia: linha.disciplina || "Sessão de estudo",
         materiaCor: corDaMateria(linha.disciplina || ""),
         duracaoMinutos: linha.tempo_minutos ?? 0,
+        salvoPorMim: !!linha.salvo_por_mim,
     }));
 
     return { itens, acabou: linhas.length < limite };
@@ -523,6 +526,80 @@ export type AutorBloqueado = {
     foto: string | null;
     bloqueadoEm: string;
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Salvos — só Galeria. Arquivo e plano já têm cópia de verdade (adicionar aos meus
+// arquivos / importar plano); duplicar isso como "salvar" criaria dois jeitos de guardar
+// a mesma coisa. Ver comentário no topo de 20260813010000_comunidade_salvos.sql.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Salva ou remove uma foto da Galeria dos salvos. RLS recusa o que não está mais público. */
+export async function alternarSalvo(sessaoId: string, salvar: boolean): Promise<void> {
+    const userId = await usuarioAtual();
+
+    if (salvar) {
+        const { error } = await supabase
+            .from("comunidade_salvos")
+            .insert({ user_id: userId, sessao_id: sessaoId });
+        if (error && error.code !== "23505") throw new Error(error.message);
+        return;
+    }
+
+    const { error } = await supabase
+        .from("comunidade_salvos")
+        .delete()
+        .eq("user_id", userId)
+        .eq("sessao_id", sessaoId);
+    if (error) throw new Error(error.message);
+}
+
+type LinhaSalvoGaleria = LinhaFeedGaleria & { salvo_em: string };
+type PosicaoSalvo = { salvoEm: string; id: string };
+
+function lerCursorSalvo(bruto?: string | null): PosicaoSalvo | null {
+    if (!bruto) return null;
+    try {
+        return JSON.parse(bruto) as PosicaoSalvo;
+    } catch {
+        return null;
+    }
+}
+
+/** Página dos salvos do usuário logado — ordenada por quando ELE salvou, não pela data da sessão. */
+export async function buscarSalvos(opcoes: { cursor?: string | null }): Promise<PaginaDoFeed> {
+    const posicao = lerCursorSalvo(opcoes.cursor);
+
+    const { data, error } = await supabase.rpc("comunidade_salvos_galeria", {
+        p_limite: TAMANHO_PAGINA,
+        p_cursor_data: posicao?.salvoEm ?? null,
+        p_cursor_id: posicao?.id ?? null,
+    });
+
+    if (error) throw new Error(error.message);
+
+    const linhas = (data ?? []) as LinhaSalvoGaleria[];
+    const urlPorPath = await assinarCaminhosDeFoto(linhas.map((linha) => linha.foto_path));
+
+    const itens: PublicacaoGaleria[] = linhas.map((linha) => ({
+        ...comum("galeria", linha.sessao_id, linha),
+        tipo: "galeria",
+        fotoUrl: urlPorPath.get(linha.foto_path) ?? null,
+        legenda: linha.foto_legenda,
+        materia: linha.disciplina || "Sessão de estudo",
+        materiaCor: corDaMateria(linha.disciplina || ""),
+        duracaoMinutos: linha.tempo_minutos ?? 0,
+        salvoPorMim: true,
+    }));
+
+    const ultimo = linhas[linhas.length - 1];
+    const acabou = linhas.length < TAMANHO_PAGINA;
+
+    return {
+        itens,
+        proximoCursor:
+            acabou || !ultimo ? null : JSON.stringify({ salvoEm: ultimo.salvo_em, id: ultimo.sessao_id }),
+    };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prévia de um plano público

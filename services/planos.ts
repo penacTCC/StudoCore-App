@@ -1,5 +1,6 @@
 import { supabase } from "@/repositories/supabase";
 import { formatarDuracao, paraDataISO } from "@/utils/tempo";
+import { diaSemanaDe } from "@/services/agenda";
 import { sincronizarLembretesPlano, cancelarLembretesPlano } from "@/services/lembretes";
 import { toast } from "@/services/toast";
 import type {
@@ -8,6 +9,7 @@ import type {
     NovoBlocoPlano,
     Plano,
     PlanoRow,
+    ProximoBlocoPlano,
     ResultadoPlano,
 } from "@/types/cronograma";
 
@@ -23,8 +25,91 @@ function paraAgendaPlano(row: PlanoRow): AgendaPlano {
     return { tipo: "nenhuma" };
 }
 
-function paraPlano(row: PlanoRow, blocos: { duracao_min: number }[]): Plano {
+/** Bloco de um plano, já com a matéria embutida — o shape que a aba Roadmaps precisa. */
+type BlocoParaProgresso = {
+    id: string;
+    duracao_min: number;
+    tipo: BlocoPlano["tipo"];
+    dia_semana: number | null;
+    hora_inicio: string;
+    topico: string | null;
+    materias_usuario: { nome_exibicao: string; cor: string } | null;
+};
+
+/** Matérias distintas dos blocos de estudo, na ordem em que aparecem no dia. */
+function materiasDoPlano(blocos: BlocoParaProgresso[]): { nome: string; cor: string }[] {
+    const vistos = new Set<string>();
+    const materias: { nome: string; cor: string }[] = [];
+    for (const bloco of [...blocos].sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio))) {
+        if (bloco.tipo !== "estudo" || !bloco.materias_usuario) continue;
+        if (vistos.has(bloco.materias_usuario.nome_exibicao)) continue;
+        vistos.add(bloco.materias_usuario.nome_exibicao);
+        materias.push({ nome: bloco.materias_usuario.nome_exibicao, cor: bloco.materias_usuario.cor });
+    }
+    return materias;
+}
+
+function horaAtual(): string {
+    const agora = new Date();
+    return `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * O próximo bloco de estudo não concluído, considerando só blocos com `dia_semana` fixo
+ * que caem num dos dias em que o plano está fixado — sem isso o bloco não aparece na
+ * agenda de verdade (ver services/agenda.ts:paraBlocosDePlano), e destacar um "próximo"
+ * que não vai aparecer confundiria mais do que ajudaria. Ver §A do
+ * docs/plano-vault-roadmaps-salvos.md sobre por que isso fica de fora pra planos manuais.
+ */
+function calcularProximoBloco(
+    row: PlanoRow,
+    blocos: BlocoParaProgresso[],
+    concluidos: Set<string>,
+    hojeDia: number
+): ProximoBlocoPlano | null {
+    if (row.agenda_tipo !== "fixado" || !row.agenda_dias || row.agenda_dias.length === 0) return null;
+
+    const diasFixados = new Set(row.agenda_dias);
+    const agora = horaAtual();
+
+    let melhor: { offset: number; bloco: BlocoParaProgresso } | null = null;
+    for (const bloco of blocos) {
+        if (bloco.tipo !== "estudo" || bloco.dia_semana == null) continue;
+        if (concluidos.has(bloco.id) || !diasFixados.has(bloco.dia_semana)) continue;
+
+        let offset = (bloco.dia_semana - hojeDia + 7) % 7;
+        if (offset === 0 && bloco.hora_inicio <= agora) offset = 7;
+
+        if (
+            !melhor ||
+            offset < melhor.offset ||
+            (offset === melhor.offset && bloco.hora_inicio < melhor.bloco.hora_inicio)
+        ) {
+            melhor = { offset, bloco };
+        }
+    }
+
+    if (!melhor) return null;
+
+    const quando =
+        melhor.offset === 0 ? "hoje" : melhor.offset === 1 ? "amanhã" : DIAS_CURTOS[melhor.bloco.dia_semana!].toLowerCase();
+
+    return {
+        materia: melhor.bloco.materias_usuario?.nome_exibicao ?? "Estudo",
+        materiaCor: melhor.bloco.materias_usuario?.cor ?? "#8a8d96",
+        topico: melhor.bloco.topico,
+        quando: `${quando}, ${melhor.bloco.hora_inicio.slice(0, 5)}`,
+    };
+}
+
+function paraPlano(
+    row: PlanoRow & { importado_de?: { nome_usuario: string | null } | null },
+    blocos: BlocoParaProgresso[],
+    concluidos: Set<string> = new Set(),
+    hojeDia: number = diaSemanaDe(paraDataISO(new Date()))
+): Plano {
     const duracaoTotalMin = blocos.reduce((soma, b) => soma + b.duracao_min, 0);
+    const blocosDeEstudo = blocos.filter((b) => b.tipo === "estudo");
     return {
         id: row.id,
         nome: row.nome,
@@ -34,19 +119,32 @@ function paraPlano(row: PlanoRow, blocos: { duracao_min: number }[]): Plano {
         agenda: paraAgendaPlano(row),
         publico: row.publico ?? false,
         roadmapDeGrupo: !!(row.origem_grupo_id || row.origem_roadmap_plano_id),
+        geradoPorIA: !!row.gerado_por_ia,
+        importadoDeNome: row.importado_de?.nome_usuario ?? null,
+        materias: materiasDoPlano(blocos),
+        blocosConcluidos: blocosDeEstudo.filter((b) => concluidos.has(b.id)).length,
+        blocosEstudoTotal: blocosDeEstudo.length,
+        proximoBloco: calcularProximoBloco(row, blocos, concluidos, hojeDia),
     };
 }
 
+const SELECT_PLANO_COM_PROGRESSO =
+    "*, planos_blocos(id, duracao_min, tipo, dia_semana, hora_inicio, topico, materias_usuario(nome_exibicao, cor)), importado_de:profiles!planos_importado_de_usuario_id_fkey(nome_usuario)";
+
 /**
- * Busca os planos do usuário, já com quantidade de blocos e duração total somadas
- * a partir de planos_blocos.
+ * Busca os planos do usuário com progresso (blocos concluídos, próximo bloco, matérias e
+ * de quem foi importado) — é o que a aba Roadmaps do Vault mostra pra TODOS os planos, não
+ * só os de IA/grupo (o Cronograma nunca calculou progresso, só estrutura).
  */
 export async function buscarPlanos(usuarioId: string): Promise<Plano[]> {
-    const { data, error } = await supabase
-        .from("planos")
-        .select("*, planos_blocos(duracao_min)")
-        .eq("usuario_id", usuarioId)
-        .order("created_at", { ascending: false });
+    const [{ data, error }, concluidos] = await Promise.all([
+        supabase
+            .from("planos")
+            .select(SELECT_PLANO_COM_PROGRESSO)
+            .eq("usuario_id", usuarioId)
+            .order("created_at", { ascending: false }),
+        buscarBlocosConcluidosDoUsuario(usuarioId),
+    ]);
 
     if (error) {
         console.error("Erro ao buscar planos:", error.message);
@@ -54,9 +152,22 @@ export async function buscarPlanos(usuarioId: string): Promise<Plano[]> {
         return [];
     }
 
-    return (data as (PlanoRow & { planos_blocos: { duracao_min: number }[] })[]).map((row) =>
-        paraPlano(row, row.planos_blocos)
-    );
+    const hojeDia = diaSemanaDe(paraDataISO(new Date()));
+    return (data as (PlanoRow & {
+        planos_blocos: BlocoParaProgresso[];
+        importado_de: { nome_usuario: string | null } | null;
+    })[]).map((row) => paraPlano(row, row.planos_blocos, concluidos, hojeDia));
+}
+
+/** Todos os blocos que o usuário já marcou como concluídos, em qualquer plano dele. */
+async function buscarBlocosConcluidosDoUsuario(usuarioId: string): Promise<Set<string>> {
+    const { data, error } = await supabase
+        .from("planos_blocos_concluidos")
+        .select("bloco_id")
+        .eq("usuario_id", usuarioId);
+
+    if (error) return new Set();
+    return new Set((data as { bloco_id: string }[]).map((linha) => linha.bloco_id));
 }
 
 /**
@@ -64,13 +175,17 @@ export async function buscarPlanos(usuarioId: string): Promise<Plano[]> {
  *
  * `origemGrupoId` (opcional) marca o plano como o canônico de um roadmap de grupo por IA —
  * a fonte que a RPC `grupo_distribuir_roadmap` copia para os membros. Ver docs/plano-roadmap-ia.md.
+ *
+ * `geradoPorIa` (opcional, default false) marca o plano como criado por IA —
+ * é a flag que a aba Roadmaps do Vault usa para listar roadmaps (pessoais + grupo).
  */
 export async function criarPlano(
     usuarioId: string,
     nome: string,
     cor: string,
     publico = false,
-    origemGrupoId?: string
+    origemGrupoId?: string,
+    geradoPorIa = false
 ): Promise<ResultadoPlano> {
     const nomeLimpo = nome.trim();
     if (!nomeLimpo) {
@@ -84,6 +199,7 @@ export async function criarPlano(
             nome: nomeLimpo,
             cor,
             publico,
+            gerado_por_ia: geradoPorIa,
             ...(origemGrupoId ? { origem_grupo_id: origemGrupoId } : {}),
         })
         .select()
@@ -121,7 +237,7 @@ export async function atualizarPlano(
         .from("planos")
         .update(dados)
         .eq("id", planoId)
-        .select("*, planos_blocos(duracao_min)")
+        .select(SELECT_PLANO_COM_PROGRESSO)
         .single();
 
     if (error) {
@@ -129,15 +245,19 @@ export async function atualizarPlano(
         return { sucesso: false, erro: "Erro inesperado ao atualizar plano." };
     }
 
-    const row = data as PlanoRow & { planos_blocos: { duracao_min: number }[] };
-    return { sucesso: true, plano: paraPlano(row, row.planos_blocos) };
+    const row = data as PlanoRow & {
+        planos_blocos: BlocoParaProgresso[];
+        importado_de: { nome_usuario: string | null } | null;
+    };
+    const concluidos = await buscarBlocosConcluidosDoUsuario(row.usuario_id);
+    return { sucesso: true, plano: paraPlano(row, row.planos_blocos, concluidos) };
 }
 
 /** Busca um plano específico por id (usado ao abrir o editor pra edição). */
 export async function buscarPlanoPorId(planoId: string): Promise<Plano | null> {
     const { data, error } = await supabase
         .from("planos")
-        .select("*, planos_blocos(duracao_min)")
+        .select(SELECT_PLANO_COM_PROGRESSO)
         .eq("id", planoId)
         .single();
 
@@ -147,8 +267,12 @@ export async function buscarPlanoPorId(planoId: string): Promise<Plano | null> {
         return null;
     }
 
-    const row = data as PlanoRow & { planos_blocos: { duracao_min: number }[] };
-    return paraPlano(row, row.planos_blocos);
+    const row = data as PlanoRow & {
+        planos_blocos: BlocoParaProgresso[];
+        importado_de: { nome_usuario: string | null } | null;
+    };
+    const concluidos = await buscarBlocosConcluidosDoUsuario(row.usuario_id);
+    return paraPlano(row, row.planos_blocos, concluidos);
 }
 
 /**
@@ -203,7 +327,7 @@ export async function aplicarPlanoData(
         .from("planos")
         .update({ agenda_tipo: "data", agenda_dias: null, agenda_data: data })
         .eq("id", planoId)
-        .select("*, planos_blocos(duracao_min)")
+        .select(SELECT_PLANO_COM_PROGRESSO)
         .single();
 
     if (error) {
@@ -213,8 +337,12 @@ export async function aplicarPlanoData(
 
     await ressincronizarLembretesDoPlano(planoId);
 
-    const linha = row as PlanoRow & { planos_blocos: { duracao_min: number }[] };
-    return { sucesso: true, plano: paraPlano(linha, linha.planos_blocos) };
+    const linha = row as PlanoRow & {
+        planos_blocos: BlocoParaProgresso[];
+        importado_de: { nome_usuario: string | null } | null;
+    };
+    const concluidos = await buscarBlocosConcluidosDoUsuario(linha.usuario_id);
+    return { sucesso: true, plano: paraPlano(linha, linha.planos_blocos, concluidos) };
 }
 
 /** Atalho de `aplicarPlanoData` pra hoje. */
@@ -232,7 +360,7 @@ export async function fixarPlanoEmDias(planoId: string, dias: number[]): Promise
         .from("planos")
         .update({ agenda_tipo: "fixado", agenda_dias: dias, agenda_data: null })
         .eq("id", planoId)
-        .select("*, planos_blocos(duracao_min)")
+        .select(SELECT_PLANO_COM_PROGRESSO)
         .single();
 
     if (error) {
@@ -248,8 +376,12 @@ export async function fixarPlanoEmDias(planoId: string, dias: number[]): Promise
 
     await ressincronizarLembretesDoPlano(planoId);
 
-    const linha = row as PlanoRow & { planos_blocos: { duracao_min: number }[] };
-    return { sucesso: true, plano: paraPlano(linha, linha.planos_blocos) };
+    const linha = row as PlanoRow & {
+        planos_blocos: BlocoParaProgresso[];
+        importado_de: { nome_usuario: string | null } | null;
+    };
+    const concluidos = await buscarBlocosConcluidosDoUsuario(linha.usuario_id);
+    return { sucesso: true, plano: paraPlano(linha, linha.planos_blocos, concluidos) };
 }
 
 /** Duplica um plano e os blocos dele como um novo plano solto, sem agenda. */

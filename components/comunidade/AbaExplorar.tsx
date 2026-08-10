@@ -53,6 +53,9 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
         tentarDeNovo,
         carregarMais,
         curtir,
+        salvar,
+        adicionarArquivo,
+        adicionandoArquivoId,
         bloquear,
         ajustarContagemDeComentarios,
     } = useFeedComunidade(filtro);
@@ -199,11 +202,14 @@ export default function AbaExplorar({ temGrupo }: { temGrupo: boolean }) {
                     <CardPublicacao
                         publicacao={item}
                         ocupado={ocupada === item.id}
+                        adicionando={adicionandoArquivoId === item.id}
                         onCurtir={() => curtir(item)}
+                        onSalvar={() => salvar(item)}
                         onComentar={() => setComentariosDe(item)}
                         onAbrirMenu={() => setMenuAberto(item)}
                         onVerPlano={() => abrirPrevia(item)}
                         onBaixarArquivo={() => baixarArquivo(item)}
+                        onAdicionarArquivo={() => adicionarArquivo(item)}
                     />
                 )}
             />

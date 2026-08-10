@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { alternarCurtida, bloquearAutor, buscarFeedComunidade } from "@/services/comunidade";
+import { alternarCurtida, alternarSalvo, bloquearAutor, buscarFeedComunidade } from "@/services/comunidade";
+import { adicionarArquivoDaComunidadeAosMeus } from "@/services/archives";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/services/toast";
 import type { FiltroComunidade, Publicacao } from "@/types/comunidade";
 
@@ -13,6 +15,7 @@ import type { FiltroComunidade, Publicacao } from "@/types/comunidade";
  * que ganho. Trocar o filtro reinicia a lista.
  */
 export function useFeedComunidade(filtro: FiltroComunidade) {
+    const { userId } = useAuth();
     const [itens, setItens] = useState<Publicacao[]>([]);
     const [cursor, setCursor] = useState<string | null>(null);
     const [carregando, setCarregando] = useState(true);
@@ -124,6 +127,56 @@ export function useFeedComunidade(filtro: FiltroComunidade) {
         );
     }, []);
 
+    /**
+     * Salvar otimista: o Bookmark responde na hora e volta atrás se o servidor recusar.
+     * Só existe pra Galeria — `referenciaId` de uma publicação de galeria é o `sessao_id`.
+     */
+    const salvar = useCallback((publicacao: Publicacao) => {
+        if (publicacao.tipo !== "galeria") return;
+
+        const anterior = publicacao.salvoPorMim;
+        const passaASalvar = !publicacao.salvoPorMim;
+
+        setItens((atuais) =>
+            atuais.map((item) =>
+                item.id === publicacao.id ? { ...item, salvoPorMim: passaASalvar } : item
+            )
+        );
+
+        alternarSalvo(publicacao.referenciaId, passaASalvar).catch(() => {
+            setItens((atuais) =>
+                atuais.map((item) =>
+                    item.id === publicacao.id ? { ...item, salvoPorMim: anterior } : item
+                )
+            );
+            toast.error("Não deu para salvar a publicação.");
+        });
+    }, []);
+
+    const [adicionandoArquivoId, setAdicionandoArquivoId] = useState<string | null>(null);
+
+    /** "Adicionar aos meus arquivos" — baixa e reenvia os bytes, então tem loading de verdade. */
+    const adicionarArquivo = useCallback(
+        async (publicacao: Publicacao) => {
+            if (publicacao.tipo !== "arquivo" || !userId || !publicacao.storagePath) return;
+
+            setAdicionandoArquivoId(publicacao.id);
+            try {
+                await adicionarArquivoDaComunidadeAosMeus(userId, {
+                    storagePath: publicacao.storagePath,
+                    titulo: publicacao.nomeArquivo,
+                    disciplina: publicacao.materia,
+                });
+                toast.success("Adicionado aos seus arquivos.");
+            } catch {
+                toast.error("Não deu para adicionar esse arquivo agora.");
+            } finally {
+                setAdicionandoArquivoId(null);
+            }
+        },
+        [userId]
+    );
+
     return {
         itens,
         carregando,
@@ -135,6 +188,9 @@ export function useFeedComunidade(filtro: FiltroComunidade) {
         tentarDeNovo,
         carregarMais,
         curtir,
+        salvar,
+        adicionarArquivo,
+        adicionandoArquivoId,
         bloquear,
         ajustarContagemDeComentarios,
     };

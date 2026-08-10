@@ -59,7 +59,7 @@ type Props = {
     desbloqueadas: number;
     total: number;
     onVerTodas?: () => void;
-    /** Colunas da grade de medalhas recentes: 3 no próprio perfil (3×2), 4 no de outro usuário. */
+    /** Colunas da grade de medalhas recentes: 3 (3×2) no próprio perfil e no de outro usuário. */
     colunas?: 2 | 3 | 4;
 };
 
@@ -100,7 +100,7 @@ export default function CardMedalhas({ recentes, proximas, desbloqueadas, total,
                                 }}
                             >
                                 <IconeMedalhaTile badgeId={badge.id} icon={badge.icon} size={cfg.arte} color={cor} />
-                                <View style={{ height: cfg.nomeLinha * 2, justifyContent: "center", alignSelf: "stretch" }}>
+                                <View style={{ height: cfg.nomeLinha * 2 + 2, justifyContent: "center", alignSelf: "stretch" }}>
                                     <Text
                                         numberOfLines={2}
                                         ellipsizeMode="tail"

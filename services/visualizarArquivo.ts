@@ -7,7 +7,7 @@ import { getAuthenticatedDownloadUrl } from "@/services/backblaze";
 import { toast } from "@/services/toast";
 
 /** mimeType a partir da extensão, pro sistema saber com qual app abrir. */
-function tipoDoArquivo(nome: string) {
+export function tipoDoArquivo(nome: string) {
     const extensao = nome.split(".").pop()?.toLowerCase();
     if (extensao === "pdf") return "application/pdf";
     if (extensao === "png") return "image/png";

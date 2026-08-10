@@ -171,7 +171,7 @@ export default function FileDetailModal({
                 style={{
                     width: "100%",
                     backgroundColor: HADES.modalBg,
-                    borderTopWidth: 1,
+                    borderTopWidth: 3,
                     borderColor: HADES.border,
                     borderTopLeftRadius: 32,
                     borderTopRightRadius: 32,
@@ -234,7 +234,6 @@ export default function FileDetailModal({
                         divider
                     />
                     <InfoRow label="Tipo de Arquivo" value={(fileType || "").toUpperCase()} divider />
-                    <InfoRow label="ID do Documento" value={`${detalheArquivo?.id?.substring(0, 18)}...`} divider mono />
 
                     {/* Exibe os grupos se o arquivo foi enviado pelo usuário atual e estiver em algum grupo */}
                     {currentUser?.id === detalheArquivo?.user_id && sentGroupsNames.length > 0 && (

@@ -1,6 +1,7 @@
 import { supabase } from "@/repositories/supabase";
-import { uploadFileToB2 } from "@/services/backblaze";
-import { File as FileClass } from "expo-file-system";
+import { uploadFileToB2, getAuthenticatedDownloadUrl } from "@/services/backblaze";
+import { tipoDoArquivo } from "@/services/visualizarArquivo";
+import { File as FileClass, Paths } from "expo-file-system";
 import { decode } from "base64-arraybuffer";
 import { ArquivoDetalhe, ArquivoGrupoLink, DeletaRegistroProps, UploadArquivoParams } from "@/types/archives";
 
@@ -64,6 +65,53 @@ export async function uploadArquivo({
     if (error) throw error;
   }
 
+  return novoArquivo;
+}
+
+/**
+ * "Adicionar aos meus arquivos" — botão do card de arquivo na Comunidade.
+ *
+ * Baixa os bytes do arquivo publicado e reenvia pro Backblaze sob um caminho novo, em vez
+ * de só criar uma segunda linha em `arquivos` apontando pro mesmo `storage_path`: o delete
+ * de arquivo (`archive-details.tsx`) apaga o arquivo físico do bucket junto com a linha, e
+ * duas linhas compartilhando o mesmo arquivo físico faria a exclusão de uma delas destruir
+ * o arquivo da outra pessoa. É o mesmo raciocínio de "copiar, não referenciar" que
+ * `comunidade_importar_plano` já usa pra planos.
+ */
+export async function adicionarArquivoDaComunidadeAosMeus(
+  userId: string,
+  origem: { storagePath: string; titulo: string; disciplina: string | null }
+) {
+  const urlAutenticada = await getAuthenticatedDownloadUrl(origem.storagePath);
+  const nomeOriginal = origem.storagePath.split("/").pop() || origem.titulo;
+  const arquivoLocal = new FileClass(Paths.cache, `copia-${Date.now()}-${nomeOriginal}`);
+
+  const baixado = await FileClass.downloadFileAsync(urlAutenticada, arquivoLocal, { idempotent: true });
+  if (!baixado.exists) throw new Error("Não foi possível baixar o arquivo original.");
+
+  const base64 = baixado.base64Sync();
+  const disciplina = origem.disciplina || "Geral";
+  const nomeFormatado = origem.titulo.replace(/[^a-zA-Z0-9.]/g, "_");
+  const caminhoArquivo = `${disciplina}/private/${Date.now()}_${nomeFormatado}`;
+
+  const upload = await uploadFileToB2(caminhoArquivo, tipoDoArquivo(nomeOriginal), decode(base64));
+  const uploadData = await upload.json();
+
+  const { data: novoArquivo, error } = await supabase
+    .from("arquivos")
+    .insert({
+      user_id: userId,
+      titulo: nomeFormatado,
+      disciplina,
+      storage_path: caminhoArquivo,
+      backblaze_file_id: uploadData.fileId,
+      publico: false,
+      tamanho_bytes: baixado.size ?? null,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
   return novoArquivo;
 }
 

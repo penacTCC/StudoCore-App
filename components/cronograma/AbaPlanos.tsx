@@ -428,7 +428,7 @@ export default function AbaPlanos({
                     activeOpacity={0.85}
                     style={{
                         height: 52,
-                        paddingHorizontal: 20,
+                        paddingHorizontal: 15,
                         borderRadius: 26,
                         flexDirection: "row",
                         alignItems: "center",
@@ -441,8 +441,7 @@ export default function AbaPlanos({
                         elevation: 10,
                     }}
                 >
-                    <Plus size={19} color="#000" />
-                    <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>Novo plano</Text>
+                    <Plus size={24} color="#000" />
                 </TouchableOpacity>
             </View>
         </View>

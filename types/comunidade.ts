@@ -54,6 +54,12 @@ export type PublicacaoGaleria = PublicacaoBase & {
     materia: string;
     materiaCor: string;
     duracaoMinutos: number;
+    /**
+     * Só a Galeria tem "salvar" — arquivo e plano já têm uma cópia de verdade
+     * ("Adicionar aos meus arquivos" / "Importar plano"), então não precisam de um
+     * segundo jeito de guardar. Ver migration 20260813010000_comunidade_salvos.
+     */
+    salvoPorMim: boolean;
 };
 
 export type PublicacaoArquivo = PublicacaoBase & {

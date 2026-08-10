@@ -54,6 +54,18 @@ export type AgendaPlano =
     | { tipo: "data"; data: string }
     | { tipo: "nenhuma" };
 
+/** Uma matéria do plano, resumida pro chip do card ("Matemática", cor azul). */
+export type MateriaResumoPlano = { nome: string; cor: string };
+
+/** O próximo bloco de estudo não concluído do plano, já resolvido pro card da aba Roadmaps. */
+export type ProximoBlocoPlano = {
+    materia: string;
+    materiaCor: string;
+    topico: string | null;
+    /** "hoje, 19:00" / "amanhã, 08:00" / "qua, 07:30" — já formatado pro card. */
+    quando: string;
+};
+
 export type Plano = {
     id: string;
     nome: string;
@@ -68,6 +80,23 @@ export type Plano = {
      * Os blocos dele ganham o toggle de "concluído" que alimenta o progresso coletivo.
      */
     roadmapDeGrupo: boolean;
+    /** Plano gerado por IA (roadmap pessoal ou de grupo). Usado pela aba Roadmaps do Vault. */
+    geradoPorIA: boolean;
+    /** Nome de quem publicou o plano original — só quando este plano veio de "Importar" na Comunidade. */
+    importadoDeNome: string | null;
+    /** Matérias distintas dos blocos de estudo, na ordem em que aparecem no dia. */
+    materias: MateriaResumoPlano[];
+    /** Quantos blocos de estudo (não descanso) o dono já marcou como concluídos. */
+    blocosConcluidos: number;
+    /** Total de blocos de estudo — denominador de `blocosConcluidos` (qtdBlocos inclui descanso). */
+    blocosEstudoTotal: number;
+    /**
+     * Só calculado quando o plano está fixado em dias (`agenda.tipo === "fixado"`) e tem
+     * blocos com `dia_semana` — a estrutura por dia de um roadmap. Um plano manual, sem
+     * dia por bloco, não tem um "próximo" único pra destacar (o bloco vale todo dia da
+     * agenda), então fica `null`.
+     */
+    proximoBloco: ProximoBlocoPlano | null;
 };
 
 /** Linha de `planos` — chaves batem com as colunas da tabela. */
@@ -84,6 +113,10 @@ export type PlanoRow = {
     /** Planos de roadmap de grupo — ver migration 20260811090000_roadmap_ia.sql. */
     origem_grupo_id: string | null;
     origem_roadmap_plano_id: string | null;
+    /** Plano gerado por IA (roadmap pessoal ou de grupo) — ver migration 20260813000000. */
+    gerado_por_ia: boolean;
+    /** Autor original, só na cópia que comunidade_importar_plano cria — ver migration 20260813000000. */
+    importado_de_usuario_id: string | null;
 };
 
 /** Resultado padronizado de operações do service de planos. */

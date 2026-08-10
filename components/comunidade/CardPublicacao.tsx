@@ -4,9 +4,11 @@ import {
     Ellipsis,
     Eye,
     FileText,
+    FolderArchive,
     Heart,
     Image as ImageIcon,
     MessageCircle,
+    Bookmark,
 } from "@/components/ui/icons";
 
 import Avatar from "@/components/ui/Avatar";
@@ -25,19 +27,28 @@ export default function CardPublicacao({
     publicacao,
     onCurtir,
     onComentar,
+    onSalvar,
     onAbrirMenu,
     onVerPlano,
     onBaixarArquivo,
+    onAdicionarArquivo,
     ocupado = false,
+    adicionando = false,
 }: {
     publicacao: Publicacao;
     onCurtir: () => void;
     onComentar: () => void;
+    /** Só chamado pra publicações da Galeria — arquivo e plano não têm "salvar". */
+    onSalvar: () => void;
     onAbrirMenu: () => void;
     onVerPlano: () => void;
     onBaixarArquivo: () => void;
+    /** "Adicionar aos meus arquivos" — só pra publicações de arquivo. */
+    onAdicionarArquivo: () => void;
     /** Baixar leva segundos e sai do app; sem isso o toque parece perdido. */
     ocupado?: boolean;
+    /** A cópia pro Vault também leva um tempo (baixa e reenvia os bytes). */
+    adicionando?: boolean;
 }) {
     return (
         <View
@@ -179,18 +190,32 @@ export default function CardPublicacao({
                                     {descreverArquivo(publicacao.extensao, publicacao.tamanhoBytes)}
                                 </Text>
                             </View>
-                            <TouchableOpacity
-                                onPress={onBaixarArquivo}
-                                disabled={ocupado}
-                                activeOpacity={0.7}
-                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
-                            >
-                                {ocupado ? (
-                                    <ActivityIndicator size="small" color={HADES.textSecondary} />
-                                ) : (
-                                    <Download size={18} color={HADES.textSecondary} />
-                                )}
-                            </TouchableOpacity>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                                <TouchableOpacity
+                                    onPress={onBaixarArquivo}
+                                    disabled={ocupado}
+                                    activeOpacity={0.7}
+                                    hitSlop={{ top: 12, bottom: 12, left: 8, right: 4 }}
+                                >
+                                    {ocupado ? (
+                                        <ActivityIndicator size="small" color={HADES.textSecondary} />
+                                    ) : (
+                                        <Download size={18} color={HADES.textSecondary} />
+                                    )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={onAdicionarArquivo}
+                                    disabled={adicionando}
+                                    activeOpacity={0.7}
+                                    hitSlop={{ top: 12, bottom: 12, left: 4, right: 8 }}
+                                >
+                                    {adicionando ? (
+                                        <ActivityIndicator size="small" color={HADES.accentSolid} />
+                                    ) : (
+                                        <FolderArchive size={18} color={HADES.accentSolid} />
+                                    )}
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </>
                 )}
@@ -301,6 +326,9 @@ export default function CardPublicacao({
                         onPress={onCurtir}
                     />
                     <Reacao Icone={MessageCircle} valor={publicacao.comentarios} onPress={onComentar} />
+                    {publicacao.tipo === "galeria" && (
+                        <Reacao Icone={Bookmark} ativo={publicacao.salvoPorMim} onPress={onSalvar} />
+                    )}
                 </View>
             </View>
         </View>
@@ -320,7 +348,7 @@ function Reacao({
     onPress,
 }: {
     Icone: typeof Heart;
-    valor: number;
+    valor?: number;
     ativo?: boolean;
     onPress: () => void;
 }) {
@@ -333,7 +361,9 @@ function Reacao({
             style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
         >
             <Icone size={16} color={cor} fill={ativo ? HADES.accentSolid : "transparent"} />
+            {valor !== undefined && (
             <Text style={{ fontSize: 12.5, color: cor, fontWeight: "600" }}>{valor}</Text>
+            )}
         </TouchableOpacity>
     );
 }

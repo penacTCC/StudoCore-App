@@ -137,7 +137,7 @@ export default function MemberProfileScreen() {
         : "...";
 
     const unlockedBadges = APP_BADGES.filter((b) => profile?.medalhas_desbloqueadas?.includes(b.id));
-    const medalhasRecentes = unlockedBadges.slice(-8);
+    const medalhasRecentes = unlockedBadges.slice(-6);
 
     // Progresso da meta semanal a partir das sessões públicas já carregadas (RLS filtra as privadas de outro usuário).
     const inicioDaSemana = getInicioDaSemana();
@@ -391,7 +391,7 @@ function EstatisticasConteudo({
             </View>
             <View style={{ height: 1, backgroundColor: HADES.border, marginVertical: 20 }} />
 
-            <CardMedalhas recentes={medalhasRecentes} desbloqueadas={medalhasRecentes.length} total={totalBadges} colunas={4} />
+            <CardMedalhas recentes={medalhasRecentes} desbloqueadas={medalhasRecentes.length} total={totalBadges} colunas={3} />
         </View>
     );
 }
