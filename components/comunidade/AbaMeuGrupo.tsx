@@ -11,11 +11,11 @@ import { router, useLocalSearchParams } from "expo-router";
 import { HADES } from "@/constants/hades";
 
 //Componentes
-import MetaGrupo from "@/components/grupo/MetaGrupo";
+import MetaRoadmapGrupo from "@/components/grupo/MetaRoadmapGrupo";
 import RankingGrupo, { LinhaRanking } from "@/components/grupo/RankingGrupo";
 import CardSessaoGrupo, { FeedVazio } from "@/components/grupo/CardSessaoGrupo";
 import MembrosGrupo, { ConviteDestaque, CtaGruposPublicos, MembroCarrossel } from "@/components/grupo/MembrosGrupo";
-import RoadmapGrupo from "@/components/grupo/RoadmapGrupo";
+
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 
 //Hooks
@@ -292,15 +292,10 @@ export default function AbaMeuGrupo() {
 
                 {grupoSozinho && podeConvidar && <ConviteDestaque onConvidar={abrirConvite} />}
 
-                <MetaGrupo
+                <MetaRoadmapGrupo
                     percentual={progressoPercentual}
                     horasFeitas={horasSemanaGrupo}
                     metaTotal={metaTotalGrupo}
-                    metaPorMembro={metaPorMembro}
-                />
-
-                {/* Roadmap de estudos do grupo: os blocos de todo mundo e quem já cumpriu a semana. */}
-                <RoadmapGrupo
                     progresso={progressoRoadmap}
                     souAdmin={!!meuVinculo?.administrador}
                     aoGerar={() =>
@@ -539,25 +534,52 @@ function HomeSkeleton() {
                 */}
                 <View style={{ paddingBottom: 14 }} />
 
-                {/* Meta do grupo */}
+                {/* Meta da semana + roadmap, no molde do novo cartão único */}
                 <View
                     style={{
+                        backgroundColor: HADES.surface,
                         borderWidth: 1,
                         borderColor: HADES.border,
                         borderRadius: 16,
-                        paddingVertical: 15,
-                        paddingHorizontal: 16,
+                        overflow: "hidden",
                         marginBottom: 18,
                     }}
                 >
                     <View
-                        style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 11 }}
+                        style={{
+                            paddingVertical: 15,
+                            paddingHorizontal: 16,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 14,
+                        }}
                     >
-                        <Skeleton width={100} height={14} hades />
-                        <Skeleton width={82} height={13} hades />
+                        <SkeletonCircle size={46} hades />
+                        <View style={{ flex: 1, gap: 6 }}>
+                            <Skeleton width={108} height={10} hades />
+                            <Skeleton width={112} height={20} hades />
+                        </View>
+                        <View style={{ alignItems: "flex-end", gap: 6 }}>
+                            <Skeleton width={42} height={16} hades />
+                            <Skeleton width={48} height={10} hades />
+                        </View>
                     </View>
-                    <Skeleton width="100%" height={9} borderRadius={5} hades />
-                    <Skeleton width={120} height={12} hades style={{ marginTop: 9 }} />
+                    <View style={{ height: 1, backgroundColor: HADES.border }} />
+                    <View
+                        style={{
+                            paddingVertical: 12,
+                            paddingHorizontal: 16,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                        }}
+                    >
+                        <View style={{ flex: 1, gap: 6 }}>
+                            <Skeleton width={64} height={10} hades />
+                            <Skeleton width={150} height={14} hades />
+                        </View>
+                        <Skeleton width={88} height={11} hades />
+                    </View>
                 </View>
 
                 {/* Ranking: título + pílula de filtro, e o pódio compacto com as barras */}
