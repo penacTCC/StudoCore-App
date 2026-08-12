@@ -9,7 +9,7 @@
 //
 // O que o app recebe no lugar da chave mestra:
 //   - upload:   uma URL de upload do próprio B2, temporária e válida para um envio
-//   - download: um link assinado com validade de 1 hora
+//   - download: um link assinado com validade de 1 hora, só se a RLS deixar ler o arquivo
 //   - exclusão: nada — quem apaga é esta função, depois de conferir que o arquivo é seu
 //
 // O arquivo em si nunca passa por aqui: o app envia direto para a URL que o B2 devolveu.
@@ -120,10 +120,32 @@ Deno.serve(async (req: Request) => {
 
     /* ── download ────────────────────────────────────────────────────────────────────
        Link assinado válido por 1 hora, com o prefixo preso ao arquivo pedido — um token
-       gerado para um PDF não abre os outros.                                            */
+       gerado para um PDF não abre os outros.
+
+       A consulta usa o client do usuário de propósito — o contrário da exclusão logo
+       abaixo, e pelo mesmo motivo de fundo: a pergunta aqui é "esta pessoa pode LER este
+       arquivo?", e a policy de SELECT de `arquivos` já é exatamente essa definição (dono,
+       membro de um grupo com quem foi compartilhado, ou público de autor não bloqueado).
+       Deixar a RLS responder evita reescrever os três braços aqui e sair de sincronia
+       quando a policy mudar. Na exclusão o raciocínio se inverte: lá a decisão não pode
+       depender de uma policy de leitura que pode ser afrouxada.
+
+       Sem esta checagem, qualquer conta logada que descobrisse um `storagePath` recebia
+       link de download válido por 1 hora para arquivo privado alheio.                    */
     if (acao === "urlDownload") {
       const storagePath = corpo?.storagePath as string | undefined;
       if (!storagePath) return jsonResponse({ ok: false, error: "Informe 'storagePath'." }, 400);
+
+      // Linha escondida pela RLS e linha inexistente devolvem o mesmo 404 de propósito:
+      // separar os dois casos confirmaria a existência de um arquivo alheio a quem chutou
+      // o caminho, que é justamente o que esta checagem existe para impedir.
+      const { data: arquivo } = await clienteUsuario
+        .from("arquivos")
+        .select("id")
+        .eq("storage_path", storagePath)
+        .maybeSingle();
+
+      if (!arquivo) return jsonResponse({ ok: false, error: "Arquivo não encontrado." }, 404);
 
       const auth = await autorizar();
       const res = await fetch(`${auth.apiUrl}/b2api/v3/b2_get_download_authorization`, {
