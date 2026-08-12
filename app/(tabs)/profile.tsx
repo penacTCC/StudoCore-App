@@ -57,12 +57,12 @@ function Divider() {
     return <View style={{ height: 1, backgroundColor: HADES.border, marginVertical: 22 }} />;
 }
 
-function StatColuna({ Icone, valor, rotulo, apagado }: { Icone?: typeof Flame; valor: string; rotulo: string; apagado?: boolean }) {
+function StatColuna({ Icone, valor, rotulo, apagado, corIcone }: { Icone?: typeof Flame; valor: string; rotulo: string; apagado?: boolean; corIcone?: string }) {
     const cor = apagado ? "#3a3d45" : HADES.text;
     return (
         <View style={{ flex: 1, alignItems: "center" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                {Icone && <Icone size={16} color={cor} />}
+                {Icone && <Icone size={16} color={corIcone ?? cor} />}
                 <Text style={{ fontSize: 21, fontWeight: "700", color: cor, letterSpacing: -0.5 }}>{valor}</Text>
             </View>
             <Text style={{ fontSize: 11, color: HADES.textFaint, marginTop: 3 }}>{rotulo}</Text>
@@ -372,14 +372,14 @@ export default function ProfileScreen() {
                 <View
                     style={{
                         flexDirection: "row", alignItems: "stretch", marginTop: 22, paddingVertical: 16,
-                        
+
                     }}
                 >
                     <StatColuna valor={`${stats.totalHours}h`} rotulo="estudadas" apagado={usuarioNovo} />
                     <View style={{ width: 1, backgroundColor: HADES.border }} />
                     <StatColuna valor={stats.totalQuestions.toLocaleString("pt-BR")} rotulo="questões" apagado={usuarioNovo} />
                     <View style={{ width: 1, backgroundColor: HADES.border }} />
-                    <StatColuna Icone={Flame} valor={String(melhorOfensiva)} rotulo="melhor ofensiva" apagado={usuarioNovo} />
+                    <StatColuna Icone={Flame} corIcone={HADES.accentSolid} valor={String(melhorOfensiva)} rotulo="melhor ofensiva" apagado={usuarioNovo} />
                 </View>
 
                 {/* Meta semanal */}
@@ -393,7 +393,7 @@ export default function ProfileScreen() {
                                 style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             >
-                                
+
                             </TouchableOpacity>
                         )}
                     </View>
@@ -442,11 +442,10 @@ export default function ProfileScreen() {
                             style={{
                                 flexDirection: "row", alignItems: "center", gap: 4,
                                 backgroundColor: HADES.surfaceOverlay, borderRadius: 8,
-                                paddingVertical: 5, paddingHorizontal: 10,
+                                paddingVertical: 5, paddingHorizontal: 7,
                             }}
                         >
-                            <Maximize2 size={11} color={HADES.textSecondary} />
-                            <Text style={{ fontSize: 11.5, color: HADES.textSecondary, fontWeight: "600" }}>Expandir</Text>
+                            <Maximize2 size={13} color={HADES.textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -530,60 +529,58 @@ export default function ProfileScreen() {
                 )}
                 <Divider />
 
-                {/* Meus Grupos */}
-                <TouchableOpacity
-                    onPress={() => router.push("/(groups)")}
-                    activeOpacity={0.7}
-                    style={{ flexDirection: "row", alignItems: "center", gap: 13 }}
-                >
-                    <View
+                {/* Acessos rápidos — o par de pílulas, como no painel da Comunidade. */}
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                    <TouchableOpacity
+                        onPress={() => router.push("/(groups)")}
+                        activeOpacity={0.75}
                         style={{
-                            width: 40, height: 40, borderRadius: 12,
-                            backgroundColor: HADES.groupVioletTint, alignItems: "center", justifyContent: "center",
+                            flex: 1,
+                            height: 62,
+                            borderRadius: 22,
+                            backgroundColor: '#101014',
+                            borderWidth: 1,
+                            borderColor: "rgba(255,255,255,0.03)",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
                         }}
                     >
-                        <Users size={20} color={HADES.groupViolet} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.text }}>
-                            Meus grupos
-                        </Text>
-                        <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 1 }}>
-                            {usuarioNovo ? "Você ainda não faz parte de nenhum" : "Gerencie seus grupos"}
-                        </Text>
-                    </View>
-                    <ChevronRight size={18} color={HADES.textDim} />
-                </TouchableOpacity>
+                            <Users size={20} color={HADES.textSecondary} />
+                            <Text style={{ fontSize: 12.5, fontWeight: "600", color: HADES.text }}>
+                                Meus grupos
+                            </Text>
+                    </TouchableOpacity>
 
-                {/*
-                  Meus arquivos morava num botão do cabeçalho da Comunidade, dentro do
-                  grupo aberto — mas o acervo é do usuário e reúne todos os grupos de uma
-                  vez, então ficava prometendo menos do que entrega. Aqui fica junto do
-                  resto que é da conta, e o cabeçalho da Comunidade perdeu um botão.
-                */}
-                <TouchableOpacity
-                    onPress={() => router.push("/(tabs)/vault")}
-                    activeOpacity={0.7}
-                    style={{ flexDirection: "row", alignItems: "center", gap: 13, marginTop: 20 }}
-                >
-                    <View
+                    {/*
+                      Meus arquivos morava num botão do cabeçalho da Comunidade, dentro do
+                      grupo aberto — mas o acervo é do usuário e reúne todos os grupos de uma
+                      vez, então ficava prometendo menos do que entrega. Aqui fica junto do
+                      resto que é da conta, e o cabeçalho da Comunidade perdeu um botão.
+                    */}
+                    <TouchableOpacity
+                        onPress={() => router.push("/(tabs)/vault")}
+                        activeOpacity={0.75}
                         style={{
-                            width: 40, height: 40, borderRadius: 12,
-                            backgroundColor: HADES.accentTint, alignItems: "center", justifyContent: "center",
+                            flex: 1,
+                            height: 62,
+                            borderRadius: 22,
+                            backgroundColor: '#101014',
+                            borderWidth: 1,
+                            borderColor: "rgba(255,255,255,0.03)",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
                         }}
                     >
-                        <FolderArchive size={20} color={HADES.accentSolid} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.text }}>
+                            <FolderArchive size={20} color={HADES.textSecondary} />
+                        <Text style={{ fontSize: 12.5, fontWeight: "600", color: HADES.text }}>
                             Meus arquivos
                         </Text>
-                        <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 1 }}>
-                            Materiais seus e dos seus grupos
-                        </Text>
-                    </View>
-                    <ChevronRight size={18} color={HADES.textDim} />
-                </TouchableOpacity>
+                    </TouchableOpacity>
+                </View>
 
                 {/*
                   Sair da conta e excluir conta moravam aqui, soltas no fim da rolagem.

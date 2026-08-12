@@ -472,32 +472,39 @@ function CardEncerrado({
 
                     <Text style={{ fontSize: 11.5, color: HADES.textDim, marginTop: 2 }} numberOfLines={1}>
                         {autoria.nome}
-                        {autoria.complemento} · {formatarMomento(sessao.created_at)}
+                        {autoria.complemento}
+                        {fotoUrl ? (
+                            /*
+                              Com foto o resultado entra na linha de autoria: a miniatura ocupa a
+                              direita e o card não cresce além do cartão sem foto. A duração vem
+                              antes do momento para o corte por truncamento atingir o que menos
+                              importa.
+                            */
+                            <>
+                                {" · "}
+                                <Text style={{ fontWeight: "700", color: HADES.textMuted }}>{duracao}</Text>
+                                {temPlacar && (
+                                    <Text style={{ fontWeight: "700", color: sessao.destaque ? HADES.accentSolid : HADES.textMuted }}>
+                                        {" · "}
+                                        {sessao.questoes_acertadas}/{sessao.questoes_respondidas}
+                                    </Text>
+                                )}
+                                {" · "}
+                                {formatarMomento(sessao.created_at)}
+                            </>
+                        ) : (
+                            <>
+                                {" · "}
+                                {formatarMomento(sessao.created_at)}
+                            </>
+                        )}
                     </Text>
-
-                    {/*
-                      Com foto, o resultado desce para cá: a miniatura ocupa a direita. Sem
-                      foto ele fica na coluna da direita, alinhado, que lê mais rápido.
-                    */}
-                    {fotoUrl && (
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
-                            <Text style={{ fontSize: 13, fontWeight: "800", color: HADES.textMuted }}>
-                                {duracao}
-                            </Text>
-                            {temPlacar && (
-                                <>
-                                    <Text style={{ fontSize: 13, color: HADES.textDim }}>·</Text>
-                                    {placar}
-                                </>
-                            )}
-                        </View>
-                    )}
                 </View>
 
                 {fotoUrl ? (
                     <Image
                         source={{ uri: fotoUrl }}
-                        style={{ width: 58, height: 58, borderRadius: 12, backgroundColor: HADES.surfaceOverlay }}
+                        style={{ width: 46, height: 46, borderRadius: 11, backgroundColor: HADES.surfaceOverlay }}
                         resizeMode="cover"
                     />
                 ) : (

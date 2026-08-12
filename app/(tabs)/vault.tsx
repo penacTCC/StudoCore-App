@@ -52,6 +52,7 @@ import type { Publicacao } from "@/types/comunidade";
 import UploadVaultModal from "@/app/(modals)/upload-vault";
 import FileDetailModal from "@/app/(modals)/archive-details";
 import { Skeleton } from "@/components/ui/Skeleton";
+import type { IconeComponente } from "@/components/ui/icons";
 
 import { useArchives } from "@/hooks/useArchives";
 import { useAuth } from "@/hooks/useAuth";
@@ -88,6 +89,46 @@ function tempoRelativo(dataISO: string): string {
 function extensao(path: string | null): string {
     if (!path) return "";
     return path.split(".").pop()?.toLowerCase() ?? "";
+}
+
+type ArquivosVazioProps = {
+    Icone: IconeComponente;
+    titulo: string;
+    descricao: string;
+};
+
+/**
+ * Estado vazio da aba Arquivos, no mesmo padrão da aba Salvos: ícone grande,
+ * título em negrito e uma frase de apoio — sem CTA.
+ */
+function ArquivosVazio({ Icone, titulo, descricao }: ArquivosVazioProps) {
+    return (
+        <View style={{ alignItems: "center", paddingVertical: 10, paddingHorizontal: 12 }}>
+            <Icone size={48} color={HADES.dot} />
+            <Text
+                style={{
+                    fontSize: 16,
+                    fontWeight: "700",
+                    color: HADES.textMuted,
+                    marginTop: 16,
+                    textAlign: "center",
+                }}
+            >
+                {titulo}
+            </Text>
+            <Text
+                style={{
+                    fontSize: 13,
+                    color: HADES.textDim,
+                    marginTop: 6,
+                    textAlign: "center",
+                    lineHeight: 20,
+                }}
+            >
+                {descricao}
+            </Text>
+        </View>
+    );
 }
 
 interface FileRowProps {
@@ -574,6 +615,10 @@ export default function VaultScreen() {
     const mostrarMeus = filtro === "todos" || filtro === "meus";
     const mostrarGrupo = filtro === "todos" || filtro === "grupo";
 
+    /** Sem nenhum arquivo salvo de verdade (nem próprios, nem do grupo) — não confundir com busca sem resultado. */
+    const vazioTotal = !carregandoArquivos && (archives || []).length === 0;
+    const pesquisando = searchQuery.trim().length > 0;
+
     // Filtros de origem, seguindo a navegação entre seções do design.
     const FILTROS_ARQUIVOS: { key: FiltroArquivo; label: string; Icone: typeof User }[] = [
         { key: "todos", label: "Todos", Icone: Folder },
@@ -629,7 +674,11 @@ export default function VaultScreen() {
 
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 120 }}
+                contentContainerStyle={
+                    vazioTotal && filtro === "todos"
+                        ? { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40 }
+                        : { paddingHorizontal: 18, paddingBottom: 120 }
+                }
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                     <RefreshControl
@@ -639,102 +688,112 @@ export default function VaultScreen() {
                     />
                 }
             >
-                {mostrarMeus && (
+                {vazioTotal && filtro === "todos" ? (
+                    <ArquivosVazio
+                        Icone={Folder}
+                        titulo="Seu Vault ainda está vazio"
+                        descricao="Adicione suas anotações, PDFs e materiais — e também aparecem aqui os arquivos que o grupo compartilhar."
+                    />
+                ) : (
                     <>
-                        {/* Cabeçalho: título + contagem + "Ver tudo" */}
-                        <View
-                            style={{
-                              width: 'auto',
-                              flexDirection: "row",
-                              alignItems: "baseline",
-                              justifyContent: "space-between",
-                              marginVertical: 8,
-                              paddingHorizontal: 4,
-                          }}
-                        >
-                            <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
-                                Meus arquivos{" "}
-                            </Text>
-                            <Text style={{ color: HADES.textFaint, fontWeight: "600", fontSize: 12.5 }}>{myFiles.length}</Text>
-                        </View>
+                        {mostrarMeus && (
+                            <>
+                                {/* Cabeçalho: título + contagem + "Ver tudo" */}
+                                <View
+                                    style={{
+                                        width: 'auto',
+                                        flexDirection: "row",
+                                        alignItems: "baseline",
+                                        justifyContent: "space-between",
+                                        marginVertical: 8,
+                                        paddingHorizontal: 4,
+                                    }}
+                                >
+                                    <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
+                                        Meus arquivos{" "}
+                                    </Text>
+                                    <Text style={{ color: HADES.textFaint, fontWeight: "600", fontSize: 12.5 }}>{myFiles.length}</Text>
+                                </View>
 
-                        {/* Linhas de arquivo, só com divisórias entre elas */}
-                        {myFiles.length > 0 ? (
-                            myFiles.map((file, i) => (
-                                <Fragment key={file.id}>
-                                    {i > 0 && <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.05)" }} />}
-                                    <FileRow file={file} onPress={() => setSelectedFileForDetail(file)} />
-                                </Fragment>
-                            ))
-                        ) : (
-                            <View style={{ paddingVertical: 18, alignItems: "center" }}>
-                                <Text style={{ fontSize: 12.5, color: HADES.textDim }}>
-                                    Você ainda não enviou nenhum arquivo
-                                </Text>
-                            </View>
+                                {/* Linhas de arquivo, só com divisórias entre elas */}
+                                {myFiles.length > 0 ? (
+                                    myFiles.map((file, i) => (
+                                        <Fragment key={file.id}>
+                                            {i > 0 && <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.05)" }} />}
+                                            <FileRow file={file} onPress={() => setSelectedFileForDetail(file)} />
+                                        </Fragment>
+                                    ))
+                                ) : !pesquisando ? (
+                                    <ArquivosVazio
+                                        Icone={Folder}
+                                        titulo="Você ainda não enviou nenhum arquivo"
+                                        descricao="Faça upload de PDFs, imagens e anotações pra estudar direto do Vault."
+                                    />
+                                ) : null}
+                            </>
+                        )}
+
+                        {mostrarGrupo && (
+                            <>
+                                {/* Cabeçalho "Do grupo" com o selo de cada grupo */}
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        marginTop: 18,
+                                        marginBottom: 8,
+                                        paddingHorizontal: 4,
+                                        flexWrap: "wrap",
+                                    }}
+                                >
+                                    <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
+                                        Do grupo
+                                    </Text>
+                                    {grupos
+                                        .filter((g: any) => getGroupFiles(g.id).length > 0)
+                                        .map((g: any) => (
+                                            <View
+                                                key={g.id}
+                                                style={{
+                                                    flexDirection: "row",
+                                                    alignItems: "center",
+                                                    gap: 5,
+                                                    backgroundColor: "rgba(77,148,255,0.10)",
+                                                    borderRadius: 7,
+                                                    paddingHorizontal: 8,
+                                                    paddingVertical: 3,
+                                                }}
+                                            >
+                                                <Users size={11} color={HADES.subjectBlue} />
+                                                <Text style={{ fontSize: 10.5, color: HADES.subjectBlue, fontWeight: "600" }}>
+                                                    {g.nome_grupo}
+                                                </Text>
+                                            </View>
+                                        ))}
+                                </View>
+
+                                {/* Linhas de arquivo do grupo, só com divisórias entre elas */}
+                                {arquivosDosGrupos.length > 0 ? (
+                                    arquivosDosGrupos.map((file, i) => (
+                                        <Fragment key={file.id}>
+                                            {i > 0 && <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.05)" }} />}
+                                            <FileRow file={file} showAvatar onPress={() => setSelectedFileForDetail(file)} />
+                                        </Fragment>
+                                    ))
+                                ) : !pesquisando ? (
+                                    <ArquivosVazio
+                                        Icone={Users}
+                                        titulo="Nenhum arquivo compartilhado no grupo ainda"
+                                        descricao="Quando alguém do grupo compartilhar um arquivo, ele aparece aqui."
+                                    />
+                                ) : null}
+                            </>
                         )}
                     </>
                 )}
 
-                {mostrarGrupo && (
-                    <>
-                        {/* Cabeçalho "Do grupo" com o selo de cada grupo */}
-                        <View
-                            style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                gap: 8,
-                                marginTop: 18,
-                                marginBottom: 8,
-                                paddingHorizontal: 4,
-                                flexWrap: "wrap",
-                            }}
-                        >
-                            <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text, letterSpacing: -0.2 }}>
-                                Do grupo
-                            </Text>
-                            {grupos
-                                .filter((g: any) => getGroupFiles(g.id).length > 0)
-                                .map((g: any) => (
-                                    <View
-                                        key={g.id}
-                                        style={{
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            gap: 5,
-                                            backgroundColor: "rgba(77,148,255,0.10)",
-                                            borderRadius: 7,
-                                            paddingHorizontal: 8,
-                                            paddingVertical: 3,
-                                        }}
-                                    >
-                                        <Users size={11} color={HADES.subjectBlue} />
-                                        <Text style={{ fontSize: 10.5, color: HADES.subjectBlue, fontWeight: "600" }}>
-                                            {g.nome_grupo}
-                                        </Text>
-                                    </View>
-                                ))}
-                        </View>
-
-                        {/* Linhas de arquivo do grupo, só com divisórias entre elas */}
-                        {arquivosDosGrupos.length > 0 ? (
-                            arquivosDosGrupos.map((file, i) => (
-                                <Fragment key={file.id}>
-                                    {i > 0 && <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.05)" }} />}
-                                    <FileRow file={file} showAvatar onPress={() => setSelectedFileForDetail(file)} />
-                                </Fragment>
-                            ))
-                        ) : (
-                            <View style={{ paddingVertical: 18, alignItems: "center" }}>
-                                <Text style={{ fontSize: 12.5, color: HADES.textDim }}>
-                                    Nenhum arquivo compartilhado no grupo ainda
-                                </Text>
-                            </View>
-                        )}
-                    </>
-                )}
-
-                {!carregandoArquivos && filteredFiles.length === 0 && (
+                {!carregandoArquivos && pesquisando && filteredFiles.length === 0 && (
                     <View style={{ alignItems: "center", paddingVertical: 32 }}>
                         <Text style={{ color: HADES.textMuted, fontWeight: "600" }}>Nenhum arquivo encontrado</Text>
                         <Text style={{ fontSize: 13, color: HADES.textDim, marginTop: 4 }}>

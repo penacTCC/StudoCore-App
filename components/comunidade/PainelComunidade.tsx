@@ -321,7 +321,7 @@ export default function PainelComunidade({
                                             paddingHorizontal: 14,
                                             paddingVertical: 11,
                                             borderTopWidth: i === 0 ? 0 : 1,
-                                            borderTopColor: HADES.border,
+                                            borderTopColor: 'rgba(255,255,255,0.03)',
                                         }}
                                     >
                                         <FotoDoGrupo foto={grupo.foto_grupo} size={32} />
@@ -454,7 +454,7 @@ function Cartao({ children }: { children: React.ReactNode }) {
             style={{
                 backgroundColor: HADES.surfaceRaised,
                 borderWidth: 1,
-                borderColor: HADES.border,
+                borderColor: 'rgba(255,255,255,0.03)',
                 borderRadius: 16,
                 overflow: "hidden",
                 marginBottom: 4,
@@ -502,16 +502,16 @@ function Pilula({
             style={{
                 flex: 1,
                 height: 52,
-                borderRadius: 15,
+                borderRadius: 22,
                 backgroundColor: HADES.surfaceRaised,
                 borderWidth: 1,
-                borderColor: HADES.border,
+                borderColor: 'rgba(255,255,255,0.03)',
                 alignItems: "center",
                 justifyContent: "center",
             }}
         >
             <BadgeContagem contagem={contagem ?? 0}>
-                <Icone size={20} color={HADES.textSecondary} />
+                <Icone size={21} color={HADES.textSecondary} />
             </BadgeContagem>
         </TouchableOpacity>
     );
@@ -543,7 +543,7 @@ function ItemFeed({
                 paddingHorizontal: 16,
                 paddingVertical: 17,
                 borderTopWidth: separador ? 1 : 0,
-                borderTopColor: HADES.border,
+                borderTopColor: 'rgba(255,255,255,0.03)',
             }}
         >
             <Text
@@ -586,7 +586,7 @@ function Acao({
                 paddingHorizontal: 14,
                 paddingVertical: 13,
                 borderTopWidth: separador ? 1 : 0,
-                borderTopColor: HADES.border,
+                borderTopColor: 'rgba(255,255,255,0.03)',
             }}
         >
             <Icone size={17} color={HADES.textMuted} />

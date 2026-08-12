@@ -185,7 +185,6 @@ export function ExplorarVazio({
                         borderRadius: 12,
                         borderWidth: 1,
                         borderColor: HADES.accentTintBorder,
-                        backgroundColor: HADES.accentTint,
                     }}
                 >
                     <Text style={{ fontSize: 13.5, fontWeight: "700", color: HADES.accentSolid }}>
