@@ -121,12 +121,12 @@ export const observarForcasRecebidas = (
                 const incentivo = payload.new as Incentivo;
 
                 // O payload do realtime não traz o JOIN com profiles — busca o nome de quem
-                // mandou pra montar o texto da notificação.
-                const { data: perfil } = await supabase
-                    .from("profiles")
-                    .select("nome_usuario, nome_real")
-                    .eq("id", incentivo.remetente_id)
-                    .maybeSingle();
+                // mandou pra montar o texto da notificação. `profiles` só é legível pelo
+                // dono agora, então isso passa pela RPC `perfil_nome_publico` em vez de
+                // consultar a tabela direto (ver migration 20260814020000).
+                const { data: perfis } = await supabase
+                    .rpc("perfil_nome_publico", { p_user_id: incentivo.remetente_id });
+                const perfil = perfis?.[0];
 
                 aoReceber({
                     nomeRemetente: perfil?.nome_usuario || perfil?.nome_real || "Alguém",

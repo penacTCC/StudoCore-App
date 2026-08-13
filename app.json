@@ -28,8 +28,7 @@
       "permissions": [
         "POST_NOTIFICATIONS",
         "READ_CONTACTS",
-        "android.permission.READ_CONTACTS",
-        "android.permission.WRITE_CONTACTS"
+        "android.permission.READ_CONTACTS"
       ]
     },
     "web": {

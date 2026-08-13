@@ -17,6 +17,8 @@
 // Deploy: `supabase functions deploy gerar-quiz-foco`
 // Secret: `supabase secrets set GEMINI_API_KEY=<sua-chave>`
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -155,6 +157,29 @@ function extrairTexto(dadosGemini: unknown): string | null {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
+  }
+
+  // O `verify_jwt` da plataforma só confere que a requisição tem um JWT válido assinado
+  // pelo projeto — e a anon key É um desses JWTs. Sem isso aqui, qualquer app com a anon
+  // key (todo APK) gera quiz sem login, consumindo a cota do Gemini de graça.
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: "Não autenticado." }), {
+      status: 401,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+  const clienteUsuario = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authHeader } } }
+  );
+  const { data: { user }, error: erroUsuario } = await clienteUsuario.auth.getUser();
+  if (erroUsuario || !user) {
+    return new Response(JSON.stringify({ error: "Não autenticado." }), {
+      status: 401,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
   }
 
   try {
