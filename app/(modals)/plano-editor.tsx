@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { GripVertical, Coffee, Plus, ChevronDown, ChevronRight, Check, Trash2, Timer, Share2 } from "@/components/ui/icons";
+import { Coffee, Plus, ChevronDown, ChevronRight, Check, Trash2, Timer, Share2 } from "@/components/ui/icons";
 import { HADES, CORES_PLANO } from "@/constants/hades";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatarDuracao } from "@/utils/tempo";
@@ -179,41 +179,59 @@ export default function PlanoEditorScreen() {
             return;
         }
 
-        const ordenados = [...blocos].sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
         const novos: BlocoEditor[] = [];
         // Descansos que já começam onde um bloco termina — evita duplicar a cada
         // toque no botão quando o descanso emendado não deixa folga nenhuma.
         const iniciosDeDescanso = new Set(
-            blocos.filter((b) => b.tipo === "descanso").map((b) => b.horaInicio)
+            blocos.filter((b) => b.tipo === "descanso").map((b) => `${b.diaSemana ?? "todos"}:${b.horaInicio}`)
         );
 
-        for (let i = 0; i < ordenados.length - 1; i++) {
-            const atual = ordenados[i];
-            const proximo = ordenados[i + 1];
-            // Só entre dois estudos de matérias diferentes — se já há um descanso
-            // no meio, ele é quem separa os dois e não cabe outro.
-            if (atual.tipo !== "estudo" || proximo.tipo !== "estudo") continue;
-            if (atual.materiaId === proximo.materiaId) continue;
+        // Cada dia da semana é uma linha do tempo independente — mesma convenção usada
+        // no cálculo de `conflitos` acima. Blocos de dias diferentes (ou sem dia vs. com
+        // dia) nunca são "vizinhos": comparar os horários deles direto misturava matérias
+        // de dias distintos, criando descansos indevidos (ou pulando um par legítimo por
+        // causa de uma folga negativa que não existe de verdade).
+        const grupos = new Map<number | "sem-dia", BlocoEditor[]>();
+        for (const b of blocos) {
+            const chave = b.diaSemana ?? "sem-dia";
+            const lista = grupos.get(chave) ?? [];
+            lista.push(b);
+            grupos.set(chave, lista);
+        }
 
-            const fimAtual = paraMinutos(atual.horaInicio) + atual.duracaoMin;
-            const inicioProximo = paraMinutos(proximo.horaInicio);
-            const folga = inicioProximo - fimAtual;
-            if (folga < 0) continue; // já se sobrepõem: um descanso aqui só pioraria o conflito
+        for (const [diaSemana, blocosDoDia] of grupos) {
+            const ordenados = [...blocosDoDia].sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
 
-            const horaInicio = paraHoraMin(fimAtual);
-            if (iniciosDeDescanso.has(horaInicio)) continue;
-            iniciosDeDescanso.add(horaInicio);
+            for (let i = 0; i < ordenados.length - 1; i++) {
+                const atual = ordenados[i];
+                const proximo = ordenados[i + 1];
+                // Só entre dois estudos de matérias diferentes — se já há um descanso
+                // no meio, ele é quem separa os dois e não cabe outro.
+                if (atual.tipo !== "estudo" || proximo.tipo !== "estudo") continue;
+                if (atual.materiaId === proximo.materiaId) continue;
 
-            novos.push({
-                id: `novo-${Date.now()}-descanso-${i}`,
-                persistido: false,
-                horaInicio,
-                // Encaixa na folga quando ela existe, pra não invadir o bloco seguinte.
-                duracaoMin: folga > 0 ? Math.min(folga, duracaoPadrao) : duracaoPadrao,
-                tipo: "descanso",
-                notificar: false,
-                antecedenciaMin: null,
-            });
+                const fimAtual = paraMinutos(atual.horaInicio) + atual.duracaoMin;
+                const inicioProximo = paraMinutos(proximo.horaInicio);
+                const folga = inicioProximo - fimAtual;
+                if (folga < 0) continue; // já se sobrepõem: um descanso aqui só pioraria o conflito
+
+                const horaInicio = paraHoraMin(fimAtual);
+                const chaveDescanso = `${diaSemana}:${horaInicio}`;
+                if (iniciosDeDescanso.has(chaveDescanso)) continue;
+                iniciosDeDescanso.add(chaveDescanso);
+
+                novos.push({
+                    id: `novo-${Date.now()}-descanso-${diaSemana}-${i}`,
+                    persistido: false,
+                    horaInicio,
+                    // Encaixa na folga quando ela existe, pra não invadir o bloco seguinte.
+                    duracaoMin: folga > 0 ? Math.min(folga, duracaoPadrao) : duracaoPadrao,
+                    tipo: "descanso",
+                    notificar: false,
+                    antecedenciaMin: null,
+                    diaSemana: atual.diaSemana,
+                });
+            }
         }
 
         if (novos.length === 0) {
@@ -326,11 +344,19 @@ export default function PlanoEditorScreen() {
         | { tipo: "individual"; bloco: BlocoEditor }
         | { tipo: "sessao"; sessaoId: string; blocos: BlocoEditor[] };
 
-    // Agrupa por sessaoId (não por posição — a lista pode ser reordenada/editada).
+    // Agrupa por sessaoId (não por posição). A lista em si não é reordenável — não há
+    // drag-and-drop implementado, só a alça decorativa — então a ordem exibida segue
+    // sempre dia da semana e horário, e não a ordem de inserção dos blocos.
     const itensAgrupados = useMemo<ItemLista[]>(() => {
+        const ordenados = [...blocos].sort((a, b) => {
+            const diaA = a.diaSemana ?? -1;
+            const diaB = b.diaSemana ?? -1;
+            if (diaA !== diaB) return diaA - diaB;
+            return a.horaInicio.localeCompare(b.horaInicio);
+        });
         const vistos = new Set<string>();
         const itens: ItemLista[] = [];
-        for (const bloco of blocos) {
+        for (const bloco of ordenados) {
             if (bloco.sessaoId) {
                 if (vistos.has(bloco.sessaoId)) continue;
                 vistos.add(bloco.sessaoId);
@@ -844,7 +870,6 @@ function LinhaBloco({
                 }}
             >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
-                    <GripVertical size={16} color={HADES.grip} />
                     <Coffee size={16} color={HADES.green} />
                     <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.textSecondary }}>
@@ -859,7 +884,7 @@ function LinhaBloco({
                     </TouchableOpacity>
                 </View>
                 {conflitaCom && (
-                    <Text style={{ fontSize: 11, color: HADES.amber, marginTop: 8, marginLeft: 27 }}>
+                    <Text style={{ fontSize: 11, color: HADES.amber, marginTop: 8 }}>
                         Conflita com {conflitaCom}
                     </Text>
                 )}
@@ -879,7 +904,6 @@ function LinhaBloco({
             }}
         >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
-                <GripVertical size={16} color={HADES.grip} />
                 <View style={{ flex: 1 }}>
                     <Text
                         style={{
@@ -905,7 +929,7 @@ function LinhaBloco({
                 </TouchableOpacity>
             </View>
             {conflitaCom && (
-                <Text style={{ fontSize: 11, color: HADES.amber, marginTop: 8, marginLeft: 27 }}>
+                <Text style={{ fontSize: 11, color: HADES.amber, marginTop: 8 }}>
                     Conflita com {conflitaCom}
                 </Text>
             )}

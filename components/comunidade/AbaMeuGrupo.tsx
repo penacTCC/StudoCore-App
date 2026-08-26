@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 //Componentes de Native
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
@@ -53,7 +53,7 @@ export default function AbaMeuGrupo() {
       voltava, o que deixava a meta piscando. Uma chave só, buscada em paralelo, resolve
       as duas coisas.
     */
-    const { dados: dadosGrupo, recarregar: recarregarGrupo } = useDadosCache(
+    const { dados: dadosGrupo, recarregar: recarregarGrupo, erro: erroGrupo } = useDadosCache(
         groupId ? `grupo-home:${groupId}` : null,
         async () => {
             const [grupo, horas] = await Promise.all([
@@ -69,6 +69,29 @@ export default function AbaMeuGrupo() {
 
     const grupo = dadosGrupo?.grupo ?? null;
     const horasSemanaGrupo = dadosGrupo?.horas ?? 0;
+
+    /*
+      Sem isto, uma primeira busca que falhava (rede ainda instável logo depois do login,
+      por exemplo) deixava `grupo` nulo pra sempre — e como `carregandoTela` abaixo só olha
+      pra `!grupo`, a home ficava travada no skeleton indefinidamente. Só saía voltando pra
+      outra aba e de volta, o que refoca a tela e dá mais uma chance pro `useFocusEffect` do
+      cache tentar de novo. Aqui a mesma nova tentativa acontece sozinha, sem precisar sair
+      da tela — limitada, pra não virar um loop insistindo contra uma queda de rede de
+      verdade.
+    */
+    const tentativasGrupoRef = useRef(0);
+    useEffect(() => {
+        if (grupo || !erroGrupo) {
+            tentativasGrupoRef.current = 0;
+            return;
+        }
+        if (tentativasGrupoRef.current >= 3) return;
+        tentativasGrupoRef.current += 1;
+        const id = setTimeout(() => {
+            recarregarGrupo();
+        }, 1500);
+        return () => clearTimeout(id);
+    }, [erroGrupo, grupo, recarregarGrupo]);
 
     // Progresso coletivo do roadmap: muda quando qualquer membro marca um bloco, então
     // revalida sempre que a tela volta a focar (mesmo espírito da meta).

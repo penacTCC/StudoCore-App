@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl, TextInput } from "react-native";
 import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { ChevronRight, AlertCircle, BookOpen, Clock, Timer, Layers, Search, Play, Edit, Trash2, SlidersHorizontal, Check } from "@/components/ui/icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -12,6 +12,9 @@ import { useAnalisePessoal } from "@/hooks/useAnalisePessoal";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
 import { formatarHoras } from "@/lib/analytics";
+import { excluirSessaoFoco } from "@/services/sessions";
+import { confirm } from "@/services/confirm";
+import { toast } from "@/services/toast";
 import { SessaoFocoRow } from "@/types/sessions";
 import { taxaDeAcerto, totalQuestoes } from "@/utils/estatisticasSessao";
 import { paraDataISO, somarDias } from "@/utils/tempo";
@@ -73,12 +76,47 @@ export default function BrainScreen() {
 
     const { userId } = useAuth();
     const [selectedForm, setSelectedForm] = useState<SelectedForm>(null);
+    const [buscaBancoDeDados, setBuscaBancoDeDados] = useState("");
     const router = useRouter();
     const { materiasComCores } = useMaterias(userId);
 
     // Uma única leitura alimenta as duas abas: `analise` (números da aba Análise,
     // escopo pessoal) e as sessões cruas (aba Banco de dados).
-    const { analise, savedSessions, pendingSessions, loading: carregandoAnalise, refresh: refreshAnalisePessoal } = useAnalisePessoal(userId, comecoSemana);
+    const { analise, savedSessions: todasSavedSessions, pendingSessions: todasPendingSessions, loading: carregandoAnalise, refresh: refreshAnalisePessoal } = useAnalisePessoal(userId, comecoSemana);
+
+    // Filtro por matéria ou tópico — aplicado nas duas abas (Salvos e Pendentes).
+    const termoBusca = buscaBancoDeDados.trim().toLowerCase();
+    const filtrarPorBusca = useCallback(
+        (lista: SessaoFocoRow[]) =>
+            termoBusca
+                ? lista.filter(
+                      (s) =>
+                          s.disciplina?.toLowerCase().includes(termoBusca) ||
+                          s.conteudo_especifico?.toLowerCase().includes(termoBusca)
+                  )
+                : lista,
+        [termoBusca]
+    );
+    const savedSessions = useMemo(() => filtrarPorBusca(todasSavedSessions), [filtrarPorBusca, todasSavedSessions]);
+    const pendingSessions = useMemo(() => filtrarPorBusca(todasPendingSessions), [filtrarPorBusca, todasPendingSessions]);
+
+    const excluirPendente = (form: SessaoFocoRow) => {
+        confirm({
+            title: "Excluir formulário",
+            message: `Remover o registro pendente de "${form.disciplina}"? Essa ação não pode ser desfeita.`,
+            confirmText: "Excluir",
+            destructive: true,
+            onConfirm: async () => {
+                const { error } = await excluirSessaoFoco(form.id);
+                if (error) {
+                    console.error("Erro ao excluir sessão pendente:", error);
+                    toast.error("Não foi possível excluir esse registro.");
+                    return;
+                }
+                await refreshAnalisePessoal();
+            },
+        });
+    };
 
     //------Cálculos e funções para os gráficos dessa tela------
     const {
@@ -392,9 +430,13 @@ export default function BrainScreen() {
                                 }}
                             >
                                 <Search size={16} color="#5f636c" style={{ opacity: 0.5 }} />
-                                <Text style={{ fontSize: 13.5, color: "#5f636c" }}>
-                                    Buscar matéria ou tópico
-                                </Text>
+                                <TextInput
+                                    value={buscaBancoDeDados}
+                                    onChangeText={setBuscaBancoDeDados}
+                                    placeholder="Buscar matéria ou tópico"
+                                    placeholderTextColor="#5f636c"
+                                    style={{ flex: 1, padding: 0, fontSize: 13.5, color: HADES.text }}
+                                />
                             </View>
                         </View>
 
@@ -596,6 +638,8 @@ export default function BrainScreen() {
                                                         </Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
+                                                        onPress={() => excluirPendente(form)}
+                                                        activeOpacity={0.7}
                                                         style={{
                                                             width: 38,
                                                             height: 38,

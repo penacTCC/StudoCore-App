@@ -145,6 +145,11 @@ export const atualizarSessaoFoco = async (id: string, updatesRecebidos: Partial<
     return result;
 };
 
+// ───── DELETE (descartar sessão, ex.: formulário pendente que não vai ser refeito) ─────
+export const excluirSessaoFoco = async (id: string) => {
+    return await supabase.from("sessoes_foco").delete().eq("id", id);
+};
+
 // ───── SELECT (sessão específica) ─────
 export const fetchFocusSession = async (id: string) => {
     let query = supabase

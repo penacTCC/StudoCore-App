@@ -769,15 +769,27 @@ export default function FocusScreen() {
      * Cada bloco de matéria vira um item "estudo" com sua própria matéria/tópico.
      */
     const construirFilaDoPlano = useCallback(
-        async (planoId: string, horaInicioBloco: string): Promise<ItemFila[]> => {
+        async (planoId: string, blocoId: string): Promise<ItemFila[]> => {
             if (!userId) return [];
 
             const hojeISO = paraDataISO(new Date());
             const agenda = await resolverAgendaDoDia(userId, hojeISO);
             const materiaPorId = new Map(materias.map((m) => [m.id, m]));
 
-            return agenda
-                .filter((bloco) => bloco.planoId === planoId && bloco.horaInicio >= horaInicioBloco)
+            const blocosDoPlano = agenda.filter((bloco) => bloco.planoId === planoId);
+            /*
+              O ponto de partida da fila é a HORA do bloco tocado, não o id dele — ids são
+              UUIDs e não têm ordem cronológica nenhuma. Comparar `bloco.horaInicio` direto
+              contra o id (como este código fazia antes) filtrava a fila de forma
+              essencialmente aleatória: dependendo do UUID, ela às vezes saía vazia e a
+              sessão entrava em "active" sem nenhum item pra tocar — o cronômetro ficava
+              parado em 00:00 porque não havia fase alguma pra contar.
+            */
+            const blocoTocado = blocosDoPlano.find((bloco) => bloco.id === blocoId);
+            const horaInicioBloco = blocoTocado?.horaInicio ?? "";
+
+            return blocosDoPlano
+                .filter((bloco) => bloco.horaInicio >= horaInicioBloco)
                 .map((bloco) => ({
                     tipo: bloco.tipo === "estudo" ? "estudo" : "descanso",
                     duracaoMin: bloco.duracaoMin,
