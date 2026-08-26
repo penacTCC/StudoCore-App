@@ -15,6 +15,7 @@ export default function GroupsLayout() {
             <Stack.Screen name="group-details" />
             <Stack.Screen name="detailing" />
             <Stack.Screen name="ranking-completo" />
+            <Stack.Screen name="roadmap-progresso" />
         </Stack>
     );
 }

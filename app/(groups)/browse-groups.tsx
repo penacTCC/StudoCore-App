@@ -13,7 +13,7 @@ import { useGruposPublicos } from "@/hooks/useGruposPublicos";
 //Componentes gráficos
 import SearchBar from "@/components/ui/SearchBar";
 import PublicGroupCard from "@/components/groups/PublicGroupCard";
-import { useOnlineUsers } from "@/hooks/useOnlineUsers";
+import { useEstudandoAgora } from "@/hooks/useEstudandoAgora";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function BrowseGroupsScreen() {
@@ -41,7 +41,7 @@ export default function BrowseGroupsScreen() {
             g.descricao?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const { onlineUsers } = useOnlineUsers();
+    const estudandoAgora = useEstudandoAgora();
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -128,7 +128,7 @@ export default function BrowseGroupsScreen() {
                             </View>
                             <View>
                                 <Text style={{ fontSize: 16, fontWeight: "700", color: HADES.text }}>
-                                    {onlineUsers.length} estudando agora
+                                    {estudandoAgora} estudando agora
                                 </Text>
                                 <Text style={{ fontSize: 13, color: HADES.textMuted, marginTop: 1 }}>
                                     {gruposPublicos.length} grupos públicos disponíveis

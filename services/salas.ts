@@ -253,8 +253,23 @@ export const publicarFilaDaSala = async (
 */
 let contadorDeCanais = 0;
 
-/** Observa as participações de uma sala (entrou, pausou, saiu). */
-export const observarParticipantesDaSala = (salaId: string, aoMudar: () => void) => {
+export type EventoParticipanteDaSala = {
+    tipo: "INSERT" | "UPDATE" | "DELETE";
+    linha: Partial<ParticipanteDaSala>;
+};
+
+/**
+ * Observa as participações de uma sala (entrou, pausou, saiu).
+ *
+ * Entrega o evento cru — quem chama funde a linha localmente em vez de refazer o fetch da
+ * sala inteira a cada mudança de 1 pessoa. Isso era o gargalo que fazia uma sala de N
+ * participantes gerar até N consultas com JOIN em `profiles` a cada pausa/retomada de
+ * qualquer um deles.
+ */
+export const observarParticipantesDaSala = (
+    salaId: string,
+    aoMudar: (evento: EventoParticipanteDaSala) => void
+) => {
     contadorDeCanais += 1;
 
     const canal: RealtimeChannel = supabase
@@ -267,7 +282,11 @@ export const observarParticipantesDaSala = (salaId: string, aoMudar: () => void)
                 table: "tab_sessao_membros",
                 filter: `sala_id=eq.${salaId}`,
             },
-            () => aoMudar()
+            (payload) =>
+                aoMudar({
+                    tipo: payload.eventType as EventoParticipanteDaSala["tipo"],
+                    linha: (payload.eventType === "DELETE" ? payload.old : payload.new) as Partial<ParticipanteDaSala>,
+                })
         );
 
     canal.subscribe();
@@ -275,6 +294,17 @@ export const observarParticipantesDaSala = (salaId: string, aoMudar: () => void)
     return () => {
         supabase.removeChannel(canal);
     };
+};
+
+/** Busca só o perfil resumido de uma pessoa — usado para completar quem acabou de entrar. */
+export const buscarPerfilResumidoParaSala = async (membroId: string) => {
+    const { data } = await supabase
+        .from("profiles")
+        .select("nome_real, nome_usuario, foto_usuario")
+        .eq("id", membroId)
+        .maybeSingle();
+
+    return data as ParticipanteDaSala["profiles"] | null;
 };
 
 /** Observa a própria sala — mudanças de cronograma, de anfitrião e o fechamento. */

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     buscarIncentivosDaSala,
+    buscarPerfilRemetenteDoIncentivo,
     mandarForca,
     observarIncentivosDaSala,
 } from '@/services/incentivos';
@@ -58,16 +59,44 @@ export const useIncentivos = (sessaoId?: string | null) => {
         recarregar();
     }, [recarregar]);
 
+    /*
+      Funde o incentivo novo na lista em vez de recarregar a torcida inteira a cada envio —
+      numa sessão com N pessoas vendo a tela, cada "mandar força" gerava N refetches
+      completos. O payload do realtime não traz o JOIN com profiles, então busca só o
+      perfil de quem mandou (uma consulta de 1 linha).
+      Quando o incentivo é o meu próprio envio, substitui o item otimista já inserido em
+      `enviarForca` em vez de duplicar.
+    */
+    const aplicarNovoIncentivo = useCallback(async (novo: Incentivo) => {
+        const perfil = await buscarPerfilRemetenteDoIncentivo(novo.remetente_id);
+        const comPerfil: Incentivo = { ...novo, profiles: perfil ?? undefined };
+
+        setIncentivos((atuais) => {
+            if (atuais.some((i) => i.id === comPerfil.id)) return atuais;
+
+            const idxOtimista = atuais.findIndex(
+                (i) =>
+                    i.id.startsWith('otimista-') &&
+                    i.remetente_id === comPerfil.remetente_id &&
+                    i.destinatario_id === comPerfil.destinatario_id
+            );
+
+            if (idxOtimista !== -1) {
+                const copia = [...atuais];
+                copia[idxOtimista] = comPerfil;
+                return copia;
+            }
+
+            return [...atuais, comPerfil];
+        });
+    }, []);
+
     // Mantém a torcida ao vivo enquanto a tela estiver aberta.
     useEffect(() => {
         if (!sessaoId) return;
 
-        return observarIncentivosDaSala(sessaoId, () => {
-            // Recarrega a lista inteira porque o payload do realtime não traz o JOIN com
-            // profiles, e a UI precisa do nome de quem torceu para montar a Torcida.
-            recarregar();
-        });
-    }, [sessaoId, recarregar]);
+        return observarIncentivosDaSala(sessaoId, aplicarNovoIncentivo);
+    }, [sessaoId, aplicarNovoIncentivo]);
 
     useEffect(() => {
         const id = setInterval(() => setTick((t) => t + 1), 1000);
@@ -146,8 +175,8 @@ export const useIncentivos = (sessaoId?: string | null) => {
 
             /*
               Atualização otimista: mostra a força enviada na hora, sem esperar a ida e volta
-              da Edge Function. O item é temporário (id "otimista-...") e some no recarregar()
-              logo abaixo, quando chega o registro real com UUID e o JOIN de profiles.
+              da Edge Function. O item é temporário (id "otimista-...") e é substituído pelo
+              registro real quando o INSERT chega pelo realtime (ver `aplicarNovoIncentivo`).
             */
             const otimista: Incentivo = {
                 id: `otimista-${userId}-${destinatarioId}-${Date.now()}`,
@@ -165,13 +194,14 @@ export const useIncentivos = (sessaoId?: string | null) => {
                 console.warn('Erro ao mandar força:', error);
                 // Deu errado (ou o servidor recusou o cooldown): desfaz o otimista.
                 setIncentivos((atuais) => atuais.filter((i) => i.id !== otimista.id));
-            } else {
-                await recarregar();
             }
+            // No sucesso, o próprio remetente também está inscrito no realtime da sala e
+            // recebe o INSERT de volta — `aplicarNovoIncentivo` substitui o otimista pelo
+            // registro real, sem precisar de outro fetch aqui.
 
             setEnviandoPara(null);
         },
-        [sessaoId, userId, enviandoPara, podeTorcerPor, cooldownRestante, recarregar]
+        [sessaoId, userId, enviandoPara, podeTorcerPor, cooldownRestante]
     );
 
     return {

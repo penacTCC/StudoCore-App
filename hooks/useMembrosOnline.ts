@@ -13,7 +13,7 @@ export const useMembrosOnline = (
 ) => {
   const { userId } = useAuth();
   const { membros, carregando } = useMembrosGrupo({ grupoId: grupoId ?? "" });
-  const { onlineUsers } = useOnlineUsers();
+  const { onlineUsers } = useOnlineUsers(grupoId);
 
   const membrosIds = useMemo(() => {
     return membros.map((membro) => membro.user_id);

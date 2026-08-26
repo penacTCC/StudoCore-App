@@ -1,4 +1,5 @@
-import { View, Text } from "react-native";
+import type { ReactNode } from "react";
+import { View, Text, TouchableOpacity } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { ChevronRight } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
@@ -23,6 +24,7 @@ export default function MetaRoadmapGrupo({
     progresso,
     souAdmin,
     aoGerar,
+    aoAbrirProgresso,
 }: {
     percentual: number;
     horasFeitas: number;
@@ -30,6 +32,7 @@ export default function MetaRoadmapGrupo({
     progresso: ProgressoRoadmapGrupo | null | undefined;
     souAdmin: boolean;
     aoGerar: () => void;
+    aoAbrirProgresso: () => void;
 }) {
     const semMeta = metaTotal <= 0;
     const pct = semMeta ? 0 : Math.min(percentual, 100);
@@ -101,7 +104,7 @@ export default function MetaRoadmapGrupo({
             <View style={{ height: 1, backgroundColor: HADES.border }} />
 
             {/* Roadmap do grupo */}
-            <View style={{ paddingVertical: 12, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <ConteinerRoadmap aoAbrirProgresso={progresso ? aoAbrirProgresso : undefined}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={{ fontSize: 10.5, fontWeight: "700", letterSpacing: 1.1, color: HADES.textFaint }}>
                         ROADMAP
@@ -147,8 +150,35 @@ export default function MetaRoadmapGrupo({
                         Gerar roadmap
                     </Text>
                 ) : null}
-            </View>
+            </ConteinerRoadmap>
         </View>
+    );
+}
+
+/** Envolve a linha do roadmap num toque só quando há progresso para abrir (senão é só uma View). */
+function ConteinerRoadmap({
+    aoAbrirProgresso,
+    children,
+}: {
+    aoAbrirProgresso?: () => void;
+    children: ReactNode;
+}) {
+    const estilo = {
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 10,
+    };
+
+    if (!aoAbrirProgresso) {
+        return <View style={estilo}>{children}</View>;
+    }
+
+    return (
+        <TouchableOpacity style={estilo} onPress={aoAbrirProgresso} activeOpacity={0.75}>
+            {children}
+        </TouchableOpacity>
     );
 }
 

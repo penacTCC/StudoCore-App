@@ -25,9 +25,11 @@ import { criarPlano, salvarBlocoPlano } from "@/services/planos";
 import { buscarMateriasUsuario, criarMateria, normalizarNomeMateria } from "@/services/materias";
 import { CORES_PLANO } from "@/constants/hades";
 import type {
+    BlocoRoadmapCanonico,
     BlocoRoadmapProposta,
     EscopoRoadmap,
     ProgressoRoadmapGrupo,
+    ProgressoRoadmapMembro,
     RoadmapProposta,
 } from "@/types/roadmap";
 
@@ -267,4 +269,44 @@ export async function buscarProgressoRoadmapGrupo(grupoId: string): Promise<Prog
         total_membros: Number(linha.total_membros) || 0,
         membros_completaram: Number(linha.membros_completaram) || 0,
     };
+}
+
+/** Progresso semanal do roadmap, um por membro — alimenta a lista individual da tela de progresso. */
+export async function buscarProgressoRoadmapMembros(grupoId: string): Promise<ProgressoRoadmapMembro[]> {
+    const { data, error } = await supabase.rpc("grupo_progresso_roadmap_membros", {
+        p_grupo_id: grupoId,
+    });
+
+    if (error) {
+        console.error("Erro ao buscar progresso por membro do roadmap:", error.message);
+        return [];
+    }
+
+    return ((data as any[]) ?? []).map((linha) => ({
+        user_id: linha.user_id,
+        blocos_concluidos: Number(linha.blocos_concluidos) || 0,
+        blocos_estudo: Number(linha.blocos_estudo) || 0,
+    }));
+}
+
+/** Os blocos do roadmap canônico do grupo — só leitura, para a lista da tela de progresso. */
+export async function buscarBlocosRoadmapGrupo(grupoId: string): Promise<BlocoRoadmapCanonico[]> {
+    const { data, error } = await supabase.rpc("grupo_roadmap_blocos", {
+        p_grupo_id: grupoId,
+    });
+
+    if (error) {
+        console.error("Erro ao buscar blocos do roadmap do grupo:", error.message);
+        return [];
+    }
+
+    return ((data as any[]) ?? []).map((linha) => ({
+        diaSemana: linha.dia_semana === null || linha.dia_semana === undefined ? null : Number(linha.dia_semana),
+        horaInicio: linha.hora_inicio,
+        duracaoMin: Number(linha.duracao_min) || 0,
+        tipo: linha.tipo,
+        materiaNome: linha.materia_nome ?? null,
+        materiaCor: linha.materia_cor ?? null,
+        topico: linha.topico ?? null,
+    }));
 }

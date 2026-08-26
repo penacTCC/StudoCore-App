@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { buscarParticipantesDaSala, observarParticipantesDaSala } from "@/services/salas";
+import {
+    buscarParticipantesDaSala,
+    buscarPerfilResumidoParaSala,
+    observarParticipantesDaSala,
+    type EventoParticipanteDaSala,
+} from "@/services/salas";
 import type { ParticipanteDaSala } from "@/types/sala";
 
 /**
@@ -37,13 +42,47 @@ export const useParticipantesDaSala = (salaId?: string | null) => {
         recarregar();
     }, [recarregar]);
 
+    /*
+      Funde a linha do evento na lista local em vez de refazer o fetch da sala inteira.
+      Antes, qualquer pausa/retomada de 1 pessoa disparava um refetch com JOIN em `profiles`
+      em CADA cliente da sala — numa sala de N pessoas isso é N consultas cheias por mudança
+      de 1. O payload do realtime não traz o JOIN, então só busca perfil quando é gente
+      realmente nova entrando (uma consulta de 1 linha, não da sala inteira).
+    */
+    const aplicarEvento = useCallback(
+        async (evento: EventoParticipanteDaSala) => {
+            const membroId = evento.linha.membro_id;
+            if (!membroId) return;
+
+            if (evento.tipo === "DELETE") {
+                setParticipantes((atuais) => atuais.filter((p) => p.membro_id !== membroId));
+                return;
+            }
+
+            let jaTinhaPerfil = false;
+            setParticipantes((atuais) => {
+                const existente = atuais.find((p) => p.membro_id === membroId);
+                if (!existente) return atuais;
+                jaTinhaPerfil = true;
+                return atuais.map((p) => (p.membro_id === membroId ? { ...p, ...evento.linha } : p));
+            });
+
+            if (jaTinhaPerfil) return;
+
+            const perfil = await buscarPerfilResumidoParaSala(membroId);
+            setParticipantes((atuais) => {
+                if (atuais.some((p) => p.membro_id === membroId)) return atuais;
+                return [...atuais, { ...(evento.linha as ParticipanteDaSala), profiles: perfil ?? undefined }];
+            });
+        },
+        []
+    );
+
     useEffect(() => {
         if (!salaId) return;
 
-        // O payload do realtime não traz o JOIN com profiles, então recarrega a lista
-        // inteira para ter nome/foto de quem entrou ou mudou de status.
-        return observarParticipantesDaSala(salaId, recarregar);
-    }, [salaId, recarregar]);
+        return observarParticipantesDaSala(salaId, aplicarEvento);
+    }, [salaId, aplicarEvento]);
 
     /*
       Rede de segurança para o realtime.
@@ -51,13 +90,14 @@ export const useParticipantesDaSala = (salaId?: string | null) => {
       O cronômetro de cada colega é repintado a cada segundo a partir de `ultimo_inicio` (ver
       utils/tempo.ts -> tempoAoVivoDoMembro). Se o evento de pausa não chegar — canal caído,
       app voltando do background, tabela fora da publicação `supabase_realtime` —, a cópia
-      local continua dizendo "ativo" e o tempo segue correndo. A rebusca periódica limita
-      esse erro a alguns segundos mesmo com o realtime fora do ar.
+      local continua dizendo "ativo" e o tempo segue correndo. Com o merge incremental já
+      cobrindo o caminho normal, a rebusca só precisa existir para esse cenário de exceção —
+      por isso o intervalo é mais espaçado do que antes.
     */
     useEffect(() => {
         if (!salaId) return;
 
-        const id = setInterval(recarregar, 10000);
+        const id = setInterval(recarregar, 30000);
         return () => clearInterval(id);
     }, [salaId, recarregar]);
 

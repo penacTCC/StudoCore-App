@@ -91,6 +91,17 @@ export const observarIncentivosDaSala = (
     };
 };
 
+/** Busca só o perfil de quem mandou a força — usado para completar o payload do realtime. */
+export const buscarPerfilRemetenteDoIncentivo = async (remetenteId: string) => {
+    const { data } = await supabase
+        .from("profiles")
+        .select("nome_real, nome_usuario, foto_usuario")
+        .eq("id", remetenteId)
+        .maybeSingle();
+
+    return data as Incentivo["profiles"] | null;
+};
+
 /**
  * Escuta as forças que chegam PRA MIM, em qualquer sessão, enquanto o app estiver aberto.
  * É o substituto do push remoto: o INSERT chega por Realtime e o próprio aparelho mostra a

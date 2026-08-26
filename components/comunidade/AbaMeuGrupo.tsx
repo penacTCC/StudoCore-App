@@ -308,6 +308,15 @@ export default function AbaMeuGrupo() {
                             },
                         })
                     }
+                    aoAbrirProgresso={() =>
+                        router.push({
+                            pathname: "/(groups)/roadmap-progresso",
+                            params: {
+                                grupoId: groupId as string,
+                                grupoNome: grupo?.nome_grupo ?? "",
+                            },
+                        })
+                    }
                 />
 
                 <RankingGrupo

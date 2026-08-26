@@ -222,19 +222,32 @@ export default function FocusScreen() {
       e o ciclo de vida próprio.
     */
     const [salaParaEntrar, setSalaParaEntrar] = useState<SalaFoco | null>(null);
+    /*
+      Id da sala guardado em estado antes de a rota ser limpa. A busca NÃO pode depender
+      da rota: `limparParamsDaRota` zera `salaId`/`joinPublicSession` logo depois que o
+      join é consumido, e aquele cleanup cancelaria a busca (`cancelado = true`) antes de a
+      resposta chegar — a sala nunca seria preenchida e a guarda lá embaixo bloquearia com
+      "Não foi possível entrar nessa sala".
+    */
+    const [salaParaEntrarId, setSalaParaEntrarId] = useState<string | null>(null);
 
     useEffect(() => {
         if (joinPublicSession !== "true" || !salaIdParam) return;
+        setSalaParaEntrarId(salaIdParam as string);
+    }, [joinPublicSession, salaIdParam]);
+
+    useEffect(() => {
+        if (!salaParaEntrarId) return;
 
         let cancelado = false;
-        buscarSala(salaIdParam as string).then(({ sala }) => {
+        buscarSala(salaParaEntrarId).then(({ sala }) => {
             if (!cancelado) setSalaParaEntrar(sala);
         });
 
         return () => {
             cancelado = true;
         };
-    }, [joinPublicSession, salaIdParam]);
+    }, [salaParaEntrarId]);
 
     /*
       A sala do encontro, fixada quando a sessão começa e mantida até ela acabar.
