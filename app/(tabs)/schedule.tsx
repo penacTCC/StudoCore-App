@@ -175,12 +175,12 @@ export default function ScheduleScreen() {
     const router = useRouter();
     const { aba: abaAlvo } = useLocalSearchParams<{ aba?: AbaCronograma }>();
     const { userId } = useAuth();
-    const { planos, carregando: carregandoPlanos, recarregarPlanos } = usePlanos(userId);
+    const { planos, carregando: carregandoPlanos, erro: erroPlanos, recarregarPlanos } = usePlanos(userId);
     // Datas que a tela está olhando. Ficam aqui (e não dentro das abas) porque
     // quem desenha o navegador é o cabeçalho.
     const [diaISO, setDiaISO] = useState(() => paraDataISO(new Date()));
     const [inicioDaSemana, setInicioDaSemana] = useState(() => pegarSegundaDaSemana(new Date()));
-    const { blocos: blocosDeHoje, resumo: resumoHoje, carregando: carregandoHoje, recarregar: recarregarHoje } = useAgendaHoje(userId, diaISO);
+    const { blocos: blocosDeHoje, resumo: resumoHoje, carregando: carregandoHoje, erro: erroHoje, recarregar: recarregarHoje } = useAgendaHoje(userId, diaISO);
     const [aba, setAba] = useState<AbaCronograma>("hoje");
     const [visualizacao, setVisualizacao] = useState<VisualizacaoSemana>("calendario");
     const [menuPlanoId, setMenuPlanoId] = useState<string | null>(null);
@@ -334,6 +334,7 @@ export default function ScheduleScreen() {
                     blocos={blocosDeHoje}
                     resumo={resumoHoje}
                     carregando={carregandoHoje}
+                    erro={erroHoje}
                     onIniciarFoco={iniciarFoco}
                     onMontarDia={() => abrirEditor(undefined, true)}
                     onAplicarPlano={() => setAba("planos")}
@@ -353,6 +354,7 @@ export default function ScheduleScreen() {
                     userId={userId}
                     menuAbertoId={menuPlanoId}
                     carregando={carregandoPlanos}
+                    erro={erroPlanos}
                     onAbrirMenu={setMenuPlanoId}
                     onNovoPlano={() => abrirEditor()}
                     onEditarPlano={(p: Plano) => abrirEditor(p.id)}

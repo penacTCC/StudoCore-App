@@ -37,13 +37,6 @@ export const validarSessaoPorCodigo = async (code: string) => {
   return await supabase.auth.exchangeCodeForSession(code);
 };
 
-export const validarSessaoPorTokens = async (accessToken: string, refreshToken: string) => {
-  return await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-};
-
 export const redefinirSenha = async (password: string) => {
   return await supabase.auth.updateUser({ password });
 };
@@ -236,6 +229,20 @@ export const buscarPerfil = async (userId: string) => {
     .from("profiles")
     .select("*")
     .eq("id", userId)
+    .maybeSingle();
+};
+
+/**
+ * Perfil de OUTRA pessoa para a tela `member-profile.tsx` — nunca use `buscarPerfil` para
+ * isso. Passa pela RPC `perfil_membro_para_visualizacao` (migration
+ * 20260831000000_perfil_membro_respeita_privacidade), que devolve identidade sempre e
+ * estatística (horas, medalhas, ofensiva) só quando `perfil_publico` é true ou é você
+ * mesmo — o mesmo padrão já usado no duelo (`buscarEstatisticasParaDuelo`). `buscarPerfil`
+ * continua correto para o SEU PRÓPRIO perfil, onde as estatísticas sempre podem aparecer.
+ */
+export const buscarPerfilMembroParaVisualizacao = async (userId: string) => {
+  return await supabase
+    .rpc("perfil_membro_para_visualizacao", { p_user_id: userId })
     .maybeSingle();
 };
 

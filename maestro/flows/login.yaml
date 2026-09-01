@@ -1,0 +1,13 @@
+appId: com.studocore.app
+---
+# Login com e-mail/senha (services/auth.ts -> loginComSenha), sem passar pelo OAuth do Google.
+# Requer EMAIL_TESTE / SENHA_TESTE (ver maestro/.env.example).
+- launchApp:
+    clearState: true
+- tapOn: "E-mail"
+- inputText: ${EMAIL_TESTE}
+- tapOn: "Senha"
+- inputText: ${SENHA_TESTE}
+- tapOn: "ENTRAR"
+# Pousa numa aba (título vira accessibilityLabel do botão, mesmo sem rótulo visível).
+- assertVisible: "Comunidade"

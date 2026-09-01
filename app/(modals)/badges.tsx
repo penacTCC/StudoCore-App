@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, DeviceEventEmitter, RefreshCo
 import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { router, useFocusEffect } from "expo-router";
 import { useDadosCache } from "@/hooks/useDadosCache";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import { ArrowLeft, Lock } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import {
@@ -84,7 +85,7 @@ export default function BadgesScreen() {
       skeleton. `tempoFresco: 0` mantém a releitura a cada foco — é aqui que se confere
       uma medalha recém-desbloqueada.
     */
-    const { dados: stats, recarregar: loadData } = useDadosCache(
+    const { dados: stats, erro, recarregar: loadData } = useDadosCache(
         "estatisticas-perfil",
         () => loadProfileStats(),
         { tempoFresco: 0 }
@@ -107,6 +108,14 @@ export default function BadgesScreen() {
             setAtualizando(false);
         }
     };
+
+    if (!stats && erro) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}>
+                <EstadoDeErro erro={erro} onTentarNovamente={loadData} style={{ marginHorizontal: 20 }} />
+            </SafeAreaView>
+        );
+    }
 
     if (!stats) return <BadgesSkeleton />;
 

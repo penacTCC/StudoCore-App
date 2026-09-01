@@ -17,6 +17,7 @@ import CardSessaoGrupo, { FeedVazio } from "@/components/grupo/CardSessaoGrupo";
 import MembrosGrupo, { ConviteDestaque, CtaGruposPublicos, MembroCarrossel } from "@/components/grupo/MembrosGrupo";
 
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 
 //Hooks
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
@@ -282,6 +283,14 @@ export default function AbaMeuGrupo() {
     // nunca resolve, ele convida a criar ou procurar um grupo.
     if (!groupId) {
         return <SemGrupo />;
+    }
+
+    if (!grupo && erroGrupo) {
+        return (
+            <View style={{ flex: 1, backgroundColor: HADES.bg, justifyContent: "center" }}>
+                <EstadoDeErro erro={erroGrupo} onTentarNovamente={recarregarGrupo} style={{ marginHorizontal: 20 }} />
+            </View>
+        );
     }
 
     if (carregandoTela) {

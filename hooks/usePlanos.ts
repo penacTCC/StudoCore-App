@@ -11,12 +11,17 @@ const SEM_PLANOS: Plano[] = [];
  * estavam na tela e revalida por trás, em vez de esvaziar a aba durante a busca.
  */
 export const usePlanos = (userId: string | null | undefined) => {
-    const { dados, carregando, recarregar } = useDadosCache<Plano[]>(
+    const { dados, carregando, erro, recarregar } = useDadosCache<Plano[]>(
         userId ? `planos:${userId}` : null,
         () => buscarPlanos(userId!),
         // Plano só muda quando o próprio usuário edita — e aí o editor chama o recarregar.
         { tempoFresco: 2 * 60_000 }
     );
 
-    return { planos: dados ?? SEM_PLANOS, carregando, recarregarPlanos: recarregar };
+    return {
+        planos: dados ?? SEM_PLANOS,
+        carregando,
+        erro: dados ? null : erro,
+        recarregarPlanos: recarregar,
+    };
 };

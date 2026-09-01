@@ -27,9 +27,7 @@
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "POST_NOTIFICATIONS",
-        "READ_CONTACTS",
-        "android.permission.READ_CONTACTS",
-        "android.permission.WRITE_CONTACTS"
+        "android.permission.READ_CONTACTS"
       ]
     },
     "web": {
@@ -65,7 +63,8 @@
             "com.instagram.android"
           ]
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "router": {},

@@ -8,10 +8,10 @@ import {
 } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
-import { buscarPerfil } from "@/services/auth";
-import { buscarGamificacao } from "@/services/gamificacao";
+import { buscarPerfilMembroParaVisualizacao } from "@/services/auth";
 import { useSessoesUsuario } from "@/hooks/useSessoesFoco";
 import { useDadosCache } from "@/hooks/useDadosCache";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import { APP_BADGES } from "@/constants/badges";
 import { getSubjectColor, formatDuration, getIdentityColor, getInitials, getBioFromObjetivo } from "@/constants/helpers";
 import { AvatarComOfensiva, BannerPerfil } from "@/components/profile/PerfilBanner";
@@ -21,6 +21,24 @@ import type { SessaoFocoRow } from "@/types/sessions";
 
 const BANNER_H = 158;
 const AVATAR_SIZE = 92;
+
+/** Formato devolvido pela RPC `perfil_membro_para_visualizacao` (ver services/auth.ts). */
+type PerfilMembro = {
+    id: string;
+    nome_usuario: string;
+    nome_real: string | null;
+    foto_usuario: string | null;
+    bio: string | null;
+    objetivo: string | null;
+    created_at: string;
+    perfil_publico: boolean;
+    mostrar_ofensiva: boolean;
+    horas_totais: number | null;
+    minutos_semana: number | null;
+    medalhas_desbloqueadas: string[] | null;
+    ofensiva: number | null;
+    melhor_ofensiva: number | null;
+};
 
 type AbaKey = "estatisticas" | "sessoes" | "galeria";
 const ABAS: { key: AbaKey; label: string }[] = [
@@ -106,27 +124,26 @@ export default function MemberProfileScreen() {
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
 
-    // Perfil + gamificação do colega, do cache: voltar ao mesmo perfil (do ranking, do
-    // feed) não repete as duas consultas.
-    const { dados: perfilDoMembro, recarregar: carregarPerfilEGamificacao } = useDadosCache(
+    // Perfil + estatísticas do colega, do cache: voltar ao mesmo perfil (do ranking, do
+    // feed) não repete a consulta. A RPC já filtra estatística por `perfil_publico` no
+    // banco — ver services/auth.ts:buscarPerfilMembroParaVisualizacao.
+    const { dados: profile, erro: erroPerfil, recarregar: carregarPerfil } = useDadosCache<PerfilMembro | null>(
         userId ? `perfil-membro:${userId}` : null,
         async () => {
-            const [perfil, gamificacao] = await Promise.all([
-                buscarPerfil(userId!),
-                buscarGamificacao(userId!),
-            ]);
-            return { profile: perfil.data, gamificacao };
+            const { data } = await buscarPerfilMembroParaVisualizacao(userId!);
+            return (data as PerfilMembro) ?? null;
         },
         { tempoFresco: 60_000 }
     );
 
-    const profile = perfilDoMembro?.profile ?? null;
-    const gamificacao = perfilDoMembro?.gamificacao ?? null;
+    const gamificacao = profile
+        ? { ofensiva: profile.ofensiva, melhor_ofensiva: profile.melhor_ofensiva }
+        : null;
 
     const handleRefresh = async () => {
         setAtualizando(true);
         try {
-            await Promise.all([carregarPerfilEGamificacao(), refreshSessions()]);
+            await Promise.all([carregarPerfil(), refreshSessions()]);
         } finally {
             setAtualizando(false);
         }
@@ -151,6 +168,14 @@ export default function MemberProfileScreen() {
 
     // Sem nenhum sinal de atividade: mostra as variantes vazias das 3 abas em vez de zeros/placeholders soltos.
     const semAtividade = !loadingSessions && savedSessions.length === 0 && unlockedBadges.length === 0 && !profile?.horas_totais;
+
+    if (!profile && erroPerfil) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}>
+                <EstadoDeErro erro={erroPerfil} onTentarNovamente={carregarPerfil} style={{ marginHorizontal: 20 }} />
+            </SafeAreaView>
+        );
+    }
 
     if (!profile) {
         return <MemberProfileSkeleton />;

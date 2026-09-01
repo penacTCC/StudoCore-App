@@ -18,6 +18,9 @@ import { buscarPerfil } from "@/services/auth";
 import type { Profile } from "@/types/profile";
 import { AvatarComOfensiva, BannerPerfil } from "@/components/profile/PerfilBanner";
 import CardMedalhas, { CardMedalhasVazio } from "@/components/profile/CardMedalhas";
+import CardWrapped from "@/components/profile/CardWrapped";
+import { useWrappedMensal } from "@/hooks/useWrappedMensal";
+import { estaNaJanelaDoWrapped, mesFechadoAnterior } from "@/lib/wrappedMensal";
 import MetaSemanalVazia, { HeatmapVazio } from "@/components/profile/PrimeirosPassos";
 import { GradeHeatmap, LegendaHeatmap } from "@/components/profile/Heatmap";
 import GaleriaSessoes from "@/components/profile/GaleriaSessoes";
@@ -29,6 +32,7 @@ import {
 } from "@/components/profile/ModaisPerfil";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { useDadosCache } from "@/hooks/useDadosCache";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
 
@@ -80,6 +84,14 @@ export default function ProfileScreen() {
     const { user: sessionUser, userId } = useAuth();
     const { materiasComCores, recarregarMaterias } = useMaterias(userId);
 
+    // Banner do Wrapped mensal — só busca fora da janela de acesso desligado (userId nulo
+    // pula a busca, ver useWrappedMensal), pra não gastar rede num card que não vai aparecer.
+    const dentroDaJanelaWrapped = estaNaJanelaDoWrapped();
+    const { wrapped: wrappedMensal, temSessoes: temWrappedMensal } = useWrappedMensal(
+        dentroDaJanelaWrapped ? userId : null,
+        mesFechadoAnterior()
+    );
+
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
 
@@ -92,7 +104,7 @@ export default function ProfileScreen() {
       precisam do `userId`, que o `useAuth` já entrega. O contador da galeria entrou no
       mesmo lote pelo mesmo motivo — era uma quinta ida solta ao servidor.
     */
-    const { dados, recarregar, definir } = useDadosCache(
+    const { dados, erro, recarregar, definir } = useDadosCache(
         userId ? `perfil-completo:${userId}` : null,
         async () => {
             const [perfil, gamificacao, estatisticas, fotos] = await Promise.all([
@@ -242,6 +254,14 @@ export default function ProfileScreen() {
     const joinDate = sessionUser?.created_at
         ? new Date(sessionUser.created_at).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
         : 'Carregando...';
+
+    if (!stats && erro) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}>
+                <EstadoDeErro erro={erro} onTentarNovamente={recarregar} style={{ marginHorizontal: 20 }} />
+            </SafeAreaView>
+        );
+    }
 
     if (!stats) return <ProfileSkeleton />; // Aguarda dados para não bugar a UI
 
@@ -430,6 +450,17 @@ export default function ProfileScreen() {
                         </TouchableOpacity>
                     )}
                 </View>
+
+                {/* Wrapped mensal — some sozinho depois do dia 3, ver lib/wrappedMensal.ts */}
+                {dentroDaJanelaWrapped && temWrappedMensal && wrappedMensal && (
+                    <>
+                        <Divider />
+                        <CardWrapped
+                            mesRotulo={wrappedMensal.mesRotulo}
+                            onPress={() => router.push("/(modals)/wrapped-mensal")}
+                        />
+                    </>
+                )}
                 <Divider />
 
                 {/* Histórico */}

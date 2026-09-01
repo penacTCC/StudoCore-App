@@ -7,6 +7,7 @@ import { minParaPx } from "@/constants/cronograma";
 import AbaSemanaBlocos from "@/components/cronograma/AbaSemanaBlocos";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import type { VisualizacaoSemana } from "@/types/cronograma";
 import { useAuth } from "@/hooks/useAuth";
 import { useSemanaCronograma } from "@/hooks/useSemanaCronograma";
@@ -52,6 +53,14 @@ export default function AbaSemana({ visualizacao, inicioDaSemana }: Props) {
 
     if (dados.carregando) {
         return <AbaSemanaSkeleton />;
+    }
+
+    if (dados.vazia && dados.erro) {
+        return (
+            <View style={{ paddingHorizontal: 20, flex: 1, justifyContent: "center" }}>
+                <EstadoDeErro erro={dados.erro} onTentarNovamente={dados.recarregar} />
+            </View>
+        );
     }
 
     if (dados.vazia && visualizacao === "calendario") {

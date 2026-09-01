@@ -6,15 +6,13 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 
 //Serviços da Aplicação
-import { gerarUrlLoginGoogle, obterSessaoAtual, validarSessaoGoogle, validarSessaoPorTokens } from "@/services/auth";
+import { gerarUrlLoginGoogle, obterSessaoAtual, validarSessaoGoogle } from "@/services/auth";
 import { toast } from "@/services/toast";
 
 const GOOGLE_REDIRECT_URL = "studocore://login";
 
 type GoogleCallbackParams = {
     code: string | null;
-    accessToken: string | null;
-    refreshToken: string | null;
     error: string | null;
     errorDescription: string | null;
 };
@@ -38,8 +36,6 @@ export function useGoogleAuth() {
 
         return {
             code: searchParams.get("code"),
-            accessToken: searchParams.get("access_token"),
-            refreshToken: searchParams.get("refresh_token"),
             error: searchParams.get("error"),
             errorDescription: searchParams.get("error_description"),
         };
@@ -60,8 +56,6 @@ export function useGoogleAuth() {
 
     const finalizarCallbackGoogle = async (
         code?: string | null,
-        accessToken?: string | null,
-        refreshToken?: string | null,
         error?: string | null,
         errorDescription?: string | null
     ) => {
@@ -70,17 +64,11 @@ export function useGoogleAuth() {
             return;
         }
 
-        if (!code && (!accessToken || !refreshToken)) return;
+        if (!code) return;
 
         try {
             setIsLoading(true);
-            if (code) {
-                await finalizarLoginGoogle(code);
-            } else if (accessToken && refreshToken) {
-                const { error: sessionError } = await validarSessaoPorTokens(accessToken, refreshToken);
-                if (sessionError) throw sessionError;
-                router.replace("/");
-            }
+            await finalizarLoginGoogle(code);
         } catch (error) {
             console.error("Erro no callback do Google:", error);
             toast.error("Não foi possível concluir o login com o Google.");
@@ -90,15 +78,15 @@ export function useGoogleAuth() {
     };
 
     useEffect(() => {
-        finalizarCallbackGoogle(params.code, null, null, params.error, params.error_description);
+        finalizarCallbackGoogle(params.code, params.error, params.error_description);
     }, [params.code, params.error, params.error_description]);
 
     useEffect(() => {
         const subscription = Linking.addEventListener("url", ({ url }) => {
             if (!url.startsWith(GOOGLE_REDIRECT_URL)) return;
 
-            const { code, accessToken, refreshToken, error, errorDescription } = extrairParametrosUrl(url);
-            finalizarCallbackGoogle(code, accessToken, refreshToken, error, errorDescription);
+            const { code, error, errorDescription } = extrairParametrosUrl(url);
+            finalizarCallbackGoogle(code, error, errorDescription);
         });
 
         return () => subscription.remove();
@@ -113,11 +101,11 @@ export function useGoogleAuth() {
             const res = await WebBrowser.openAuthSessionAsync(data?.url ?? "", GOOGLE_REDIRECT_URL);
 
             if (res.type === "success") {
-                const { code, accessToken, refreshToken, error, errorDescription } = extrairParametrosUrl(res.url);
+                const { code, error, errorDescription } = extrairParametrosUrl(res.url);
 
-                await finalizarCallbackGoogle(code, accessToken, refreshToken, error, errorDescription);
+                await finalizarCallbackGoogle(code, error, errorDescription);
 
-                if (!code && !accessToken && !error) {
+                if (!code && !error) {
                     toast.error("O Google voltou sem código de autenticação.", "Erro no Google");
                 }
             }

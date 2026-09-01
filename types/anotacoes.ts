@@ -75,6 +75,19 @@ export type AnexoSessao = {
     gabarito_ia: Record<string, string> | null;
     correcao: CorrecaoFormulario | null;
     acertos_informados: number | null;
+    /** Referência do arquivo já hospedado na Gemini Files API, reusada pelo chat do anexo. */
+    gemini_file_uri: string | null;
+    /** Quando a referência acima expira (~48h do upload) — depois disso o chat reenvia o arquivo. */
+    gemini_file_expira_em: string | null;
+};
+
+/** Uma mensagem da conversa do chat sobre um anexo (Premium). */
+export type MensagemChatAnexo = {
+    id: string;
+    anexo_id: string;
+    papel: "user" | "model";
+    texto: string;
+    created_at: string;
 };
 
 /** Resposta da Edge Function `analisar-anexo-sessao`. */

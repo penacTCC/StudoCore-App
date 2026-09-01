@@ -13,7 +13,7 @@ const SEM_MEMBROS: MembroGrupoComPerfil[] = [];
  * primeira paga a requisição e as outras leem o resultado direto da memória.
  */
 export function useMembrosGrupo({ grupoId }: { grupoId: string }) {
-  const { dados, carregando, recarregar } = useDadosCache<MembroGrupoComPerfil[]>(
+  const { dados, carregando, erro, recarregar } = useDadosCache<MembroGrupoComPerfil[]>(
     grupoId ? `membros-grupo:${grupoId}` : null,
     async () => {
       try {
@@ -28,5 +28,5 @@ export function useMembrosGrupo({ grupoId }: { grupoId: string }) {
     { tempoFresco: 60_000 }
   );
 
-  return { membros: dados ?? SEM_MEMBROS, carregando, recarregar };
+  return { membros: dados ?? SEM_MEMBROS, carregando, erro: dados ? null : erro, recarregar };
 }

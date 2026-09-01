@@ -68,6 +68,37 @@ export type DesempenhoMateria = {
     pctAcerto: number;
 };
 
+/** Matéria dentro do Wrapped mensal — mesma ideia de `MateriaDistribuicao`, mas com
+ *  tempo/porcentagem já formatados pro card (ver `calcularWrappedMensal`). */
+export type MateriaWrapped = {
+    nome: string;
+    tempo: string;
+    pct: number;
+    cor: string;
+};
+
+/** Números do "Wrapped de [mês]" (app/(modals)/wrapped-mensal.tsx), todos derivados das
+ *  sessões finalizadas do mês de referência — ver `calcularWrappedMensal`. */
+export type DadosWrapped = {
+    mesRotulo: string;
+    horasTotais: string;
+    variacaoHoras: string;
+    variacaoHorasPositiva: boolean;
+    mesAnterior: string;
+    progressoHoras: number;
+    mediaDiaria: string;
+    picoDiario: string;
+    diasNoMes: number;
+    barrasDiarias: number[];
+    questoesTotais: string;
+    questoesCorretas: string;
+    pctAcerto: number;
+    ofensivaDias: number;
+    ofensivaRecorde: boolean;
+    trilhaOfensiva: boolean[];
+    materias: MateriaWrapped[];
+};
+
 export type  membrosRankingAnalytics = {
     userId: string;
     nome: string;

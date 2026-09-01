@@ -18,7 +18,7 @@ const SEM_GRUPOS: Grupo[] = [];
 export function useMeusGrupos() {
   const [atualizando, setAtualizando] = useState(false);
 
-  const { dados, carregando, recarregar, semear } = useDadosCache<Grupo[]>(
+  const { dados, carregando, erro, recarregar, semear } = useDadosCache<Grupo[]>(
     "meus-grupos",
     async () => {
       try {
@@ -56,5 +56,7 @@ export function useMeusGrupos() {
     }
   };
 
-  return { grupos: dados ?? SEM_GRUPOS, carregando, atualizando, atualizar };
+  // Só é "erro de verdade" pra tela quando não há nem dado em cache nem semente offline
+  // pra mostrar no lugar — com qualquer um dos dois, a falha vira revalidação silenciosa.
+  return { grupos: dados ?? SEM_GRUPOS, carregando, erro: dados ? null : erro, atualizando, atualizar };
 }

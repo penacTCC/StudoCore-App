@@ -58,7 +58,7 @@ export const useSessoesFoco = (limit: number = 20, groupId?: string | null) => {
     // O cache já mantém o feed anterior na tela durante a rebusca, então o skeleton não
     // pisca mais a cada pausa de um colega nem a cada volta para a home — antes isso
     // dependia de passar `silencioso` na mão em cada chamada.
-    const { dados, carregando, recarregar } = useDadosCache<SessaoFocoRow[]>(
+    const { dados, carregando, erro, recarregar } = useDadosCache<SessaoFocoRow[]>(
         `sessoes-recentes:${groupId ?? "todas"}:${limit}`,
         async () => {
             const { data, error } = await buscarSessoesRecentes(limit, groupId);
@@ -75,7 +75,12 @@ export const useSessoesFoco = (limit: number = 20, groupId?: string | null) => {
     // Uma sessão que acabou de ser encerrada por um colega já entra aqui como destaque.
     useRealtimeSessoesGrupo(groupId, recarregar);
 
-    return { sessions: dados ?? SEM_SESSOES, loading: carregando, refresh: recarregar };
+    return {
+        sessions: dados ?? SEM_SESSOES,
+        loading: carregando,
+        erro: dados ? null : erro,
+        refresh: recarregar,
+    };
 };
 
 /**
@@ -87,7 +92,7 @@ export const useSessoesFoco = (limit: number = 20, groupId?: string | null) => {
  * pausar, retomar e encerrar aparecem no mesmo instante para todo o grupo.
  */
 export const useSessoesAoVivo = (limit: number = 20, groupId?: string | null) => {
-    const { dados, carregando, recarregar } = useDadosCache<SessaoFocoRow[]>(
+    const { dados, carregando, erro, recarregar } = useDadosCache<SessaoFocoRow[]>(
         `sessoes-ao-vivo:${groupId ?? "todas"}:${limit}`,
         async () => {
             const { data, error } = await buscarSessoesAoVivo(limit, groupId);
@@ -102,7 +107,12 @@ export const useSessoesAoVivo = (limit: number = 20, groupId?: string | null) =>
 
     useRealtimeSessoesGrupo(groupId, recarregar);
 
-    return { sessoes: dados ?? SEM_SESSOES, loading: carregando, refresh: recarregar };
+    return {
+        sessoes: dados ?? SEM_SESSOES,
+        loading: carregando,
+        erro: dados ? null : erro,
+        refresh: recarregar,
+    };
 };
 
 /**
@@ -113,7 +123,7 @@ export const useSessoesAoVivo = (limit: number = 20, groupId?: string | null) =>
  * hook e não pode escrever a contagem dele no badge de quem está usando o app.
  */
 export const useSessoesUsuario = (userId: string | null | undefined, sincronizarBadge = false) => {
-    const { dados, carregando, recarregar } = useDadosCache<SessaoFocoRow[]>(
+    const { dados, carregando, erro, recarregar } = useDadosCache<SessaoFocoRow[]>(
         userId ? `sessoes-usuario:${userId}` : null,
         async () => {
             const { data, error } = await buscarSessoesPorUsuario(userId!, 100);
@@ -139,6 +149,12 @@ export const useSessoesUsuario = (userId: string | null | undefined, sincronizar
         if (sincronizarBadge && dados) definirFormulariosPendentes(pendingSessions.length);
     }, [sincronizarBadge, dados, pendingSessions.length]);
 
-    return { savedSessions, pendingSessions, loading: carregando, refresh: recarregar };
+    return {
+        savedSessions,
+        pendingSessions,
+        loading: carregando,
+        erro: dados ? null : erro,
+        refresh: recarregar,
+    };
 };
 

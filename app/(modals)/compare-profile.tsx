@@ -6,6 +6,7 @@ import { ChevronLeft, Share2, Crown, Clock, ListChecks, Trophy, Medal, Flame, Bo
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { useDadosCache } from "@/hooks/useDadosCache";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import Avatar from "@/components/ui/Avatar";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { buscarEstatisticasParaDuelo } from "@/services/profileStats";
@@ -83,13 +84,13 @@ export default function CompareProfileScreen() {
       Cada lado do duelo tem a própria chave, então o "eu" já está em memória quando se
       compara com um segundo colega — só o lado dele é buscado de fato.
     */
-    const { dados: eu, recarregar: recarregarEu } = useDadosCache(
+    const { dados: eu, erro: erroEu, recarregar: recarregarEu } = useDadosCache(
         meuId ? `duelo:${meuId}` : null,
         () => carregarLado(meuId!),
         { tempoFresco: 60_000 }
     );
 
-    const { dados: ele, recarregar: recarregarEle } = useDadosCache(
+    const { dados: ele, erro: erroEle, recarregar: recarregarEle } = useDadosCache(
         userId ? `duelo:${userId}` : null,
         () => carregarLado(userId),
         { tempoFresco: 60_000 }
@@ -104,6 +105,21 @@ export default function CompareProfileScreen() {
             setAtualizando(false);
         }
     };
+
+    if ((!eu || !ele) && (erroEu || erroEle)) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}>
+                <EstadoDeErro
+                    erro={erroEu ?? erroEle}
+                    onTentarNovamente={() => {
+                        recarregarEu();
+                        recarregarEle();
+                    }}
+                    style={{ marginHorizontal: 20 }}
+                />
+            </SafeAreaView>
+        );
+    }
 
     if (!eu || !ele) {
         return <CompareProfileSkeleton />;

@@ -13,6 +13,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { tempoTotalSessoesFocoOntem, tempoTotalSessoesFoco } from "@/services/sessions";
 import { useMembrosOnline } from "@/hooks/useMembrosOnline";
 import { useDadosCache } from "@/hooks/useDadosCache";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import type { SessaoFocoRow } from "@/types/sessions";
 
 const ehMesmoDia = (a: Date, b: Date) =>
@@ -62,7 +63,7 @@ export default function DetailingScreen() {
 
 
     // Busca o histórico público do grupo atual para não misturar sessões de outros grupos.
-    const { sessions, loading, refresh: refreshSessions } = useSessoesFoco(50, groupId);
+    const { sessions, loading, erro: erroSessions, refresh: refreshSessions } = useSessoesFoco(50, groupId);
 
     /*
       A tela mostrava só o histórico, e quem estava focando naquele instante simplesmente
@@ -114,6 +115,7 @@ export default function DetailingScreen() {
     const sessoesAgrupadas = agruparSessoesPorData(encerradas);
     const carregando = loading || carregandoAoVivo;
     const vazio = todas.length === 0;
+    const erroFeed = todas.length === 0 ? erroSessions : null;
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -172,6 +174,8 @@ export default function DetailingScreen() {
                     <View style={{ gap: 10 }}>
                         <FeedVazio carregando />
                     </View>
+                ) : vazio && erroFeed ? (
+                    <EstadoDeErro erro={erroFeed} onTentarNovamente={handleRefresh} />
                 ) : vazio ? (
                     <FeedVazio />
                 ) : (

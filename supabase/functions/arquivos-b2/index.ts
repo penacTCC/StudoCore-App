@@ -39,6 +39,7 @@ type AutorizacaoB2 = {
   authorizationToken: string;
   apiUrl: string;
   downloadUrl: string;
+  accountId: string;
 };
 
 /**
@@ -71,6 +72,7 @@ async function autorizar(): Promise<AutorizacaoB2> {
     authorizationToken: dados.authorizationToken,
     apiUrl: storage.apiUrl ?? dados.apiUrl,
     downloadUrl: storage.downloadUrl ?? dados.downloadUrl,
+    accountId: dados.accountId,
   };
 }
 
@@ -98,14 +100,76 @@ Deno.serve(async (req: Request) => {
     const acao = corpo?.acao as string | undefined;
 
     /* ── upload ──────────────────────────────────────────────────────────────────────
-       Devolve a URL de upload do B2. Ela já nasce temporária e ligada a este bucket, e é
-       o que o app usa no lugar da chave: se vazar, expira sozinha e não dá acesso a mais
-       nada da conta.                                                                    */
+       Devolve a URL de upload do B2. `b2_get_upload_url` sozinho só prende o token ao
+       bucket — o nome final do arquivo (X-Bz-File-Name) quem escolhe é o cliente no PUT,
+       e o servidor nunca vê esse PUT para conferir depois. Sem mais nada, qualquer conta
+       logada podia pedir a URL e escrever em cima do storage_path de outra pessoa (o B2
+       versiona em vez de rejeitar nome duplicado, e download sem fileId serve a versão
+       mais nova — troca silenciosa de conteúdo alheio).
+
+       storage_path aqui não é prefixado por usuário (é `disciplina/grupo-ou-sessão/nome`),
+       então a checagem não pode ser um prefixo fixo. Em vez disso: o cliente informa o
+       storagePath pretendido, e a função confere em `arquivos` (via service role, para não
+       depender da RLS de SELECT) se aquele caminho já é de outra pessoa. Se for, nega.
+       Aí, em vez de devolver o token mestre, cria uma Application Key do B2 restrita a
+       esse namePrefix exato antes de pedir a URL de upload — o token que volta para o app
+       só grava naquele caminho, então nem um cliente malicioso consegue trocar o
+       X-Bz-File-Name para escrever em outro lugar depois de receber a URL.              */
     if (acao === "urlUpload") {
+      const storagePath = corpo?.storagePath as string | undefined;
+      if (!storagePath) return jsonResponse({ ok: false, error: "Informe 'storagePath'." }, 400);
+
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const { data: existente } = await admin
+        .from("arquivos")
+        .select("user_id")
+        .eq("storage_path", storagePath)
+        .maybeSingle();
+
+      if (existente && existente.user_id !== user.id) {
+        return jsonResponse({ ok: false, error: "Este caminho já pertence a outro arquivo." }, 403);
+      }
+
       const auth = await autorizar();
-      const res = await fetch(`${auth.apiUrl}/b2api/v3/b2_get_upload_url`, {
+
+      const resKey = await fetch(`${auth.apiUrl}/b2api/v3/b2_create_key`, {
         method: "POST",
         headers: { Authorization: auth.authorizationToken, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: auth.accountId,
+          bucketId: bucketId(),
+          capabilities: ["writeFiles"],
+          keyName: `upload-${user.id}-${Date.now()}`.slice(0, 100),
+          namePrefix: storagePath,
+          validDurationInSeconds: 3600,
+        }),
+      });
+
+      if (!resKey.ok) return jsonResponse({ ok: false, error: "Backblaze não devolveu chave de upload." }, 502);
+
+      const chave = await resKey.json();
+
+      const resAuthChave = await fetch("https://api.backblazeb2.com/b2api/v3/b2_authorize_account", {
+        headers: {
+          Authorization: "Basic " + btoa(`${chave.applicationKeyId}:${chave.applicationKey}`),
+        },
+      });
+
+      if (!resAuthChave.ok) return jsonResponse({ ok: false, error: "Falha ao autorizar chave restrita." }, 502);
+
+      const dadosAuthChave = await resAuthChave.json();
+      const storageChave = dadosAuthChave?.apiInfo?.storageApi ?? {};
+      const apiUrlChave = storageChave.apiUrl ?? dadosAuthChave.apiUrl;
+
+      const res = await fetch(`${apiUrlChave}/b2api/v3/b2_get_upload_url`, {
+        method: "POST",
+        headers: {
+          Authorization: dadosAuthChave.authorizationToken,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ bucketId: bucketId() }),
       });
 

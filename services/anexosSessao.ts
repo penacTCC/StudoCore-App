@@ -9,7 +9,7 @@ import { acertosDoAnexo, anexoCorrigido } from "@/types/anotacoes";
 
 // Uma linha só de propósito: quebrar a string com `+` faz o parser de `select()` do
 // supabase-js perder o tipo literal e devolver GenericStringError no lugar da linha.
-const COLUNAS_ANEXO = "id, sessao_id, user_id, titulo, disciplina, storage_path, backblaze_file_id, created_at, questoes_detectadas, questoes_discursivas, numeros_objetivas, resumo_ia, proximo_passo_ia, gabarito_ia, correcao, acertos_informados";
+const COLUNAS_ANEXO = "id, sessao_id, user_id, titulo, disciplina, storage_path, backblaze_file_id, created_at, questoes_detectadas, questoes_discursivas, numeros_objetivas, resumo_ia, proximo_passo_ia, gabarito_ia, correcao, acertos_informados, gemini_file_uri, gemini_file_expira_em";
 
 /** Limite do inline data do Gemini na Edge Function — acima disso a análise é pulada. */
 const LIMITE_ANALISE_BYTES = 15 * 1024 * 1024;

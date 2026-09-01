@@ -1,9 +1,15 @@
 import 'react-native-url-polyfill/auto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { secureStorage } from './secureStorage';
 
 // No ambiente local, usamos variáveis de ambiente para facilitar a troca entre PCs
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+//
+// A barra final é removida de propósito: o supabase-js monta a URL das Edge Functions
+// concatenando "/functions/v1/<nome>" direto no fim desta string. Com uma barra sobrando no
+// `.env` (fácil de colar sem reparar), a URL final sai com barra dupla e o fetch nem chega a
+// sair — dá FunctionsFetchError ("Failed to send a request") em toda function, sem 4xx/5xx
+// pra explicar o motivo.
+const supabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
 /**
@@ -44,7 +50,7 @@ const fetchComTempoLimite: typeof fetch = (entrada, init) => {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: secureStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

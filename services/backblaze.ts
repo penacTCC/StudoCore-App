@@ -53,7 +53,7 @@ export async function uploadFileToB2(
     mimeType: string,
     fileBuffer: ArrayBuffer
 ) {
-    const { uploadUrl, authorizationToken } = await chamarFuncao('urlUpload') as {
+    const { uploadUrl, authorizationToken } = await chamarFuncao('urlUpload', { storagePath: fileName }) as {
         uploadUrl: string; authorizationToken: string;
     };
 

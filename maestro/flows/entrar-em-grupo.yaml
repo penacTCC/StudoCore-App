@@ -1,0 +1,16 @@
+appId: com.studocore.app
+---
+# Entra num grupo público a partir do painel lateral da Comunidade
+# (components/comunidade/PainelComunidade.tsx -> "Procurar grupos públicos").
+#
+# ATENÇÃO: isto ENTRA DE VERDADE num grupo público de produção com a conta
+# descartável de teste — não há flow de "sair do grupo" automatizado ainda.
+# Ou aceite a sujeira (como já combinado para o resto do plano de testes),
+# ou crie/mantenha um grupo público dedicado a testes e ajuste o `tapOn` do
+# card abaixo para mirar nele pelo nome, em vez do primeiro resultado.
+- runFlow: login.yaml
+- tapOn: "Abrir menu"
+- tapOn: "Procurar grupos públicos"
+- assertVisible: "Grupos Públicos"
+- tapOn: "Entrar"
+- assertNotVisible: "Grupos Públicos"

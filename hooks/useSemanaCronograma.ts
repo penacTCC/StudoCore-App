@@ -51,7 +51,7 @@ export function useSemanaCronograma(userId: string | null | undefined, inicioDaS
       reaproveita o que já foi buscado em vez de refazer as duas consultas e deixar a
       grade vazia no caminho.
     */
-    const { dados, carregando, recarregar: buscar, definir } = useDadosCache(
+    const { dados, carregando, erro, recarregar: buscar, definir } = useDadosCache(
         userId ? `semana-cronograma:${userId}:${chaveSemana}` : null,
         async () => {
             const [agenda, { data: sessoesDaSemana }] = await Promise.all([
@@ -326,6 +326,7 @@ export function useSemanaCronograma(userId: string | null | undefined, inicioDaS
 
     return {
         carregando,
+        erro: dados ? null : erro,
         atualizando,
         vazia: dias.every((d) => d.blocos.length === 0),
         blocosSemana,

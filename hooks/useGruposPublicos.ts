@@ -9,7 +9,7 @@ const SEM_GRUPOS: GrupoPublico[] = [];
 
 /** Vitrine de grupos públicos disponíveis para entrar. */
 export function useGruposPublicos() {
-  const { dados, carregando, recarregar, semear } = useDadosCache<GrupoPublico[]>(
+  const { dados, carregando, erro, recarregar, semear } = useDadosCache<GrupoPublico[]>(
     "grupos-publicos",
     async () => {
       try {
@@ -37,5 +37,10 @@ export function useGruposPublicos() {
     return () => { ativo = false; };
   }, [dados, semear]);
 
-  return { gruposPublicos: dados ?? SEM_GRUPOS, carregando, recarregarGrupos: recarregar };
+  return {
+    gruposPublicos: dados ?? SEM_GRUPOS,
+    carregando,
+    erro: dados ? null : erro,
+    recarregarGrupos: recarregar,
+  };
 }

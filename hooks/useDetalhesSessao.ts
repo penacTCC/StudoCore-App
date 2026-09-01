@@ -17,7 +17,7 @@ const SEM_ANEXOS: AnexoSessao[] = [];
  * vez de a tela voltar ao skeleton toda vez que um modal é fechado.
  */
 export const useDetalhesSessao = (sessaoId: string | null | undefined) => {
-    const { dados, carregando, recarregar } = useDadosCache(
+    const { dados, carregando, erro, recarregar } = useDadosCache(
         sessaoId ? `detalhes-sessao:${sessaoId}` : null,
         async () => {
             const [resultadoSessao, anotacoesSalvas, anexosSalvos] = await Promise.all([
@@ -40,6 +40,7 @@ export const useDetalhesSessao = (sessaoId: string | null | undefined) => {
         anotacoes: dados?.anotacoes ?? ANOTACOES_VAZIAS,
         anexos: dados?.anexos ?? SEM_ANEXOS,
         carregando,
+        erro: dados ? null : erro,
         recarregar,
     };
 };

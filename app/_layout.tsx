@@ -13,14 +13,17 @@ import { useRouteGuard } from "@/hooks/useRoutGuard";
 import { useForcasRecebidas } from "@/hooks/useForcasRecebidas";
 import { usePushToken } from "@/hooks/usePushToken";
 import { useLembreteDeOfensiva } from "@/hooks/useLembreteDeOfensiva";
+import { useLembreteWrapped } from "@/hooks/useLembreteWrapped";
+import { useAberturaAutomaticaWrapped } from "@/hooks/useAberturaAutomaticaWrapped";
 import { useAberturaPorNotificacao } from "@/hooks/useAberturaPorNotificacao";
 import { useRecuperarSessoesAbandonadas } from "@/hooks/useRecuperarSessoesAbandonadas";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { ToastHost } from "@/components/ui/Toast";
 import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
 import { HADES } from "@/constants/hades";
 import MedalAlert from "@/components/MedalAlert";
-import { validarSessaoPorTokens } from "@/services/auth";
+import { validarSessaoPorCodigo } from "@/services/auth";
 import { carregarModoTeste } from "@/services/modoTeste";
 import { ligarInvalidacaoDeCache } from "@/services/invalidacaoCache";
 import { toast } from "@/services/toast";
@@ -50,6 +53,13 @@ export default function RootLayout() {
 
     // Reagenda o lembrete da noite pra quem tem ofensiva pra perder e ainda não estudou.
     useLembreteDeOfensiva(session?.user?.id);
+
+    // Garante o push do Wrapped mensal (dia 1, 9h) agendado.
+    useLembreteWrapped(session?.user?.id);
+
+    // Abre o Wrapped mensal sozinho na primeira vez que o app abre no dia 1 — só depois
+    // que o roteamento inicial já decidiu que a pessoa tem grupo e pousou nas tabs.
+    useAberturaAutomaticaWrapped(session?.user?.id, membro === true);
 
     // Fecha sessões de foco que ficaram abertas de um fechamento forçado do app.
     useRecuperarSessoesAbandonadas(session?.user?.id);
@@ -84,17 +94,14 @@ export default function RootLayout() {
             const isForgotPasswordUrl = url.includes("forgot-password");
             const isRecoveryLink =
                 params.type === "recovery" ||
-                (isForgotPasswordUrl && typeof params.code === "string") ||
-                (isForgotPasswordUrl &&
-                    typeof params.access_token === "string" &&
-                    typeof params.refresh_token === "string");
+                (isForgotPasswordUrl && typeof params.code === "string");
 
             if (!isRecoveryLink) return;
 
-            if (typeof params.access_token === "string" && typeof params.refresh_token === "string") {
-                const { error } = await validarSessaoPorTokens(params.access_token, params.refresh_token);
+            if (typeof params.code === "string") {
+                const { error } = await validarSessaoPorCodigo(params.code);
                 if (error) {
-                    console.error("Erro ao validar tokens de recuperação:", error);
+                    console.error("Erro ao validar código de recuperação:", error);
                     toast.error("Este link de recuperação é inválido ou expirou.");
                 }
             }
@@ -130,6 +137,7 @@ export default function RootLayout() {
                     <MedalAlert />
                     <ToastHost />
                     <ConfirmDialogHost />
+                    <OfflineBanner />
                     <Stack
                         screenOptions={{
                             headerShown: false,

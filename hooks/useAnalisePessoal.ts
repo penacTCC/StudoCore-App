@@ -19,7 +19,7 @@ export function useAnalisePessoal(
     userId: string | null | undefined,
     comecoSemana: ComecoSemana
 ) {
-    const { savedSessions, pendingSessions, loading, refresh: refreshSessoes } = useSessoesUsuario(userId, true);
+    const { savedSessions, pendingSessions, loading, erro, refresh: refreshSessoes } = useSessoesUsuario(userId, true);
 
     // A ofensiva é persistida no backend ao concluir uma sessão, então aqui só
     // buscamos o valor pronto em vez de recalcular a partir do histórico.
@@ -45,5 +45,5 @@ export function useAnalisePessoal(
         [savedSessions, pendingSessions, comecoSemana, ofensiva, melhorOfensiva]
     );
 
-    return { analise, savedSessions, pendingSessions, loading, refresh };
+    return { analise, savedSessions, pendingSessions, loading, erro, refresh };
 }

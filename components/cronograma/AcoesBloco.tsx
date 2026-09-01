@@ -106,9 +106,6 @@ export default function AcoesBloco({
                                         }}
                                     >
                                         <Coffee size={16} color={HADES.green} />
-                                        <Text style={{ fontSize: 13, color: HADES.textMuted, flex: 1 }}>
-                                            Descanso não conta como tempo estudado.
-                                        </Text>
                                     </View>
                                 )}
                             </View>

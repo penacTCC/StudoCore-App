@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 
 import { HADES } from "@/constants/hades";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import { useGraficosAnalytics } from "@/lib/graphics-analytics";
 import { useAnalisePessoal } from "@/hooks/useAnalisePessoal";
 import { useAuth } from "@/hooks/useAuth";
@@ -82,7 +83,7 @@ export default function BrainScreen() {
 
     // Uma única leitura alimenta as duas abas: `analise` (números da aba Análise,
     // escopo pessoal) e as sessões cruas (aba Banco de dados).
-    const { analise, savedSessions: todasSavedSessions, pendingSessions: todasPendingSessions, loading: carregandoAnalise, refresh: refreshAnalisePessoal } = useAnalisePessoal(userId, comecoSemana);
+    const { analise, savedSessions: todasSavedSessions, pendingSessions: todasPendingSessions, loading: carregandoAnalise, erro: erroAnalise, refresh: refreshAnalisePessoal } = useAnalisePessoal(userId, comecoSemana);
 
     // Filtro por matéria ou tópico — aplicado nas duas abas (Salvos e Pendentes).
     const termoBusca = buscaBancoDeDados.trim().toLowerCase();
@@ -354,6 +355,8 @@ export default function BrainScreen() {
                     <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 0 }}>
                       {carregandoAnalise ? (
                         <BancoDadosSkeleton />
+                      ) : erroAnalise && todasSavedSessions.length === 0 && todasPendingSessions.length === 0 ? (
+                        <EstadoDeErro erro={erroAnalise} onTentarNovamente={refreshAnalisePessoal} />
                       ) : (
                         <>
 
@@ -879,6 +882,8 @@ export default function BrainScreen() {
                             )
                         ) : carregandoAnalise ? (
                             <AnalisePessoalSkeleton />
+                        ) : estadoPessoal === "vazio" && erroAnalise ? (
+                            <EstadoDeErro erro={erroAnalise} onTentarNovamente={refreshAnalisePessoal} />
                         ) : estadoPessoal === "vazio" ? (
                             <EstadoVazioPessoal
                                 cor={CORES.accent}

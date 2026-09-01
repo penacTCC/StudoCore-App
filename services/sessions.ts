@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/repositories/supabase";
+import { BUCKET as BUCKET_FOTOS_SESSAO } from "@/services/fotosSessao";
 import { SessaoFocoInsert, SessaoFocoRow, SessionCardItem } from "@/types/sessions";
 import type { ParticipanteResumido } from "@/types/sala";
 import { paraDataISO, pegarIntervaloSemanaAtual } from "@/utils/tempo";
@@ -146,8 +147,38 @@ export const atualizarSessaoFoco = async (id: string, updatesRecebidos: Partial<
 };
 
 // ───── DELETE (descartar sessão, ex.: formulário pendente que não vai ser refeito) ─────
+/**
+ * Apaga a linha e, quando ela tinha foto, o arquivo no bucket `sessao-fotos` também — sem
+ * isso a foto vira órfã (storage não tem CASCADE com o Postgres). Uma execução de plano
+ * multi-matéria grava o MESMO `foto_path` em várias linhas (ver
+ * services/fotosSessao.ts), então só apaga o arquivo se nenhuma sessão irmã ainda apontar
+ * pra ele — mesma checagem que `removerFotoDaSessao` já faz ao desvincular manualmente.
+ */
 export const excluirSessaoFoco = async (id: string) => {
-    return await supabase.from("sessoes_foco").delete().eq("id", id);
+    const { data: sessao } = await supabase
+        .from("sessoes_foco")
+        .select("foto_path")
+        .eq("id", id)
+        .maybeSingle();
+
+    const result = await supabase.from("sessoes_foco").delete().eq("id", id);
+
+    const fotoPath = sessao?.foto_path as string | null | undefined;
+    if (!result.error && fotoPath) {
+        const { count } = await supabase
+            .from("sessoes_foco")
+            .select("id", { count: "exact", head: true })
+            .eq("foto_path", fotoPath);
+
+        if (!count) {
+            const { error: erroStorage } = await supabase.storage.from(BUCKET_FOTOS_SESSAO).remove([fotoPath]);
+            if (erroStorage) {
+                console.warn("Sessão apagada, mas o arquivo da foto continuou no bucket:", erroStorage.message);
+            }
+        }
+    }
+
+    return result;
 };
 
 // ───── SELECT (sessão específica) ─────

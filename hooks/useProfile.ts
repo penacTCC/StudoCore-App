@@ -11,7 +11,7 @@ import { Profile } from "@/types/profile";
  * vindo do ranking ou do feed — não passa mais pela rede antes de desenhar a tela.
  */
 export const useProfile = (userId: string) => {
-  const { dados, carregando } = useDadosCache<Profile | null>(
+  const { dados, carregando, erro, recarregar } = useDadosCache<Profile | null>(
     userId ? `perfil:${userId}` : null,
     async () => {
       const { data, error } = await buscarPerfil(userId);
@@ -25,5 +25,5 @@ export const useProfile = (userId: string) => {
     { tempoFresco: 60_000 }
   );
 
-  return { profile: dados ?? null, carregando };
+  return { profile: dados ?? null, carregando, erro: dados ? null : erro, recarregar };
 };

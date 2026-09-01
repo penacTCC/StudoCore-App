@@ -12,7 +12,7 @@ const SEM_ARQUIVOS: ArquivoDetalhe[] = [];
  * @returns Um objeto contendo a lista de arquivos, o estado de carregamento e uma função para atualizar os dados.
  */
 export const useArchives = (userId: string | undefined) => {
-    const { dados, carregando, recarregar } = useDadosCache<ArquivoDetalhe[]>(
+    const { dados, carregando, erro, recarregar } = useDadosCache<ArquivoDetalhe[]>(
         userId ? `arquivos:${userId}` : null,
         async () => {
             try {
@@ -27,5 +27,10 @@ export const useArchives = (userId: string | undefined) => {
         { tempoFresco: 0 }
     );
 
-    return { archives: dados ?? SEM_ARQUIVOS, isLoading: carregando, refresh: recarregar };
+    return {
+        archives: dados ?? SEM_ARQUIVOS,
+        isLoading: carregando,
+        erro: dados ? null : erro,
+        refresh: recarregar,
+    };
 };

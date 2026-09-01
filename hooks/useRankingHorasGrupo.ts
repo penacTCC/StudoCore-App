@@ -21,7 +21,7 @@ export function useRankingHorasGrupo(
       Trocar de filtro (semanal/mensal/geral) e voltar também refazia tudo; agora cada
       filtro tem a própria chave e a volta é instantânea.
     */
-    const { dados, carregando } = useDadosCache(
+    const { dados, carregando, erro } = useDadosCache(
         grupoId ? `ranking-horas:${grupoId}:${periodo}` : null,
         () => buscarRankingHorasMembros(grupoId!, periodo),
         { tempoFresco: 15_000 }
@@ -46,5 +46,5 @@ export function useRankingHorasGrupo(
         return [...rankingComMembros, ...membrosSemRanking];
     }, [dados, membros]);
 
-    return { rankingMembros, carregando };
+    return { rankingMembros, carregando, erro: dados ? null : erro };
 }

@@ -19,6 +19,7 @@ import { SecaoConfig, LinhaSwitch, LinhaStepper, LinhaEscolha, LinhaPerigo } fro
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useDadosCache } from "@/hooks/useDadosCache";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import {
     atualizarDadosGrupo,
     buscarGrupoPorId,
@@ -63,7 +64,7 @@ export default function GroupSettingsScreen() {
       direto no cache com `alterarDados`, então a tela responde na hora e quem voltar para
       cá em seguida já encontra o valor novo, sem esperar o servidor.
     */
-    const { dados, carregando: loading, definir } = useDadosCache(
+    const { dados, carregando: loading, erro, recarregar, definir } = useDadosCache(
         groupId ? `config-grupo:${groupId}` : null,
         async () => {
             const [grupoEncontrado, quantidade, membrosGrupo] = await Promise.all([
@@ -773,6 +774,8 @@ export default function GroupSettingsScreen() {
             >
                 {loading ? (
                     <GroupSettingsSkeleton />
+                ) : !grupo && erro ? (
+                    <EstadoDeErro erro={erro} onTentarNovamente={recarregar} />
                 ) : (
                     <>
                         {/* Identidade do grupo */}

@@ -2,6 +2,17 @@ import { supabase } from "@/repositories/supabase";
 import type { QuizIAParametros, QuizPergunta } from "@/types/quiz";
 import type { AnaliseAnexo } from "@/types/anotacoes";
 
+/** Lê o `detalhe`/`error` do corpo de um erro não-2xx do `functions.invoke` (ver comentário
+ *  em `analisarAnexoSessao` logo abaixo — mesmo problema em todo `invoke` desta função). */
+async function detalheDoErro(error: unknown): Promise<string | null> {
+    try {
+        const corpo = await (error as any)?.context?.json?.();
+        return corpo?.detalhe ?? corpo?.error ?? null;
+    } catch {
+        return null;
+    }
+}
+
 /**
  * Gera o quiz pós-sessão via Edge Function (`supabase/functions/gerar-quiz-foco`), que chama
  * o Gemini com o conteúdo estudado e o perfil do aluno (idade, objetivo, nível, ritmo,
@@ -100,4 +111,61 @@ export const analisarAnexoSessao = async (params: {
         },
         error: null,
     };
+};
+
+/**
+ * Sobe o arquivo do anexo pra Gemini Files API (`supabase/functions/chat-anexo-sessao`,
+ * ação "upload") e devolve a referência (`fileUri`) que o chat reusa nas mensagens
+ * seguintes, sem reenviar o arquivo inteiro a cada pergunta. A referência vale por ~48h.
+ */
+export const subirAnexoParaChat = async (params: {
+    base64: string;
+    mimeType: string;
+}): Promise<{ data: { fileUri: string; expiraEm: string | null } | null; error: string | null }> => {
+    const { data, error } = await supabase.functions.invoke("chat-anexo-sessao", {
+        body: { acao: "upload", ...params },
+    });
+
+    if (error) {
+        const detalhe = await detalheDoErro(error);
+        console.warn("Erro ao preparar anexo para o chat:", detalhe ?? error);
+        return { data: null, error: detalhe ?? error.message ?? "Erro ao preparar o arquivo para o chat." };
+    }
+
+    if (!data?.fileUri) {
+        console.warn("Upload do anexo pro chat veio sem fileUri:", data);
+        return { data: null, error: "Não foi possível preparar o arquivo para o chat." };
+    }
+
+    return { data: { fileUri: data.fileUri, expiraEm: data.expiraEm ?? null }, error: null };
+};
+
+/**
+ * Manda uma pergunta pro chat sobre o anexo (`chat-anexo-sessao`, ação "mensagem"), junto
+ * do histórico da conversa e da referência do arquivo já hospedado (ver `subirAnexoParaChat`).
+ */
+export const perguntarSobreAnexo = async (params: {
+    fileUri: string;
+    mimeType: string;
+    disciplina: string;
+    conteudo: string | null;
+    historico: { papel: "user" | "model"; texto: string }[];
+    pergunta: string;
+}): Promise<{ data: string | null; error: string | null }> => {
+    const { data, error } = await supabase.functions.invoke("chat-anexo-sessao", {
+        body: { acao: "mensagem", ...params },
+    });
+
+    if (error) {
+        const detalhe = await detalheDoErro(error);
+        console.warn("Erro ao perguntar sobre o anexo:", detalhe ?? error);
+        return { data: null, error: detalhe ?? error.message ?? "Não foi possível responder agora." };
+    }
+
+    if (!data?.resposta) {
+        console.warn("Resposta do chat do anexo veio vazia:", data);
+        return { data: null, error: "Resposta vazia." };
+    }
+
+    return { data: data.resposta as string, error: null };
 };

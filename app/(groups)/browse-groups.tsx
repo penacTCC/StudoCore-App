@@ -15,13 +15,14 @@ import SearchBar from "@/components/ui/SearchBar";
 import PublicGroupCard from "@/components/groups/PublicGroupCard";
 import { useEstudandoAgora } from "@/hooks/useEstudandoAgora";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 
 export default function BrowseGroupsScreen() {
     //Faz sistema de pesquisa
     const [searchQuery, setSearchQuery] = useState("");
 
     //Busca os grupos públicos
-    const { gruposPublicos, carregando, recarregarGrupos } = useGruposPublicos();
+    const { gruposPublicos, carregando, erro, recarregarGrupos } = useGruposPublicos();
 
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
@@ -89,6 +90,8 @@ export default function BrowseGroupsScreen() {
 
             {carregando ? (
                 <BrowseGroupsSkeleton />
+            ) : erro && gruposPublicos.length === 0 ? (
+                <EstadoDeErro erro={erro} onTentarNovamente={recarregarGrupos} style={{ marginTop: 40, marginHorizontal: 20 }} />
             ) : (
                 <>
                     {/* Search */}

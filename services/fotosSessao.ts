@@ -16,7 +16,8 @@ import type { FotoCapturada, FotoSessao } from "@/types/fotoSessao";
   `images` dos avatares: leitura sempre passa por signed URL de validade curta.
 */
 
-const BUCKET = "sessao-fotos";
+/** Também usado por services/sessions.ts para limpar a foto ao excluir uma sessão. */
+export const BUCKET = "sessao-fotos";
 
 /** Foto de câmera chega com 3000px+; 1080 já cobre o maior grid que a galeria mostra. */
 const LARGURA_MAX = 1080;

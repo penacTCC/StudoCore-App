@@ -7,6 +7,7 @@ import { HADES } from "@/constants/hades";
 import { formatarDuracao } from "@/utils/tempo";
 import Avatar from "@/components/ui/Avatar";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import { useMembrosGrupo } from "@/hooks/useMembrosGrupo";
 import { useDadosCache } from "@/hooks/useDadosCache";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,7 +33,7 @@ export default function RoadmapProgressoScreen() {
 
     const { membros, recarregar: recarregarMembros } = useMembrosGrupo({ grupoId: grupoId as string });
 
-    const { dados, carregando, recarregar } = useDadosCache(
+    const { dados, carregando, erro, recarregar } = useDadosCache(
         grupoId ? `roadmap-progresso:${grupoId}` : null,
         async () => {
             const [progresso, porMembro, blocos] = await Promise.all([
@@ -132,6 +133,8 @@ export default function RoadmapProgressoScreen() {
             >
                 {carregando ? (
                     <ProgressoSkeleton />
+                ) : !progresso && erro ? (
+                    <EstadoDeErro erro={erro} onTentarNovamente={recarregar} />
                 ) : !progresso ? (
                     <EstadoVazio souAdmin={souAdmin} onGerar={abrirGeracao} />
                 ) : (

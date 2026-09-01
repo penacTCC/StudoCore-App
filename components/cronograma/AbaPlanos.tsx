@@ -28,6 +28,7 @@ import {
 } from "@/services/planos";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 
 const DIAS_CURTOS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]; // 0 = segunda
 const MESES_NOME = [
@@ -45,6 +46,7 @@ type Props = {
     userId: string | null | undefined;
     menuAbertoId: string | null;
     carregando?: boolean;
+    erro?: unknown;
     onAbrirMenu: (id: string | null) => void;
     onNovoPlano: () => void;
     onEditarPlano: (plano: Plano) => void;
@@ -58,6 +60,7 @@ export default function AbaPlanos({
     userId,
     menuAbertoId,
     carregando,
+    erro,
     onAbrirMenu,
     onNovoPlano,
     onEditarPlano,
@@ -172,7 +175,9 @@ export default function AbaPlanos({
 
     return (
         <View style={{ flex: 1 }}>
-            {!carregando && planos.length === 0 ? (
+            {!carregando && planos.length === 0 && erro ? (
+                <EstadoDeErro erro={erro} onTentarNovamente={onRecarregar} style={{ marginHorizontal: 20 }} />
+            ) : !carregando && planos.length === 0 ? (
                 <PlanosVazio onNovoPlano={onNovoPlano} onGerarComIA={onGerarComIA} />
             ) : (
                 <ScrollView

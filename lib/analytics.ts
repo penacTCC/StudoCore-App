@@ -1,6 +1,6 @@
 import { SessaoFocoRow } from "@/types/sessions";
 import { totalAcertos, totalQuestoes } from "@/utils/estatisticasSessao";
-import {MateriaDistribuicao, AnalisePessoal, ComecoSemana, PontoSerieDia, ParDiaSemana, ParPlanejadoRealizado, ResumoAderencia, AderenciaMateria, DesempenhoMateria} from "@/types/analytics"
+import {MateriaDistribuicao, AnalisePessoal, ComecoSemana, PontoSerieDia, ParDiaSemana, ParPlanejadoRealizado, ResumoAderencia, AderenciaMateria, DesempenhoMateria, DadosWrapped, MateriaWrapped} from "@/types/analytics"
 
 // Paleta usada para colorir as fatias de "distribuição por matéria".
 // As cores são atribuídas por rank (matéria mais estudada primeiro), então
@@ -619,5 +619,153 @@ export function calcularAnalisePessoal(
         distribuicao,
         maxHours: distribuicao.length > 0 ? Math.max(...distribuicao.map((d) => d.hours)) : 1,
         variacaoHorasPct,
+    };
+}
+
+// ── Wrapped mensal ──────────────────────────────────────────────────────
+
+const MESES_WRAPPED = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+
+/** Cor de matéria sem registro em `materias_usuario` (deletada, ou o balde "Outras") —
+ *  mesmo cinza neutro usado como fallback em services/planos.ts e services/comunidade.ts. */
+const COR_MATERIA_PADRAO = "#8a8d96";
+
+/** "62h 45m" / "0h 00m" — formato usado só no Wrapped (com espaço e minuto sempre com 2 dígitos). */
+function formatarHorasWrapped(minutos: number): string {
+    const h = Math.floor(minutos / 60);
+    const m = minutos % 60;
+    return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+/**
+ * Maior sequência de dias consecutivos com sessão dentro do próprio mês (não herda nem
+ * projeta ofensiva de fora dele) — é o que o card "OFENSIVA" do Wrapped mostra.
+ */
+function maiorSequenciaNoMes(diasEstudados: Set<number>, diasNoMes: number): number {
+    let maior = 0;
+    let atual = 0;
+    for (let dia = 1; dia <= diasNoMes; dia++) {
+        if (diasEstudados.has(dia)) {
+            atual += 1;
+            maior = Math.max(maior, atual);
+        } else {
+            atual = 0;
+        }
+    }
+    return maior;
+}
+
+/**
+ * Agrega as sessões finalizadas de um mês nos números do card "Wrapped de [mês]" — cada
+ * seção da tela (horas, questões, ofensiva, distribuição por matéria) é derivada aqui, sem
+ * nenhum placeholder. `sessoesMesAnterior` só entra na variação de horas ("↑ 18% vs.
+ * Abril"); o resto do card não depende dele.
+ *
+ * `ano`/`mes` usam a convenção do `Date` (mes 0 = janeiro). `melhorOfensivaGeral` vem de
+ * `gamificacoes` (services/gamificacao.ts) — sem histórico de ofensiva salvo por mês no
+ * banco, "a maior desse mês" só pode ser inferido comparando a sequência recalculada deste
+ * mês com o recorde vitalício da conta.
+ *
+ * `corPorMateria` mapeia `disciplina` (nome de exibição da matéria, ex. "Matemática") pra
+ * cor persistida em `materias_usuario.cor` — a mesma cor que a matéria usa no resto do
+ * app (perfil, planos, blocos). Uma matéria sem entrada aí (deletada, ou o balde "Outras")
+ * cai no cinza neutro `COR_MATERIA_PADRAO`, igual ao fallback já usado em services/planos.ts.
+ */
+export function calcularWrappedMensal(
+    sessoesMes: SessaoFocoRow[],
+    sessoesMesAnterior: SessaoFocoRow[],
+    opts: {
+        ano: number;
+        mes: number;
+        melhorOfensivaGeral: number;
+        corPorMateria?: Record<string, string>;
+    }
+): DadosWrapped {
+    const { ano, mes, melhorOfensivaGeral, corPorMateria = {} } = opts;
+    const diasNoMes = new Date(ano, mes + 1, 0).getDate();
+
+    const barrasDiarias = new Array(diasNoMes).fill(0);
+    const diasEstudados = new Set<number>();
+    const distMap: Record<string, number> = {};
+    let minutosTotais = 0;
+    let questoesTotais = 0;
+    let acertosTotais = 0;
+
+    for (const sessao of sessoesMes) {
+        const dia = Number(sessao.data_sessao.slice(8, 10));
+        const minutos = sessao.tempo_minutos || 0;
+
+        minutosTotais += minutos;
+        barrasDiarias[dia - 1] += minutos;
+        if (minutos > 0) diasEstudados.add(dia);
+
+        questoesTotais += totalQuestoes(sessao);
+        acertosTotais += totalAcertos(sessao);
+
+        const materia = sessao.disciplina || "Outros";
+        distMap[materia] = (distMap[materia] || 0) + minutos;
+    }
+
+    const minutosMesAnterior = sessoesMesAnterior.reduce((acc, s) => acc + (s.tempo_minutos || 0), 0);
+    const variacaoHorasPct =
+        minutosMesAnterior > 0
+            ? Math.round(((minutosTotais - minutosMesAnterior) / minutosMesAnterior) * 100)
+            : minutosTotais > 0 ? 100 : 0;
+
+    const ofensivaDias = maiorSequenciaNoMes(diasEstudados, diasNoMes);
+
+    // Últimos 6 dias do mês, na ordem em que aparecem no calendário — mesma trilha que o
+    // resto do app usa pra "os últimos dias".
+    const trilhaOfensiva = Array.from({ length: Math.min(6, diasNoMes) }, (_, i) => {
+        const dia = diasNoMes - Math.min(6, diasNoMes) + 1 + i;
+        return diasEstudados.has(dia);
+    });
+
+    const materiasOrdenadas = Object.entries(distMap)
+        .map(([nome, minutos]) => ({ nome, minutos }))
+        .sort((a, b) => b.minutos - a.minutos);
+
+    const TOP_MATERIAS = 3;
+    const principais = materiasOrdenadas.slice(0, TOP_MATERIAS);
+    const restoMinutos = materiasOrdenadas.slice(TOP_MATERIAS).reduce((acc, m) => acc + m.minutos, 0);
+
+    const materias: MateriaWrapped[] = principais.map((m) => ({
+        nome: m.nome,
+        tempo: formatarHorasWrapped(m.minutos),
+        pct: minutosTotais > 0 ? Math.round((m.minutos / minutosTotais) * 100) : 0,
+        cor: corPorMateria[m.nome] ?? COR_MATERIA_PADRAO,
+    }));
+    if (restoMinutos > 0) {
+        materias.push({
+            nome: "Outras",
+            tempo: formatarHorasWrapped(restoMinutos),
+            pct: minutosTotais > 0 ? Math.round((restoMinutos / minutosTotais) * 100) : 0,
+            cor: COR_MATERIA_PADRAO,
+        });
+    }
+
+    const picoDiario = Math.max(0, ...barrasDiarias);
+
+    return {
+        mesRotulo: MESES_WRAPPED[mes],
+        horasTotais: formatarHorasWrapped(minutosTotais),
+        variacaoHoras: `${Math.abs(variacaoHorasPct)}%`,
+        variacaoHorasPositiva: variacaoHorasPct >= 0,
+        mesAnterior: MESES_WRAPPED[(mes + 11) % 12],
+        progressoHoras: diasNoMes > 0 ? diasEstudados.size / diasNoMes : 0,
+        mediaDiaria: formatarHorasWrapped(Math.round(minutosTotais / diasNoMes)),
+        picoDiario: formatarHorasWrapped(picoDiario),
+        diasNoMes,
+        barrasDiarias,
+        questoesTotais: questoesTotais.toLocaleString("pt-BR"),
+        questoesCorretas: acertosTotais.toLocaleString("pt-BR"),
+        pctAcerto: questoesTotais > 0 ? Math.round((acertosTotais / questoesTotais) * 100) : 0,
+        ofensivaDias,
+        ofensivaRecorde: ofensivaDias > 0 && ofensivaDias >= melhorOfensivaGeral,
+        trilhaOfensiva,
+        materias,
     };
 }

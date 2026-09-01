@@ -67,7 +67,7 @@ A UI foi migrada (2026-07) para um design system próprio chamado **HADES**, cob
 ### Modais (`app/(modals)/`)
 - **Grupo:** `create-group.tsx`, `invite.tsx`, `join-by-code.tsx`, `join.tsx` (entrar em sala/sessão ao vivo).
 - **Cronograma/matérias:** `criar-materia.tsx`, `novo-bloco.tsx` (rotina), `novo-bloco-plano.tsx`, `plano-editor.tsx`, `session-preview.tsx`.
-- **Social/gamificação:** `badges.tsx`, `compare-profile.tsx` (duelo de perfis), `colegas-focando.tsx`, `member-profile.tsx`, `focus-feedback.tsx` (quiz + resultado pós-sessão), `ShareWeeklyProgress.tsx`. `ShareSession.tsx` é um **stub morto** (~13 linhas, não conectado).
+- **Social/gamificação:** `badges.tsx`, `compare-profile.tsx` (duelo de perfis), `colegas-focando.tsx`, `member-profile.tsx`, `focus-feedback.tsx` (quiz + resultado pós-sessão), `ShareWeeklyProgress.tsx`.
 - **Sessão/anotações:** `detalhes-sessao.tsx`, `corrigir-anexo.tsx` (correção do PDF anexado).
 - **Vault:** `upload-vault.tsx`, `archive-details.tsx`.
 - **Comunidade:** `notificacoes.tsx` (caixa do app inteiro), `contas-bloqueadas.tsx`.
@@ -177,13 +177,12 @@ Push remoto real (Expo → FCM/APNs) para força e interações do Explorar, com
 
 ### Rascunho de features Premium (atratividade para o lançamento na Play Store)
 A base para cobrar por "IA + estatística + conveniência" já existe — quiz pós-sessão e análise de anexo já rodam por IA (seção 6.4). Ideias priorizadas:
-1. **Chat com o anexo da sessão (Premium):** tirar dúvida sobre qualquer questão do formulário/prova anexado, explicar passo a passo e gerar questões similares ao anexo — evolução natural do `analisar-anexo-sessao` (Edge Function + `GEMINI_API_KEY` já prontas).
-2. **`banco_erros` com revisão espaçada:** schema já existe (seção 11); Premium v1 = replay dos erros por matéria + mini-quiz IA gerado a partir dos erros.
-3. **Plano de estudos por IA:** dar um objetivo ("passar em X em 3 meses") e receber um plano com blocos diários — reusa `planos.ts`/`agenda.ts`/`schedule.ts`.
-4. **Wrapped / Replay Mensal:** retrospectiva estilo Spotify (horas, matérias, ofensiva, marcos) — roadmap item 8.
-5. **Estatísticas avançadas:** heatmap anual, projeção de desempenho, comparativo de matérias (`profileStats.ts` já tem a base).
-6. **Grupos ilimitados** e **salas de foco maiores** (limite por plano).
-7. **Cosméticos:** bordas de perfil, avatares, temas de card (microtransação).
+1. **`banco_erros` com revisão espaçada:** schema já existe (seção 11); Premium v1 = replay dos erros por matéria + mini-quiz IA gerado a partir dos erros.
+2. **Plano de estudos por IA:** dar um objetivo ("passar em X em 3 meses") e receber um plano com blocos diários — reusa `planos.ts`/`agenda.ts`/`schedule.ts`.
+3. **Wrapped / Replay Mensal:** retrospectiva estilo Spotify (horas, matérias, ofensiva, marcos) — roadmap item 8.
+4. **Estatísticas avançadas:** heatmap anual, projeção de desempenho, comparativo de matérias (`profileStats.ts` já tem a base).
+5. **Grupos ilimitados** e **salas de foco maiores** (limite por plano).
+6. **Cosméticos:** bordas de perfil, avatares, temas de card (microtransação).
 
 **Gatilhos de conversão propostos:** manter o quiz IA grátis com limite diário e cobrar o ilimitado, ou cobrar especificamente pela IA de questões do anexo (maior percepção de valor); tudo que é IA continua atrás de Edge Function com a chave só no servidor (regra da seção 2/6.4).
 
@@ -212,8 +211,6 @@ A base para cobrar por "IA + estatística + conveniência" já existe — quiz p
 
 ## 11. Débitos conhecidos / o que falta
 - **`banco_erros`** (banco de questões erradas): schema existe, zero código de app ainda.
-- **`ShareSession.tsx`**: modal stub, não conectado.
-- **Pomodoro não sobrevive a app kill** corretamente (só o modo cronômetro restaura via AsyncStorage) — problema pré-existente, fora de escopo até agora.
 - **Foto de sessão vira órfã no bucket** quando a sessão ou conta é apagada (sem cascade de storage).
 - **Zero infraestrutura de teste automatizado** (sem Jest/Vitest, sem `__tests__`, sem `testID` nas telas). Plano de testes já **acordado mas não iniciado** (ver seção 12) — só deve começar quando o usuário disser que terminou as features que quer construir antes.
 - Deploys/migrations do Supabase às vezes ficam pendentes de aplicação manual (sem credencial de CLI/MCP em algumas sessões) — sempre confirmar com o usuário se uma migration/edge function recém-criada já foi aplicada no projeto remoto antes de assumir que está no ar.

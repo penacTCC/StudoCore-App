@@ -9,12 +9,13 @@ import { HADES } from "@/constants/hades";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
 import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 
 //Componentes Lucide Native
 import { Plus, Users, Compass } from "@/components/ui/icons";
 
 export default function MyGroupsScreen() {
-    const { grupos, carregando, atualizando, atualizar } = useMeusGrupos();
+    const { grupos, carregando, erro, atualizando, atualizar } = useMeusGrupos();
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top"]}>
@@ -52,6 +53,8 @@ export default function MyGroupsScreen() {
 
             {carregando ? (
                 <MeusGruposSkeleton />
+            ) : erro && grupos.length === 0 ? (
+                <EstadoDeErro erro={erro} onTentarNovamente={atualizar} style={{ marginTop: 40, marginHorizontal: 20 }} />
             ) : (
                 <FlatList
                     style={{ flex: 1 }}

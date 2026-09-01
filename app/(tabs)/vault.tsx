@@ -55,6 +55,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import type { IconeComponente } from "@/components/ui/icons";
 
 import { useArchives } from "@/hooks/useArchives";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { Book } from "lucide-react-native";
@@ -439,7 +440,7 @@ export default function VaultScreen() {
     const [buscando, setBuscando] = useState(false);
 
     const { user, userId } = useAuth();
-    const { archives, isLoading: carregandoArquivos, refresh } = useArchives(userId || undefined);
+    const { archives, isLoading: carregandoArquivos, erro: erroArquivos, refresh } = useArchives(userId || undefined);
     const { grupos, atualizando: atualizandoGrupos, atualizar: atualizarGrupos } = useMeusGrupos();
     const { profile } = useProfile(userId ?? "");
     const { planos, carregando: carregandoPlanos, recarregarPlanos } = usePlanos(userId);
@@ -688,7 +689,9 @@ export default function VaultScreen() {
                     />
                 }
             >
-                {vazioTotal && filtro === "todos" ? (
+                {vazioTotal && filtro === "todos" && erroArquivos ? (
+                    <EstadoDeErro erro={erroArquivos} onTentarNovamente={refresh} />
+                ) : vazioTotal && filtro === "todos" ? (
                     <ArquivosVazio
                         Icone={Folder}
                         titulo="Seu Vault ainda está vazio"

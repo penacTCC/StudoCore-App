@@ -11,7 +11,8 @@
 // que apontam direto pra auth.users) também cascateiam. As tabelas do SClass e
 // alunos_turmas usam NO ACTION e travariam o DELETE, por isso são limpas antes, na mão.
 // arquivos.user_id é SET NULL de propósito: material enviado pra um grupo continua lá,
-// sem dono.
+// sem dono. Storage não cascateia com o Postgres, então as fotos de sessão do bucket
+// `sessao-fotos` são apagadas na mão, antes do DELETE do usuário.
 //
 // Deploy: `supabase functions deploy excluir-conta` (sem secret novo).
 
@@ -68,6 +69,23 @@ Deno.serve(async (req: Request) => {
       if (error) {
         console.error(`Erro ao limpar ${tabela}:`, error);
         return jsonResponse({ ok: false, error: "Não foi possível limpar seus dados." }, 500);
+      }
+    }
+
+    // Storage não tem CASCADE com o Postgres: sem isto, a foto de cada sessão de foco
+    // sobrevive à conta apagada. O caminho é sempre `${user.id}/...` (services/fotosSessao.ts),
+    // então listar a pasta do usuário já basta. Best-effort de propósito — um bucket órfão
+    // é bem melhor do que travar a exclusão de conta que a pessoa pediu.
+    const { data: fotosSessao, error: erroListarFotos } = await admin.storage
+      .from("sessao-fotos")
+      .list(user.id);
+    if (erroListarFotos) {
+      console.error("Erro ao listar fotos de sessão do usuário:", erroListarFotos);
+    } else if (fotosSessao && fotosSessao.length > 0) {
+      const caminhos = fotosSessao.map((arquivo) => `${user.id}/${arquivo.name}`);
+      const { error: erroRemoverFotos } = await admin.storage.from("sessao-fotos").remove(caminhos);
+      if (erroRemoverFotos) {
+        console.error("Erro ao apagar fotos de sessão do usuário:", erroRemoverFotos);
       }
     }
 

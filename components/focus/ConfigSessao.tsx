@@ -365,9 +365,6 @@ export default function ConfigSessao({
 
                     <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 4 }}>
                         <Info size={14} color={HADES.textDim} style={{ marginTop: 1 }} />
-                        <Text style={{ fontSize: 12, color: HADES.textMuted, lineHeight: 17, flex: 1 }}>
-                            Só o tempo de foco vira hora de estudo, XP e ranking. Descanso não conta.
-                        </Text>
                     </View>
                 </>
             )}

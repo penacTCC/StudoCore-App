@@ -1,0 +1,11 @@
+appId: com.studocore.app
+---
+# Abre a aba Cronograma e navega entre os dias, validando que os controles do
+# NavegadorData (app/(tabs)/schedule.tsx) respondem.
+- runFlow: login.yaml
+- tapOn: "Cronograma"
+- assertVisible: "Anterior"
+- assertVisible: "Próximo"
+- tapOn: "Próximo"
+- assertVisible: "Voltar para hoje"
+- tapOn: "Voltar para hoje"

@@ -88,6 +88,7 @@ export default function ComunidadeScreen() {
                         <TouchableOpacity
                             onPress={painel.abrir}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            accessibilityLabel="Abrir menu"
                         >
                             <Menu size={23} color={HADES.text} />
                         </TouchableOpacity>

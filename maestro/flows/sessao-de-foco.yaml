@@ -1,0 +1,22 @@
+appId: com.studocore.app
+---
+# Inicia e encerra uma sessão de foco (cronômetro, privada) do começo ao fim.
+#
+# Requer que a conta de teste já tenha pelo menos uma matéria cadastrada com o
+# nome em MATERIA_TESTE (ver maestro/.env.example) — criar matéria pelo "Nova
+# matéria" abre outro modal e fica fora deste flow por ora.
+#
+# Ao encerrar, o app abre o modal de feedback com um quiz gerado por IA
+# (app/(modals)/focus-feedback.tsx) — como as perguntas/respostas mudam a cada
+# geração, esse modal fica fora do escopo automatizado aqui. Rode o flow, feche
+# o modal manualmente e SÓ ENTÃO comece o próximo teste (uma sessão pendente de
+# feedback bloqueia iniciar uma nova, ver `pendingSessions` em focus.tsx).
+- runFlow: login.yaml
+- tapOn: "Foco"
+- tapOn: "Privada"
+- tapOn: ${MATERIA_TESTE}
+- tapOn: "ex.: Capítulo 5: Derivadas"
+- inputText: "Teste automatizado Maestro"
+- tapOn: "Iniciar foco"
+- assertVisible: "Encerrar sessão"
+- tapOn: "Encerrar sessão"

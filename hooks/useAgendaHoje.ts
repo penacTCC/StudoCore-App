@@ -61,7 +61,7 @@ export function useAgendaHoje(userId: string | null | undefined, dataISO?: strin
       blocos depende da hora atual — mas agora o conteúdo antigo fica na tela enquanto ela
       acontece.
     */
-    const { dados, carregando, recarregar, semear } = useDadosCache<AgendaEmCache>(
+    const { dados, carregando, erro, recarregar, semear } = useDadosCache<AgendaEmCache>(
         userId ? `agenda-dia:${userId}:${diaAlvo}` : null,
         async () => {
             const [agenda, { data: sessoesHoje }] = await Promise.all([
@@ -200,5 +200,7 @@ export function useAgendaHoje(userId: string | null | undefined, dataISO?: strin
         };
     }, [dados, materiasComCores, diaAlvo, hojeISO]);
 
-    return { blocos, resumo, carregando, recarregar };
+    // Só é "erro de verdade" pra tela quando não há nem dado em cache nem semente offline
+    // pra mostrar no lugar — com qualquer um dos dois, a falha vira revalidação silenciosa.
+    return { blocos, resumo, carregando, erro: dados ? null : erro, recarregar };
 }

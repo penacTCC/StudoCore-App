@@ -7,6 +7,7 @@ import {
     Check,
     Clock,
     FileText,
+    MessageCircle,
     Paperclip,
     Pencil,
     RefreshCw,
@@ -19,6 +20,7 @@ import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
 import { useDetalhesSessao } from "@/hooks/useDetalhesSessao";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import DocumentPickerVault from "@/components/ui/DocumentPickerVault";
 import { anexarFormularioASessao, removerAnexo } from "@/services/anexosSessao";
 import { abrirArquivoDoBucket } from "@/services/visualizarArquivo";
@@ -43,7 +45,7 @@ export default function DetalhesSessaoModal() {
     const { userId } = useAuth();
     const { materiasComCores } = useMaterias(userId);
 
-    const { sessao, anotacoes, anexos, carregando, recarregar } = useDetalhesSessao(sessaoId);
+    const { sessao, anotacoes, anexos, carregando, erro, recarregar } = useDetalhesSessao(sessaoId);
     const [anexando, setAnexando] = useState(false);
 
     /*
@@ -165,6 +167,14 @@ export default function DetalhesSessaoModal() {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}>
                 <ActivityIndicator color={HADES.accentSolid} />
+            </SafeAreaView>
+        );
+    }
+
+    if (!sessao && erro) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}>
+                <EstadoDeErro erro={erro} onTentarNovamente={recarregar} style={{ marginHorizontal: 20 }} />
             </SafeAreaView>
         );
     }
@@ -335,6 +345,12 @@ export default function DetalhesSessaoModal() {
                                     params: { anexoId: anexo.id, sessaoId: sessao.id },
                                 })
                             }
+                            aoConversar={() =>
+                                router.push({
+                                    pathname: "/(modals)/chat-anexo",
+                                    params: { anexoId: anexo.id, conteudo: sessao.conteudo_especifico || "" },
+                                })
+                            }
                             aoRemover={() => excluirAnexo(anexo)}
                         />
                     ))}
@@ -466,11 +482,13 @@ const CardAnexo = ({
     anexo,
     aoAbrir,
     aoCorrigir,
+    aoConversar,
     aoRemover,
 }: {
     anexo: AnexoSessao;
     aoAbrir: () => void;
     aoCorrigir: () => void;
+    aoConversar: () => void;
     aoRemover: () => void;
 }) => {
     const corrigido = anexoCorrigido(anexo);
@@ -547,41 +565,66 @@ const CardAnexo = ({
                 </View>
             )}
 
-            {/*
-              Enquanto não for corrigido, o anexo não entra na taxa de acerto da sessão —
-              contar 0 de 28 antes do usuário dizer como foi seria injusto com a média dele.
-            */}
-            <TouchableOpacity
-                onPress={aoCorrigir}
-                activeOpacity={0.8}
-                style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 7,
-                    marginTop: 12,
-                    height: 40,
-                    borderRadius: 12,
-                    backgroundColor: corrigido ? HADES.surfaceRaised : "rgba(242,176,61,0.10)",
-                    borderWidth: 1,
-                    borderColor: corrigido ? HADES.border : HADES.amberBorder,
-                }}
-            >
-                {corrigido ? (
-                    <Check size={15} color={HADES.textSecondary} />
-                ) : (
-                    <Paperclip size={15} color={HADES.amber} />
-                )}
-                <Text
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                {/*
+                  Enquanto não for corrigido, o anexo não entra na taxa de acerto da sessão —
+                  contar 0 de 28 antes do usuário dizer como foi seria injusto com a média dele.
+                */}
+                <TouchableOpacity
+                    onPress={aoCorrigir}
+                    activeOpacity={0.8}
                     style={{
-                        fontSize: 13,
-                        fontWeight: "600",
-                        color: corrigido ? HADES.textSecondary : HADES.amber,
+                        flex: 1,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 7,
+                        height: 40,
+                        borderRadius: 12,
+                        backgroundColor: corrigido ? HADES.surfaceRaised : "rgba(242,176,61,0.10)",
+                        borderWidth: 1,
+                        borderColor: corrigido ? HADES.border : HADES.amberBorder,
                     }}
                 >
-                    {corrigido ? "Revisar correção" : "Aguardando correção"}
-                </Text>
-            </TouchableOpacity>
+                    {corrigido ? (
+                        <Check size={15} color={HADES.textSecondary} />
+                    ) : (
+                        <Paperclip size={15} color={HADES.amber} />
+                    )}
+                    <Text
+                        style={{
+                            fontSize: 13,
+                            fontWeight: "600",
+                            color: corrigido ? HADES.textSecondary : HADES.amber,
+                        }}
+                    >
+                        {corrigido ? "Revisar correção" : "Aguardando correção"}
+                    </Text>
+                </TouchableOpacity>
+
+                {/* Chat sobre o anexo (Premium) — tirar dúvida ou pedir questões parecidas. */}
+                <TouchableOpacity
+                    onPress={aoConversar}
+                    activeOpacity={0.8}
+                    style={{
+                        flex: 1,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 7,
+                        height: 40,
+                        borderRadius: 12,
+                        backgroundColor: HADES.accentTint,
+                        borderWidth: 1,
+                        borderColor: HADES.accentTintBorder,
+                    }}
+                >
+                    <MessageCircle size={15} color={HADES.accentSolid} />
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: HADES.accentSolid }}>
+                        Tirar dúvida
+                    </Text>
+                </TouchableOpacity>
+            </View>
         </View>
     );
 };

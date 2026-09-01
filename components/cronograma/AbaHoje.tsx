@@ -4,12 +4,14 @@ import Svg, { Rect, Line, Circle } from "react-native-svg";
 import { HADES } from "@/constants/hades";
 import BlocoHoje from "@/components/cronograma/BlocoHoje";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import type { BlocoDoDia } from "@/types/cronograma";
 
 type Props = {
     blocos: BlocoDoDia[];
     resumo: { planejado: string; concluido: string; proximo: { materia: string; hora: string } | null };
     carregando?: boolean;
+    erro?: unknown;
     onIniciarFoco: (bloco: BlocoDoDia) => void;
     onAbrirAcoes: (bloco: BlocoDoDia) => void;
     onMontarDia: () => void;
@@ -22,6 +24,7 @@ export default function AbaHoje({
     blocos,
     resumo,
     carregando,
+    erro,
     onIniciarFoco,
     onAbrirAcoes,
     onMontarDia,
@@ -31,6 +34,14 @@ export default function AbaHoje({
 }: Props) {
     if (carregando) {
         return <AbaHojeSkeleton />;
+    }
+
+    if (blocos.length === 0 && erro) {
+        return (
+            <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: 20 }}>
+                <EstadoDeErro erro={erro} onTentarNovamente={onRefresh ?? (() => {})} />
+            </View>
+        );
     }
 
     if (blocos.length === 0) {

@@ -13,6 +13,10 @@ import { router } from "expo-router";
  * destino certo é a sala, não uma lista falando dela. Enquanto essa rota não existe, ela
  * abre o app onde estava, que é melhor do que um desvio para a lista.
  *
+ * A do Wrapped mensal (ver services/notificacoesWrapped.ts) vai direto pro modal — sem
+ * guarda de janela aqui: quem chegou tarde (fora dos 3 primeiros dias) é redirecionado pela
+ * própria tela (ver app/(modals)/wrapped-mensal.tsx).
+ *
  * Depende do `userId` de propósito: com o app fechado, o toque chega antes de a sessão
  * ser restaurada, e navegar nesse instante brigaria com o roteamento de entrada
  * (ver useRouteGuard).
@@ -29,6 +33,10 @@ export function useAberturaPorNotificacao(userId: string | null | undefined) {
             const dados = resposta?.notification?.request?.content?.data as
                 | { tipo?: string }
                 | undefined;
+            if (dados?.tipo === "wrapped") {
+                router.push("/(modals)/wrapped-mensal");
+                return;
+            }
             if (dados?.tipo !== "comunidade" && dados?.tipo !== "forca") return;
             router.push("/(modals)/notificacoes");
         };

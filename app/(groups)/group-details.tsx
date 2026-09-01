@@ -14,6 +14,7 @@ import { useOnlineUsers } from "@/hooks/useOnlineUsers";
 import { useAuth } from "@/hooks/useAuth";
 import { GrupoComTotalMembros } from "@/types/grupos";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
+import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import { toast } from "@/services/toast";
 
 /** Bloco de estatística no visual HADES (substitui o antigo StatCard). */
@@ -60,7 +61,7 @@ export default function GroupDetailsScreen() {
       recomeçavam do zero a cada abertura da tela — que é uma tela para a qual se volta o
       tempo todo vindo da home.
     */
-    const { dados, carregando: isLoading, recarregar: recarregarGrupo } = useDadosCache(
+    const { dados, carregando: isLoading, erro, recarregar: recarregarGrupo } = useDadosCache(
         groupId ? `detalhes-grupo:${groupId}` : null,
         async () => {
             const [grupo, horas] = await Promise.all([
@@ -96,6 +97,16 @@ export default function GroupDetailsScreen() {
 
     if (isLoading) {
         return <GroupDetailsSkeleton />;
+    }
+
+    if (!group && erro) {
+        return (
+            <SafeAreaView
+                style={{ flex: 1, backgroundColor: HADES.bg, alignItems: "center", justifyContent: "center" }}
+            >
+                <EstadoDeErro erro={erro} onTentarNovamente={recarregarGrupo} style={{ marginHorizontal: 20 }} />
+            </SafeAreaView>
+        );
     }
 
     if (!group) {

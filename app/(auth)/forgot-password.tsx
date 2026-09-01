@@ -21,7 +21,6 @@ import {
     recuperarSenha,
     redefinirSenha,
     validarSessaoPorCodigo,
-    validarSessaoPorTokens,
 } from "@/services/auth";
 import { toast } from "@/services/toast";
 
@@ -31,7 +30,7 @@ import { traduzirErroAuth } from "@/utils/errosAuth";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function ForgotPasswordScreen() {
-    const params = useLocalSearchParams<{ code?: string; access_token?: string; refresh_token?: string }>();
+    const params = useLocalSearchParams<{ code?: string }>();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -47,17 +46,13 @@ export default function ForgotPasswordScreen() {
 
             const queryParams = url ? QueryParams.getQueryParams(url).params : params;
             const code = typeof queryParams.code === "string" ? queryParams.code : undefined;
-            const accessToken = typeof queryParams.access_token === "string" ? queryParams.access_token : undefined;
-            const refreshToken = typeof queryParams.refresh_token === "string" ? queryParams.refresh_token : undefined;
 
-            if (!code && (!accessToken || !refreshToken)) return;
+            if (!code) return;
 
             linkHandled.current = true;
             setIsValidatingLink(true);
 
-            const { error } = code
-                ? await validarSessaoPorCodigo(code)
-                : await validarSessaoPorTokens(accessToken!, refreshToken!);
+            const { error } = await validarSessaoPorCodigo(code);
 
             setIsValidatingLink(false);
 
@@ -73,7 +68,7 @@ export default function ForgotPasswordScreen() {
 
         Linking.getInitialURL().then(handleRecoveryUrl);
 
-        if (params.code || (params.access_token && params.refresh_token)) {
+        if (params.code) {
             handleRecoveryUrl();
         }
     }, [params]);
