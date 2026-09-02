@@ -169,7 +169,8 @@ export default function PlanoScreen() {
 function CartaoDoPlano({ ehPro, rotulo }: { ehPro: boolean; rotulo: string }) {
     const [largura, setLargura] = useState(0);
     const altura = largura / PROPORCAO_CARD_PLANO;
-    const tamanhoCoroa = largura * 0.14;
+  const tamanhoCoroa = largura * 0.11
+
 
     return (
         <View

@@ -26,6 +26,7 @@ import {
     Lock,
     MessageCircle,
     PartyPopper,
+    Play,
     Sparkles,
     Swords,
     UserPlus,
@@ -247,24 +248,26 @@ export function ProBottomSheet({ visible, onClose, recurso, mensagem }: ProBotto
                                 );
                             })}
                         </View>
-
-                        <Pressable style={styles.compareRow} onPress={verPlano}>
-                            <Text style={styles.compareText}>Ver tudo que muda no Pro</Text>
-                            <ArrowRightCircle size={15} color={HADES.textMuted} />
-                        </Pressable>
                     </ScrollView>
 
                     {/* CTA — redireciona para o site, onde a assinatura é feita de fato */}
-                    <View style={styles.footer}>
+                    <View style={{ paddingTop: 12, paddingHorizontal: 20, paddingBottom: 12 }}>
                         <Pressable
-                            onPress={abrirSite}
-                            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+                            style={{
+                                height: 54,
+                                borderRadius: 15,
+                                backgroundColor: HADES.accentSolid,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 9,
+                            }}
                         >
-                            <Text style={styles.buttonText}>Assinar o Pro no site</Text>
+                            <Text style={{ fontSize: 16, fontWeight: "700", color: "#000" }}>
+                                Ver plano pro
+                            </Text>
+                            <ArrowRightCircle size={22} color="#000" />
                         </Pressable>
-                        <Text style={styles.footerNote}>
-                            A assinatura é feita no site da StudoCore. Cancele quando quiser.
-                        </Text>
                     </View>
                 </Animated.View>
             </View>
