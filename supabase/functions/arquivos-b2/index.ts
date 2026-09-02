@@ -21,26 +21,25 @@
 //   supabase functions deploy arquivos-b2 --project-ref <ref> --use-api
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  apagarArquivoB2,
+  autorizar,
+  bucketId,
+  bucketNome,
+  encodeB2FileName,
+  type AutorizacaoB2,
+} from "../_shared/backblaze.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-acao, x-storage-path, x-mime-type",
 };
 
-const BUCKET_NOME = "vaultstudocore";
-
 const jsonResponse = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
   });
-
-type AutorizacaoB2 = {
-  authorizationToken: string;
-  apiUrl: string;
-  downloadUrl: string;
-  accountId: string;
-};
 
 type UsoDoPlano = {
   limites?: {
@@ -51,48 +50,6 @@ type UsoDoPlano = {
     armazenamento_bytes?: number | null;
   };
 };
-
-/**
- * Autoriza na conta B2 e devolve token + endpoints.
- *
- * Usa a v3 da API: a v2 entrega `apiUrl`/`downloadUrl` na raiz, a v3 os aninha em
- * `apiInfo.storageApi`. Ler os dois formatos evita que a função quebre se a conta for
- * migrada de versão por fora.
- */
-async function autorizar(): Promise<AutorizacaoB2> {
-  const keyId = Deno.env.get("B2_KEY_ID");
-  const applicationKey = Deno.env.get("B2_APPLICATION_KEY");
-
-  if (!keyId || !applicationKey) {
-    throw new Error("B2_KEY_ID/B2_APPLICATION_KEY não configurados nos secrets.");
-  }
-
-  const res = await fetch("https://api.backblazeb2.com/b2api/v3/b2_authorize_account", {
-    headers: { Authorization: "Basic " + btoa(`${keyId}:${applicationKey}`) },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Backblaze recusou a autorização (HTTP ${res.status}).`);
-  }
-
-  const dados = await res.json();
-  const storage = dados?.apiInfo?.storageApi ?? {};
-
-  return {
-    authorizationToken: dados.authorizationToken,
-    apiUrl: storage.apiUrl ?? dados.apiUrl,
-    downloadUrl: storage.downloadUrl ?? dados.downloadUrl,
-    accountId: dados.accountId,
-  };
-}
-
-const bucketId = () => Deno.env.get("B2_BUCKET_ID")!;
-
-function encodeB2FileName(fileName: string) {
-  // O B2 pede a URL encodada MENOS as barras: encodar as barras cria arquivos com "%2F"
-  // no nome em vez de pastas.
-  return fileName.split("/").map(encodeURIComponent).join("/");
-}
 
 function hex(buffer: ArrayBuffer) {
   return Array.from(new Uint8Array(buffer))
@@ -309,7 +266,7 @@ Deno.serve(async (req: Request) => {
       const dados = await res.json();
       const caminho = storagePath.split("/").map(encodeURIComponent).join("/");
       return jsonResponse(
-        { ok: true, url: `${auth.downloadUrl}/file/${BUCKET_NOME}/${caminho}?Authorization=${dados.authorizationToken}` },
+        { ok: true, url: `${auth.downloadUrl}/file/${bucketNome()}/${caminho}?Authorization=${dados.authorizationToken}` },
         200,
       );
     }
@@ -349,19 +306,10 @@ Deno.serve(async (req: Request) => {
       }
 
       if (arquivo.backblaze_file_id) {
-        const auth = await autorizar();
-        const res = await fetch(`${auth.apiUrl}/b2api/v3/b2_delete_file_version`, {
-          method: "POST",
-          headers: { Authorization: auth.authorizationToken, "Content-Type": "application/json" },
-          body: JSON.stringify({ fileName: storagePath, fileId: arquivo.backblaze_file_id }),
-        });
-
-        if (!res.ok) {
-          const erro = await res.json().catch(() => ({}));
-          // Já não existe no bucket: para quem chamou, o resultado desejado é o mesmo.
-          if (erro?.code !== "file_not_present") {
-            return jsonResponse({ ok: false, error: "Falha ao excluir no Backblaze." }, 502);
-          }
+        const apagado = await apagarArquivoB2(await autorizar(), storagePath, arquivo.backblaze_file_id);
+        if (!apagado.ok) {
+          console.error("arquivos-b2 excluir:", apagado.detalhe);
+          return jsonResponse({ ok: false, error: "Falha ao excluir no Backblaze." }, 502);
         }
       }
 
