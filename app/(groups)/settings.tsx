@@ -299,16 +299,36 @@ export default function GroupSettingsScreen() {
         return true;
     };
 
-    const alternarPrivacidadeLocal = (valor: boolean) => {
-        setIsPublic(valor);
-        setGrupo((grupoAtual) =>
-            grupoAtual
-                ? {
-                      ...grupoAtual,
-                      publico: valor,
-                  }
-                : grupoAtual
-        );
+    const alternarPrivacidadeGrupo = async () => {
+        if (!grupo) return;
+
+        const anterior = grupo.publico;
+        const novo = !isPublic;
+
+        // Otimista: o switch responde na hora, mas a fonte de verdade continua sendo o banco.
+        setIsPublic(novo);
+        setGrupo((grupoAtual) => (grupoAtual ? { ...grupoAtual, publico: novo } : grupoAtual));
+
+        const salvo = await salvarGrupo({ ...grupo, publico: novo });
+        if (!salvo) {
+            setIsPublic(anterior);
+            setGrupo((grupoAtual) => (grupoAtual ? { ...grupoAtual, publico: anterior } : grupoAtual));
+        }
+    };
+
+    const salvarFotoGrupo = async (url: string) => {
+        if (!grupo) {
+            setImageUrl(url);
+            return;
+        }
+
+        const anterior = grupo.foto_grupo;
+        setImageUrl(url);
+
+        const salvo = await salvarGrupo({ ...grupo, foto_grupo: url });
+        if (!salvo) {
+            setImageUrl(anterior);
+        }
     };
 
     const salvarAlterações = (salvar: () => void | Promise<void>) => {
@@ -784,7 +804,7 @@ export default function GroupSettingsScreen() {
                                 <ImagePickerAvatar
                                     bucket="images"
                                     defaultImage={imageUrl ?? undefined}
-                                    onImageUploaded={(url) => setImageUrl(url)}
+                                    onImageUploaded={salvarFotoGrupo}
                                     hades
                                 />
                             ) : (
@@ -843,7 +863,7 @@ export default function GroupSettingsScreen() {
                                         rotulo="Grupo público"
                                         descricao="Qualquer pessoa pode encontrar"
                                         ligado={isPublic}
-                                        onToggle={() => alternarPrivacidadeLocal(!isPublic)}
+                                        onToggle={alternarPrivacidadeGrupo}
                                     />
                                     <LinhaEscolha
                                         rotulo="Link de convite"

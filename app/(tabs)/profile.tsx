@@ -35,6 +35,7 @@ import { useDadosCache } from "@/hooks/useDadosCache";
 import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
+import { usePlano } from "@/hooks/usePlano";
 
 const BANNER_H = 176;
 const AVATAR_SIZE = 100;
@@ -75,6 +76,8 @@ function StatColuna({ Icone, valor, rotulo, apagado, corIcone }: { Icone?: typeo
 }
 
 export default function ProfileScreen() {
+    const { limites: limitesDoPlano, avisarLimite: avisarLimiteDoPlano } = usePlano();
+
     const [showSubjectModal, setShowSubjectModal] = useState(false);
     const [showGoalModal, setShowGoalModal] = useState(false);
     const [tempGoalValue, setTempGoalValue] = useState("");
@@ -451,13 +454,24 @@ export default function ProfileScreen() {
                     )}
                 </View>
 
-                {/* Wrapped mensal — some sozinho depois do dia 3, ver lib/wrappedMensal.ts */}
+                {/*
+                  Wrapped mensal — some sozinho depois do dia 3, ver lib/wrappedMensal.ts.
+
+                  No Grátis o card aparece igual, mas travado: quem nunca viu um wrapped não
+                  sente falta dele, e é justamente a retrospectiva que faz o Pro parecer
+                  valer a pena no fim do mês.
+                */}
                 {dentroDaJanelaWrapped && temWrappedMensal && wrappedMensal && (
                     <>
                         <Divider />
                         <CardWrapped
                             mesRotulo={wrappedMensal.mesRotulo}
-                            onPress={() => router.push("/(modals)/wrapped-mensal")}
+                            travado={!limitesDoPlano?.wrappedMensal}
+                            onPress={() =>
+                                limitesDoPlano?.wrappedMensal
+                                    ? router.push("/(modals)/wrapped-mensal")
+                                    : avisarLimiteDoPlano("wrapped")
+                            }
                         />
                     </>
                 )}

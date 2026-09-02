@@ -10,7 +10,7 @@ type ImagePickerAvatarProps = {
     /** Bucket do Supabase Storage onde a imagem será enviada. Padrão: 'images' */
     bucket?: string;
     /** Chamado com a URL pública da imagem após upload bem-sucedido */
-    onImageUploaded: (url: string) => void;
+    onImageUploaded: (url: string) => void | Promise<void>;
     /** Define se o avatar deve ser circular ou retangular. Padrão: true */
     circle?: boolean;
     /** Imagem para carregar previamente */
@@ -36,9 +36,7 @@ export default function ImagePickerAvatar({
 
     // Sincroniza se o defaultImage mudar (ex: ao carregar profile assincronamente)
     useEffect(() => {
-        if (defaultImage && !imagePreview) {
-            setImagePreview(defaultImage);
-        }
+        setImagePreview(defaultImage ?? null);
     }, [defaultImage]);
 
     const selectImage = async () => {

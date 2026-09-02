@@ -1,7 +1,9 @@
 import { criarQueryBuilderMock } from "@/test/helpers/supabaseQueryMock";
 
 jest.mock("@/repositories/supabase", () => ({
-    supabase: { from: jest.fn() },
+    // `rpc` existe por causa da checagem de cota do plano feita antes do upload
+    // (`services/assinatura.ts`); sem ela o anexo cairia no fallback de Grátis.
+    supabase: { from: jest.fn(), rpc: jest.fn() },
 }));
 jest.mock("@/services/backblaze", () => ({ uploadFileToB2: jest.fn() }));
 jest.mock("@/services/quizIA", () => ({ analisarAnexoSessao: jest.fn() }));
@@ -23,9 +25,19 @@ import {
 import type { AnexoSessao } from "@/types/anotacoes";
 
 const fromMock = supabase.from as jest.Mock;
+const rpcMock = supabase.rpc as jest.Mock;
 
 beforeEach(() => {
     jest.clearAllMocks();
+    // Plano Pro por padrão: os testes daqui são sobre anexo e IA, não sobre cota.
+    rpcMock.mockResolvedValue({
+        data: {
+            plano: "pro",
+            limites: { plano: "pro", rotulo: "Pro", arquivo_bytes_max: 25 * 1024 * 1024, armazenamento_bytes: 5368709120 },
+            uso: { armazenamento_bytes: 0 },
+        },
+        error: null,
+    });
 });
 
 const anexo = (over: Partial<AnexoSessao>): AnexoSessao =>
@@ -71,10 +83,8 @@ describe("anexarFormularioASessao", () => {
     });
 
     it("pula a análise da IA quando o arquivo passa do limite de 15MB, mas mantém o anexo salvo", async () => {
-        fromMock.mockReturnValue({
-            insert: () => criarQueryBuilderMock({ data: anexo({}), error: null }),
-        });
-        (uploadFileToB2 as jest.Mock).mockResolvedValue({ json: async () => ({ fileId: "f1" }) });
+        fromMock.mockReturnValue(criarQueryBuilderMock({ data: anexo({}), error: null }));
+        (uploadFileToB2 as jest.Mock).mockResolvedValue({ json: async () => ({ id: "a1", fileId: "f1" }) });
 
         const resultado = await anexarFormularioASessao({
             userId: "u1",
@@ -93,10 +103,10 @@ describe("anexarFormularioASessao", () => {
         fromMock.mockImplementation((tabela: string) => {
             if (tabela !== "arquivos") throw new Error(`tabela inesperada: ${tabela}`);
             chamadasArquivos += 1;
-            if (chamadasArquivos === 1) return { insert: () => criarQueryBuilderMock({ data: anexo({}), error: null }) };
+            if (chamadasArquivos === 1) return criarQueryBuilderMock({ data: anexo({}), error: null });
             return { update: () => criarQueryBuilderMock({ data: anexo({ resumo_ia: "resumo" }), error: null }) };
         });
-        (uploadFileToB2 as jest.Mock).mockResolvedValue({ json: async () => ({ fileId: "f1" }) });
+        (uploadFileToB2 as jest.Mock).mockResolvedValue({ json: async () => ({ id: "a1", fileId: "f1" }) });
         (analisarAnexoSessao as jest.Mock).mockResolvedValue({
             data: { questoesDetectadas: 10, questoesDiscursivas: 0, numerosObjetivas: [], resumo: "resumo", proximoPasso: "p", gabarito: {} },
             error: null,
@@ -117,10 +127,10 @@ describe("anexarFormularioASessao", () => {
         let chamadasArquivos = 0;
         fromMock.mockImplementation((tabela: string) => {
             chamadasArquivos += 1;
-            if (chamadasArquivos === 1) return { insert: () => criarQueryBuilderMock({ data: anexo({}), error: null }) };
+            if (chamadasArquivos === 1) return criarQueryBuilderMock({ data: anexo({}), error: null });
             throw new Error("não deveria fazer update quando a IA não devolveu análise");
         });
-        (uploadFileToB2 as jest.Mock).mockResolvedValue({ json: async () => ({ fileId: "f1" }) });
+        (uploadFileToB2 as jest.Mock).mockResolvedValue({ json: async () => ({ id: "a1", fileId: "f1" }) });
         (analisarAnexoSessao as jest.Mock).mockResolvedValue({ data: null, error: "IA indisponível" });
 
         const resultado = await anexarFormularioASessao({

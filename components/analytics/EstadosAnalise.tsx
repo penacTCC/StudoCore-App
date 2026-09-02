@@ -123,7 +123,7 @@ export function EstadoPoucosDadosPessoal({
                     <Flame size={18} color={cor} />
                 </View>
                 <View className="flex-1">
-                    <Text className="text-sm font-bold text-white">Bom começo! 🔥</Text>
+                    <Text className="text-sm font-bold text-white">Bom começo!</Text>
                     <Text className="mt-1 text-[12.5px] leading-[18px] text-[#b7bac2]">
                         Você registrou sua {ordinal} sessão. Estude mais{" "}
                         <Text className="font-semibold text-white">

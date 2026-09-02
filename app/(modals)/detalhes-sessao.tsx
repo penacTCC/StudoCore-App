@@ -26,6 +26,7 @@ import { anexarFormularioASessao, removerAnexo } from "@/services/anexosSessao";
 import { abrirArquivoDoBucket } from "@/services/visualizarArquivo";
 import { confirm } from "@/services/confirm";
 import { toast } from "@/services/toast";
+import { mostrarPaywallProSeLimite } from "@/services/paywall";
 import { taxaDeAcerto, totalAcertos, totalQuestoes } from "@/utils/estatisticasSessao";
 import FormAnotacoes from "@/components/sessao/FormAnotacoes";
 import { salvarAnotacoes } from "@/services/anotacoes";
@@ -125,6 +126,7 @@ export default function DetalhesSessaoModal() {
         setAnexando(false);
 
         if (erro || !anexo) {
+            if (mostrarPaywallProSeLimite(erro)) return;
             toast.error(erro || "Não foi possível anexar o arquivo.");
             return;
         }
@@ -132,6 +134,10 @@ export default function DetalhesSessaoModal() {
         if (anexo.questoes_detectadas === null) {
             // Mostra o motivo real quando a Edge Function conseguiu explicar (ver services/quizIA.ts).
             console.warn("Falha na análise do anexo:", erroAnalise);
+            if (mostrarPaywallProSeLimite(erroAnalise)) {
+                recarregar();
+                return;
+            }
             toast.info(erroAnalise || "Arquivo anexado. A IA não conseguiu analisar agora — dá pra tentar de novo.");
         } else if (anexo.questoes_detectadas === 0) {
             toast.info("Arquivo anexado, mas nenhuma questão objetiva foi encontrada nele.");
@@ -598,7 +604,7 @@ const CardAnexo = ({
                             color: corrigido ? HADES.textSecondary : HADES.amber,
                         }}
                     >
-                        {corrigido ? "Revisar correção" : "Aguardando correção"}
+                        {corrigido ? "Revisar correção" : "Correção"}
                     </Text>
                 </TouchableOpacity>
 

@@ -1,4 +1,3 @@
-import * as Crypto from 'expo-crypto';
 import { supabase } from '@/repositories/supabase';
 
 /*
@@ -10,8 +9,8 @@ import { supabase } from '@/repositories/supabase';
   bundle de qualquer APK, extraíveis com `strings`. Não há onde esconder segredo no cliente.
 
   Agora quem guarda a chave é a Edge Function `arquivos-b2`. Este arquivo virou o cliente
-  dela: pede uma URL de upload temporária, um link de download assinado, ou a exclusão de um
-  arquivo — e nunca vê a credencial.
+  dela: envia o arquivo, gera um link de download assinado, ou exclui um arquivo — e nunca
+  vê a credencial nem um token temporário de escrita.
 
   As assinaturas exportadas continuam as mesmas de antes, então quem consome
   (`archives.ts`, `anexosSessao.ts`, `visualizarArquivo.ts`, `archive-details.tsx`) não muda.
@@ -36,13 +35,35 @@ async function chamarFuncao(acao: string, dados: Record<string, unknown> = {}) {
     return data;
 }
 
+/** Envia o binário para a Edge Function; ela valida cota/tamanho e só então sobe ao B2. */
+async function chamarUpload(storagePath: string, mimeType: string, fileBuffer: ArrayBuffer) {
+    const { data, error } = await supabase.functions.invoke<RespostaFuncao>('arquivos-b2', {
+        body: fileBuffer,
+        headers: {
+            'content-type': mimeType,
+            'x-acao': 'upload',
+            'x-storage-path': storagePath,
+            'x-mime-type': mimeType,
+        },
+    });
+
+    if (error) {
+        console.error('arquivos-b2 (upload):', error);
+        throw new Error('Não foi possível falar com o servidor de arquivos.');
+    }
+    if (!data?.ok) {
+        throw new Error(String(data?.error ?? 'Falha no servidor de arquivos.'));
+    }
+
+    return data;
+}
+
 /**
  * Envia o arquivo para o Backblaze.
  *
- * O binário vai direto do aparelho para o B2, na URL temporária que a função devolveu — não
- * passa pela Edge Function. Um PDF de 20 MB dando a volta pelo servidor esbarraria no limite
- * de corpo e no tempo de execução, e não deixaria nada mais seguro: a URL já é de uso único
- * e presa a este bucket.
+ * O binário passa pela Edge Function para que o servidor valide tamanho, cota e caminho
+ * antes de qualquer byte chegar ao B2. Isso evita que um app modificado peça token
+ * temporário e envie arquivo fora do fluxo normal.
  *
  * @param fileName caminho completo do arquivo no bucket
  * @param mimeType tipo do conteúdo
@@ -53,38 +74,11 @@ export async function uploadFileToB2(
     mimeType: string,
     fileBuffer: ArrayBuffer
 ) {
-    const { uploadUrl, authorizationToken } = await chamarFuncao('urlUpload', { storagePath: fileName }) as {
-        uploadUrl: string; authorizationToken: string;
+    const data = await chamarUpload(fileName, mimeType, fileBuffer);
+    return {
+        ok: true,
+        json: async () => data,
     };
-
-    // O B2 confere este hash contra o que recebeu: é o que detecta arquivo corrompido no envio.
-    const hashBuffer = await Crypto.digest(
-        Crypto.CryptoDigestAlgorithm.SHA1,
-        new Uint8Array(fileBuffer)
-    );
-    const sha1 = Array.from(new Uint8Array(hashBuffer))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
-
-    const uploadResponse = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-            Authorization: authorizationToken,
-            // O B2 pede a URL encodada MENOS as barras: encodar as barras cria arquivos com
-            // '%2F' no nome em vez de pastas.
-            'X-Bz-File-Name': fileName.split('/').map(encodeURIComponent).join('/'),
-            'Content-Type': mimeType,
-            'X-Bz-Content-Sha1': sha1,
-            'Content-Length': fileBuffer.byteLength.toString(),
-        },
-        body: fileBuffer,
-    });
-
-    if (!uploadResponse.ok) {
-        throw new Error('Falha no upload');
-    }
-
-    return uploadResponse;
 }
 
 /**

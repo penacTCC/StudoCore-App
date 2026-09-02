@@ -2,7 +2,7 @@
 
 Este documento é o **Project Context** (um PRD vivo) do StudoCore. Ele serve como a fonte da verdade para o projeto, registrando detalhadamente as funcionalidades atuais (arquivos, rotas e serviços), decisões de design, arquitetura, modelo de negócios e ideias futuras. Ele é ideal para dar contexto profundo a qualquer desenvolvedor (ou Inteligência Artificial) que vá assumir ou colaborar no projeto.
 
-*Última atualização: 2026-08-10.*
+*Última atualização: 2026-09-02.*
 
 ---
 
@@ -171,22 +171,102 @@ Push remoto real (Expo → FCM/APNs) para força e interações do Explorar, com
 ---
 
 ## 8. Monetização (Proposta — ainda não implementada)
-- **Freemium:** ferramentas básicas de foco, cronograma limitado, criação de 1-2 grupos.
-- **Premium (Assinatura):** estatísticas avançadas, grupos ilimitados, personalização de perfil, acesso antecipado a novas features gamificadas.
-- **Microtransações:** cosméticos de perfil (bordas, avatares, temas de card).
 
-### Rascunho de features Premium (atratividade para o lançamento na Play Store)
+Dois planos no lançamento: **Grátis** e **Pro**. Um terceiro tier (topo) e um plano **Turma** (B2B, um pagante com assentos para alunos) foram discutidos e **adiados** — o Turma exige painel do organizador, relatórios, papéis dentro do grupo e reescrita das RLS de grupo, escopo grande demais para a v1.
+
+### 8.1 Grátis vs. Pro
+
+| | Grátis | Pro |
+|---|---|---|
+| Grupos | até 3 | ilimitados |
+| Membros por grupo | 5 | 50 |
+| Sala de foco ao vivo | até 12 simultâneos | até 12 simultâneos |
+| Planos de estudo | até 3 | ilimitados |
+| Quiz IA pós-sessão | 1 por dia | ilimitado (fair use) |
+| Análise de anexo em PDF | 2 por mês | 50 por mês |
+| Chat com o anexo | — | sim |
+| Plano de estudos por IA | — | sim |
+| Banco de erros + revisão espaçada *(a construir)* | — | sim |
+| Duelo 1x1 *(a construir)* | aceita duelos; cria 1 por dia | cria ilimitado, escolhe adversário, histórico e revanche |
+| Comparação de perfil | básica, só com membros do próprio grupo (horas + ofensiva) | completa, com qualquer usuário |
+| Histórico de sessões | visualiza os últimos 30 dias | completo + heatmap anual |
+| Análises | 7 dias | completas |
+| Wrapped mensal | — | sim |
+| Armazenamento (Vault) | 300 MB **totais** | 5 GB **totais** |
+| Tamanho por arquivo | 25 MB | 25 MB |
+
+**Ainda não existem no app** (limites já previstos, features a construir): o **duelo 1x1** — hoje só existe a *comparação* de perfis em `(modals)/compare-profile.tsx`, não uma partida — e o **banco de erros com revisão espaçada**, que tem só a tabela `banco_erros` criada e nenhuma tela.
+
+**Microtransações (independentes do plano):** cosméticos de perfil — bordas, avatares, temas de card.
+
+### 8.2 Decisões por trás dos limites
+
+Cada uma destas foi uma correção deliberada de uma versão anterior da tabela; não reverter sem entender o motivo.
+
+- **Nada que precise de outra pessoa fica atrás do paywall — limita-se a quantidade, não o acesso.** Duelo 1x1 e comparação de perfil exigem duas pontas: se metade da base não pode participar, o assinante não tem com quem jogar e a feature paga morre. Free participa; Pro tem volume, escolha e histórico.
+- **Sessão de estudo nunca é apagada.** O plano Grátis *limita a visualização* a 30 dias; o dado continua no banco. Apagar histórico do usuário é risco de LGPD e de avaliação 1 estrela na Play Store — e "reabrir o histórico que você já vê que está lá" converte melhor do que a ameaça de perda.
+- **A cota de IA é dividida em duas.** Quiz pós-sessão roda em `gemini-2.5-flash-lite` (barato) e análise de anexo em `gemini-2.5-flash` sobre PDF (caro). Com uma cota única, o usuário grátis gasta tudo em quiz e nunca chega na feature que realmente converte. Quiz generoso por dia, anexo escasso por mês.
+- **Grupo grande ≠ sala grande.** Membros de grupo é listagem; sala de foco é presença Realtime. O teto de 12 na sala vale para os dois planos por razão técnica, não comercial.
+- **Armazenamento é cota TOTAL, nunca mensal.** "X arquivos/mês" ou "X GB/mês" acumulam para sempre — o mês passa, o arquivo fica. O teto total obriga o usuário a apagar antes de subir mais, e é o que limita o custo de fato.
+
+### 8.3 Dimensionamento do armazenamento
+
+O free tier do Backblaze B2 é de **10 GB na conta inteira** (não por usuário), e o download gratuito é limitado a 3x o volume armazenado. Por isso as cotas são pequenas de propósito: uma apostila em PDF tem 5–20 MB, então 5 GB no Pro comportam ~250 arquivos e nenhum usuário real chega perto. A média esperada fica abaixo de 300 MB por conta.
+
+**Regra:** o custo de storage do usuário médio deve ficar abaixo de 5% da mensalidade. Se a média subir muito acima de 300 MB, reduzir o teto antes de trocar de provedor.
+
+**Se o gargalo aparecer, será no egress, não no armazenamento** (app de estudo baixa muito mais do que sobe). Alternativas, em ordem:
+1. **Cloudflare R2** — S3-compatible igual ao B2, então `services/backblaze.ts` muda pouco; egress zero e 10 GB grátis.
+2. **Supabase Storage** — só faz sentido se o projeto já estiver no plano pago do Supabase (necessário em produção de qualquer forma); nesse caso o storage vem incluído e elimina um provedor da stack.
+
+**Segurança do B2:** as chaves do Backblaze não ficam mais no app. `services/backblaze.ts` envia uploads, downloads e exclusões para a Edge Function `arquivos-b2`; a função valida JWT, plano e cota de armazenamento antes de subir o arquivo ao B2 com secrets server-side. Os secrets necessários são `B2_KEY_ID`, `B2_APPLICATION_KEY` e `B2_BUCKET_ID`.
+
+### 8.4 Camada de limites (implementada)
+
+Migrations `20260902120000_planos_e_limites.sql` e `20260902130000_cota_disponivel.sql`.
+
+**Regra central:** o cliente NUNCA autoriza. `services/assinatura.ts` existe só para desenhar UI e paywall; quem barra é o banco.
+
+- **`planos_limites`** — uma linha por plano com todos os números da tabela 8.1. Convenção: `NULL` = ilimitado, `0` = bloqueado no plano. É a fonte da verdade para servidor e UI, então mudar preço/limite é um `UPDATE`, não um deploy.
+- **`assinaturas`** — plano vigente por usuário. RLS deixa o dono ler; **escrita é exclusiva do service role** (webhook de loja ou ativação manual). Sem linha, ou com assinatura cancelada/vencida, `plano_do_usuario()` devolve `gratis`.
+- **`consumo_ia`** — contador com chave `(usuario_id, tipo, janela)`, onde `janela` é `2026-09-02` para cota diária e `2026-09` para mensal (dia local `America/Sao_Paulo`, igual ao resto do app). Uma tabela só porque a chave já identifica o período.
+- **`consumir_cota_ia(tipo)`** — verifica e incrementa num único `INSERT ... ON CONFLICT ... WHERE`, então duas requisições simultâneas não furam o limite. É `SECURITY DEFINER` e usa `auth.uid()`: quem chama só consome a própria cota. `cota_disponivel(tipo)` é a versão somente-leitura.
+- **`uso_do_plano()`** — limites + uso atual numa RPC só, para a UI mostrar "3 de 10 restantes".
+- **Triggers** em `membros`, `planos` e `arquivos` para os limites estruturais. Levantam `LIMITE_PLANO:<recurso>`, que `recursoDoErroDeLimite()` traduz em paywall no app.
+
+**Decisões que não são óbvias no código:**
+- **O tamanho do grupo sai do plano do DONO**, não de quem está entrando: quem paga pelo grupo grande é quem administra.
+- **A cota é consumida depois da validação** do corpo da requisição, para erro de formato não gastar a cota do aluno.
+- **Falha de infraestrutura libera a chamada.** Se o banco não responde, `_shared/cota.ts` deixa passar e o custo é absorvido — travar o aluno no fim de uma sessão de foco por causa de um erro nosso é pior do que pagar algumas requisições de Gemini.
+- **No chat de anexo, o `upload` só consulta a cota e a `mensagem` consome.** O upload custa (Files API do Gemini) mas não é a unidade cobrada; sem essa consulta, o plano Grátis subiria arquivos à vontade e só levaria 429 depois do custo.
+- **Quem falha ao ler o plano assume Grátis, nunca Pro** — o servidor decide de verdade, e a UI restrita erra para o lado seguro.
+
+**Limites de leitura (aplicados no cliente, de propósito).** `historico_dias`, `analises_dias`, `comparacao_perfil_completa` e `wrapped_mensal` são travados em `hooks/usePlano.ts` + `utils/janelaDoPlano.ts`, não no servidor. **Isso é um gate de produto, não uma fronteira de segurança:** o dado é do próprio usuário e ele já tem permissão de lê-lo; o plano controla o que a interface monta com ele. Burlar é possível e custa zero — não gasta IA nem armazenamento. Onde cada um age:
+
+- **Histórico** — `app/(tabs)/brain.tsx` corta as sessões pela janela logo na origem (antes da busca por texto), então agrupamento, contadores e listas herdam o corte. Um rodapé diz quantas sessões estão escondidas e leva à tela de plano.
+- **Análises** — `SeletorPeriodo` (`components/analytics/GraficosAnalise.tsx`) desenha cadeado nos períodos acima de `analisesDias` em vez de escondê-los; um efeito em `brain.tsx` reverte o período guardado se o plano encolher.
+- **Comparação de perfil** — `(modals)/compare-profile.tsx` divide as 5 métricas: Grátis vê horas e ofensiva atual (as que já aparecem no ranking do grupo), Pro vê todas. O placar conta só o que está visível.
+- **Wrapped** — o card continua na tela de perfil, com cadeado.
+
+Regra que orientou os quatro: **travar mostrando, nunca escondendo.** Quem não vê a funcionalidade não sente falta dela, e é justamente ela que se quer vender.
+
+**O que ainda NÃO tem enforcement:** `duelos_criados_por_dia` e `sala_foco_max` seguem só declarados em `planos_limites` (as features correspondentes ainda não existem / não têm limite aplicado). A restrição de "comparação básica só com membros do próprio grupo" também não foi implementada — hoje o corte é por métrica, não por relação entre os usuários.
+
+**Tela de plano:** `app/(modals)/plano.tsx`, acessível por Configurações → Conta → Meu plano. Mostra plano vigente e consumo de cada cota a partir de `uso_do_plano()`. Ainda **sem botão de compra** — o Play Billing não existe; o comentário no código marca onde o checkout encaixa.
+
+### 8.5 Roadmap das features Pro
+
 A base para cobrar por "IA + estatística + conveniência" já existe — quiz pós-sessão e análise de anexo já rodam por IA (seção 6.4). Ideias priorizadas:
-1. **`banco_erros` com revisão espaçada:** schema já existe (seção 11); Premium v1 = replay dos erros por matéria + mini-quiz IA gerado a partir dos erros.
+1. **`banco_erros` com revisão espaçada:** schema já existe (seção 11); Pro v1 = replay dos erros por matéria + mini-quiz IA gerado a partir dos erros.
 2. **Plano de estudos por IA:** dar um objetivo ("passar em X em 3 meses") e receber um plano com blocos diários — reusa `planos.ts`/`agenda.ts`/`schedule.ts`.
 3. **Wrapped / Replay Mensal:** retrospectiva estilo Spotify (horas, matérias, ofensiva, marcos) — roadmap item 8.
 4. **Estatísticas avançadas:** heatmap anual, projeção de desempenho, comparativo de matérias (`profileStats.ts` já tem a base).
-5. **Grupos ilimitados** e **salas de foco maiores** (limite por plano).
+5. **Chat com o anexo da sessão + questões similares por IA.**
 6. **Cosméticos:** bordas de perfil, avatares, temas de card (microtransação).
 
-**Gatilhos de conversão propostos:** manter o quiz IA grátis com limite diário e cobrar o ilimitado, ou cobrar especificamente pela IA de questões do anexo (maior percepção de valor); tudo que é IA continua atrás de Edge Function com a chave só no servidor (regra da seção 2/6.4).
+Tudo que é IA continua atrás de Edge Function com a chave só no servidor (regra da seção 2/6.4).
 
-**Pré-requisitos de lançamento (fora de features):** remover as chaves Backblaze hardcoded de `services/backblaze.ts` (hoje vão no bundle e já estão no git), transformar "perfil privado" em RLS real (hoje só esconde a UI), limpar fotos órfãs do bucket `sessao-fotos`, executar o plano de testes (seção 12) e fechar política de privacidade/LGPD + termos de uso.
+**Pré-requisitos de lançamento (fora de features):** confirmar `arquivos-b2` deployada com secrets do Backblaze no remoto, transformar "perfil privado" em RLS real (hoje só esconde a UI), limpar fotos órfãs do bucket `sessao-fotos`, executar o plano de testes (seção 12) e fechar política de privacidade/LGPD + termos de uso.
 
 ---
 

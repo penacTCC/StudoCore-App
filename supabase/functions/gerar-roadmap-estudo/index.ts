@@ -16,6 +16,8 @@
 // Deploy: `supabase functions deploy gerar-roadmap-estudo`
 // Secret: `supabase secrets set GEMINI_API_KEY=<sua-chave>` (a mesma já usada pelos outros)
 
+import { consumirCota, respostaDeCotaEsgotada } from "../_shared/cota.ts";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -220,6 +222,11 @@ Deno.serve(async (req: Request) => {
         status: 500,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
+    }
+
+    const cota = await consumirCota(req, "roadmap");
+    if (cota && !cota.permitido) {
+      return respostaDeCotaEsgotada("roadmap", cota, CORS_HEADERS);
     }
 
     const parts: unknown[] = [];

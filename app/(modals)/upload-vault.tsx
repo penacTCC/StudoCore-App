@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { uploadArquivo } from "@/services/archives";
+import { mensagemDeLimite } from "@/services/assinatura";
+import { mostrarPaywallProSeLimite, paywallPro } from "@/services/paywall";
 
 //Componentes do Native
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
@@ -93,6 +95,15 @@ export default function UploadVaultModal({ onClose, onRefresh }: { onClose: () =
 
             setSelectedFile(null);
         } catch (error: any) {
+            if (mostrarPaywallProSeLimite(error?.message)) return;
+            // `uploadArquivo` já devolve a mensagem de limite pronta; o `mensagemDeLimite`
+            // aqui cobre o que vier direto do banco sem passar por lá.
+            const limite = await mensagemDeLimite(error);
+            if (limite) {
+                paywallPro.show({ mensagem: limite });
+                return;
+            }
+
             console.error(error);
             toast.error(error.message || "Não foi possível enviar o arquivo.");
         } finally {

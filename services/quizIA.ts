@@ -1,10 +1,16 @@
 import { supabase } from "@/repositories/supabase";
+import { mensagemDeLimite } from "@/services/assinatura";
 import type { QuizIAParametros, QuizPergunta } from "@/types/quiz";
 import type { AnaliseAnexo } from "@/types/anotacoes";
 
 /** Lê o `detalhe`/`error` do corpo de um erro não-2xx do `functions.invoke` (ver comentário
  *  em `analisarAnexoSessao` logo abaixo — mesmo problema em todo `invoke` desta função). */
 async function detalheDoErro(error: unknown): Promise<string | null> {
+    // Cota estourada (429) vem primeiro: tem texto próprio, voltado ao usuário, em vez do
+    // "detalhe" técnico que serve pros outros erros.
+    const limite = await mensagemDeLimite(error);
+    if (limite) return limite;
+
     try {
         const corpo = await (error as any)?.context?.json?.();
         return corpo?.detalhe ?? corpo?.error ?? null;
@@ -36,13 +42,7 @@ export const gerarQuizIA = async (
           502 do Gemini, chave ausente) só existe no corpo da resposta, guardado em `context`.
           Sem ler isso a falha era invisível — o aluno recebia o quiz fixo achando que era IA.
         */
-        let detalhe: string | null = null;
-        try {
-            const corpo = await (error as any)?.context?.json?.();
-            detalhe = corpo?.detalhe ?? corpo?.error ?? null;
-        } catch {
-            // Corpo não era JSON — segue com a mensagem genérica mesmo.
-        }
+        const detalhe = await detalheDoErro(error);
 
         console.warn("Erro ao gerar quiz por IA:", detalhe ?? error);
         return { data: null, error: detalhe ?? error.message ?? "Erro ao gerar quiz." };
@@ -83,13 +83,7 @@ export const analisarAnexoSessao = async (params: {
           resposta, guardado em `context` — sem ler isso, a tela nunca consegue dizer o que
           houve, e o console.error da função não é acessível pela CLI nem pelo MCP.
         */
-        let detalhe: string | null = null;
-        try {
-            const corpo = await (error as any)?.context?.json?.();
-            detalhe = corpo?.detalhe ?? corpo?.error ?? null;
-        } catch {
-            // Corpo não era JSON — segue com a mensagem genérica mesmo.
-        }
+        const detalhe = await detalheDoErro(error);
 
         console.warn("Erro ao analisar anexo por IA:", detalhe ?? error);
         return { data: null, error: detalhe ?? error.message ?? "Erro ao analisar o arquivo." };

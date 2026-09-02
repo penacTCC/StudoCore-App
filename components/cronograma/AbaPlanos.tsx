@@ -29,6 +29,7 @@ import {
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
 import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
+import { mostrarPaywallProSeLimite } from "@/services/paywall";
 
 const DIAS_CURTOS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]; // 0 = segunda
 const MESES_NOME = [
@@ -149,6 +150,7 @@ export default function AbaPlanos({
         const resultado = await duplicarPlano(userId, plano.id);
         setProcessando(false);
         if (!resultado.sucesso) {
+            if (mostrarPaywallProSeLimite(resultado.erro)) return;
             toast.error(resultado.erro ?? "Não foi possível duplicar o plano.");
         }
         onRecarregar();

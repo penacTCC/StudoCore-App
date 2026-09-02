@@ -1,5 +1,6 @@
 import { View, Text, Image, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Lock } from "@/components/ui/icons";
 
 /**
  * Banner de entrada pro Wrapped mensal — só aparece dentro da janela de acesso (ver
@@ -8,7 +9,16 @@ import { LinearGradient } from "expo-linear-gradient";
  * sangrando pra fora do card — o brilho vem só das próprias barras (mais intensas no
  * meio, somem nas pontas), sem halos redondos atrás, que ficavam com cara de mancha.
  */
-export default function CardWrapped({ mesRotulo, onPress }: { mesRotulo: string; onPress: () => void }) {
+export default function CardWrapped({
+    mesRotulo,
+    onPress,
+    travado = false,
+}: {
+    mesRotulo: string;
+    onPress: () => void;
+    /** Plano Grátis: o card continua visível, com cadeado, e o toque leva ao paywall. */
+    travado?: boolean;
+}) {
     return (
         <TouchableOpacity
             onPress={onPress}
@@ -122,7 +132,11 @@ export default function CardWrapped({ mesRotulo, onPress }: { mesRotulo: string;
                         end={{ x: 1, y: 1 }}
                         style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
                     >
-                        <Text style={{ fontSize: 20, color: "#fb923c" }}>→</Text>
+                        {travado ? (
+                            <Lock size={17} color="#fb923c" />
+                        ) : (
+                            <Text style={{ fontSize: 20, color: "#fb923c" }}>→</Text>
+                        )}
                     </LinearGradient>
                 </View>
             </View>

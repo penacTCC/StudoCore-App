@@ -1,4 +1,5 @@
 import { supabase } from "@/repositories/supabase";
+import { mensagemDeLimite } from "@/services/assinatura";
 import { toast } from "@/services/toast";
 import type { Grupo, MembroGrupoComPerfil, OfensivaGrupo } from "@/types/grupos";
 import { STATUS_SESSAO_FINALIZADA } from "@/services/sessions";
@@ -196,11 +197,19 @@ export const inserirMembro = async (userId: string, novoGrupo: { id: string }) =
     .single()
 }
 
-//Entrar em um grupo público
-export const entrarEmGrupoPublico = async (grupoId: string) => {
+/*
+  Entrar em um grupo público.
+
+  Devolve `{ membro, erro }` em vez de só o membro (ou null) porque o grupo pode estar
+  lotado pelo plano do administrador — e "não foi possível entrar no grupo" não ajuda em
+  nada nesse caso. O `erro` já vem pronto para ir na tela.
+*/
+export const entrarEmGrupoPublico = async (
+  grupoId: string
+): Promise<{ membro: any | null; erro: string | null }> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    if (!user) return { membro: null, erro: "Você precisa estar logado." };
 
     const { data: novoMembro, error: erroMembro } = await supabase
       .from("membros")
@@ -213,15 +222,18 @@ export const entrarEmGrupoPublico = async (grupoId: string) => {
       .single();
 
     if (erroMembro) {
+      const limite = await mensagemDeLimite(erroMembro);
+      if (limite) return { membro: null, erro: limite };
+
       console.error("Erro ao entrar no grupo:", erroMembro);
-      return null;
+      return { membro: null, erro: "Não foi possível entrar no grupo." };
     }
 
-    return novoMembro;
+    return { membro: novoMembro, erro: null };
 
   } catch (error) {
     console.error("Error joining group:", error);
-    return null;
+    return { membro: null, erro: "Não foi possível entrar no grupo." };
   }
 }
 

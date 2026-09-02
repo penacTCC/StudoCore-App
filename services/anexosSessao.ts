@@ -6,6 +6,7 @@ import { uploadFileToB2 } from "@/services/backblaze";
 import { analisarAnexoSessao } from "@/services/quizIA";
 import type { AnexoSessao, CorrecaoFormulario } from "@/types/anotacoes";
 import { acertosDoAnexo, anexoCorrigido } from "@/types/anotacoes";
+import { buscarEstadoDoPlano, mensagemDeLimite, MENSAGEM_DE_LIMITE } from "@/services/assinatura";
 
 // Uma linha só de propósito: quebrar a string com `+` faz o parser de `select()` do
 // supabase-js perder o tipo literal e devolver GenericStringError no lugar da linha.
@@ -30,6 +31,7 @@ export async function buscarAnexosDaSessao(sessaoId: string): Promise<AnexoSessa
         .from("arquivos")
         .select(COLUNAS_ANEXO)
         .eq("sessao_id", sessaoId)
+        .eq("pendente_upload", false)
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -45,6 +47,7 @@ export async function buscarAnexo(anexoId: string): Promise<AnexoSessao | null> 
         .from("arquivos")
         .select(COLUNAS_ANEXO)
         .eq("id", anexoId)
+        .eq("pendente_upload", false)
         .maybeSingle();
 
     if (error) {
@@ -75,6 +78,20 @@ export async function anexarFormularioASessao(params: {
     const { userId, sessaoId, disciplina, conteudo, arquivo } = params;
 
     try {
+        // Pré-checagem só para feedback rápido na UI. O bloqueio real acontece na Edge
+        // Function `arquivos-b2`, que reserva a cota antes de subir qualquer byte ao B2.
+        const { limites, uso } = await buscarEstadoDoPlano();
+
+        if (limites.arquivoBytesMax !== null && arquivo.size > limites.arquivoBytesMax) {
+            return { anexo: null, erro: MENSAGEM_DE_LIMITE.tamanho_do_arquivo };
+        }
+        if (
+            limites.armazenamentoBytes !== null &&
+            uso.armazenamentoBytes + arquivo.size > limites.armazenamentoBytes
+        ) {
+            return { anexo: null, erro: MENSAGEM_DE_LIMITE.armazenamento };
+        }
+
         const objetoArquivo = new FileClass(arquivo.uri);
         const base64 = await objetoArquivo.base64Sync();
 
@@ -87,14 +104,14 @@ export async function anexarFormularioASessao(params: {
 
         const { data: novoAnexo, error } = await supabase
             .from("arquivos")
-            .insert({
-                user_id: userId,
+            .update({
                 sessao_id: sessaoId,
                 titulo: nomeFormatado,
                 disciplina,
-                storage_path: caminhoArquivo,
-                backblaze_file_id: uploadData.fileId,
+                pendente_upload: false,
             })
+            .eq("id", uploadData.id)
+            .eq("user_id", userId)
             .select(COLUNAS_ANEXO)
             .single();
 
@@ -116,6 +133,9 @@ export async function anexarFormularioASessao(params: {
 
         return { anexo };
     } catch (erro: any) {
+        const limite = await mensagemDeLimite(erro);
+        if (limite) return { anexo: null, erro: limite };
+
         console.error("Erro ao anexar formulário à sessão:", erro);
         return { anexo: null, erro: "Não foi possível anexar o arquivo." };
     }

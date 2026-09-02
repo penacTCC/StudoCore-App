@@ -17,6 +17,8 @@
 // Deploy: `supabase functions deploy gerar-quiz-foco`
 // Secret: `supabase secrets set GEMINI_API_KEY=<sua-chave>`
 
+import { consumirCota, respostaDeCotaEsgotada } from "../_shared/cota.ts";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -168,6 +170,12 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: "Informe ao menos uma matéria em 'materias'." }),
         { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
       );
+    }
+
+    // Cota depois da validacao: requisicao malformada nao gasta a cota do dia do aluno.
+    const cota = await consumirCota(req, "quiz");
+    if (cota && !cota.permitido) {
+      return respostaDeCotaEsgotada("quiz", cota, CORS_HEADERS);
     }
 
     const maxQuestoes = Math.min(corpo.maxQuestoes ?? MAX_QUESTOES_PADRAO, MAX_QUESTOES_LIMITE);

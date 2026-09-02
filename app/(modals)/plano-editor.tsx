@@ -25,6 +25,7 @@ import { cancelarLembretesPlano } from "@/services/lembretes";
 import type { TipoBloco } from "@/types/cronograma";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
+import { mostrarPaywallProSeLimite } from "@/services/paywall";
 
 /** Bloco em edição na tela — `persistido` diz se ele já existe em planos_blocos ou é novo (só local até "Salvar"). */
 type BlocoEditor = {
@@ -395,6 +396,10 @@ export default function PlanoEditorScreen() {
         if (!planoIdReal) {
             const resultado = await criarPlano(userId, nome, cor, publico);
             if (!resultado.sucesso || !resultado.plano) {
+                if (mostrarPaywallProSeLimite(resultado.erro)) {
+                    setSalvando(false);
+                    return;
+                }
                 toast.error(resultado.erro ?? "Não foi possível criar o plano.");
                 setSalvando(false);
                 return;

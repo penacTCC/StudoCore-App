@@ -7,6 +7,7 @@ import { useGruposPublicos } from "@/hooks/useGruposPublicos";
 import { salvarUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import { CartaoGrupoPublicoProps } from "@/types/grupos";
 import { toast } from "@/services/toast";
+import { mostrarPaywallProSeLimite } from "@/services/paywall";
 
 /**
  * Card de grupo público com avatar, nome, descrição, membros, meta semanal
@@ -16,9 +17,10 @@ export default function PublicGroupCard({ grupo }: CartaoGrupoPublicoProps) {
     const { recarregarGrupos } = useGruposPublicos();
 
     const entrarNoGrupo = async (grupoId: string) => {
-        const novoMembro = await entrarEmGrupoPublico(grupoId);
+        const { membro: novoMembro, erro } = await entrarEmGrupoPublico(grupoId);
         if (!novoMembro) {
-            toast.error("Não foi possível entrar no grupo.");
+            if (mostrarPaywallProSeLimite(erro)) return;
+            toast.error(erro ?? "Não foi possível entrar no grupo.");
             return;
         }
 

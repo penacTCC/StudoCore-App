@@ -1,4 +1,5 @@
 import { supabase } from "@/repositories/supabase";
+import { mensagemDeLimite } from "@/services/assinatura";
 import { formatarDuracao, paraDataISO } from "@/utils/tempo";
 import { diaSemanaDe } from "@/services/agenda";
 import { sincronizarLembretesPlano, cancelarLembretesPlano } from "@/services/lembretes";
@@ -206,6 +207,11 @@ export async function criarPlano(
         .single();
 
     if (error) {
+        // O trigger de limite do plano devolve `LIMITE_PLANO:planos`; sem isso a tela
+        // mostraria "erro inesperado" para uma situação que é esperada e tem saída.
+        const limite = await mensagemDeLimite(error);
+        if (limite) return { sucesso: false, erro: limite };
+
         console.error("Erro ao criar plano:", error.message);
         return { sucesso: false, erro: "Erro inesperado ao criar plano." };
     }
