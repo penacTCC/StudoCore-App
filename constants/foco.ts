@@ -14,7 +14,7 @@ export const CONFIG_POMODORO_PADRAO: ConfigPomodoro = {
     qtdPomodoros: 4,
 };
 
-/** Faixa do seletor de quantidade de pomodoros — mesma de novo-bloco-plano.tsx. */
+/** Faixa do seletor de quantidade de pomodoros da configuração de foco. */
 export const QTD_POMODOROS_MIN = 1;
 export const QTD_POMODOROS_MAX = 12;
 

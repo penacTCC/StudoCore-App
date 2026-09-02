@@ -21,9 +21,7 @@ export type ParametrosSequenciaPomodoro = {
  * (descanso longo a cada `ciclosAteLongo` pomodoros). Nunca insere descanso depois do
  * último pomodoro — a sessão termina assim que o último foco acaba.
  *
- * Mesmo algoritmo que `app/(modals)/novo-bloco-plano.tsx` já usava (inline) pra montar os
- * blocos da "sessão de pomodoros" de um plano; extraído aqui pra ser reaproveitado também
- * pelo pomodoro solo (`app/(tabs)/focus.tsx`), que precisa saber quando a sessão acaba.
+ * Usado pelo pomodoro solo (`app/(tabs)/focus.tsx`), que precisa saber quando a sessão acaba.
  */
 export function gerarSequenciaPomodoro({
     qtdPomodoros,

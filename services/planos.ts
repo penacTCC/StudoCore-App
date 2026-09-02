@@ -416,7 +416,6 @@ export async function duplicarPlano(usuarioId: string, planoId: string): Promise
             topico: bloco.topico,
             notificar: bloco.notificar,
             antecedencia_min: bloco.antecedencia_min,
-            sessao_id: bloco.sessao_id,
             dia_semana: bloco.dia_semana,
         });
     }

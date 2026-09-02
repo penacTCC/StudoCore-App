@@ -29,7 +29,7 @@ export interface WheelPickerProps {
 /**
  * Roda de seleção estilo iOS: uma ScrollView com snapping em que o item central
  * fica em destaque. Usada no aniversário do onboarding (dia · mês · ano) e nas
- * folhas de pomodoro/horário do cronograma.
+ * seletores de duração e horário do cronograma.
  *
  * O item central é marcado só pela cor de acento — sem faixa nem borda em volta;
  * os demais ficam em cinza. Aqui cuidamos do scroll com snap e da tipografia.

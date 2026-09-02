@@ -9,8 +9,9 @@ import WheelPicker from "@/components/ui/WheelPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
 import { usePreferencias } from "@/hooks/usePreferencias";
-import { salvarBlocoRotina, editarBlocoRotina, buscarBlocoPorId } from "@/services/schedule";
+import { salvarBlocoRotina, editarBlocoRotina, buscarBlocoPorId, buscarBlocosSemana } from "@/services/schedule";
 import { toast } from "@/services/toast";
+import type { BlocoRotina } from "@/types/cronograma";
 
 const DIAS_CURTOS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const DIAS_LONGOS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
@@ -56,17 +57,74 @@ export default function NovoBlocoScreen() {
     const [lembreteAtivo, setLembreteAtivo] = useState(true);
     const [lembreteIdx, setLembreteIdx] = useState(2);
     const [carregandoBloco, setCarregandoBloco] = useState(!!blocoId);
+    const [blocosExistentes, setBlocosExistentes] = useState<BlocoRotina[]>([]);
+    const [carregandoHorarios, setCarregandoHorarios] = useState(!modoEdicao);
+
+    useEffect(() => {
+        if (modoEdicao || !userId) {
+            setCarregandoHorarios(false);
+            return;
+        }
+
+        let ativo = true;
+        buscarBlocosSemana(userId).then(({ data, error }) => {
+            if (!ativo) return;
+            if (error) {
+                console.error("Erro ao carregar horários da semana:", error);
+                toast.error("Não foi possível verificar os horários já preenchidos.");
+            }
+            setBlocosExistentes(data ?? []);
+            setCarregandoHorarios(false);
+        });
+
+        return () => {
+            ativo = false;
+        };
+    }, [modoEdicao, userId]);
+
+    const limiteInicioMin = useMemo(() => {
+        if (modoEdicao) return null;
+        const finais = blocosExistentes
+            .filter((bloco) => bloco.dia_semana === diaIndex)
+            .map((bloco) => {
+                const [horas, minutos] = bloco.hora_inicio.split(":").map(Number);
+                return horas * 60 + minutos + bloco.duracao_min;
+            });
+        if (finais.length === 0) return null;
+        const fim = Math.max(...finais);
+        return ((fim % 1440) + 1440) % 1440;
+    }, [blocosExistentes, diaIndex, modoEdicao]);
 
     const duracaoMin = Number(HORAS[horasIdx]) * 60 + Number(MINUTOS_DURACAO[minutosIdx]);
     const fimMin = inicioMin + duracaoMin;
     const duracaoInvalida = duracaoMin === 0;
 
-    const ajustarInicio = (delta: number) => setInicioMin((atual) => atual + delta);
+    const avisarHorarioJaPreenchido = () => {
+        if (limiteInicioMin === null) return;
+        toast.info(
+            `O horário anterior a ${paraHoraMin(limiteInicioMin)} já está preenchido com um bloco de estudo ou descanso.`
+        );
+    };
+
+    const ajustarInicio = (delta: number) => {
+        const novoInicio = ((inicioMin + delta) % 1440 + 1440) % 1440;
+        if (limiteInicioMin !== null && novoInicio < limiteInicioMin) {
+            setInicioMin(limiteInicioMin);
+            avisarHorarioJaPreenchido();
+            return;
+        }
+        setInicioMin(novoInicio);
+    };
 
     const resumo = useMemo(
         () => `${DIAS_CURTOS[diaIndex]} · ${paraHoraMin(inicioMin)} – ${paraHoraMin(fimMin)}`,
         [diaIndex, inicioMin, fimMin]
     );
+
+    useEffect(() => {
+        if (modoEdicao || carregandoHorarios) return;
+        setInicioMin(limiteInicioMin ?? 18 * 60 + 30);
+    }, [modoEdicao, carregandoHorarios, diaIndex, limiteInicioMin]);
 
     // Seleciona a primeira matéria assim que a lista carrega (nenhuma escolhida ainda).
     useEffect(() => {
@@ -129,6 +187,11 @@ export default function NovoBlocoScreen() {
     //Crud de blocos
     const onSubmit = async () => {
         if (!userId || !materiaId) return
+        if (limiteInicioMin !== null && inicioMin < limiteInicioMin) {
+            setInicioMin(limiteInicioMin);
+            avisarHorarioJaPreenchido();
+            return false;
+        }
         const payload = {
             usuario_id: userId,
             dia_semana: diaIndex,
@@ -148,6 +211,7 @@ export default function NovoBlocoScreen() {
             toast.error("Não foi possível salvar o bloco de estudos. Tente novamente.");
             return false;
         }
+        return true;
     }
 
 
@@ -509,11 +573,11 @@ export default function NovoBlocoScreen() {
                     </View>
                     <TouchableOpacity
                         onPress={async () => {
-                            await onSubmit();
-                            router.back();
+                            const salvo = await onSubmit();
+                            if (salvo) router.back();
                         }}
                         activeOpacity={0.85}
-                        disabled={duracaoInvalida || !materiaId}
+                        disabled={carregandoHorarios || duracaoInvalida || !materiaId}
                         style={{
                             height: 48,
                             paddingHorizontal: 24,
@@ -522,7 +586,7 @@ export default function NovoBlocoScreen() {
                             alignItems: "center",
                             gap: 7,
                             backgroundColor: HADES.accentSolid,
-                            opacity: duracaoInvalida || !materiaId ? 0.4 : 1,
+                            opacity: carregandoHorarios || duracaoInvalida || !materiaId ? 0.4 : 1,
                         }}
                     >
                         <Plus size={16} color="#000" />

@@ -137,8 +137,6 @@ export type BlocoPlano = {
     topico: string | null;
     notificar: boolean;
     antecedencia_min: number | null;
-    /** Chave opaca compartilhada pelos blocos gerados de uma vez por uma sessão de pomodoros. NULL fora desse fluxo. */
-    sessao_id: string | null;
     /**
      * Dia da semana em que SÓ este bloco vale (0 = segunda ... 6 = domingo). NULL = vale em
      * todos os dias da agenda do plano — o comportamento de sempre. É o que preserva a

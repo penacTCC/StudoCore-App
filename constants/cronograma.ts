@@ -23,6 +23,6 @@ export const diasDaSemanaLista = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DO
 export const DURACAO_POMODORO_MIN = 25;
 export const DURACAO_POMODORO_MAX = 120;
 
-/** Piso do modo "Bloco único" — um bloco menor que isso vira pomodoro, não bloco. */
+/** Piso de duração de um bloco de plano ou rotina. */
 export const DURACAO_BLOCO_UNICO_MIN = 30;
 export const DURACAO_BLOCO_UNICO_MAX = 240;

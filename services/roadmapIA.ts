@@ -139,7 +139,6 @@ export async function aceitarRoadmapPessoal(
             topico: bloco.topico || null,
             notificar: true,
             antecedencia_min: null,
-            sessao_id: null,
             dia_semana: bloco.diaSemana,
         });
         if (error) {
@@ -178,7 +177,6 @@ export async function publicarRoadmapGrupo(
             topico: bloco.topico || null,
             notificar: true,
             antecedencia_min: null,
-            sessao_id: null,
             dia_semana: bloco.diaSemana,
         });
         if (error) {

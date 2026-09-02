@@ -697,8 +697,7 @@ export default function FocusScreen() {
 
     /**
      * Fila de um pomodoro solo: sequência sintética gerada a partir da config (quantidade
-     * de pomodoros, duração, descansos) — mesmo algoritmo usado por "sessão de pomodoros"
-     * no plano (ver utils/pomodoroSequence.ts).
+     * de pomodoros, duração e descansos; ver utils/pomodoroSequence.ts).
      */
     const construirFilaSolo = useCallback((): ItemFila[] => {
         return gerarSequenciaPomodoro({

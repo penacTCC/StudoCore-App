@@ -1,43 +1,65 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Pressable, StyleSheet, useWindowDimensions } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View, Text, ScrollView, TouchableOpacity, TextInput } from "react-native";
 import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Plus, Timer, Clock, Coffee, Bell, Layers, ChevronRight, Zap } from "@/components/ui/icons";
-import * as Crypto from "expo-crypto";
+import { Plus } from "@/components/ui/icons";
 import { HADES, CORES_PLANO } from "@/constants/hades";
 import WheelPicker from "@/components/ui/WheelPicker";
 import { useAuth } from "@/hooks/useAuth";
 import { useMaterias } from "@/hooks/useMaterias";
 import { usePreferencias } from "@/hooks/usePreferencias";
-import { formatarDuracao } from "@/utils/tempo";
-import { gerarSequenciaPomodoro } from "@/utils/pomodoroSequence";
 import { toast } from "@/services/toast";
-import {
-    DURACAO_BLOCO_UNICO_MIN,
-    DURACAO_POMODORO_MAX,
-    DURACAO_POMODORO_MIN,
-} from "@/constants/cronograma";
+import { DURACAO_BLOCO_UNICO_MIN } from "@/constants/cronograma";
 
 const HORAS = ["0", "1", "2", "3", "4"];
 const MINUTOS_DURACAO = ["00", "15", "30", "45"];
 const MINUTOS_LEMBRETE = ["5", "10", "15", "20", "30", "45", "60"];
 
-const QTD_POMODOROS = Array.from({ length: 12 }, (_, i) => String(i + 1));
-// Duração minuto a minuto, pra roda deslizar em passos finos. Os limites vêm de
-// constants/cronograma.ts porque as configurações usam os mesmos.
-const DURACAO_POMODORO = Array.from(
-    { length: DURACAO_POMODORO_MAX - DURACAO_POMODORO_MIN + 1 },
-    (_, i) => String(i + DURACAO_POMODORO_MIN)
-);
-const ALTURA_ITEM_RODA = 76; // rodas do modal de pomodoros (3 itens visíveis)
-const HORAS_DIA = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"));
-const MINUTOS_5 = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
-
 function paraHoraMin(totalMin: number) {
     const h = Math.floor((totalMin + 1440) / 60) % 24;
     const m = (totalMin + 1440) % 60;
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
+function formatarEntradaHorario(valor: string) {
+    const digitos = valor.replace(/\D/g, "").slice(0, 4);
+    if (digitos.length <= 2) return digitos;
+    return `${digitos.slice(0, 2)}:${digitos.slice(2)}`;
+}
+
+function minutosDoHorario(valor: string) {
+    const correspondencia = /^(\d{2}):(\d{2})$/.exec(valor);
+    if (!correspondencia) return null;
+
+    const horas = Number(correspondencia[1]);
+    const minutos = Number(correspondencia[2]);
+    if (horas > 23 || minutos > 59) return null;
+
+    return horas * 60 + minutos;
+}
+
+function sugerirInicioPeloRascunho(rascunho?: string) {
+    if (!rascunho) return null;
+
+    try {
+        const dados = JSON.parse(rascunho) as {
+            blocos?: { horaInicio?: string; duracaoMin?: number }[];
+        };
+
+        const finais = (dados.blocos ?? []).flatMap((bloco) => {
+            if (typeof bloco.horaInicio !== "string" || typeof bloco.duracaoMin !== "number") return [];
+            const inicio = minutosDoHorario(bloco.horaInicio);
+            if (inicio === null || !Number.isFinite(bloco.duracaoMin) || bloco.duracaoMin <= 0) return [];
+            return [inicio + bloco.duracaoMin];
+        });
+
+        if (finais.length === 0) return null;
+        const fim = Math.max(...finais);
+        return ((fim % 1440) + 1440) % 1440;
+    } catch {
+        // O submit já mostra o erro completo caso o rascunho realmente esteja inválido.
+        return null;
+    }
 }
 
 function indiceMaisProximo(lista: string[], valor: number) {
@@ -53,18 +75,9 @@ function indiceMaisProximo(lista: string[], valor: number) {
     return melhor;
 }
 
-type ItemSequencia = {
-    tipo: "estudo" | "descanso";
-    duracaoMin: number;
-    inicioMin: number;
-    ehLongo?: boolean;
-};
-
 /**
- * Tela de bloco de um plano — dois modos: "Sessão de pomodoros" (gera vários
- * blocos de uma vez, com descansos automáticos a partir das preferências) e
- * "Bloco único" (um bloco avulso, igual já era antes). Sem backend ainda:
- * devolve o(s) bloco(s) pro editor via params (rascunho), quem grava é ele.
+ * Tela de criação de um bloco único de estudo no plano. Sem backend ainda:
+ * devolve o bloco para o editor via params (rascunho), que faz a gravação.
  *
  * Só cria bloco de estudo: descanso agora é uma ação direta do editor de plano,
  * que emenda os descansos entre matérias diferentes sem passar por esta tela.
@@ -78,42 +91,24 @@ export default function NovoBlocoPlanoScreen() {
     const { userId } = useAuth();
     const { materiasComCores } = useMaterias(userId);
     const { prefs, carregando: carregandoPrefs } = usePreferencias(userId);
-
-    const [modo, setModo] = useState<"pomodoros" | "unico">("pomodoros");
+    const inicioSugerido = useMemo(() => sugerirInicioPeloRascunho(rascunho), [rascunho]);
+    const limiteInicioMin = inicioSugerido;
+    const inicioPadrao = limiteInicioMin ?? 18 * 60 + 30;
 
     const [materiaId, setMateriaId] = useState<string | undefined>(undefined);
     const [topico, setTopico] = useState("");
-    const [inicioMin, setInicioMin] = useState(18 * 60 + 30);
+    const [inicioMin, setInicioMin] = useState(inicioPadrao);
+    const [horarioTexto, setHorarioTexto] = useState(() => paraHoraMin(inicioPadrao));
+    const [horarioEditado, setHorarioEditado] = useState(false);
 
-    // Modo "Bloco único": duração via wheel inline.
+    // Duração do bloco via wheel inline.
     const [horasIdx, setHorasIdx] = useState(1);
     // Valor em minutos (não índice): a lista de opções muda com as horas, então o
     // índice sozinho apontaria pra minutos diferentes conforme a roda ao lado.
     const [minutosValor, setMinutosValor] = useState(30);
 
-    // Modo "Sessão de pomodoros".
-    const [qtdIdx, setQtdIdx] = useState(3); // "4"
-    const [duracaoPomodoroIdx, setDuracaoPomodoroIdx] = useState(0); // "25"
-    const [inserirDescansos, setInserirDescansos] = useState(true);
-
-    /*
-      Bloco único de estudo já sai com um descanso emendado atrás, na duração
-      definida nas preferências — no modo "pomodoros" isso já acontecia, e ficar
-      manual só aqui obrigava o usuário a criar o descanso na mão toda vez.
-    */
-    const [emendarDescanso, setEmendarDescanso] = useState(true);
-
     const [lembreteAtivo, setLembreteAtivo] = useState(true);
     const [lembreteIdx, setLembreteIdx] = useState(2);
-
-    const [modalPomodorosAberto, setModalPomodorosAberto] = useState(false);
-    const [modalHorarioAberto, setModalHorarioAberto] = useState(false);
-
-    // Altura máxima das folhas (bottom sheets) — reserva um respiro no topo em
-    // vez de deixá-las crescer até quase encostar na borda superior da tela.
-    const insets = useSafeAreaInsets();
-    const { height: alturaJanela } = useWindowDimensions();
-    const alturaMaximaFolha = alturaJanela - insets.top - 48;
 
     /*
       Em 0h a roda dos minutos só oferece 30 e 45: o piso do bloco único é 30 min,
@@ -133,8 +128,49 @@ export default function NovoBlocoPlanoScreen() {
     const duracaoMin = Number(HORAS[horasIdx]) * 60 + minutosValor;
     const fimMin = inicioMin + duracaoMin;
     const duracaoInvalida = duracaoMin < DURACAO_BLOCO_UNICO_MIN;
+    const horarioValido = minutosDoHorario(horarioTexto) !== null;
 
-    const ajustarInicio = (delta: number) => setInicioMin((atual) => atual + delta);
+    const avisarHorarioJaPreenchido = () => {
+        if (limiteInicioMin === null) return;
+        toast.info(
+            `O horário anterior a ${paraHoraMin(limiteInicioMin)} já está preenchido com um bloco de estudo ou descanso.`
+        );
+    };
+
+    const definirInicio = (totalMin: number) => {
+        const normalizado = ((totalMin % 1440) + 1440) % 1440;
+        if (limiteInicioMin !== null && normalizado < limiteInicioMin) {
+            setInicioMin(limiteInicioMin);
+            setHorarioTexto(paraHoraMin(limiteInicioMin));
+            avisarHorarioJaPreenchido();
+            return;
+        }
+        setInicioMin(normalizado);
+        setHorarioTexto(paraHoraMin(normalizado));
+    };
+
+    const ajustarInicio = (delta: number) => {
+        const inicioDigitado = minutosDoHorario(horarioTexto);
+        definirInicio((inicioDigitado ?? inicioMin) + delta);
+        setHorarioEditado(false);
+    };
+
+    const alterarHorario = (valor: string) => {
+        const formatado = formatarEntradaHorario(valor);
+        setHorarioTexto(formatado);
+        setHorarioEditado(true);
+
+        const minutos = minutosDoHorario(formatado);
+        if (minutos === null) return;
+        if (limiteInicioMin !== null && minutos < limiteInicioMin) {
+            setInicioMin(limiteInicioMin);
+            setHorarioTexto(paraHoraMin(limiteInicioMin));
+            setHorarioEditado(false);
+            avisarHorarioJaPreenchido();
+            return;
+        }
+        setInicioMin(minutos);
+    };
 
     const resumo = useMemo(
         () => `${paraHoraMin(inicioMin)} – ${paraHoraMin(fimMin)}`,
@@ -165,62 +201,24 @@ export default function NovoBlocoPlanoScreen() {
         setHorasIdx(horas);
         setMinutosValor(horas === 0 ? Math.max(minutos, DURACAO_BLOCO_UNICO_MIN) : minutos);
 
-        setDuracaoPomodoroIdx(indiceMaisProximo(DURACAO_POMODORO, prefs.focoMin));
-
         setLembreteAtivo(prefs.notificacoesAtivas && prefs.antecedenciaMin > 0);
         if (prefs.antecedenciaMin > 0) {
             setLembreteIdx(indiceMaisProximo(MINUTOS_LEMBRETE, prefs.antecedenciaMin));
         }
     }, [carregandoPrefs, prefs]);
 
-    const qtdPomodoros = Number(QTD_POMODOROS[qtdIdx]);
-    const duracaoPomodoro = Number(DURACAO_POMODORO[duracaoPomodoroIdx]);
-
-    // Sequência de pomodoros + descansos (algoritmo compartilhado com o pomodoro solo em
-    // focus.tsx), só adicionando aqui o horário de início de cada item pra exibição.
-    const sequencia = useMemo<ItemSequencia[]>(() => {
-        let cursor = inicioMin;
-        return gerarSequenciaPomodoro({
-            qtdPomodoros,
-            duracaoPomodoroMin: duracaoPomodoro,
-            inserirDescansos,
-            descansoCurtoMin: prefs.descansoCurtoMin,
-            descansoLongoMin: prefs.descansoLongoMin,
-            ciclosAteLongo: prefs.ciclosAteLongo,
-        }).map((item) => {
-            const comInicio = { ...item, inicioMin: cursor };
-            cursor += item.duracaoMin;
-            return comInicio;
-        });
-    }, [
-        inicioMin,
-        qtdPomodoros,
-        duracaoPomodoro,
-        inserirDescansos,
-        prefs.descansoCurtoMin,
-        prefs.descansoLongoMin,
-        prefs.ciclosAteLongo,
-    ]);
-
-    const fimSessaoMin = sequencia.length > 0
-        ? sequencia[sequencia.length - 1].inicioMin + sequencia[sequencia.length - 1].duracaoMin
-        : inicioMin;
-    const minutosFocoTotal = qtdPomodoros * duracaoPomodoro;
-    const minutosDescansoTotal = sequencia
-        .filter((item) => item.tipo === "descanso")
-        .reduce((soma, item) => soma + item.duracaoMin, 0);
-    const qtdDescansos = sequencia.filter((item) => item.tipo === "descanso").length;
-
-    const abrirModalHorario = () => setModalHorarioAberto(true);
-    const abrirModalPomodoros = () => setModalPomodorosAberto(true);
-
-    const aplicarInicioRapido = (minutosAPartirDeAgora: number) => {
-        const agora = new Date();
-        setInicioMin(agora.getHours() * 60 + agora.getMinutes() + minutosAPartirDeAgora);
-        setModalHorarioAberto(false);
-    };
-
     const onSubmit = () => {
+        const inicioValidado = minutosDoHorario(horarioTexto);
+        if (inicioValidado === null) {
+            setHorarioEditado(true);
+            return;
+        }
+        if (limiteInicioMin !== null && inicioValidado < limiteInicioMin) {
+            definirInicio(limiteInicioMin);
+            avisarHorarioJaPreenchido();
+            return;
+        }
+
         // O rascunho carrega nome/cor/blocos inteiros do plano — sobrevive
         // mesmo que o plano-editor remonte ao voltar dessa navegação.
         let dados: { nome: string; cor: string; blocos: unknown[] } = {
@@ -238,35 +236,13 @@ export default function NovoBlocoPlanoScreen() {
             }
         }
 
-        let blocosNovos: unknown[];
+        const materiaSelecionada = materiasComCores.find((m) => m.id === materiaId);
+        if (!materiaSelecionada) return;
 
-        if (modo === "pomodoros") {
-            const materiaSelecionada = materiasComCores.find((m) => m.id === materiaId);
-            if (!materiaSelecionada) return;
-
-            const sessaoId = Crypto.randomUUID();
-            blocosNovos = sequencia.map((item, i) => ({
-                id: `novo-${Date.now()}-${i}`,
-                persistido: false,
-                sessaoId,
-                horaInicio: paraHoraMin(item.inicioMin),
-                duracaoMin: item.duracaoMin,
-                tipo: item.tipo,
-                materiaId: item.tipo === "estudo" ? materiaSelecionada.id : undefined,
-                materia: item.tipo === "estudo" ? materiaSelecionada.nomeExibicao : undefined,
-                topico: item.tipo === "estudo" ? topico || undefined : undefined,
-                cor: item.tipo === "estudo" ? materiaSelecionada.cor : undefined,
-                notificar: item.tipo === "estudo" ? lembreteAtivo : false,
-                antecedenciaMin: item.tipo === "estudo" && lembreteAtivo ? Number(MINUTOS_LEMBRETE[lembreteIdx]) : null,
-            }));
-        } else {
-            const materiaSelecionada = materiasComCores.find((m) => m.id === materiaId);
-            if (!materiaSelecionada) return;
-
-            blocosNovos = [{
+        const blocoNovo = {
                 id: `novo-${Date.now()}`,
                 persistido: false,
-                horaInicio: paraHoraMin(inicioMin),
+                horaInicio: paraHoraMin(inicioValidado),
                 duracaoMin,
                 tipo: "estudo" as const,
                 materiaId: materiaSelecionada.id,
@@ -275,26 +251,9 @@ export default function NovoBlocoPlanoScreen() {
                 cor: materiaSelecionada.cor,
                 notificar: lembreteAtivo,
                 antecedenciaMin: lembreteAtivo ? Number(MINUTOS_LEMBRETE[lembreteIdx]) : null,
-            }];
+            };
 
-            if (emendarDescanso && prefs.duracaoPadraoDescansoMin > 0) {
-                blocosNovos.push({
-                    id: `novo-${Date.now()}-descanso`,
-                    persistido: false,
-                    horaInicio: paraHoraMin(fimMin),
-                    duracaoMin: prefs.duracaoPadraoDescansoMin,
-                    tipo: "descanso" as const,
-                    materiaId: undefined,
-                    materia: undefined,
-                    topico: undefined,
-                    cor: undefined,
-                    notificar: false,
-                    antecedenciaMin: null,
-                });
-            }
-        }
-
-        const rascunhoAtualizado = JSON.stringify({ ...dados, blocos: [...dados.blocos, ...blocosNovos] });
+        const rascunhoAtualizado = JSON.stringify({ ...dados, blocos: [...dados.blocos, blocoNovo] });
 
         // dismissTo (não navigate/push) garante que volta direto pro plano-editor já
         // aberto, sem empilhar uma nova instância a cada bloco adicionado.
@@ -306,7 +265,7 @@ export default function NovoBlocoPlanoScreen() {
         });
     };
 
-    const podeSubmeter = modo === "pomodoros" ? !!materiaId : !duracaoInvalida && !!materiaId;
+    const podeSubmeter = horarioValido && !duracaoInvalida && !!materiaId;
 
     return (
         <View style={{ flex: 1, backgroundColor: HADES.bg }}>
@@ -338,7 +297,7 @@ export default function NovoBlocoPlanoScreen() {
                     <View style={{ width: 56 }} />
                 </View>
 
-                {/* Alternador de modo */}
+                {/* Único tipo de bloco disponível para planos */}
                 <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
                     <View
                         style={{
@@ -350,57 +309,28 @@ export default function NovoBlocoPlanoScreen() {
                             flexDirection: "row",
                         }}
                     >
-                        <TouchableOpacity
-                            onPress={() => setModo("pomodoros")}
-                            activeOpacity={0.8}
+                        <View
                             style={{
                                 flex: 1,
                                 paddingVertical: 8,
                                 borderRadius: 8,
-                                flexDirection: "row",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                gap: 6,
-                                backgroundColor: modo === "pomodoros" ? HADES.accentTint : "transparent",
-                                borderWidth: modo === "pomodoros" ? 1 : 0,
+                                backgroundColor: HADES.accentTint,
+                                borderWidth: 1,
                                 borderColor: HADES.accentTintBorder,
                             }}
                         >
-                            <Timer size={14} color={modo === "pomodoros" ? HADES.accentSolid : HADES.textFaint} />
                             <Text
                                 style={{
                                     fontSize: 13,
                                     fontWeight: "700",
-                                    color: modo === "pomodoros" ? HADES.accentSolid : HADES.textFaint,
-                                }}
-                            >
-                                Pomodoros
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => setModo("unico")}
-                            activeOpacity={0.8}
-                            style={{
-                                flex: 1,
-                                paddingVertical: 8,
-                                borderRadius: 8,
-                                alignItems: "center",
-                                justifyContent: "center",
-                                backgroundColor: modo === "unico" ? HADES.accentTint : "transparent",
-                                borderWidth: modo === "unico" ? 1 : 0,
-                                borderColor: HADES.accentTintBorder,
-                            }}
-                        >
-                            <Text
-                                style={{
-                                    fontSize: 13,
-                                    fontWeight: "600",
-                                    color: modo === "unico" ? HADES.accentSolid : HADES.textFaint,
+                                    color: HADES.accentSolid,
                                 }}
                             >
                                 Bloco único
                             </Text>
-                        </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
 
@@ -486,360 +416,7 @@ export default function NovoBlocoPlanoScreen() {
                         />
                     </View>
 
-                    {modo === "pomodoros" ? (
-                        <>
-                            {/* Sessão */}
-                            <Text
-                                style={{
-                                    fontSize: 12,
-                                    color: HADES.textFaint,
-                                    fontWeight: "600",
-                                    letterSpacing: 0.5,
-                                    marginTop: 18,
-                                    marginBottom: 10,
-                                }}
-                            >
-                                SESSÃO
-                            </Text>
-                            <View
-                                style={{
-                                    backgroundColor: HADES.surfaceRaised,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    borderRadius: 14,
-                                    overflow: "hidden",
-                                }}
-                            >
-                                <TouchableOpacity
-                                    onPress={abrirModalHorario}
-                                    activeOpacity={0.7}
-                                    style={{
-                                        flexDirection: "row",
-                                        alignItems: "center",
-                                        padding: 14,
-                                        gap: 11,
-                                        borderBottomWidth: 1,
-                                        borderBottomColor: HADES.border,
-                                    }}
-                                >
-                                    <Text style={{ flex: 1, fontSize: 14, color: HADES.text, fontWeight: "600" }}>
-                                        Horário de início
-                                    </Text>
-                                    <Text style={{ fontSize: 13, fontWeight: "700", color: HADES.textMuted }}>
-                                        {paraHoraMin(inicioMin)}
-                                    </Text>
-                                    <ChevronRight size={16} color={HADES.grip} />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={abrirModalPomodoros}
-                                    activeOpacity={0.7}
-                                    style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 11 }}
-                                >
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>Pomodoros</Text>
-                                    </View>
-                                    <Text style={{ fontSize: 13, fontWeight: "700", color: HADES.textMuted }}>
-                                        {qtdPomodoros} × {duracaoPomodoro}min
-                                    </Text>
-                                    <ChevronRight size={16} color={HADES.grip} />
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Descansos */}
-                            <View
-                                style={{
-                                    backgroundColor: HADES.surfaceRaised,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    borderRadius: 14,
-                                    marginTop: 10,
-                                    padding: 13,
-                                }}
-                            >
-                                <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>
-                                            Descanso entre pomodoros
-                                        </Text>
-                                        <Text style={{ fontSize: 11, color: HADES.textDim, marginTop: 2 }}>
-                                            das suas preferências
-                                        </Text>
-                                    </View>
-                                    <TouchableOpacity
-                                        onPress={() => setInserirDescansos((v) => !v)}
-                                        activeOpacity={0.8}
-                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        style={{
-                                            width: 44,
-                                            height: 27,
-                                            borderRadius: 14,
-                                            backgroundColor: inserirDescansos ? HADES.accentSolid : HADES.trackOff,
-                                            justifyContent: "center",
-                                        }}
-                                    >
-                                        <View
-                                            style={{
-                                                position: "absolute",
-                                                left: inserirDescansos ? 19 : 2.5,
-                                                width: 22,
-                                                height: 22,
-                                                borderRadius: 11,
-                                                backgroundColor: "#fff",
-                                            }}
-                                        />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {/* Lembrete */}
-                            <View
-                                style={{
-                                    backgroundColor: HADES.surfaceRaised,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    borderRadius: 14,
-                                    marginTop: 10,
-                                    overflow: "hidden",
-                                }}
-                            >
-                                <View style={{ flexDirection: "row", alignItems: "center", padding: 13, gap: 11 }}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>Lembrete</Text>
-                                        <Text style={{ fontSize: 11, color: HADES.textDim, marginTop: 2 }}>
-                                            Avisa antes de cada pomodoro
-                                        </Text>
-                                    </View>
-                                    <TouchableOpacity
-                                        onPress={() => setLembreteAtivo((v) => !v)}
-                                        activeOpacity={0.8}
-                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        style={{
-                                            width: 44,
-                                            height: 27,
-                                            borderRadius: 14,
-                                            backgroundColor: lembreteAtivo ? HADES.accentSolid : HADES.trackOff,
-                                            justifyContent: "center",
-                                        }}
-                                    >
-                                        <View
-                                            style={{
-                                                position: "absolute",
-                                                left: lembreteAtivo ? 19 : 2.5,
-                                                width: 22,
-                                                height: 22,
-                                                borderRadius: 11,
-                                                backgroundColor: "#fff",
-                                            }}
-                                        />
-                                    </TouchableOpacity>
-                                </View>
-                                {lembreteAtivo && (
-                                    <View
-                                        style={{
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            padding: 11,
-                                            paddingHorizontal: 14,
-                                            borderTopWidth: 1,
-                                            borderTopColor: HADES.border,
-                                        }}
-                                    >
-                                        <Text style={{ flex: 1, fontSize: 13, color: HADES.textSecondary }}>
-                                            Antecedência
-                                        </Text>
-                                        <View
-                                            style={{
-                                                flexDirection: "row",
-                                                alignItems: "center",
-                                                backgroundColor: HADES.surfaceOverlay,
-                                                borderRadius: 9,
-                                            }}
-                                        >
-                                            <TouchableOpacity
-                                                onPress={() => setLembreteIdx((i) => Math.max(0, i - 1))}
-                                                activeOpacity={0.6}
-                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                                style={{ width: 30, height: 30, alignItems: "center", justifyContent: "center" }}
-                                            >
-                                                <Text style={{ color: HADES.textMuted, fontSize: 16 }}>−</Text>
-                                            </TouchableOpacity>
-                                            <Text
-                                                style={{
-                                                    fontSize: 14,
-                                                    fontWeight: "700",
-                                                    color: HADES.text,
-                                                    minWidth: 52,
-                                                    textAlign: "center",
-                                                }}
-                                            >
-                                                {MINUTOS_LEMBRETE[lembreteIdx]} min
-                                            </Text>
-                                            <TouchableOpacity
-                                                onPress={() => setLembreteIdx((i) => Math.min(MINUTOS_LEMBRETE.length - 1, i + 1))}
-                                                activeOpacity={0.6}
-                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                                style={{ width: 30, height: 30, alignItems: "center", justifyContent: "center" }}
-                                            >
-                                                <Text style={{ color: HADES.accentSolid, fontSize: 16 }}>+</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                )}
-                            </View>
-
-                            {/* Prévia da sessão */}
-                            <View
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "baseline",
-                                    justifyContent: "space-between",
-                                    marginTop: 30,
-                                    marginBottom: 10,
-                                }}
-                            >
-                                <Text style={{ fontSize: 12, color: HADES.textFaint, fontWeight: "600", letterSpacing: 0.5 }}>
-                                    PRÉVIA DA SESSÃO
-                                </Text>
-                            </View>
-
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 8 }}>
-                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                    <View style={{ width: 8, height: 8, borderRadius: 3, backgroundColor: HADES.accentSolid }} />
-                                    <Text style={{ fontSize: 11, color: HADES.textMuted }}>
-                                        Foco {formatarDuracao(minutosFocoTotal)}
-                                    </Text>
-                                </View>
-                                {inserirDescansos && (
-                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                        <View style={{ width: 8, height: 8, borderRadius: 3, backgroundColor: "rgba(48,209,88,0.55)" }} />
-                                        <Text style={{ fontSize: 11, color: HADES.textMuted }}>
-                                            Descanso {formatarDuracao(minutosDescansoTotal)}
-                                        </Text>
-                                    </View>
-                                )}
-                            </View>
-
-                            {/* Lista da sequência */}
-                            <View style={{ position: "relative", marginTop: 14, paddingLeft: 58 }}>
-                                <View
-                                    style={{
-                                        position: "absolute",
-                                        left: 38,
-                                        top: 8,
-                                        bottom: 8,
-                                        width: 2,
-                                        backgroundColor: "rgba(255,255,255,0.07)",
-                                    }}
-                                />
-                                {(() => {
-                                    let numeroPomodoro = 0;
-                                    return sequencia.map((item, i) => {
-                                        if (item.tipo === "estudo") {
-                                            numeroPomodoro += 1;
-                                            return (
-                                                <View key={i} style={{ marginBottom: 8 }}>
-                                                    <Text
-                                                        style={{
-                                                            position: "absolute",
-                                                            left: -58,
-                                                            top: 6,
-                                                            width: 32,
-                                                            textAlign: "right",
-                                                            fontSize: 10,
-                                                            color: HADES.textMuted,
-                                                            fontWeight: "600",
-                                                        }}
-                                                    >
-                                                        {paraHoraMin(item.inicioMin)}
-                                                    </Text>
-                                                    <View
-                                                        style={{
-                                                            position: "absolute",
-                                                            left: -24,
-                                                            top: 10,
-                                                            width: 9,
-                                                            height: 9,
-                                                            borderRadius: 5,
-                                                            backgroundColor: HADES.accentSolid,
-                                                            borderWidth: 2,
-                                                            borderColor: "#000",
-                                                        }}
-                                                    />
-                                                    <View
-                                                        style={{
-                                                            backgroundColor: HADES.surfaceOverlay,
-                                                            borderWidth: 1,
-                                                            borderColor: HADES.border,
-                                                            borderRadius: 10,
-                                                            paddingVertical: 9,
-                                                            paddingHorizontal: 12,
-                                                            flexDirection: "row",
-                                                            alignItems: "center",
-                                                        }}
-                                                    >
-                                                        <Text style={{ flex: 1, fontSize: 13, fontWeight: "600", color: HADES.text }}>
-                                                            Pomodoro {numeroPomodoro}
-                                                        </Text>
-                                                        <Text style={{ fontSize: 11, color: HADES.textFaint }}>
-                                                            {item.duracaoMin}min
-                                                        </Text>
-                                                    </View>
-                                                </View>
-                                            );
-                                        }
-                                        return (
-                                            <View key={i} style={{ marginBottom: 8 }}>
-                                                <View
-                                                    style={{
-                                                        position: "absolute",
-                                                        left: -23,
-                                                        top: 6,
-                                                        width: 7,
-                                                        height: 7,
-                                                        borderRadius: 4,
-                                                        backgroundColor: item.ehLongo ? HADES.green : HADES.dot,
-                                                        borderWidth: 2,
-                                                        borderColor: "#000",
-                                                    }}
-                                                />
-                                                <View
-                                                    style={{
-                                                        borderWidth: 1,
-                                                        borderStyle: "dashed",
-                                                        borderColor: item.ehLongo ? "rgba(48,209,88,0.45)" : "rgba(48,209,88,0.30)",
-                                                        backgroundColor: item.ehLongo ? "rgba(48,209,88,0.06)" : "transparent",
-                                                        borderRadius: 10,
-                                                        paddingVertical: 5,
-                                                        paddingHorizontal: 12,
-                                                        flexDirection: "row",
-                                                        alignItems: "center",
-                                                        gap: 8,
-                                                    }}
-                                                >
-                                                    <Coffee size={12} color={HADES.green} />
-                                                    <Text
-                                                        style={{
-                                                            flex: 1,
-                                                            fontSize: 12,
-                                                            color: item.ehLongo ? "#8fe6a8" : HADES.textMuted,
-                                                            fontWeight: item.ehLongo ? "600" : "400",
-                                                        }}
-                                                    >
-                                                        Descanso {item.ehLongo ? "longo" : "curto"}
-                                                    </Text>
-                                                    <Text style={{ fontSize: 11, color: HADES.textDim }}>
-                                                        {item.duracaoMin}min
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                        );
-                                    });
-                                })()}
-                            </View>
-                        </>
-                    ) : (
-                        <>
-                            {/* Início */}
+                    {/* Início */}
                             <View
                                 style={{
                                     backgroundColor: HADES.surfaceRaised,
@@ -872,17 +449,31 @@ export default function NovoBlocoPlanoScreen() {
                                     >
                                         <Text style={{ color: HADES.textMuted, fontSize: 16 }}>−</Text>
                                     </TouchableOpacity>
-                                    <Text
+                                    <TextInput
+                                        value={horarioTexto}
+                                        onChangeText={alterarHorario}
+                                        onBlur={() => setHorarioEditado(true)}
+                                        keyboardType="number-pad"
+                                        inputMode="numeric"
+                                        maxLength={5}
+                                        selectTextOnFocus
+                                        placeholder="HH:MM"
+                                        placeholderTextColor={HADES.textFaint}
+                                        selectionColor={HADES.accentSolid}
+                                        accessibilityLabel="Horário de início"
                                         style={{
                                             fontSize: 14,
                                             fontWeight: "700",
-                                            color: HADES.text,
-                                            minWidth: 52,
+                                            color: horarioValido ? HADES.text : HADES.red,
+                                            width: 58,
                                             textAlign: "center",
+                                            paddingVertical: 5,
+                                            paddingHorizontal: 2,
+                                            borderWidth: 1,
+                                            borderColor: horarioEditado && !horarioValido ? HADES.red : "transparent",
+                                            borderRadius: 6,
                                         }}
-                                    >
-                                        {paraHoraMin(inicioMin)}
-                                    </Text>
+                                    />
                                     <TouchableOpacity
                                         onPress={() => ajustarInicio(15)}
                                         activeOpacity={0.6}
@@ -893,6 +484,11 @@ export default function NovoBlocoPlanoScreen() {
                                     </TouchableOpacity>
                                 </View>
                             </View>
+                            {horarioEditado && !horarioValido && (
+                                <Text style={{ color: HADES.red, fontSize: 11, marginTop: 5, marginLeft: 4 }}>
+                                    Digite um horário entre 00:00 e 23:59.
+                                </Text>
+                            )}
 
                             {/* Duração */}
                             <Text
@@ -930,52 +526,6 @@ export default function NovoBlocoPlanoScreen() {
                                     />
                                     <Text style={{ fontSize: 13, color: HADES.textMuted, fontWeight: "600" }}>min</Text>
                                 </View>
-                            </View>
-
-                            {/* Descanso emendado */}
-                            <View
-                                style={{
-                                    backgroundColor: HADES.surfaceRaised,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    borderRadius: 14,
-                                    marginTop: 14,
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    padding: 13,
-                                }}
-                            >
-                                <Coffee size={16} color={HADES.green} style={{ marginRight: 10 }} />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>
-                                        Descanso depois
-                                    </Text>
-                                    <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 2 }}>
-                                        {formatarDuracao(prefs.duracaoPadraoDescansoMin)}, das configurações
-                                    </Text>
-                                </View>
-                                <TouchableOpacity
-                                    onPress={() => setEmendarDescanso((v) => !v)}
-                                    activeOpacity={0.8}
-                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                    style={{
-                                        width: 44,
-                                        height: 27,
-                                        borderRadius: 14,
-                                        backgroundColor: emendarDescanso ? HADES.accentSolid : HADES.trackOff,
-                                        justifyContent: "center",
-                                    }}
-                                >
-                                    <View
-                                        style={{
-                                            width: 21,
-                                            height: 21,
-                                            borderRadius: 11,
-                                            backgroundColor: "#fff",
-                                            marginLeft: emendarDescanso ? 20 : 3,
-                                        }}
-                                    />
-                                </TouchableOpacity>
                             </View>
 
                             {/* Lembrete */}
@@ -1052,8 +602,6 @@ export default function NovoBlocoPlanoScreen() {
                                     </View>
                                 )}
                             </View>
-                        </>
-                    )}
                 </ScrollView>
 
                 {/* Rodapé */}
@@ -1070,24 +618,14 @@ export default function NovoBlocoPlanoScreen() {
                     }}
                 >
                     <View style={{ flex: 1 }}>
-                        {modo === "pomodoros" ? (
-                            <>
-                                <Text style={{ fontSize: 11, color: HADES.textMuted }}>
-                                    {paraHoraMin(inicioMin)} → <Text style={{ color: HADES.text, fontWeight: "700", fontSize: 11 }}>{paraHoraMin(fimSessaoMin)} · <Text style={{color: HADES.textFaint}}>{formatarDuracao(fimSessaoMin - inicioMin)}</Text></Text>
-                                </Text>
-                            </>
-                        ) : (
-                            <>
-                                <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>{resumo}</Text>
-                                <Text style={{ fontSize: 12, color: duracaoInvalida ? HADES.amber : HADES.textFaint, marginTop: 1 }}>
-                                    {duracaoInvalida
-                                        ? `Mínimo de ${DURACAO_BLOCO_UNICO_MIN} min`
-                                        : lembreteAtivo
-                                            ? `Lembrete ${MINUTOS_LEMBRETE[lembreteIdx]} min antes`
-                                            : "Sem lembrete"}
-                                </Text>
-                            </>
-                        )}
+                        <Text style={{ fontSize: 14, color: HADES.text, fontWeight: "600" }}>{resumo}</Text>
+                        <Text style={{ fontSize: 12, color: duracaoInvalida ? HADES.amber : HADES.textFaint, marginTop: 1 }}>
+                            {duracaoInvalida
+                                ? `Mínimo de ${DURACAO_BLOCO_UNICO_MIN} min`
+                                : lembreteAtivo
+                                    ? `Lembrete ${MINUTOS_LEMBRETE[lembreteIdx]} min antes`
+                                    : "Sem lembrete"}
+                        </Text>
                     </View>
                     <TouchableOpacity
                         onPress={onSubmit}
@@ -1104,290 +642,12 @@ export default function NovoBlocoPlanoScreen() {
                             opacity: podeSubmeter ? 1 : 0.4,
                         }}
                     >
-                        {modo === "pomodoros" ? (
-                            <>
-                                <Layers size={16} color="#000" />
-                                <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>
-                                    Criar {sequencia.length} blocos
-                                </Text>
-                            </>
-                        ) : (
-                            <>
-                                <Plus size={16} color="#000" />
-                                <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>Adicionar</Text>
-                            </>
-                        )}
+                        <Plus size={16} color="#000" />
+                        <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>Adicionar</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
 
-            {/* Folha · Pomodoros.
-                Overlay dentro da própria tela em vez de <Modal>: esta rota já é
-                apresentada como modal nativo (presentation: "modal") e um Modal do RN
-                aninhado nela não entrega os gestos às rodas no Android.
-                O fundo é irmão da folha — como Pressable, se envolvesse o conteúdo
-                viraria responder do toque e as rodas não rolariam. */}
-            {modalPomodorosAberto && (
-                <View style={[StyleSheet.absoluteFill, { justifyContent: "flex-end" }]}>
-                    <Pressable
-                        style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.55)" }]}
-                        onPress={() => setModalPomodorosAberto(false)}
-                    />
-                    <View
-                        style={{
-                            backgroundColor: HADES.surfaceRaised,
-                            borderWidth: 1,
-                            borderColor: HADES.borderStrong,
-                            borderTopLeftRadius: 24,
-                            borderTopRightRadius: 24,
-                            paddingHorizontal: 20,
-                            paddingBottom: 26,
-                            maxHeight: alturaMaximaFolha,
-                        }}
-                    >
-                        <View style={{ paddingTop: 12, paddingBottom: 4, alignItems: "center" }}>
-                            <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: HADES.dot }} />
-                        </View>
-                        <Text style={{ textAlign: "center", fontSize: 17, fontWeight: "700", color: HADES.text, marginTop: 8 }}>
-                            Pomodoros
-                        </Text>
-                        <Text style={{ textAlign: "center", fontSize: 14, color: HADES.textSecondary, marginTop: 8 }}>
-                            Tempo de foco estimado: {qtdPomodoros} × {duracaoPomodoro}min ={" "}
-                            <Text style={{ color: HADES.text, fontWeight: "700" }}>
-                                {formatarDuracao(minutosFocoTotal)}
-                            </Text>
-                        </Text>
-                        {/* Duas colunas em cartão, item central em destaque pela cor —
-                            sem faixa sobreposta, só três itens visíveis. */}
-                        <View style={{ flexDirection: "row", gap: 14, marginTop: 24 }}>
-                            <View style={{ flex: 1 }}>
-                                <View
-                                    style={{
-                                        backgroundColor: HADES.surfaceOverlay,
-                                        borderWidth: 1,
-                                        borderColor: HADES.borderStrong,
-                                        borderRadius: 20,
-                                        overflow: "hidden",
-                                        flexDirection: "row",
-                                    }}
-                                >
-                                    <WheelPicker
-                                        items={QTD_POMODOROS}
-                                        selectedIndex={qtdIdx}
-                                        onChange={setQtdIdx}
-                                        flex={1}
-                                        itemHeight={ALTURA_ITEM_RODA}
-                                        visible={3}
-                                        fonteAtiva={34}
-                                        fonteInativa={30}
-                                    />
-                                </View>
-                                <Text style={{ textAlign: "center", fontSize: 13, color: HADES.textMuted, fontWeight: "600", marginTop: 12, lineHeight: 17 }}>
-                                    Pomodoros{"\n"}previstos
-                                </Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <View
-                                    style={{
-                                        backgroundColor: HADES.surfaceOverlay,
-                                        borderWidth: 1,
-                                        borderColor: HADES.borderStrong,
-                                        borderRadius: 20,
-                                        overflow: "hidden",
-                                        flexDirection: "row",
-                                    }}
-                                >
-                                    <WheelPicker
-                                        items={DURACAO_POMODORO.map((v) => `${v}min`)}
-                                        selectedIndex={duracaoPomodoroIdx}
-                                        onChange={setDuracaoPomodoroIdx}
-                                        flex={1}
-                                        itemHeight={ALTURA_ITEM_RODA}
-                                        visible={3}
-                                        fonteAtiva={30}
-                                        fonteInativa={26}
-                                    />
-                                </View>
-                                <Text style={{ textAlign: "center", fontSize: 13, color: HADES.textMuted, fontWeight: "600", marginTop: 12, lineHeight: 17 }}>
-                                    Duração do{"\n"}pomodoro
-                                </Text>
-                            </View>
-                        </View>
-                        <View style={{ flexDirection: "row", gap: 12, marginTop: 24 }}>
-                            <TouchableOpacity
-                                onPress={() => setModalPomodorosAberto(false)}
-                                activeOpacity={0.8}
-                                style={{
-                                    flex: 1,
-                                    height: 50,
-                                    borderRadius: 25,
-                                    backgroundColor: HADES.surfaceOverlay,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                }}
-                            >
-                                <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.textSecondary }}>Cancelar</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => setModalPomodorosAberto(false)}
-                                activeOpacity={0.85}
-                                style={{
-                                    flex: 1,
-                                    height: 50,
-                                    borderRadius: 25,
-                                    backgroundColor: HADES.accentSolid,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                }}
-                            >
-                                <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>Concluído</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            )}
-
-            {/* Folha · Horário de início (mesmo motivo da folha acima) */}
-            {modalHorarioAberto && (
-                <View style={[StyleSheet.absoluteFill, { justifyContent: "flex-end" }]}>
-                    <Pressable
-                        style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.55)" }]}
-                        onPress={() => setModalHorarioAberto(false)}
-                    />
-                    <View
-                        style={{
-                            backgroundColor: HADES.surfaceRaised,
-                            borderWidth: 1,
-                            borderColor: HADES.borderStrong,
-                            borderTopLeftRadius: 24,
-                            borderTopRightRadius: 24,
-                            paddingHorizontal: 20,
-                            paddingBottom: 26,
-                            maxHeight: alturaMaximaFolha,
-                        }}
-                    >
-                        <View style={{ paddingTop: 12, paddingBottom: 4, alignItems: "center" }}>
-                            <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: HADES.dot }} />
-                        </View>
-                        <Text style={{ textAlign: "center", fontSize: 17, fontWeight: "700", color: HADES.text, marginTop: 8 }}>
-                            Horário de início
-                        </Text>
-                        <Text style={{ textAlign: "center", fontSize: 13, color: HADES.textMuted, marginTop: 6 }}>
-                            O primeiro pomodoro começa às{" "}
-                            <Text style={{ color: HADES.text, fontWeight: "700" }}>{paraHoraMin(inicioMin)}</Text>
-                        </Text>
-                        <View
-                            style={{
-                                position: "relative",
-                                marginTop: 20,
-                                backgroundColor: HADES.surfaceOverlay,
-                                borderWidth: 1,
-                                borderColor: HADES.borderStrong,
-                                borderRadius: 16,
-                                paddingVertical: 8,
-                            }}
-                        >
-                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                                <WheelPicker
-                                    items={HORAS_DIA}
-                                    selectedIndex={Math.floor(inicioMin / 60) % 24}
-                                    onChange={(i) => setInicioMin((atual) => i * 60 + (atual % 60))}
-                                    flex={0.45}
-                                />
-                                <Text style={{ fontSize: 20, color: HADES.textMuted, fontWeight: "700" }}>:</Text>
-                                <WheelPicker
-                                    items={MINUTOS_5}
-                                    selectedIndex={indiceMaisProximo(MINUTOS_5, inicioMin % 60)}
-                                    onChange={(i) => setInicioMin((atual) => Math.floor(atual / 60) * 60 + Number(MINUTOS_5[i]))}
-                                    flex={0.45}
-                                />
-                            </View>
-                        </View>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, justifyContent: "center" }}>
-                            <TouchableOpacity
-                                onPress={() => aplicarInicioRapido(0)}
-                                activeOpacity={0.8}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    backgroundColor: HADES.surfaceOverlay,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    borderRadius: 16,
-                                    paddingVertical: 7,
-                                    paddingHorizontal: 13,
-                                }}
-                            >
-                                <Zap size={13} color={HADES.accentSolid} />
-                                <Text style={{ fontSize: 12, color: HADES.textSecondary, fontWeight: "600" }}>Agora</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => aplicarInicioRapido(15)}
-                                activeOpacity={0.8}
-                                style={{
-                                    backgroundColor: HADES.surfaceOverlay,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    borderRadius: 16,
-                                    paddingVertical: 7,
-                                    paddingHorizontal: 13,
-                                }}
-                            >
-                                <Text style={{ fontSize: 12, color: HADES.textSecondary, fontWeight: "600" }}>Em 15 min</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => aplicarInicioRapido(30)}
-                                activeOpacity={0.8}
-                                style={{
-                                    backgroundColor: HADES.surfaceOverlay,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    borderRadius: 16,
-                                    paddingVertical: 7,
-                                    paddingHorizontal: 13,
-                                }}
-                            >
-                                <Text style={{ fontSize: 12, color: HADES.textSecondary, fontWeight: "600" }}>Em 30 min</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <View style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
-                            <TouchableOpacity
-                                onPress={() => setModalHorarioAberto(false)}
-                                activeOpacity={0.8}
-                                style={{
-                                    flex: 1,
-                                    height: 50,
-                                    borderRadius: 25,
-                                    backgroundColor: HADES.surfaceOverlay,
-                                    borderWidth: 1,
-                                    borderColor: HADES.borderStrong,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                }}
-                            >
-                                <Text style={{ fontSize: 15, fontWeight: "600", color: HADES.textSecondary }}>Cancelar</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => setModalHorarioAberto(false)}
-                                activeOpacity={0.85}
-                                style={{
-                                    flex: 1,
-                                    height: 50,
-                                    borderRadius: 25,
-                                    backgroundColor: HADES.accentSolid,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                }}
-                            >
-                                <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>Concluído</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            )}
         </View>
     );
 }

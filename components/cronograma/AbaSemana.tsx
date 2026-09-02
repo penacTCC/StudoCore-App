@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Modal, Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { CalendarPlus, ChevronRight } from "@/components/ui/icons";
+import { CalendarPlus, ChevronRight, Plus } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { minParaPx } from "@/constants/cronograma";
 import AbaSemanaBlocos from "@/components/cronograma/AbaSemanaBlocos";
@@ -261,6 +261,32 @@ export default function AbaSemana({ visualizacao, inicioDaSemana }: Props) {
                             ))}
                         </View>
                     </ScrollView>
+
+                    <TouchableOpacity
+                        onPress={() => abrirNovoBloco(diaAtual >= 0 ? diaAtual : 0)}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel="Adicionar bloco à semana"
+                        style={{
+                            position: "absolute",
+                            right: 20,
+                            bottom: 66,
+                            width: 54,
+                            height: 54,
+                            borderRadius: 27,
+                            backgroundColor: HADES.accentSolid,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.35,
+                            shadowRadius: 7,
+                            elevation: 7,
+                            zIndex: 10,
+                        }}
+                    >
+                        <Plus size={23} color="#000" />
+                    </TouchableOpacity>
                 </>
             )}
 

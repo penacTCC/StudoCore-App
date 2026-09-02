@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Coffee, Plus, ChevronDown, ChevronRight, Check, Trash2, Timer, Share2 } from "@/components/ui/icons";
+import { Coffee, Plus, ChevronDown, Check, Trash2, Share2 } from "@/components/ui/icons";
 import { HADES, CORES_PLANO } from "@/constants/hades";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatarDuracao } from "@/utils/tempo";
@@ -40,8 +40,6 @@ type BlocoEditor = {
     tipo: TipoBloco;
     notificar: boolean;
     antecedenciaMin: number | null;
-    /** Chave compartilhada pelos blocos de uma mesma sessão de pomodoros — ausente fora desse fluxo. */
-    sessaoId?: string;
     /** Dia da semana exclusivo deste bloco (0 = segunda ... 6 = domingo). Ausente = vale em todos os dias. */
     diaSemana?: number;
 };
@@ -85,9 +83,8 @@ export default function PlanoEditorScreen() {
     const [blocos, setBlocos] = useState<BlocoEditor[]>([]);
     const [salvando, setSalvando] = useState(false);
     const [carregandoPlano, setCarregandoPlano] = useState(!!planoId && !rascunho);
-    // Sessões de pomodoros começam colapsadas — só entram aqui quando o usuário expande.
-    const [sessoesExpandidas, setSessoesExpandidas] = useState<Set<string>>(new Set());
-
+    const [modalDescansoAberto, setModalDescansoAberto] = useState(false);
+    const [duracaoDescansoMin, setDuracaoDescansoMin] = useState(10);
     // Se a tela já nasceu com um rascunho (voltando de "novo bloco"), o estado
     // já vai ser restaurado a partir dele — não busca do banco por cima, senão
     // sobrescreve o que o usuário editou (nome/cor/blocos ainda não salvos).
@@ -127,7 +124,6 @@ export default function PlanoEditorScreen() {
                             tipo: row.tipo,
                             notificar: row.notificar,
                             antecedenciaMin: row.antecedencia_min,
-                            sessaoId: row.sessao_id ?? undefined,
                             diaSemana: row.dia_semana ?? undefined,
                         };
                     })
@@ -168,82 +164,72 @@ export default function PlanoEditorScreen() {
         });
     };
 
-    /*
-      Descanso não é mais um formulário: o botão emenda, de uma vez, um descanso
-      em cada troca de matéria do plano. Horário e duração saem do próprio plano
-      (fim do bloco anterior) e das preferências — nada pra o usuário preencher.
-    */
-    const inserirDescansosEntreMaterias = () => {
-        const duracaoPadrao = prefs.duracaoPadraoDescansoMin;
-        if (duracaoPadrao <= 0) {
-            toast.info("Defina uma duração padrão de descanso nas configurações do cronograma.");
+    const ultimoEstudo = useMemo(
+        () => blocos
+            .filter((bloco) => bloco.tipo === "estudo")
+            .sort((a, b) => {
+                const diaA = a.diaSemana ?? -1;
+                const diaB = b.diaSemana ?? -1;
+                if (diaA !== diaB) return diaB - diaA;
+                return paraMinutos(b.horaInicio) + b.duracaoMin - (paraMinutos(a.horaInicio) + a.duracaoMin);
+            })[0],
+        [blocos]
+    );
+
+    const horaInicioDescanso = ultimoEstudo
+        ? paraHoraMin(paraMinutos(ultimoEstudo.horaInicio) + ultimoEstudo.duracaoMin)
+        : null;
+
+    const descansoDepoisDoUltimoJaExiste = !!ultimoEstudo && blocos.some(
+        (bloco) =>
+            bloco.tipo === "descanso" &&
+            bloco.diaSemana === ultimoEstudo.diaSemana &&
+            bloco.horaInicio === horaInicioDescanso
+    );
+
+    const abrirSeletorDescanso = () => {
+        if (!ultimoEstudo) {
+            toast.info("Adicione um bloco de matéria antes do descanso.");
+            return;
+        }
+        if (descansoDepoisDoUltimoJaExiste) {
+            toast.info("Já existe um descanso depois do último bloco de matéria.");
             return;
         }
 
-        const novos: BlocoEditor[] = [];
-        // Descansos que já começam onde um bloco termina — evita duplicar a cada
-        // toque no botão quando o descanso emendado não deixa folga nenhuma.
-        const iniciosDeDescanso = new Set(
-            blocos.filter((b) => b.tipo === "descanso").map((b) => `${b.diaSemana ?? "todos"}:${b.horaInicio}`)
-        );
+        setDuracaoDescansoMin(Math.min(60, Math.max(5, prefs.duracaoPadraoDescansoMin || 10)));
+        setModalDescansoAberto(true);
+    };
 
-        // Cada dia da semana é uma linha do tempo independente — mesma convenção usada
-        // no cálculo de `conflitos` acima. Blocos de dias diferentes (ou sem dia vs. com
-        // dia) nunca são "vizinhos": comparar os horários deles direto misturava matérias
-        // de dias distintos, criando descansos indevidos (ou pulando um par legítimo por
-        // causa de uma folga negativa que não existe de verdade).
-        const grupos = new Map<number | "sem-dia", BlocoEditor[]>();
-        for (const b of blocos) {
-            const chave = b.diaSemana ?? "sem-dia";
-            const lista = grupos.get(chave) ?? [];
-            lista.push(b);
-            grupos.set(chave, lista);
-        }
-
-        for (const [diaSemana, blocosDoDia] of grupos) {
-            const ordenados = [...blocosDoDia].sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
-
-            for (let i = 0; i < ordenados.length - 1; i++) {
-                const atual = ordenados[i];
-                const proximo = ordenados[i + 1];
-                // Só entre dois estudos de matérias diferentes — se já há um descanso
-                // no meio, ele é quem separa os dois e não cabe outro.
-                if (atual.tipo !== "estudo" || proximo.tipo !== "estudo") continue;
-                if (atual.materiaId === proximo.materiaId) continue;
-
-                const fimAtual = paraMinutos(atual.horaInicio) + atual.duracaoMin;
-                const inicioProximo = paraMinutos(proximo.horaInicio);
-                const folga = inicioProximo - fimAtual;
-                if (folga < 0) continue; // já se sobrepõem: um descanso aqui só pioraria o conflito
-
-                const horaInicio = paraHoraMin(fimAtual);
-                const chaveDescanso = `${diaSemana}:${horaInicio}`;
-                if (iniciosDeDescanso.has(chaveDescanso)) continue;
-                iniciosDeDescanso.add(chaveDescanso);
-
-                novos.push({
-                    id: `novo-${Date.now()}-descanso-${diaSemana}-${i}`,
-                    persistido: false,
-                    horaInicio,
-                    // Encaixa na folga quando ela existe, pra não invadir o bloco seguinte.
-                    duracaoMin: folga > 0 ? Math.min(folga, duracaoPadrao) : duracaoPadrao,
-                    tipo: "descanso",
-                    notificar: false,
-                    antecedenciaMin: null,
-                    diaSemana: atual.diaSemana,
-                });
-            }
-        }
-
-        if (novos.length === 0) {
-            toast.info("Não há trocas de matéria sem descanso neste plano.");
+    /** Adiciona o descanso escolhido imediatamente após o último bloco de estudo. */
+    const confirmarDescanso = () => {
+        if (!ultimoEstudo || !horaInicioDescanso) {
+            setModalDescansoAberto(false);
+            toast.info("Adicione um bloco de matéria antes do descanso.");
             return;
         }
 
-        setBlocos((atual) => [...atual, ...novos]);
-        toast.success(
-            novos.length === 1 ? "1 descanso adicionado." : `${novos.length} descansos adicionados.`
-        );
+        if (descansoDepoisDoUltimoJaExiste) {
+            setModalDescansoAberto(false);
+            toast.info("Já existe um descanso depois do último bloco de matéria.");
+            return;
+        }
+
+        setBlocos((atual) => [
+            ...atual,
+            {
+                id: `novo-${Date.now()}-descanso`,
+                persistido: false,
+                horaInicio: horaInicioDescanso,
+                duracaoMin: duracaoDescansoMin,
+                tipo: "descanso",
+                notificar: false,
+                antecedenciaMin: null,
+                diaSemana: ultimoEstudo.diaSemana,
+            },
+        ]);
+        setModalDescansoAberto(false);
+        toast.success("Descanso adicionado depois do último bloco.");
     };
 
     const alternarNotificacao = (id: string) =>
@@ -268,35 +254,6 @@ export default function PlanoEditorScreen() {
                     await cancelarLembretesPlano(planoId ?? "", [bloco.id]);
                 }
                 setBlocos((atual) => atual.filter((b) => b.id !== bloco.id));
-            },
-        });
-    };
-
-    /** Remove todos os blocos de uma sessão de pomodoros de uma vez (usado pelo cartão colapsado). */
-    const removerSessao = (blocosDaSessao: BlocoEditor[]) => {
-        confirm({
-            title: "Remover sessão",
-            message: `Remover os ${blocosDaSessao.length} blocos dessa sessão de pomodoros do plano?`,
-            confirmText: "Remover",
-            destructive: true,
-            onConfirm: async () => {
-                const persistidos = blocosDaSessao.filter((b) => b.persistido);
-                let houveErro = false;
-                for (const bloco of persistidos) {
-                    const { error } = await excluirBlocoPlano(bloco.id);
-                    if (error) {
-                        console.error("Erro ao excluir bloco da sessão:", error);
-                        houveErro = true;
-                    }
-                }
-                if (houveErro) {
-                    toast.error("Alguns blocos dessa sessão não puderam ser removidos.");
-                }
-                if (persistidos.length > 0) {
-                    await cancelarLembretesPlano(planoId ?? "", persistidos.map((b) => b.id));
-                }
-                const idsRemovidos = new Set(blocosDaSessao.map((b) => b.id));
-                setBlocos((atual) => atual.filter((b) => !idsRemovidos.has(b.id)));
             },
         });
     };
@@ -341,45 +298,16 @@ export default function PlanoEditorScreen() {
         return outro?.tipo === "descanso" ? "Descanso" : outro?.materia ?? "outro bloco";
     };
 
-    type ItemLista =
-        | { tipo: "individual"; bloco: BlocoEditor }
-        | { tipo: "sessao"; sessaoId: string; blocos: BlocoEditor[] };
-
-    // Agrupa por sessaoId (não por posição). A lista em si não é reordenável — não há
-    // drag-and-drop implementado, só a alça decorativa — então a ordem exibida segue
-    // sempre dia da semana e horário, e não a ordem de inserção dos blocos.
-    const itensAgrupados = useMemo<ItemLista[]>(() => {
-        const ordenados = [...blocos].sort((a, b) => {
+    // A lista não é reordenável: a ordem exibida segue dia da semana e horário.
+    const blocosOrdenados = useMemo(() =>
+        [...blocos].sort((a, b) => {
             const diaA = a.diaSemana ?? -1;
             const diaB = b.diaSemana ?? -1;
             if (diaA !== diaB) return diaA - diaB;
             return a.horaInicio.localeCompare(b.horaInicio);
-        });
-        const vistos = new Set<string>();
-        const itens: ItemLista[] = [];
-        for (const bloco of ordenados) {
-            if (bloco.sessaoId) {
-                if (vistos.has(bloco.sessaoId)) continue;
-                vistos.add(bloco.sessaoId);
-                itens.push({
-                    tipo: "sessao",
-                    sessaoId: bloco.sessaoId,
-                    blocos: blocos.filter((b) => b.sessaoId === bloco.sessaoId),
-                });
-            } else {
-                itens.push({ tipo: "individual", bloco });
-            }
-        }
-        return itens;
-    }, [blocos]);
-
-    const alternarSessao = (sessaoId: string) =>
-        setSessoesExpandidas((atual) => {
-            const proximo = new Set(atual);
-            if (proximo.has(sessaoId)) proximo.delete(sessaoId);
-            else proximo.add(sessaoId);
-            return proximo;
-        });
+        }),
+        [blocos]
+    );
 
     const minutosEstudo = blocos
         .filter((b) => b.tipo === "estudo")
@@ -430,7 +358,6 @@ export default function PlanoEditorScreen() {
                 topico: bloco.topico || null,
                 notificar: bloco.notificar,
                 antecedencia_min: bloco.antecedenciaMin,
-                sessao_id: bloco.sessaoId ?? null,
                 dia_semana: bloco.diaSemana ?? null,
             };
 
@@ -667,7 +594,7 @@ export default function PlanoEditorScreen() {
                         BLOCOS
                     </Text>
 
-                    {itensAgrupados.length === 0 && (
+                    {blocosOrdenados.length === 0 && (
                         <View
                             style={{
                                 backgroundColor: HADES.surfaceRaised,
@@ -690,28 +617,15 @@ export default function PlanoEditorScreen() {
                     )}
 
                     <View style={{ gap: 10 }}>
-                        {itensAgrupados.map((item) =>
-                            item.tipo === "sessao" ? (
-                                <CartaoSessao
-                                    key={item.sessaoId}
-                                    blocos={item.blocos}
-                                    expandida={sessoesExpandidas.has(item.sessaoId)}
-                                    onAlternar={() => alternarSessao(item.sessaoId)}
-                                    onRemoverSessao={() => removerSessao(item.blocos)}
-                                    onRemoverItem={removerBloco}
-                                    onAlternarNotificacao={alternarNotificacao}
-                                    rotuloConflito={rotuloConflito}
-                                />
-                            ) : (
-                                <LinhaBloco
-                                    key={item.bloco.id}
-                                    bloco={item.bloco}
-                                    conflitaCom={rotuloConflito(item.bloco.id)}
-                                    onRemover={() => removerBloco(item.bloco)}
-                                    onAlternarNotificacao={() => alternarNotificacao(item.bloco.id)}
-                                />
-                            )
-                        )}
+                        {blocosOrdenados.map((bloco) => (
+                            <LinhaBloco
+                                key={bloco.id}
+                                bloco={bloco}
+                                conflitaCom={rotuloConflito(bloco.id)}
+                                onRemover={() => removerBloco(bloco)}
+                                onAlternarNotificacao={() => alternarNotificacao(bloco.id)}
+                            />
+                        ))}
                     </View>
 
                     {/* Adicionar */}
@@ -728,7 +642,7 @@ export default function PlanoEditorScreen() {
                             rotulo="Descanso"
                             corIcone={HADES.textMuted}
                             corTexto={HADES.textSecondary}
-                            onPress={inserirDescansosEntreMaterias}
+                            onPress={abrirSeletorDescanso}
                         />
                     </View>
                 </ScrollView>
@@ -775,6 +689,149 @@ export default function PlanoEditorScreen() {
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
+
+            <Modal
+                visible={modalDescansoAberto}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setModalDescansoAberto(false)}
+            >
+                <View
+                    style={{
+                        flex: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingHorizontal: 24,
+                    }}
+                >
+                    <Pressable
+                        style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.65)" }}
+                        onPress={() => setModalDescansoAberto(false)}
+                    />
+                    <View
+                        style={{
+                            width: "100%",
+                            maxWidth: 360,
+                            backgroundColor: HADES.surfaceRaised,
+                            borderWidth: 1,
+                            borderColor: HADES.borderStrong,
+                            borderRadius: 18,
+                            padding: 18,
+                        }}
+                    >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                            <View
+                                style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 18,
+                                    backgroundColor: HADES.greenTint,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                <Coffee size={18} color={HADES.green} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: HADES.text, fontSize: 17, fontWeight: "700" }}>
+                                    Duração do descanso
+                                </Text>
+                                <Text style={{ color: HADES.textMuted, fontSize: 12, marginTop: 2 }}>
+                                    Começa às {horaInicioDescanso ?? "--:--"}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View
+                            style={{
+                                marginTop: 22,
+                                height: 64,
+                                borderRadius: 14,
+                                backgroundColor: HADES.surfaceOverlay,
+                                borderWidth: 1,
+                                borderColor: HADES.borderStrong,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                paddingHorizontal: 12,
+                            }}
+                        >
+                            <TouchableOpacity
+                                onPress={() => setDuracaoDescansoMin((valor) => Math.max(5, valor - 5))}
+                                disabled={duracaoDescansoMin <= 5}
+                                activeOpacity={0.7}
+                                style={{
+                                    width: 42,
+                                    height: 42,
+                                    borderRadius: 12,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: HADES.surfaceRaised,
+                                    opacity: duracaoDescansoMin <= 5 ? 0.35 : 1,
+                                }}
+                            >
+                                <Text style={{ color: HADES.textSecondary, fontSize: 24 }}>−</Text>
+                            </TouchableOpacity>
+                            <Text style={{ color: HADES.text, fontSize: 22, fontWeight: "700" }}>
+                                {duracaoDescansoMin} min
+                            </Text>
+                            <TouchableOpacity
+                                onPress={() => setDuracaoDescansoMin((valor) => Math.min(60, valor + 5))}
+                                disabled={duracaoDescansoMin >= 60}
+                                activeOpacity={0.7}
+                                style={{
+                                    width: 42,
+                                    height: 42,
+                                    borderRadius: 12,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: HADES.surfaceRaised,
+                                    opacity: duracaoDescansoMin >= 60 ? 0.35 : 1,
+                                }}
+                            >
+                                <Text style={{ color: HADES.accentSolid, fontSize: 24 }}>+</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ flexDirection: "row", gap: 10, marginTop: 20 }}>
+                            <TouchableOpacity
+                                onPress={() => setModalDescansoAberto(false)}
+                                activeOpacity={0.8}
+                                style={{
+                                    flex: 1,
+                                    height: 48,
+                                    borderRadius: 13,
+                                    backgroundColor: HADES.surfaceOverlay,
+                                    borderWidth: 1,
+                                    borderColor: HADES.borderStrong,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                <Text style={{ color: HADES.textSecondary, fontSize: 14, fontWeight: "600" }}>
+                                    Cancelar
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={confirmarDescanso}
+                                activeOpacity={0.85}
+                                style={{
+                                    flex: 1,
+                                    height: 48,
+                                    borderRadius: 13,
+                                    backgroundColor: HADES.accentSolid,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                <Text style={{ color: "#000", fontSize: 14, fontWeight: "700" }}>
+                                    Adicionar
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -850,7 +907,7 @@ function PlanoEditorSkeleton() {
     );
 }
 
-/** Linha de um bloco solto (fora de uma sessão de pomodoros) — estudo ou descanso. */
+/** Linha de um bloco de estudo ou descanso. */
 function LinhaBloco({
     bloco,
     conflitaCom,
@@ -937,183 +994,6 @@ function LinhaBloco({
                 <Text style={{ fontSize: 11, color: HADES.amber, marginTop: 8 }}>
                     Conflita com {conflitaCom}
                 </Text>
-            )}
-        </View>
-    );
-}
-
-/** Cartão colapsável de uma sessão de pomodoros — colapsado mostra o resumo, expandido mostra o fluxo indentado (mesmo visual de "Prévia da sessão" em novo-bloco-plano). */
-function CartaoSessao({
-    blocos,
-    expandida,
-    onAlternar,
-    onRemoverSessao,
-    onRemoverItem,
-    onAlternarNotificacao,
-    rotuloConflito,
-}: {
-    blocos: BlocoEditor[];
-    expandida: boolean;
-    onAlternar: () => void;
-    onRemoverSessao: () => void;
-    onRemoverItem: (bloco: BlocoEditor) => void;
-    onAlternarNotificacao: (id: string) => void;
-    rotuloConflito: (id: string) => string | undefined;
-}) {
-    const ordenados = [...blocos].sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
-    const primeiroEstudo = ordenados.find((b) => b.tipo === "estudo");
-    const qtdPomodoros = ordenados.filter((b) => b.tipo === "estudo").length;
-    const focoTotal = ordenados.filter((b) => b.tipo === "estudo").reduce((soma, b) => soma + b.duracaoMin, 0);
-    const descansoTotal = ordenados.filter((b) => b.tipo === "descanso").reduce((soma, b) => soma + b.duracaoMin, 0);
-    const algumConflito = ordenados.some((b) => rotuloConflito(b.id));
-    const ChevronIcone = expandida ? ChevronDown : ChevronRight;
-
-    return (
-        <View
-            style={{
-                backgroundColor: HADES.surfaceRaised,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
-                borderRadius: 13,
-                overflow: "hidden",
-            }}
-        >
-            <TouchableOpacity
-                onPress={onAlternar}
-                activeOpacity={0.8}
-                style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 13 }}
-            >
-                <Timer size={16} color={primeiroEstudo?.cor ?? HADES.accentSolid} />
-                <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: HADES.text }}>
-                        {primeiroEstudo?.materia ?? "Sessão"}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: HADES.textFaint, marginTop: 1 }}>
-                        {formatarDuracao(focoTotal)} foco · {formatarDuracao(descansoTotal)} descanso
-                        {algumConflito ? " · conflito" : ""}
-                    </Text>
-                </View>
-                {algumConflito && (
-                    <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: HADES.amber }} />
-                )}
-                <TouchableOpacity onPress={onRemoverSessao} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Trash2 size={15} color={HADES.textFaint} />
-                </TouchableOpacity>
-                <ChevronIcone size={18} color={HADES.grip} />
-            </TouchableOpacity>
-
-            {expandida && (
-                <View style={{ borderTopWidth: 1, borderTopColor: HADES.border, paddingVertical: 12, paddingRight: 12 }}>
-                    <View style={{ position: "relative", paddingLeft: 46 }}>
-                        <View
-                            style={{
-                                position: "absolute",
-                                left: 27,
-                                top: 6,
-                                bottom: 6,
-                                width: 2,
-                                backgroundColor: "rgba(255,255,255,0.07)",
-                            }}
-                        />
-                        {ordenados.map((bloco) => {
-                            const conflitaCom = rotuloConflito(bloco.id);
-                            const descanso = bloco.tipo === "descanso";
-                            return (
-                                <View key={bloco.id} style={{ marginBottom: 8 }}>
-                                    <Text
-                                        numberOfLines={1}
-                                        style={{
-                                            position: "absolute",
-                                            left: -46,
-                                            top: 5,
-                                            width: 24,
-                                            textAlign: "right",
-                                            fontSize: 9,
-                                            color: HADES.textMuted,
-                                            fontWeight: "600",
-                                        }}
-                                    >
-                                        {bloco.horaInicio}
-                                    </Text>
-                                    <View
-                                        style={{
-                                            position: "absolute",
-                                            left: -14,
-                                            top: 8,
-                                            width: 8,
-                                            height: 8,
-                                            borderRadius: 4,
-                                            backgroundColor: descanso ? HADES.green : bloco.cor ?? HADES.accentSolid,
-                                            borderWidth: 2,
-                                            borderColor: HADES.surfaceRaised,
-                                        }}
-                                    />
-                                    {descanso ? (
-                                        <View
-                                            style={{
-                                                borderWidth: 1,
-                                                borderStyle: "dashed",
-                                                borderColor: "rgba(48,209,88,0.30)",
-                                                backgroundColor: "rgba(48,209,88,0.06)",
-                                                borderRadius: 9,
-                                                paddingVertical: 6,
-                                                paddingHorizontal: 10,
-                                                flexDirection: "row",
-                                                alignItems: "center",
-                                                gap: 7,
-                                            }}
-                                        >
-                                            <Coffee size={11} color={HADES.green} />
-                                            <Text style={{ flex: 1, fontSize: 11, color: HADES.textMuted }}>Descanso</Text>
-                                            <Text style={{ fontSize: 10, color: HADES.textDim }}>{formatarDuracao(bloco.duracaoMin)}</Text>
-                                            <TouchableOpacity
-                                                onPress={() => onRemoverItem(bloco)}
-                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                            >
-                                                <Trash2 size={12} color={HADES.textFaint} />
-                                            </TouchableOpacity>
-                                        </View>
-                                    ) : (
-                                        <View
-                                            style={{
-                                                borderWidth: 1,
-                                                borderColor: HADES.border,
-                                                borderRadius: 9,
-                                                paddingVertical: 7,
-                                                paddingHorizontal: 10,
-                                                flexDirection: "row",
-                                                alignItems: "center",
-                                                gap: 8,
-                                            }}
-                                        >
-                                            <Text style={{ flex: 1, fontSize: 12, fontWeight: "600", color: HADES.text }} numberOfLines={1}>
-                                                {bloco.topico?.trim() ? bloco.topico : bloco.materia}
-                                            </Text>
-                                            <Text style={{ fontSize: 10, color: HADES.textFaint }}>{formatarDuracao(bloco.duracaoMin)}</Text>
-                                            <Interruptor
-                                                ligado={bloco.notificar}
-                                                onPress={() => onAlternarNotificacao(bloco.id)}
-                                                cor={bloco.cor ?? HADES.accentSolid}
-                                                pequeno
-                                            />
-                                            <TouchableOpacity
-                                                onPress={() => onRemoverItem(bloco)}
-                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                            >
-                                                <Trash2 size={12} color={HADES.textFaint} />
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
-                                    {conflitaCom && (
-                                        <Text style={{ fontSize: 10, color: HADES.amber, marginTop: 3 }}>
-                                            Conflita com {conflitaCom}
-                                        </Text>
-                                    )}
-                                </View>
-                            );
-                        })}
-                    </View>
-                </View>
             )}
         </View>
     );
