@@ -9,6 +9,13 @@ alter table public.arquivos
   add column if not exists backblaze_file_id text,
   add column if not exists pendente_upload boolean not null default false;
 
+-- `backblaze_file_id` nasceu NOT NULL, de quando a linha só era criada depois do upload.
+-- Com a reserva, a linha existe antes de o B2 devolver o id: manter o NOT NULL fazia o
+-- insert de reserva falhar com 23502 e a Edge Function responder 403 "Não foi possível
+-- reservar armazenamento.". O id é preenchido logo em seguida, no mesmo request.
+alter table public.arquivos
+  alter column backblaze_file_id drop not null;
+
 create index if not exists arquivos_pendente_upload_idx
   on public.arquivos (created_at)
   where pendente_upload;

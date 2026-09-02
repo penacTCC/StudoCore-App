@@ -18,13 +18,13 @@
 //
 // Deploy:
 //   supabase secrets set B2_KEY_ID=... B2_APPLICATION_KEY=... B2_BUCKET_ID=... --project-ref <ref>
-//   supabase functions deploy arquivos-b2 --project-ref <ref>
+//   supabase functions deploy arquivos-b2 --project-ref <ref> --use-api
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-acao, x-storage-path, x-mime-type",
 };
 
 const BUCKET_NOME = "vaultstudocore";
@@ -208,7 +208,29 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (erroReserva || !reserva) {
-        return jsonResponse({ ok: false, error: "Não foi possível reservar armazenamento." }, 403);
+        console.error("arquivos-b2 reserva:", erroReserva);
+        if (erroReserva?.message?.includes("LIMITE_PLANO:tamanho_do_arquivo")) {
+          return jsonResponse({ ok: false, error: "Esse arquivo é grande demais. O limite por arquivo é 25 MB." }, 413);
+        }
+        if (erroReserva?.message?.includes("LIMITE_PLANO:armazenamento")) {
+          return jsonResponse({ ok: false, error: "Seu espaço acabou. Apague algum arquivo ou assine o Pro para ampliar o Cofre." }, 403);
+        }
+        if (erroReserva?.code === "23503") {
+          return jsonResponse({ ok: false, error: "Perfil do usuário não encontrado para reservar armazenamento." }, 403);
+        }
+        if (erroReserva?.code === "42501") {
+          return jsonResponse({ ok: false, error: "Permissão recusada ao reservar armazenamento. Verifique as migrations/RLS do Cofre." }, 403);
+        }
+        /* Erro que não é do usuário: schema fora do esperado, banco fora do ar, coluna que
+           mudou. Vai como 500 porque 403 dizia "você não pode" para um problema que não era
+           dele — foi assim que um NOT NULL esquecido em `backblaze_file_id` passou tempo
+           parecendo falta de cota. O código do Postgres viaja junto: não vaza nada sobre
+           outros usuários e é o que separa "seu banco está desatualizado" de "caiu". */
+        return jsonResponse({
+          ok: false,
+          error: "Não foi possível reservar armazenamento.",
+          codigo: erroReserva?.code ?? null,
+        }, 500);
       }
 
       let enviado;
@@ -313,7 +335,7 @@ Deno.serve(async (req: Request) => {
       );
       const { data: arquivo } = await admin
         .from("arquivos")
-        .select("user_id")
+        .select("id, user_id, backblaze_file_id")
         .eq("storage_path", storagePath)
         .maybeSingle();
 
@@ -322,18 +344,30 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ ok: false, error: "Este arquivo não é seu." }, 403);
       }
 
-      const auth = await autorizar();
-      const res = await fetch(`${auth.apiUrl}/b2api/v3/b2_delete_file_version`, {
-        method: "POST",
-        headers: { Authorization: auth.authorizationToken, "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: storagePath, fileId }),
-      });
+      if (arquivo.backblaze_file_id && arquivo.backblaze_file_id !== fileId) {
+        return jsonResponse({ ok: false, error: "Metadados do arquivo não conferem." }, 403);
+      }
 
-      if (!res.ok) {
-        const erro = await res.json().catch(() => ({}));
-        // Já não existe no bucket: para quem chamou, o resultado desejado é o mesmo.
-        if (erro?.code === "file_not_present") return jsonResponse({ ok: true }, 200);
-        return jsonResponse({ ok: false, error: "Falha ao excluir no Backblaze." }, 502);
+      if (arquivo.backblaze_file_id) {
+        const auth = await autorizar();
+        const res = await fetch(`${auth.apiUrl}/b2api/v3/b2_delete_file_version`, {
+          method: "POST",
+          headers: { Authorization: auth.authorizationToken, "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName: storagePath, fileId: arquivo.backblaze_file_id }),
+        });
+
+        if (!res.ok) {
+          const erro = await res.json().catch(() => ({}));
+          // Já não existe no bucket: para quem chamou, o resultado desejado é o mesmo.
+          if (erro?.code !== "file_not_present") {
+            return jsonResponse({ ok: false, error: "Falha ao excluir no Backblaze." }, 502);
+          }
+        }
+      }
+
+      const { error: erroDelete } = await admin.from("arquivos").delete().eq("id", arquivo.id);
+      if (erroDelete) {
+        return jsonResponse({ ok: false, error: "Arquivo apagado, mas não foi possível remover o registro." }, 500);
       }
 
       return jsonResponse({ ok: true }, 200);

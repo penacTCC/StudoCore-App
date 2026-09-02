@@ -14,7 +14,7 @@ jest.mock("expo-file-system", () => ({
 }));
 
 import { supabase } from "@/repositories/supabase";
-import { alternarArquivoPublico, buscarArquivosVisiveis, deletaRegistro } from "@/services/archives";
+import { alternarArquivoPublico, buscarArquivosVisiveis } from "@/services/archives";
 import type { ArquivoDetalhe } from "@/types/archives";
 
 const fromMock = supabase.from as jest.Mock;
@@ -126,17 +126,5 @@ describe("alternarArquivoPublico", () => {
 
         await expect(alternarArquivoPublico("a1", false)).resolves.toBeUndefined();
         expect(updateMock).toHaveBeenCalledWith({ publico: false });
-    });
-});
-
-describe("deletaRegistro", () => {
-    it("apaga a linha pelo id do arquivo", async () => {
-        const deleteMock = jest.fn(() => criarQueryBuilderMock({ error: null }));
-        fromMock.mockReturnValue({ delete: deleteMock });
-
-        const resultado = await deletaRegistro({ arquivoId: "a1" });
-
-        expect(deleteMock).toHaveBeenCalled();
-        expect(resultado.error).toBeNull();
     });
 });

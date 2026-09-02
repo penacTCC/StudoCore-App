@@ -3,7 +3,7 @@ import { uploadFileToB2, getAuthenticatedDownloadUrl } from "@/services/backblaz
 import { tipoDoArquivo } from "@/services/visualizarArquivo";
 import { File as FileClass, Paths } from "expo-file-system";
 import { decode } from "base64-arraybuffer";
-import { ArquivoDetalhe, ArquivoGrupoLink, DeletaRegistroProps, UploadArquivoParams } from "@/types/archives";
+import { ArquivoDetalhe, ArquivoGrupoLink, UploadArquivoParams } from "@/types/archives";
 import { buscarEstadoDoPlano, mensagemDeLimite, MENSAGEM_DE_LIMITE } from "@/services/assinatura";
 
 
@@ -153,13 +153,6 @@ export const alternarArquivoPublico = async (arquivoId: string, publico: boolean
 
   if (error) throw new Error(error.message);
 };
-
-export const deletaRegistro = async ({arquivoId}: DeletaRegistroProps) => {
-  return await supabase
-  .from("arquivos") // Nome da sua tabela
-  .delete() // Operação de deleção
-  .eq("id", arquivoId); // Condição: onde o ID for igual ao ID do arquivo atual
-}
 
 export const buscarArquivosVisiveis = async (userId: string) => {
   const { data: userGroups } = await supabase

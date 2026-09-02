@@ -1,5 +1,8 @@
 import { supabase } from '@/repositories/supabase';
 
+const urlSupabase = () => (process.env.EXPO_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
+const chaveAnonimaSupabase = () => process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+
 /*
   As credenciais do Backblaze saíram daqui.
 
@@ -37,21 +40,37 @@ async function chamarFuncao(acao: string, dados: Record<string, unknown> = {}) {
 
 /** Envia o binário para a Edge Function; ela valida cota/tamanho e só então sobe ao B2. */
 async function chamarUpload(storagePath: string, mimeType: string, fileBuffer: ArrayBuffer) {
-    const { data, error } = await supabase.functions.invoke<RespostaFuncao>('arquivos-b2', {
-        body: fileBuffer,
-        headers: {
-            'content-type': mimeType,
-            'x-acao': 'upload',
-            'x-storage-path': storagePath,
-            'x-mime-type': mimeType,
-        },
-    });
+    const { data: sessao, error: erroSessao } = await supabase.auth.getSession();
+    if (erroSessao || !sessao.session?.access_token) {
+        throw new Error('Você precisa estar logado para enviar arquivos.');
+    }
 
-    if (error) {
+    let resposta: Response;
+    try {
+        resposta = await fetch(`${urlSupabase()}/functions/v1/arquivos-b2`, {
+            method: 'POST',
+            body: fileBuffer,
+            headers: {
+                apikey: chaveAnonimaSupabase(),
+                Authorization: `Bearer ${sessao.session.access_token}`,
+                'content-type': mimeType,
+                'x-acao': 'upload',
+                'x-storage-path': storagePath,
+                'x-mime-type': mimeType,
+            },
+        });
+    } catch (error) {
         console.error('arquivos-b2 (upload):', error);
         throw new Error('Não foi possível falar com o servidor de arquivos.');
     }
+
+    const data = await resposta.json().catch(() => null) as RespostaFuncao | null;
     if (!data?.ok) {
+        console.error('arquivos-b2 (upload resposta):', {
+            status: resposta.status,
+            erro: data?.error,
+            body: data,
+        });
         throw new Error(String(data?.error ?? 'Falha no servidor de arquivos.'));
     }
 

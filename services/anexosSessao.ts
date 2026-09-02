@@ -2,7 +2,7 @@ import { File as FileClass } from "expo-file-system";
 import { decode } from "base64-arraybuffer";
 
 import { supabase } from "@/repositories/supabase";
-import { uploadFileToB2 } from "@/services/backblaze";
+import { deleteFileFromB2, uploadFileToB2 } from "@/services/backblaze";
 import { analisarAnexoSessao } from "@/services/quizIA";
 import type { AnexoSessao, CorrecaoFormulario } from "@/types/anotacoes";
 import { acertosDoAnexo, anexoCorrigido } from "@/types/anotacoes";
@@ -235,11 +235,18 @@ export async function salvarCorrecaoAnexo(params: {
 }
 
 export async function removerAnexo(anexoId: string, sessaoId: string) {
-    const { error } = await supabase.from("arquivos").delete().eq("id", anexoId);
-    if (error) {
-        console.error("Erro ao remover anexo:", error.message);
+    const anexo = await buscarAnexo(anexoId);
+    if (!anexo?.storage_path || !anexo.backblaze_file_id) {
         return { sucesso: false, erro: "Não foi possível remover o anexo." };
     }
+
+    try {
+        await deleteFileFromB2(anexo.storage_path, anexo.backblaze_file_id);
+    } catch (error: any) {
+        console.error("Erro ao remover anexo:", error?.message ?? error);
+        return { sucesso: false, erro: "Não foi possível remover o anexo." };
+    }
+
     await recalcularQuestoesExternas(sessaoId);
     return { sucesso: true };
 }

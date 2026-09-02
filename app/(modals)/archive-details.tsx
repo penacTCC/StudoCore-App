@@ -11,7 +11,6 @@ import * as Sharing from "expo-sharing";
 import { HADES } from "@/constants/hades";
 import { deleteFileFromB2, getAuthenticatedDownloadUrl } from "@/services/backblaze";
 import { useMeusGrupos } from "@/hooks/useMeusGrupos";
-import { deletaRegistro } from "@/services/archives";
 import { detalheArquivoProps } from "@/types/archives";
 import { toast } from "@/services/toast";
 import { confirm } from "@/services/confirm";
@@ -57,15 +56,11 @@ export default function FileDetailModal({
             destructive: true,
             onConfirm: async () => {
                 try {
-                    // Deleta o arquivo fisicamente do Backblaze primeiro.
-                    // Se falhar no Backblaze, a execução para aqui e não deleta do Supabase.
-                    if (detalheArquivo.backblaze_file_id && detalheArquivo.storage_path) {
-                        await deleteFileFromB2(detalheArquivo.storage_path, detalheArquivo.backblaze_file_id);
+                    if (!detalheArquivo.backblaze_file_id || !detalheArquivo.storage_path) {
+                        throw new Error("Metadados do arquivo incompletos.");
                     }
-
-                    // Deleta o registro referente a este arquivo na tabela 'arquivos' do Supabase
-                    const { error } = await deletaRegistro({ arquivoId: detalheArquivo.id });
-                    if (error) throw error; // Se a API retornar erro, cai no catch abaixo
+                    // A Edge Function apaga o objeto físico e a linha em `arquivos` juntos.
+                    await deleteFileFromB2(detalheArquivo.storage_path, detalheArquivo.backblaze_file_id);
 
                     // Mostra alerta de sucesso
                     toast.success("Arquivo deletado com sucesso!");

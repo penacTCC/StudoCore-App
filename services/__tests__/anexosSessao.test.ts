@@ -5,13 +5,13 @@ jest.mock("@/repositories/supabase", () => ({
     // (`services/assinatura.ts`); sem ela o anexo cairia no fallback de Grátis.
     supabase: { from: jest.fn(), rpc: jest.fn() },
 }));
-jest.mock("@/services/backblaze", () => ({ uploadFileToB2: jest.fn() }));
+jest.mock("@/services/backblaze", () => ({ deleteFileFromB2: jest.fn(), uploadFileToB2: jest.fn() }));
 jest.mock("@/services/quizIA", () => ({ analisarAnexoSessao: jest.fn() }));
 jest.mock("expo-file-system", () => ({ File: jest.fn() }));
 jest.mock("base64-arraybuffer", () => ({ decode: jest.fn(() => new ArrayBuffer(1)) }));
 
 import { supabase } from "@/repositories/supabase";
-import { uploadFileToB2 } from "@/services/backblaze";
+import { deleteFileFromB2, uploadFileToB2 } from "@/services/backblaze";
 import { analisarAnexoSessao } from "@/services/quizIA";
 import { File as FileClass } from "expo-file-system";
 import {
@@ -26,6 +26,7 @@ import type { AnexoSessao } from "@/types/anotacoes";
 
 const fromMock = supabase.from as jest.Mock;
 const rpcMock = supabase.rpc as jest.Mock;
+const deleteFileFromB2Mock = deleteFileFromB2 as jest.Mock;
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -211,10 +212,34 @@ describe("salvarCorrecaoAnexo / removerAnexo", () => {
         expect(updateArquivoPayload).toEqual({ correcao: null, acertos_informados: 8 });
     });
 
-    it("removerAnexo devolve erro amigável quando a exclusão falha, sem recalcular nada", async () => {
+    it("removerAnexo chama a exclusão segura e recalcula os totais da sessão", async () => {
+        deleteFileFromB2Mock.mockResolvedValue({ success: true });
+
+        fromMock
+            .mockReturnValueOnce(criarQueryBuilderMock({
+                data: anexo({ id: "a1", storage_path: "Matematica/sessoes/s1/a.pdf", backblaze_file_id: "f1" }),
+                error: null,
+            }))
+            .mockReturnValueOnce(criarQueryBuilderMock({ data: [], error: null }))
+            .mockReturnValueOnce({ update: () => criarQueryBuilderMock({ error: null }) });
+
+        const resultado = await removerAnexo("a1", "s1");
+
+        expect(resultado).toEqual({ sucesso: true });
+        expect(deleteFileFromB2Mock).toHaveBeenCalledWith("Matematica/sessoes/s1/a.pdf", "f1");
+    });
+
+    it("removerAnexo devolve erro amigável quando a exclusão segura falha, sem recalcular nada", async () => {
         const recalculoMock = jest.fn();
+        deleteFileFromB2Mock.mockRejectedValue(new Error("falhou"));
+
         fromMock.mockImplementation((tabela: string) => {
-            if (tabela === "arquivos") return { delete: () => criarQueryBuilderMock({ error: { message: "falhou" } }) };
+            if (tabela === "arquivos") {
+                return criarQueryBuilderMock({
+                    data: anexo({ id: "a1", storage_path: "Matematica/sessoes/s1/a.pdf", backblaze_file_id: "f1" }),
+                    error: null,
+                });
+            }
             recalculoMock();
             return criarQueryBuilderMock({ data: [], error: null });
         });
