@@ -1,7 +1,8 @@
-import React, { ReactNode, useEffect, useRef, useState } from "react";
+import React, { ComponentType, useEffect, useRef, useState } from "react";
 import {
     Animated,
     Dimensions,
+    Linking,
     Modal,
     Pressable,
     ScrollView,
@@ -11,25 +12,119 @@ import {
     View,
 } from "react-native";
 import { router } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
+import { HADES } from "@/constants/hades";
 import {
+    ArrowRightCircle,
     BarChart3,
+    Clock,
+    Compass,
+    Crown,
+    FileUp,
+    FolderArchive,
+    GitCompareArrows,
     ListChecks,
-    LockKeyhole,
+    Lock,
+    MessageCircle,
+    PartyPopper,
     Sparkles,
+    Swords,
+    UserPlus,
+    Users,
+    X,
 } from "@/components/ui/icons";
+import { WEBSITE_PRICING_URL } from "@/services/assinatura";
 import { subscribePaywallPro, type PaywallProOptions } from "@/services/paywall";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const SHEET_MIN_HEIGHT = Math.min(680, Math.round(SCREEN_HEIGHT * 0.74));
+const SHEET_MAX_HEIGHT = Math.min(720, Math.round(SCREEN_HEIGHT * 0.86));
+
+type IconType = ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+
+/** O que muda na tela conforme a funcionalidade que travou o usuário. */
+const CONTEXTO_DO_RECURSO: Record<string, { icone: IconType; titulo: string; headline: string }> = {
+    chat: {
+        icone: MessageCircle,
+        titulo: "Chat com o anexo",
+        headline: "Pergunte qualquer coisa\nsobre esse arquivo.",
+    },
+    anexo: {
+        icone: FileUp,
+        titulo: "Análise de anexo por IA",
+        headline: "Envie mais anexos\npara a IA analisar.",
+    },
+    roadmap: {
+        icone: Compass,
+        titulo: "Plano de estudos por IA",
+        headline: "Gere um plano de estudos\nsob medida.",
+    },
+    quiz: {
+        icone: Sparkles,
+        titulo: "Quiz por IA",
+        headline: "Pratique com quizzes\nilimitados.",
+    },
+    wrapped: {
+        icone: PartyPopper,
+        titulo: "Wrapped mensal",
+        headline: "Veja o resumo completo\ndo seu mês.",
+    },
+    historico: {
+        icone: Clock,
+        titulo: "Histórico completo",
+        headline: "Reabra todo o seu\nhistórico de sessões.",
+    },
+    analises: {
+        icone: BarChart3,
+        titulo: "Análises completas",
+        headline: "Acompanhe sua evolução\nsem limite de dias.",
+    },
+    comparacao_perfil: {
+        icone: GitCompareArrows,
+        titulo: "Comparação de perfil",
+        headline: "Compare seu perfil\ncom qualquer usuário.",
+    },
+    grupos: {
+        icone: Users,
+        titulo: "Grupos ilimitados",
+        headline: "Crie quantos grupos\nprecisar.",
+    },
+    membros_por_grupo: {
+        icone: UserPlus,
+        titulo: "Mais vagas no grupo",
+        headline: "Abra mais vagas\nnesse grupo.",
+    },
+    planos: {
+        icone: ListChecks,
+        titulo: "Planos de estudo",
+        headline: "Crie quantos planos\nde estudo quiser.",
+    },
+    armazenamento: {
+        icone: FolderArchive,
+        titulo: "Mais espaço no Cofre",
+        headline: "Amplie o espaço\ndo seu Cofre.",
+    },
+};
+
+const CONTEXTO_PADRAO = {
+    icone: Crown,
+    titulo: "Recurso Pro",
+    headline: "Esse recurso é\nexclusivo do Pro.",
+};
+
+const DESTAQUES = [
+    { icone: MessageCircle, titulo: "Chat com o anexo", sub: "Perguntas e respostas sobre qualquer arquivo do Cofre" },
+    { icone: Sparkles, titulo: "IA sem limite diário", sub: "Quiz pós-sessão e plano de estudos gerados por IA" },
+    { icone: Swords, titulo: "Duelos ilimitados", sub: "Escolha o adversário, veja histórico e peça revanche" },
+    { icone: FolderArchive, titulo: "Mais espaço no Cofre", sub: "Bem mais espaço que no plano Grátis" },
+];
 
 type ProBottomSheetProps = {
     visible: boolean;
     onClose: () => void;
-    onPressPro: () => void;
+    recurso?: string;
+    mensagem?: string;
 };
 
-export function ProBottomSheet({ visible, onClose, onPressPro }: ProBottomSheetProps) {
+export function ProBottomSheet({ visible, onClose, recurso, mensagem }: ProBottomSheetProps) {
     const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
     const backdropOpacity = useRef(new Animated.Value(0)).current;
 
@@ -69,6 +164,19 @@ export function ProBottomSheet({ visible, onClose, onPressPro }: ProBottomSheetP
         });
     };
 
+    const contexto = (recurso && CONTEXTO_DO_RECURSO[recurso]) || CONTEXTO_PADRAO;
+    const Icone = contexto.icone;
+
+    const abrirSite = () => {
+        closeSheet();
+        Linking.openURL(WEBSITE_PRICING_URL).catch(() => {});
+    };
+
+    const verPlano = () => {
+        closeSheet();
+        router.push("/(modals)/plano");
+    };
+
     return (
         <Modal
             visible={visible}
@@ -91,101 +199,76 @@ export function ProBottomSheet({ visible, onClose, onPressPro }: ProBottomSheetP
                 </Animated.View>
 
                 <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
-                    <LinearGradient
-                        colors={["#122039", "#0B1729", "#07111F"]}
-                        locations={[0, 0.46, 1]}
-                        style={StyleSheet.absoluteFill}
-                    />
-                    <View style={styles.blueGlow} />
-                    <View style={styles.orangeGlow} />
                     <View style={styles.handle} />
+
+                    <View style={styles.closeRow}>
+                        <Pressable style={styles.closeButton} onPress={closeSheet} hitSlop={10}>
+                            <X size={16} color={HADES.textMuted} />
+                        </Pressable>
+                    </View>
 
                     <ScrollView
                         showsVerticalScrollIndicator={false}
                         bounces={false}
                         contentContainerStyle={styles.content}
                     >
-                        <View style={styles.lockGlow}>
-                            <LinearGradient
-                                colors={["rgba(255,153,23,0.18)", "rgba(255,153,23,0.03)"]}
-                                style={styles.lockContainer}
-                            >
-                                <LockKeyhole size={30} color="#FF9819" strokeWidth={2.2} />
-                            </LinearGradient>
+                        {/* Feature travada */}
+                        <View style={styles.featureRow}>
+                            <View style={styles.featureIcon}>
+                                <Icone size={20} color={HADES.accentSolid} />
+                            </View>
+                            <View style={{ flex: 1, minWidth: 0 }}>
+                                <Text style={styles.featureTitle}>{contexto.titulo}</Text>
+                                <Text style={styles.featureSub}>Disponível no Pro</Text>
+                            </View>
+                            <Lock size={15} color={HADES.textDim} />
                         </View>
 
-                        <LinearGradient
-                            colors={["#FFAA27", "#FF8B0A"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.proBadge}
-                        >
-                            <Text style={styles.proBadgeText}>PRO</Text>
-                        </LinearGradient>
-
-                        <Text style={styles.title}>
-                            Este recurso é{"\n"}
-                            exclusivo do <Text style={styles.orangeText}>Pro</Text>
-                        </Text>
-
+                        <Text style={styles.headline}>{contexto.headline}</Text>
                         <Text style={styles.description}>
-                            Desbloqueie ferramentas avançadas para estudar com mais estratégia e ir além.
+                            {mensagem ?? "O Pro libera esse e outros recursos avançados para você estudar com mais estratégia."}
                         </Text>
 
-                        <View style={styles.benefits}>
-                            <Benefit
-                                icon={<Sparkles size={25} color="#FF9A18" />}
-                                title="Roadmap de estudos por IA"
-                                description="Plano personalizado com base nos seus objetivos."
-                            />
-                            <Benefit
-                                icon={<ListChecks size={25} color="#FF9A18" />}
-                                title="Quiz e validação ilimitados"
-                                description="Pratique à vontade e consolide o que aprendeu."
-                            />
-                            <Benefit
-                                icon={<BarChart3 size={26} color="#FF9A18" />}
-                                title="Wrapped mensal completo"
-                                description="Acompanhe seu progresso de forma completa."
-                            />
+                        {/* Destaques do Pro */}
+                        <View style={styles.highlights}>
+                            {DESTAQUES.map((d, i) => {
+                                const DIcone = d.icone;
+                                return (
+                                    <View
+                                        key={d.titulo}
+                                        style={[styles.highlightRow, i > 0 && styles.highlightDivider]}
+                                    >
+                                        <DIcone size={17} color={HADES.accentSolid} />
+                                        <View style={{ flex: 1, minWidth: 0 }}>
+                                            <Text style={styles.highlightTitle}>{d.titulo}</Text>
+                                            <Text style={styles.highlightSub}>{d.sub}</Text>
+                                        </View>
+                                    </View>
+                                );
+                            })}
                         </View>
 
-                        <Pressable
-                            onPress={onPressPro}
-                            style={({ pressed }) => [
-                                styles.buttonWrapper,
-                                pressed && styles.buttonPressed,
-                            ]}
-                        >
-                            <LinearGradient
-                                colors={["#FFA51E", "#FF9216", "#FFA328"]}
-                                start={{ x: 0, y: 0.5 }}
-                                end={{ x: 1, y: 0.5 }}
-                                style={styles.button}
-                            >
-                                <Text style={styles.buttonText}>Conhecer o Pro</Text>
-                            </LinearGradient>
-                        </Pressable>
-
-                        <Pressable onPress={closeSheet} hitSlop={10}>
-                            <Text style={styles.cancelText}>Agora não</Text>
+                        <Pressable style={styles.compareRow} onPress={verPlano}>
+                            <Text style={styles.compareText}>Ver tudo que muda no Pro</Text>
+                            <ArrowRightCircle size={15} color={HADES.textMuted} />
                         </Pressable>
                     </ScrollView>
+
+                    {/* CTA — redireciona para o site, onde a assinatura é feita de fato */}
+                    <View style={styles.footer}>
+                        <Pressable
+                            onPress={abrirSite}
+                            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+                        >
+                            <Text style={styles.buttonText}>Assinar o Pro no site</Text>
+                        </Pressable>
+                        <Text style={styles.footerNote}>
+                            A assinatura é feita no site da StudoCore. Cancele quando quiser.
+                        </Text>
+                    </View>
                 </Animated.View>
             </View>
         </Modal>
-    );
-}
-
-function Benefit({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
-    return (
-        <View style={styles.benefitCard}>
-            <View style={styles.benefitIcon}>{icon}</View>
-            <View style={styles.benefitTextContainer}>
-                <Text style={styles.benefitTitle}>{title}</Text>
-                <Text style={styles.benefitDescription}>{description}</Text>
-            </View>
-        </View>
     );
 }
 
@@ -196,16 +279,12 @@ export function ProBottomSheetHost() {
 
     if (!paywall) return null;
 
-    const fechar = () => setPaywall(null);
-
     return (
         <ProBottomSheet
             visible
-            onClose={fechar}
-            onPressPro={() => {
-                fechar();
-                router.push("/(modals)/plano");
-            }}
+            onClose={() => setPaywall(null)}
+            recurso={paywall.recurso}
+            mensagem={paywall.mensagem}
         />
     );
 }
@@ -216,18 +295,17 @@ const styles = StyleSheet.create({
         justifyContent: "flex-end",
     },
     backdrop: {
-        backgroundColor: "rgba(0, 4, 12, 0.73)",
+        backgroundColor: "rgba(0,0,0,0.72)",
     },
     sheet: {
         width: "100%",
-        minHeight: SHEET_MIN_HEIGHT,
-        maxHeight: "78%",
-        backgroundColor: "#0B1729",
+        maxHeight: SHEET_MAX_HEIGHT,
+        backgroundColor: HADES.surface,
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         borderWidth: 1,
         borderBottomWidth: 0,
-        borderColor: "rgba(88, 111, 151, 0.52)",
+        borderColor: HADES.borderStrong,
         overflow: "hidden",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: -10 },
@@ -235,159 +313,146 @@ const styles = StyleSheet.create({
         shadowRadius: 25,
         elevation: 30,
     },
-    blueGlow: {
-        position: "absolute",
-        width: 260,
-        height: 260,
-        borderRadius: 130,
-        left: -92,
-        top: 22,
-        backgroundColor: "rgba(34, 102, 255, 0.16)",
-    },
-    orangeGlow: {
-        position: "absolute",
-        width: 220,
-        height: 220,
-        borderRadius: 110,
-        right: -96,
-        bottom: 120,
-        backgroundColor: "rgba(255, 152, 24, 0.12)",
-    },
     handle: {
-        width: 44,
-        height: 5,
-        backgroundColor: "#43516A",
-        borderRadius: 10,
+        width: 38,
+        height: 4,
+        borderRadius: 3,
+        backgroundColor: "rgba(255,255,255,0.16)",
         alignSelf: "center",
-        marginTop: 15,
-        marginBottom: 30,
+        marginTop: 12,
+    },
+    closeRow: {
+        paddingHorizontal: 18,
+        paddingTop: 6,
+        flexDirection: "row",
+        justifyContent: "flex-end",
+    },
+    closeButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: HADES.surfaceRaised,
+        alignItems: "center",
+        justifyContent: "center",
     },
     content: {
-        paddingHorizontal: 26,
-        paddingBottom: 34,
-        alignItems: "center",
+        paddingHorizontal: 20,
+        paddingBottom: 16,
     },
-    lockGlow: {
-        shadowColor: "#FF9818",
-        shadowOpacity: 0.42,
-        shadowRadius: 24,
-        shadowOffset: { width: 0, height: 0 },
-    },
-    lockContainer: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
-        borderWidth: 1,
-        borderColor: "rgba(255, 153, 23, 0.52)",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(8, 18, 33, 0.88)",
-    },
-    proBadge: {
-        marginTop: 13,
-        paddingHorizontal: 18,
-        height: 28,
-        borderRadius: 14,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    proBadgeText: {
-        color: "#FFFFFF",
-        fontSize: 13,
-        fontWeight: "800",
-        letterSpacing: 0.3,
-    },
-    title: {
-        color: "#FFFFFF",
-        marginTop: 15,
-        fontSize: 31,
-        lineHeight: 40,
-        fontWeight: "800",
-        textAlign: "center",
-    },
-    orangeText: {
-        color: "#FF9818",
-    },
-    description: {
-        marginTop: 16,
-        color: "#C4CAD6",
-        fontSize: 14.5,
-        lineHeight: 23,
-        fontWeight: "500",
-        textAlign: "center",
-        maxWidth: 330,
-    },
-    benefits: {
-        width: "100%",
-        gap: 8,
-        marginTop: 25,
-    },
-    benefitCard: {
-        width: "100%",
-        minHeight: 72,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: "rgba(110, 132, 170, 0.22)",
-        backgroundColor: "rgba(255, 255, 255, 0.055)",
+    featureRow: {
         flexDirection: "row",
         alignItems: "center",
-        paddingHorizontal: 14,
-        paddingVertical: 10,
+        gap: 12,
+        padding: 14,
+        backgroundColor: HADES.surfaceRaised,
+        borderWidth: 1,
+        borderColor: HADES.border,
+        borderRadius: 15,
     },
-    benefitIcon: {
-        width: 47,
-        height: 47,
+    featureIcon: {
+        width: 42,
+        height: 42,
         borderRadius: 12,
-        backgroundColor: "rgba(255, 255, 255, 0.055)",
+        backgroundColor: HADES.accentTint,
         alignItems: "center",
         justifyContent: "center",
-        marginRight: 14,
     },
-    benefitTextContainer: {
-        flex: 1,
-    },
-    benefitTitle: {
-        color: "#FFFFFF",
-        fontSize: 15.5,
-        lineHeight: 20,
+    featureTitle: {
+        color: HADES.text,
+        fontSize: 14,
         fontWeight: "700",
     },
-    benefitDescription: {
-        color: "#BAC2D0",
-        fontSize: 12.7,
-        lineHeight: 18,
-        marginTop: 1,
+    featureSub: {
+        color: HADES.textMuted,
+        fontSize: 12,
+        marginTop: 2,
     },
-    buttonWrapper: {
-        width: "100%",
-        marginTop: 26,
+    headline: {
+        color: HADES.text,
+        fontSize: 25,
+        lineHeight: 31,
+        fontWeight: "700",
+        letterSpacing: -0.4,
+        marginTop: 22,
+        marginBottom: 8,
+    },
+    description: {
+        color: HADES.textMuted,
+        fontSize: 13.5,
+        lineHeight: 20,
+    },
+    highlights: {
+        marginTop: 20,
         borderRadius: 16,
-        shadowColor: "#FF9418",
-        shadowOpacity: 0.22,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 6 },
-        elevation: 6,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: HADES.border,
     },
-    buttonPressed: {
-        opacity: 0.85,
-        transform: [{ scale: 0.99 }],
+    highlightRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        padding: 13,
+        backgroundColor: HADES.surfaceRaised,
+    },
+    highlightDivider: {
+        borderTopWidth: 1,
+        borderTopColor: HADES.border,
+    },
+    highlightTitle: {
+        color: HADES.text,
+        fontSize: 13.5,
+        fontWeight: "600",
+    },
+    highlightSub: {
+        color: HADES.textFaint,
+        fontSize: 11.5,
+        marginTop: 2,
+    },
+    compareRow: {
+        marginTop: 14,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 7,
+        padding: 12,
+        borderRadius: 13,
+        borderWidth: 1,
+        borderColor: HADES.border,
+        backgroundColor: HADES.surfaceRaised,
+    },
+    compareText: {
+        color: HADES.textSecondary,
+        fontSize: 13,
+        fontWeight: "600",
+    },
+    footer: {
+        padding: 20,
+        paddingBottom: 28,
+        borderTopWidth: 1,
+        borderTopColor: HADES.border,
+        backgroundColor: HADES.surface,
     },
     button: {
-        width: "100%",
-        height: 58,
-        borderRadius: 16,
+        padding: 16,
+        borderRadius: 15,
+        backgroundColor: HADES.accentSolid,
         alignItems: "center",
         justifyContent: "center",
     },
-    buttonText: {
-        color: "#FFFFFF",
-        fontSize: 17.5,
-        fontWeight: "800",
+    buttonPressed: {
+        opacity: 0.88,
     },
-    cancelText: {
-        marginTop: 25,
-        color: "#9BA5B6",
-        fontSize: 16,
+    buttonText: {
+        color: "#000000",
+        fontSize: 15.5,
         fontWeight: "700",
+        letterSpacing: -0.2,
+    },
+    footerNote: {
+        textAlign: "center",
+        color: HADES.textDim,
+        fontSize: 11.5,
+        marginTop: 11,
     },
 });
