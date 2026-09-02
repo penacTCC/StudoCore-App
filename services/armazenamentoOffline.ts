@@ -21,12 +21,22 @@ const SESSION_DATA_KEY = '@focus_session_data';
  * fechado, ele voltava "em modo pomodoro" com fila vazia: o relógio corria para sempre, as
  * matérias restantes do plano sumiam e o tempo passava a ser contado por relógio de parede,
  * incluindo descanso e o tempo com o app fechado.
+ *
+ * O dono vai carimbado no próprio JSON (não na chave, que fica igual por compatibilidade —
+ * ver comentário acima) pelo mesmo motivo do `LAST_GROUP_KEY`: sem ele, trocar de conta no
+ * mesmo aparelho enquanto há um pomodoro em andamento fazia a conta nova herdar matéria,
+ * fila e cronômetro da conta anterior — e ficava sem proteção justamente quando o snapshot
+ * ainda não tem `sessaoId` (o instante entre o pomodoro começar e a linha ser gravada no
+ * banco), porque aí a checagem de dono pela linha em `restoreSession` (focus.tsx) nem roda.
  */
 export const salvarSnapshotSessao = async (snapshot: SnapshotSessaoFoco) => {
   try {
+    const userId = await idDoUsuarioAtual();
+    if (!userId) return;
+
     await AsyncStorage.multiSet([
       [SESSION_START_KEY, String(snapshot.inicioMs)],
-      [SESSION_DATA_KEY, JSON.stringify(snapshot)],
+      [SESSION_DATA_KEY, JSON.stringify({ ...snapshot, donoUserId: userId })],
     ]);
   } catch (erro) {
     console.warn('Erro ao salvar a sessão de foco em andamento:', erro);
@@ -34,7 +44,8 @@ export const salvarSnapshotSessao = async (snapshot: SnapshotSessaoFoco) => {
 };
 
 /**
- * Lê a sessão em andamento salva no aparelho, ou `null` quando não há nenhuma.
+ * Lê a sessão em andamento salva no aparelho, ou `null` quando não há nenhuma — inclusive
+ * quando a que está salva é de outra conta que usou o aparelho antes.
  *
  * Snapshots gravados por versões anteriores do app não têm fila nem fase; os campos que
  * faltam voltam com o padrão de "não havia fila", que é exatamente como aquelas sessões
@@ -49,9 +60,16 @@ export const carregarSnapshotSessao = async (): Promise<SnapshotSessaoFoco | nul
 
     if (!inicioSalvo || !dadosSalvos) return null;
 
-    const dados = JSON.parse(dadosSalvos) as Partial<SnapshotSessaoFoco>;
+    const dados = JSON.parse(dadosSalvos) as Partial<SnapshotSessaoFoco> & { donoUserId?: string };
     const inicioMs = parseInt(inicioSalvo, 10);
     if (!Number.isFinite(inicioMs)) return null;
+
+    // Sem dono carimbado (snapshot de versão antiga) ou dono diferente do usuário logado
+    // agora: mesmo risco do `LAST_GROUP_KEY` antigo, mesma resposta — descarta a leitura em
+    // vez de arriscar restaurar sessão de outra conta. Não apaga a chave: se for a própria
+    // conta reabrindo em outro momento, o snapshot dela ainda está lá.
+    const userId = await idDoUsuarioAtual();
+    if (!userId || dados.donoUserId !== userId) return null;
 
     return {
       subject: dados.subject || '',
@@ -117,10 +135,15 @@ export const carregarAgendaLocalmente = async <T>(
   }
 };
 
+// A chave leva o dono pelo mesmo motivo da agenda: sem ele, a semente offline reaparecia
+// com os grupos da conta anterior ao trocar de conta no mesmo aparelho (ver `useMeusGrupos`).
 export const salvarMeusGruposLocalmente = async (dadosGrupos: Grupo[]) => {
   try {
+    const userId = await idDoUsuarioAtual();
+    if (!userId) return;
+
     const valorJson = JSON.stringify(dadosGrupos);
-    await AsyncStorage.setItem(MY_GROUPS_KEY, valorJson);
+    await AsyncStorage.setItem(`${MY_GROUPS_KEY}:${userId}`, valorJson);
   } catch (erro) {
     console.error('Erro ao salvar os meus grupos offline:', erro);
   }
@@ -128,7 +151,10 @@ export const salvarMeusGruposLocalmente = async (dadosGrupos: Grupo[]) => {
 
 export const carregarMeusGruposLocalmente = async (): Promise<Grupo[] | null> => {
   try {
-    const valorJson = await AsyncStorage.getItem(MY_GROUPS_KEY);
+    const userId = await idDoUsuarioAtual();
+    if (!userId) return null;
+
+    const valorJson = await AsyncStorage.getItem(`${MY_GROUPS_KEY}:${userId}`);
     return valorJson != null ? JSON.parse(valorJson) : null;
   } catch (erro) {
     console.error('Erro ao ler os meus grupos offline:', erro);
@@ -136,10 +162,15 @@ export const carregarMeusGruposLocalmente = async (): Promise<Grupo[] | null> =>
   }
 };
 
+// Mesmo escopo por dono do `salvarMeusGruposLocalmente`: a lista já vem filtrada dos
+// grupos em que o usuário logado ainda não está, então também muda de conta pra conta.
 export const salvarGruposPublicosLocalmente = async (dadosGrupos: GrupoPublico[]) => {
   try {
+    const userId = await idDoUsuarioAtual();
+    if (!userId) return;
+
     const valorJson = JSON.stringify(dadosGrupos);
-    await AsyncStorage.setItem(PUBLIC_GROUPS_KEY, valorJson);
+    await AsyncStorage.setItem(`${PUBLIC_GROUPS_KEY}:${userId}`, valorJson);
   } catch (erro) {
     console.error('Erro ao salvar os grupos publicos offline:', erro);
   }
@@ -147,7 +178,10 @@ export const salvarGruposPublicosLocalmente = async (dadosGrupos: GrupoPublico[]
 
 export const carregarGruposPublicosLocalmente = async (): Promise<GrupoPublico[] | null> => {
   try {
-    const valorJson = await AsyncStorage.getItem(PUBLIC_GROUPS_KEY);
+    const userId = await idDoUsuarioAtual();
+    if (!userId) return null;
+
+    const valorJson = await AsyncStorage.getItem(`${PUBLIC_GROUPS_KEY}:${userId}`);
     return valorJson != null ? JSON.parse(valorJson) : null;
   } catch (erro) {
     console.error('Erro ao ler os grupos publicos offline:', erro);

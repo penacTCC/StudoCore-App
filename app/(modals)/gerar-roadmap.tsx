@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { gerarRoadmap } from "@/services/roadmapIA";
 import { toast } from "@/services/toast";
+import { mostrarPaywallProSeLimite } from "@/services/paywall";
 import type { EscopoRoadmap } from "@/types/roadmap";
 
 /** Mesmo limite do inline data do Gemini usado pela análise de anexo. */
@@ -137,6 +138,7 @@ export default function GerarRoadmapScreen() {
             });
 
             if (!proposta) {
+                if (mostrarPaywallProSeLimite(error)) return;
                 toast.error(error ?? "Não foi possível gerar o roadmap.");
                 return;
             }

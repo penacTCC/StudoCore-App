@@ -16,6 +16,7 @@ import { GrupoComTotalMembros } from "@/types/grupos";
 import { Skeleton, SkeletonCircle } from "@/components/ui/Skeleton";
 import { EstadoDeErro } from "@/components/ui/EstadoDeErro";
 import { toast } from "@/services/toast";
+import { mostrarPaywallProSeLimite } from "@/services/paywall";
 
 /** Bloco de estatística no visual HADES (substitui o antigo StatCard). */
 function StatBox({ value, label, valueColor }: { value: string | number; label: string; valueColor: string }) {
@@ -384,9 +385,10 @@ export default function GroupDetailsScreen() {
             >
                 <TouchableOpacity
                     onPress={async () => {
-                        const novoMembro = await entrarEmGrupoPublico(group.id);
+                        const { membro: novoMembro, erro } = await entrarEmGrupoPublico(group.id);
                         if (!novoMembro) {
-                            toast.error("Não foi possível entrar no grupo.");
+                            if (mostrarPaywallProSeLimite(erro)) return;
+                            toast.error(erro ?? "Não foi possível entrar no grupo.");
                             return;
                         }
 

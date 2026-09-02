@@ -22,6 +22,7 @@ export default function ModalsLayout() {
             <Stack.Screen name="corrigir-anexo" options={{ presentation: "modal" }} />
             <Stack.Screen name="chat-anexo" options={{ presentation: "modal" }} />
             <Stack.Screen name="contas-bloqueadas" options={{ presentation: "card" }} />
+            <Stack.Screen name="plano" options={{ presentation: "card" }} />
             <Stack.Screen name="notificacoes" options={{ presentation: "card" }} />
             <Stack.Screen name="wrapped-mensal" options={{ presentation: "fullScreenModal" }} />
         </Stack>

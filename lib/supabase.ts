@@ -26,7 +26,9 @@ const TEMPO_LIMITE_PADRAO = 20_000;
 const TEMPO_LIMITE_ARQUIVO = 120_000;
 
 function tempoLimiteDe(url: string) {
-  return url.includes('/storage/v1/object') ? TEMPO_LIMITE_ARQUIVO : TEMPO_LIMITE_PADRAO;
+  return url.includes('/storage/v1/object') || url.includes('/functions/v1/arquivos-b2')
+    ? TEMPO_LIMITE_ARQUIVO
+    : TEMPO_LIMITE_PADRAO;
 }
 
 const fetchComTempoLimite: typeof fetch = (entrada, init) => {

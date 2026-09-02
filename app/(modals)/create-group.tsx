@@ -15,7 +15,9 @@ import { ImagePickerAvatar } from "@/components/ui/";
 
 //Serviços
 import { buscarUsuarioLogado } from "@/services/auth";
-import { inserirGrupo, inserirMembro } from "@/services/grupos";
+import { excluirGrupoAtual, inserirGrupo, inserirMembro } from "@/services/grupos";
+import { mensagemDeLimite } from "@/services/assinatura";
+import { paywallPro } from "@/services/paywall";
 import { toast } from "@/services/toast";
 
 export default function CreateGroupScreen() {
@@ -66,7 +68,19 @@ export default function CreateGroupScreen() {
             const { error: erroNovoMembro } = await inserirMembro(user.id, novoGrupo);
 
             if (erroNovoMembro) {
-                toast.error(erroNovoMembro.message, "Erro ao criar membro");
+                /*
+                  O grupo já foi inserido acima, então uma falha aqui deixaria um grupo sem
+                  nenhum membro no banco — inclusive quando a falha é o limite de grupos do
+                  plano, que é o caso mais comum. Desfazemos antes de avisar.
+                */
+                await excluirGrupoAtual(novoGrupo.id);
+
+                const limite = await mensagemDeLimite(erroNovoMembro);
+                if (limite) {
+                    paywallPro.show({ mensagem: limite });
+                    return;
+                }
+                toast.error(limite ?? erroNovoMembro.message, limite ? "Limite do plano" : "Erro ao criar membro");
                 return;
             }
 

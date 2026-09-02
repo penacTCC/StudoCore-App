@@ -11,12 +11,20 @@
 // que apontam direto pra auth.users) também cascateiam. As tabelas do SClass e
 // alunos_turmas usam NO ACTION e travariam o DELETE, por isso são limpas antes, na mão.
 // arquivos.user_id é SET NULL de propósito: material enviado pra um grupo continua lá,
-// sem dono. Storage não cascateia com o Postgres, então as fotos de sessão do bucket
-// `sessao-fotos` são apagadas na mão, antes do DELETE do usuário.
+// sem dono. Isso vale pro que foi COMPARTILHADO — o arquivo que a pessoa só guardou pra si
+// não tem esse motivo, e virava lixo caro: com a RLS do Cofre, linha sem dono não passa em
+// nenhum braço da policy de SELECT, então some pra todo mundo, e a ação `excluir` da
+// `arquivos-b2` compara `user_id` com quem chamou e nunca casa com NULL. Ninguém mais
+// consegue enxergar nem apagar, mas o objeto continua ocupando (e cobrando) espaço no B2.
+// Por isso o material exclusivo sai do bucket e do banco aqui, antes do DELETE do usuário.
+// Storage do Supabase também não cascateia, então as fotos de sessão do bucket
+// `sessao-fotos` são apagadas na mão pelo mesmo motivo.
 //
-// Deploy: `supabase functions deploy excluir-conta` (sem secret novo).
+// Deploy: `supabase functions deploy excluir-conta` (usa os secrets B2_* que a
+// `arquivos-b2` já configurou; secrets são do projeto, não da função).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { apagarArquivoB2, autorizar } from "../_shared/backblaze.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +39,84 @@ const TABELAS_SEM_CASCADE: { tabela: string; coluna: string }[] = [
   { tabela: "sclass_professores_turmas", coluna: "user_id" },
   { tabela: "sclass_progresso_roadmaps", coluna: "user_id" },
 ];
+
+/**
+ * Apaga do B2 e do banco os arquivos que a pessoa NÃO compartilhou com nenhum grupo.
+ *
+ * O que está em `arquivos_grupos` fica: é o material que outras pessoas ainda usam, e o
+ * SET NULL da FK existe justamente pra ele sobreviver ao autor.
+ *
+ * Best-effort de propósito, como as fotos de sessão: travar a exclusão de conta que a
+ * pessoa pediu por causa de uma falha no bucket seria pior. Quando o B2 recusa, a LINHA É
+ * MANTIDA — ela guarda o `storage_path` e o `backblaze_file_id`, que é a única informação
+ * capaz de encontrar o objeto depois. Apagar a linha aí perderia o rastro e deixaria o
+ * arquivo pago no bucket para sempre, sem ninguém saber que ele existe.
+ */
+async function limparArquivosExclusivos(
+  admin: ReturnType<typeof createClient>,
+  userId: string
+) {
+  const { data: meusArquivos, error: erroListar } = await admin
+    .from("arquivos")
+    .select("id, storage_path, backblaze_file_id")
+    .eq("user_id", userId);
+
+  if (erroListar) {
+    console.error("Erro ao listar arquivos do usuário:", erroListar);
+    return;
+  }
+  if (!meusArquivos || meusArquivos.length === 0) return;
+
+  const { data: vinculos, error: erroVinculos } = await admin
+    .from("arquivos_grupos")
+    .select("arquivo_id")
+    .in("arquivo_id", meusArquivos.map((a) => a.id));
+
+  if (erroVinculos) {
+    // Sem saber o que foi compartilhado, apagar seria arriscar levar junto material de
+    // grupo. Melhor não apagar nada: o pior caso vira o comportamento antigo.
+    console.error("Erro ao checar compartilhamentos; nada será apagado:", erroVinculos);
+    return;
+  }
+
+  const compartilhados = new Set((vinculos ?? []).map((v) => v.arquivo_id));
+  const exclusivos = meusArquivos.filter((a) => !compartilhados.has(a.id));
+  if (exclusivos.length === 0) return;
+
+  // Uma autorização só para o lote inteiro.
+  const auth = await autorizar().catch((erro) => {
+    console.error("Erro ao autorizar no Backblaze; arquivos mantidos:", erro);
+    return null;
+  });
+  if (!auth) return;
+
+  const idsParaApagar: string[] = [];
+  for (const arquivo of exclusivos) {
+    // Reserva que nunca completou o upload: não há objeto no bucket, só a linha.
+    if (!arquivo.backblaze_file_id) {
+      idsParaApagar.push(arquivo.id as string);
+      continue;
+    }
+
+    const apagado = await apagarArquivoB2(
+      auth,
+      arquivo.storage_path as string,
+      arquivo.backblaze_file_id as string
+    );
+    if (apagado.ok) {
+      idsParaApagar.push(arquivo.id as string);
+    } else {
+      console.error(`Erro ao apagar ${arquivo.storage_path} no B2:`, apagado.detalhe);
+    }
+  }
+
+  if (idsParaApagar.length === 0) return;
+
+  const { error: erroApagar } = await admin.from("arquivos").delete().in("id", idsParaApagar);
+  if (erroApagar) {
+    console.error("Erro ao remover registros de arquivos:", erroApagar);
+  }
+}
 
 const jsonResponse = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), {
@@ -88,6 +174,10 @@ Deno.serve(async (req: Request) => {
         console.error("Erro ao apagar fotos de sessão do usuário:", erroRemoverFotos);
       }
     }
+
+    // Precisa vir ANTES do deleteUser: depois dele o SET NULL já apagou o vínculo e não há
+    // mais como saber quais arquivos eram desta pessoa.
+    await limparArquivosExclusivos(admin, user.id);
 
     const { error: erroDelete } = await admin.auth.admin.deleteUser(user.id);
     if (erroDelete) {

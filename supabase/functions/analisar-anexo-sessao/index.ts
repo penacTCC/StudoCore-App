@@ -20,6 +20,8 @@
 // Deploy: `supabase functions deploy analisar-anexo-sessao`
 // Secret: `supabase secrets set GEMINI_API_KEY=<sua-chave>` (o mesmo já usado pelo quiz)
 
+import { consumirCota, respostaDeCotaEsgotada } from "../_shared/cota.ts";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -165,6 +167,12 @@ Deno.serve(async (req: Request) => {
         status: 500,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
+    }
+
+    // Cota so depois de validar arquivo e chave: erro nosso nao consome cota do usuario.
+    const cota = await consumirCota(req, "anexo");
+    if (cota && !cota.permitido) {
+      return respostaDeCotaEsgotada("anexo", cota, CORS_HEADERS);
     }
 
     const corpoGemini = JSON.stringify({

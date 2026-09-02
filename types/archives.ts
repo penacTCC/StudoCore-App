@@ -13,10 +13,6 @@ export type UploadArquivoParams = {
   publico?: boolean;
 };
 
-export type DeletaRegistroProps = {
-  arquivoId: string;
-};
-
 export type ArquivoGrupo = {
   grupo_id: string;
 };

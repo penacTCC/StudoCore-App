@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl, TextInput } from "react-native";
 import { SafeAreaView } from "@/components/ui/TelaSegura";
-import { ChevronRight, AlertCircle, BookOpen, Clock, Timer, Layers, Search, Play, Edit, Trash2, SlidersHorizontal, Check } from "@/components/ui/icons";
+import { ChevronRight, AlertCircle, BookOpen, Clock, Timer, Layers, Lock, Search, Play, Edit, Trash2, SlidersHorizontal, Check } from "@/components/ui/icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
@@ -19,10 +19,13 @@ import { toast } from "@/services/toast";
 import { SessaoFocoRow } from "@/types/sessions";
 import { taxaDeAcerto, totalQuestoes } from "@/utils/estatisticasSessao";
 import { paraDataISO, somarDias } from "@/utils/tempo";
+import { usePlano } from "@/hooks/usePlano";
+import { dentroDaJanela } from "@/utils/janelaDoPlano";
 import { EstadoPoucosDadosPessoal, EstadoVazioPessoal, EstadoSemGrupo, EstadoGrupoSemDadosPeriodo } from "@/components/analytics/EstadosAnalise";
 import {
     SeletorEscopo,
     SeletorPeriodo,
+    diasDoPeriodo,
     GraficoArea,
     CartaoMetrica,
     GraficoComparativoSemanal,
@@ -62,6 +65,21 @@ export default function BrainScreen() {
     const [comecoSemana, setComecoSemana] = useState<'domingo' | 'segunda'>('domingo');
     const [escopoAnalise, setEscopoAnalise] = useState<EscopoAnalise>("pessoal");
     const [periodoAnalise, setPeriodoAnalise] = useState<PeriodoAnalise>("7d");
+
+    // Limites de leitura do plano: janela das análises e do histórico de sessões.
+    const { limites, avisarLimite } = usePlano();
+
+    /*
+      Se o plano encolher (assinatura vencida) com "Ano" selecionado, o período guardado no
+      state passaria a mostrar dados que o plano não cobre mais. Volta pro maior período
+      permitido em vez de confiar só no cadeado do seletor.
+    */
+    useEffect(() => {
+        const permitido = limites?.analisesDias ?? null;
+        if (permitido !== null && diasDoPeriodo(periodoAnalise) > permitido) {
+            setPeriodoAnalise("7d");
+        }
+    }, [limites?.analisesDias, periodoAnalise]);
     // const [statsPessoais, setStatsPessoais] = useState<UserStats | null>()
 
     //Busca para ver a preferência do início da semana do usuário (ex: Domingo ou Segunda)
@@ -98,8 +116,29 @@ export default function BrainScreen() {
                 : lista,
         [termoBusca]
     );
-    const savedSessions = useMemo(() => filtrarPorBusca(todasSavedSessions), [filtrarPorBusca, todasSavedSessions]);
-    const pendingSessions = useMemo(() => filtrarPorBusca(todasPendingSessions), [filtrarPorBusca, todasPendingSessions]);
+    /*
+      A janela do plano é aplicada aqui, antes da busca, para que TUDO que vem abaixo
+      (agrupamento por período, contadores, listas) herde o corte sem cada trecho ter que
+      lembrar dele. A sessão continua salva no banco — o plano limita o que se vê, nunca
+      apaga (ver seção 8.2 do project-context).
+    */
+    const historicoDias = limites?.historicoDias ?? null;
+    const savedNaJanela = useMemo(
+        () => dentroDaJanela(todasSavedSessions, historicoDias, (s) => s.data_sessao),
+        [todasSavedSessions, historicoDias]
+    );
+    const pendingNaJanela = useMemo(
+        () => dentroDaJanela(todasPendingSessions, historicoDias, (s) => s.data_sessao),
+        [todasPendingSessions, historicoDias]
+    );
+
+    // Quantas sessões o plano está escondendo — vira o rodapé que convida a assinar.
+    const sessoesOcultas =
+        todasSavedSessions.length - savedNaJanela.length +
+        (todasPendingSessions.length - pendingNaJanela.length);
+
+    const savedSessions = useMemo(() => filtrarPorBusca(savedNaJanela), [filtrarPorBusca, savedNaJanela]);
+    const pendingSessions = useMemo(() => filtrarPorBusca(pendingNaJanela), [filtrarPorBusca, pendingNaJanela]);
 
     const excluirPendente = (form: SessaoFocoRow) => {
         confirm({
@@ -793,6 +832,39 @@ export default function BrainScreen() {
                                             </TouchableOpacity>
                                         </View>
                                     )}
+
+                                    {/*
+                                      Dizer que existem sessões escondidas é melhor do que
+                                      simplesmente cortar a lista: a pessoa saber que o
+                                      registro dela continua lá é o que torna o Pro
+                                      desejável — e some sozinho quando o plano é ilimitado.
+                                    */}
+                                    {sessoesOcultas > 0 && (
+                                        <TouchableOpacity
+                                            onPress={() => avisarLimite("historico")}
+                                            activeOpacity={0.8}
+                                            style={{
+                                                flexDirection: "row",
+                                                alignItems: "center",
+                                                gap: 10,
+                                                padding: 14,
+                                                borderRadius: 13,
+                                                backgroundColor: HADES.surface,
+                                                borderWidth: 1,
+                                                borderColor: HADES.border,
+                                                marginTop: 4,
+                                            }}
+                                        >
+                                            <Lock size={15} color={HADES.textMuted} />
+                                            <Text style={{ flex: 1, fontSize: 12.5, color: HADES.textMuted, lineHeight: 18 }}>
+                                                {sessoesOcultas === 1
+                                                    ? "Mais 1 sessão além dos últimos "
+                                                    : `Mais ${sessoesOcultas} sessões além dos últimos `}
+                                                {historicoDias} dias. Elas continuam salvas — o Pro reabre o histórico.
+                                            </Text>
+                                            <ChevronRight size={15} color={HADES.textMuted} />
+                                        </TouchableOpacity>
+                                    )}
                                 </>
                             )}
                         </ScrollView>
@@ -831,7 +903,12 @@ export default function BrainScreen() {
                         <View className="flex-row items-center justify-between">
                             <SeletorEscopo valor={escopoAnalise} aoAlterar={setEscopoAnalise} />
                             {(escopoAnalise === "grupo" || (!carregandoAnalise && estadoPessoal !== "vazio")) && (
-                                <SeletorPeriodo valor={periodoAnalise} aoAlterar={setPeriodoAnalise} />
+                                <SeletorPeriodo
+                                    valor={periodoAnalise}
+                                    aoAlterar={setPeriodoAnalise}
+                                    diasPermitidos={limites?.analisesDias ?? null}
+                                    aoBloquear={() => avisarLimite("analises")}
+                                />
                             )}
                         </View>
 

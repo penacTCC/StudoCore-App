@@ -24,6 +24,7 @@ import { supabase } from "@/repositories/supabase";
 import { criarPlano, salvarBlocoPlano } from "@/services/planos";
 import { buscarMateriasUsuario, criarMateria, normalizarNomeMateria } from "@/services/materias";
 import { CORES_PLANO } from "@/constants/hades";
+import { mensagemDeLimite } from "@/services/assinatura";
 import type {
     BlocoRoadmapCanonico,
     BlocoRoadmapProposta,
@@ -65,12 +66,15 @@ export const gerarRoadmap = async (params: {
           FunctionsHttpError de mensagem genérica; o motivo real vive no corpo, em
           `context`. Sem ler isso, a tela não teria como explicar a falha.
         */
-        let detalhe: string | null = null;
-        try {
-            const corpo = await (error as any)?.context?.json?.();
-            detalhe = corpo?.detalhe ?? corpo?.error ?? null;
-        } catch {
-            // Corpo não era JSON — segue com a mensagem genérica.
+        // Cota estourada (429) tem texto próprio, voltado ao usuário.
+        let detalhe: string | null = await mensagemDeLimite(error);
+        if (!detalhe) {
+            try {
+                const corpo = await (error as any)?.context?.json?.();
+                detalhe = corpo?.detalhe ?? corpo?.error ?? null;
+            } catch {
+                // Corpo não era JSON — segue com a mensagem genérica.
+            }
         }
 
         console.warn("Erro ao gerar roadmap por IA:", detalhe ?? error);

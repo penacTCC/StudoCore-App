@@ -16,6 +16,7 @@ import { getAvatarColor } from "@/constants/helpers";
 import type { Profile } from "@/types/profile";
 import type { Gamificacao } from "@/types/gamificacao";
 import type { IconeComponente } from "@/components/ui/icons";
+import { usePlano } from "@/hooks/usePlano";
 import { toast } from "@/services/toast";
 
 type PerfilComparavel = {
@@ -36,6 +37,7 @@ export default function CompareProfileScreen() {
     const router = useRouter();
     const { userId } = useLocalSearchParams<{ userId: string }>();
     const { userId: meuId } = useAuth();
+    const { limites, avisarLimite } = usePlano();
 
     //Controla o estado do pull-to-refresh
     const [atualizando, setAtualizando] = useState(false);
@@ -140,13 +142,32 @@ export default function CompareProfileScreen() {
     const minhasMedalhas = APP_BADGES.filter((b) => eu.profile.medalhas_desbloqueadas?.includes(b.id)).length;
     const medalhasDele = APP_BADGES.filter((b) => ele.profile.medalhas_desbloqueadas?.includes(b.id)).length;
 
-    const metricas: { label: string; icon: IconeComponente; meu: number; dele: number; sufixo?: string }[] = [
+    /*
+      Comparação completa (Pro) x básica (Grátis).
+
+      No Grátis ficam horas e ofensiva atual — as duas que o usuário já vê no ranking do
+      grupo, então travá-las não esconderia nada de novo. Questões, melhor ofensiva e
+      medalhas são o que o Pro abre. O placar conta só as métricas visíveis, senão o
+      "3 x 2" não fecharia com o que está na tela.
+    */
+    const todasAsMetricas: {
+        label: string;
+        icon: IconeComponente;
+        meu: number;
+        dele: number;
+        sufixo?: string;
+        soNoPro?: boolean;
+    }[] = [
         { label: "Horas Totais", icon: Clock, meu: eu.profile.horas_totais ?? 0, dele: ele.profile.horas_totais ?? 0, sufixo: "h" },
-        { label: "Questões", icon: ListChecks, meu: eu.profile.questoes_feitas ?? 0, dele: ele.profile.questoes_feitas ?? 0 },
-        { label: "Melhor Ofensiva", icon: Trophy, meu: eu.gamificacao?.melhor_ofensiva ?? 0, dele: ele.gamificacao?.melhor_ofensiva ?? 0, sufixo: " dias" },
-        { label: "Medalhas", icon: Medal, meu: minhasMedalhas, dele: medalhasDele },
+        { label: "Questões", icon: ListChecks, meu: eu.profile.questoes_feitas ?? 0, dele: ele.profile.questoes_feitas ?? 0, soNoPro: true },
+        { label: "Melhor Ofensiva", icon: Trophy, meu: eu.gamificacao?.melhor_ofensiva ?? 0, dele: ele.gamificacao?.melhor_ofensiva ?? 0, sufixo: " dias", soNoPro: true },
+        { label: "Medalhas", icon: Medal, meu: minhasMedalhas, dele: medalhasDele, soNoPro: true },
         { label: "Ofensiva Atual", icon: Flame, meu: eu.gamificacao?.ofensiva ?? 0, dele: ele.gamificacao?.ofensiva ?? 0, sufixo: " dias" },
     ];
+
+    const comparacaoCompleta = limites?.comparacaoPerfilCompleta ?? false;
+    const metricas = comparacaoCompleta ? todasAsMetricas : todasAsMetricas.filter((m) => !m.soNoPro);
+    const metricasTravadas = comparacaoCompleta ? 0 : todasAsMetricas.length - metricas.length;
 
     const vitoriasEu = metricas.filter((m) => decidirLado(m.meu, m.dele) === "eu").length;
     const vitoriasEle = metricas.filter((m) => decidirLado(m.meu, m.dele) === "ele").length;
@@ -283,6 +304,31 @@ export default function CompareProfileScreen() {
                             </View>
                         );
                     })}
+
+                    {/* Mostra o que está faltando em vez de simplesmente encurtar a lista. */}
+                    {metricasTravadas > 0 && (
+                        <TouchableOpacity
+                            onPress={() => avisarLimite("comparacao_perfil")}
+                            activeOpacity={0.8}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 8,
+                                marginTop: 14,
+                                paddingVertical: 12,
+                                paddingHorizontal: 14,
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: HADES.border,
+                                borderStyle: "dashed",
+                            }}
+                        >
+                            <Lock size={14} color={HADES.textMuted} />
+                            <Text style={{ flex: 1, fontSize: 12, color: HADES.textMuted, lineHeight: 17 }}>
+                                Mais {metricasTravadas} comparações (questões, melhor ofensiva e medalhas) no Pro.
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* Matéria favorita (neutro, cor de cada lado) */}

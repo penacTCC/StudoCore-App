@@ -25,15 +25,22 @@ beforeEach(async () => {
 
 describe("snapshot da sessão de foco", () => {
     it("devolve null quando não há nada salvo", async () => {
+        getSessionMock.mockResolvedValue(sessaoDe("user-a"));
+
         expect(await carregarSnapshotSessao()).toBeNull();
     });
 
     it("preenche os campos que faltam em snapshots antigos com o padrão de 'sem fila'", async () => {
-        // Simula um snapshot gravado por uma versão anterior do app, sem fila/fase.
+        // Simula um snapshot gravado por uma versão do app que já carimbava o dono, mas
+        // ainda não tinha fila/fase.
         await AsyncStorage.multiSet([
             ["@focus_session_start_time", "1700000000000"],
-            ["@focus_session_data", JSON.stringify({ subject: "Química", content: "Estequiometria" })],
+            [
+                "@focus_session_data",
+                JSON.stringify({ subject: "Química", content: "Estequiometria", donoUserId: "user-a" }),
+            ],
         ]);
+        getSessionMock.mockResolvedValue(sessaoDe("user-a"));
 
         const snapshot = await carregarSnapshotSessao();
 
@@ -48,7 +55,19 @@ describe("snapshot da sessão de foco", () => {
         });
     });
 
-    it("faz o roundtrip completo salvar → carregar", async () => {
+    it("descarta um snapshot gravado antes do carimbo de dono existir (formato antigo)", async () => {
+        await AsyncStorage.multiSet([
+            ["@focus_session_start_time", "1700000000000"],
+            ["@focus_session_data", JSON.stringify({ subject: "Química", content: "Estequiometria" })],
+        ]);
+        getSessionMock.mockResolvedValue(sessaoDe("user-a"));
+
+        expect(await carregarSnapshotSessao()).toBeNull();
+    });
+
+    it("faz o roundtrip completo salvar → carregar para a mesma conta", async () => {
+        getSessionMock.mockResolvedValue(sessaoDe("user-a"));
+
         const snapshot: SnapshotSessaoFoco = {
             subject: "Física",
             content: "Cinemática",
@@ -75,6 +94,70 @@ describe("snapshot da sessão de foco", () => {
         await salvarSnapshotSessao(snapshot);
 
         expect(await carregarSnapshotSessao()).toEqual(snapshot);
+    });
+
+    it("não salva nada quando não há sessão (sem dono para carimbar)", async () => {
+        getSessionMock.mockResolvedValue(semSessao);
+
+        await salvarSnapshotSessao({
+            subject: "Física",
+            content: "Cinemática",
+            isPublic: false,
+            groupId: null,
+            modo: "cronometro",
+            inicioMs: 1700000000000,
+            sessaoId: null,
+            salaId: null,
+            ehConvidado: false,
+            fila: [],
+            indiceFila: 0,
+            fase: "foco",
+            faseInicioMs: null,
+            faseDuracaoSeg: 0,
+            focoAcumuladoSeg: 0,
+            execucaoId: null,
+            contexto: null,
+            pausado: false,
+            pausadoSeg: 0,
+            pausadaEmMs: null,
+        });
+
+        expect(await AsyncStorage.getItem("@focus_session_data")).toBeNull();
+    });
+
+    it("NÃO restaura o pomodoro de outra conta que usou o aparelho antes (regressão da sessão fantasma)", async () => {
+        getSessionMock.mockResolvedValue(sessaoDe("user-a"));
+        // `sessaoId: null` reproduz a janela mais arriscada: o instante entre a sessão
+        // começar e a linha ser gravada no banco, quando `restoreSession` (focus.tsx) ainda
+        // não tem como validar o dono consultando a linha.
+        await salvarSnapshotSessao({
+            subject: "Química da conta A",
+            content: "Estequiometria",
+            isPublic: false,
+            groupId: null,
+            modo: "pomodoro",
+            inicioMs: 1700000000000,
+            sessaoId: null,
+            salaId: null,
+            ehConvidado: false,
+            fila: [],
+            indiceFila: 0,
+            fase: "foco",
+            faseInicioMs: null,
+            faseDuracaoSeg: 0,
+            focoAcumuladoSeg: 0,
+            execucaoId: null,
+            contexto: null,
+            pausado: false,
+            pausadoSeg: 0,
+            pausadaEmMs: null,
+        });
+
+        // Troca de conta no mesmo aparelho.
+        getSessionMock.mockResolvedValue(sessaoDe("user-b"));
+        const snapshot = await carregarSnapshotSessao();
+
+        expect(snapshot).toBeNull();
     });
 });
 

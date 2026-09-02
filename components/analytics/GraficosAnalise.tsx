@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Image } from "react-native";
 import Svg, { Path, Line, Rect, Circle, Defs, LinearGradient, Stop, Text as SvgText } from "react-native-svg";
-import { Flame, Swords, ChevronRight, ChevronDown, User, Users } from "@/components/ui/icons";
+import { Flame, Swords, ChevronRight, ChevronDown, Lock, User, Users } from "@/components/ui/icons";
 import type { IconeComponente } from "@/components/ui/icons";
 import { DIAS_SEMANA_ABREV, NOME_COMPLETO_DIA, formatarHoras } from "@/lib/analytics";
 import { AderenciaMateria, DesempenhoMateria, membrosRankingAnalytics, ParDiaSemana, ParPlanejadoRealizado, PontoSerieDia, ResumoAderencia } from "@/types/analytics";
@@ -102,32 +102,54 @@ export function SeletorEscopo({
 
 // ── Pills de período: 7d / 30d / Ano ────────────────────────────────────
 // Rótulos curtos pra caber na mesma linha do SeletorEscopo mesmo em tela de 360dp.
-const OPCOES_PERIODO: { key: PeriodoAnalise; label: string }[] = [
-    { key: "7d", label: "7d" },
-    { key: "30d", label: "30d" },
-    { key: "ano", label: "Ano" },
+const OPCOES_PERIODO: { key: PeriodoAnalise; label: string; dias: number }[] = [
+    { key: "7d", label: "7d", dias: 7 },
+    { key: "30d", label: "30d", dias: 30 },
+    { key: "ano", label: "Ano", dias: 365 },
 ];
 
+/** Quantos dias de histórico um período exige. Exportado para a tela poder validar o estado. */
+export function diasDoPeriodo(periodo: PeriodoAnalise): number {
+    return OPCOES_PERIODO.find((o) => o.key === periodo)?.dias ?? 7;
+}
+
+/**
+ * Pills de período. `diasPermitidos` vem do plano (`analisesDias`) — `null` libera tudo.
+ *
+ * O período travado continua visível, com cadeado, em vez de sumir: esconder faria o
+ * usuário do Grátis nem saber que existe análise mensal e anual, que é justamente o que se
+ * quer vender. Tocar nele chama `aoBloquear` em vez de trocar o período.
+ */
 export function SeletorPeriodo({
     valor,
     aoAlterar,
+    diasPermitidos = null,
+    aoBloquear,
 }: {
     valor: PeriodoAnalise;
     aoAlterar: (v: PeriodoAnalise) => void;
+    diasPermitidos?: number | null;
+    aoBloquear?: () => void;
 }) {
     return (
         <View className="flex-row gap-1">
             {OPCOES_PERIODO.map((opcao) => {
-                const ativo = valor === opcao.key;
+                const travado = diasPermitidos !== null && opcao.dias > diasPermitidos;
+                const ativo = valor === opcao.key && !travado;
                 return (
                     <TouchableOpacity
                         key={opcao.key}
-                        onPress={() => aoAlterar(opcao.key)}
-                        className={`rounded-lg px-3 py-2 ${ativo ? "bg-[#1a1b20]" : "bg-transparent"}`}
+                        onPress={() => (travado ? aoBloquear?.() : aoAlterar(opcao.key))}
+                        className={`flex-row items-center gap-1 rounded-lg px-3 py-2 ${ativo ? "bg-[#1a1b20]" : "bg-transparent"}`}
                     >
-                        <Text className={`text-[13px] font-semibold ${ativo ? "text-white" : "text-[#6b6e76]"}`}>
+                        <Text
+                            className={`text-[13px] font-semibold ${
+                                ativo ? "text-white" : travado ? "text-[#4a4d55]" : "text-[#6b6e76]"
+                            }`}
+                        >
                             {opcao.label}
                         </Text>
+                        {travado && <Lock size={11} color="#4a4d55" />}
                     </TouchableOpacity>
                 );
             })}

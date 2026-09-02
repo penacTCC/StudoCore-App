@@ -24,6 +24,8 @@ import { SecaoConfig, LinhaSwitch, LinhaStepper, LinhaEscolha, LinhaPerigo } fro
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { usePreferencias } from "@/hooks/usePreferencias";
+import { buscarPlano } from "@/services/assinatura";
+import { useDadosCache } from "@/hooks/useDadosCache";
 
 /** Mantém o valor dentro de [min, max] ao usar os steppers. */
 function limitar(valor: number, min: number, max: number) {
@@ -49,6 +51,12 @@ export default function SettingsScreen() {
     const { userId } = useAuth();
     // Preferências que moram no banco (o hook já faz o autosave debounced).
     const { prefs, ajustar, alternar } = usePreferencias(userId);
+
+    // Só o rótulo do plano, para a linha de menu. A tela de plano é quem busca o uso
+    // detalhado — aqui carregar tudo seria puxar uma RPC pesada a cada abertura das
+    // configurações para mostrar uma palavra.
+    const { dados: plano } = useDadosCache("plano:rotulo", buscarPlano, { tempoFresco: 0 });
+    const rotuloDoPlano = plano === "pro" ? "Pro" : "Grátis";
 
     const [loading, setLoading] = useState(true);
     const [modoTesteLigado, setModoTesteLigado] = useState(false);
@@ -164,6 +172,16 @@ export default function SettingsScreen() {
                         rotulo="Editar perfil"
                         valor="Nome, foto, bio"
                         onPress={() => router.push("/(modals)/editar-perfil")}
+                    />
+                    {/*
+                      O plano fica logo abaixo do perfil porque é onde a pessoa procura
+                      quando bate num limite — e é a única tela que diz quanto de cota
+                      ainda resta antes de ela tentar de novo.
+                    */}
+                    <LinhaEscolha
+                        rotulo="Meu plano"
+                        valor={rotuloDoPlano}
+                        onPress={() => router.push("/(modals)/plano")}
                         ultima
                     />
                 </SecaoConfig>

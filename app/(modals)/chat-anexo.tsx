@@ -17,6 +17,7 @@ import { HADES } from "@/constants/hades";
 import { buscarAnexo } from "@/services/anexosSessao";
 import { buscarMensagensChat, enviarMensagemChatAnexo } from "@/services/chatAnexoSessao";
 import { toast } from "@/services/toast";
+import { mostrarPaywallProSeLimite } from "@/services/paywall";
 import type { AnexoSessao, MensagemChatAnexo } from "@/types/anotacoes";
 
 /*
@@ -77,6 +78,12 @@ export default function ChatAnexoModal() {
         });
 
         if (!sucesso) {
+            if (mostrarPaywallProSeLimite(erro)) {
+                setMensagens((atual) => atual.filter((m) => m.id !== pendente.id));
+                setTexto(perguntaLimpa);
+                setEnviando(false);
+                return;
+            }
             toast.error(erro || "Não foi possível responder agora.");
             setMensagens((atual) => atual.filter((m) => m.id !== pendente.id));
             setTexto(perguntaLimpa);

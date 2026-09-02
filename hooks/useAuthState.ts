@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DeviceEventEmitter } from 'react-native';
 import { obterSessaoAtual, observarMudancasAuth, perfilEstaCompleto } from '@/services/auth';
 import { toast } from '@/services/toast';
+import { limparCache } from '@/lib/cache';
 import type { AuthSession } from '@/types/auth';
 
 export function useAuthState() {
@@ -9,11 +10,20 @@ export function useAuthState() {
   const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // ── 1. Inicializa a Sessão 
+  // Só existe porque este hook roda no layout raiz, que fica montado o app inteiro — é o
+  // único lugar garantido de estar vivo durante a troca de conta. `useAuth` também limpa o
+  // cache, mas seus consumidores ficam dentro de (tabs)/(groups), que o guard de rota
+  // desmonta bem na hora da troca: o listener deles nem existe para pegar o evento, e o
+  // cache de navegação (grupos, ranking, etc.) fica com dado da conta anterior até o app
+  // reiniciar.
+  const idUsuarioConhecido = useRef<string | null>(null);
+
+  // ── 1. Inicializa a Sessão
   useEffect(() => {
     console.log("RootLayout: Iniciando busca de sessão...");
     obterSessaoAtual().then(({ data: { session } }) => {
       console.log("RootLayout: Sessão obtida:", session ? "Sim" : "Não");
+      idUsuarioConhecido.current = session?.user?.id ?? null;
       setProfileComplete(session ? null : false);
       setSession(session);
       setIsInitialized(true); //só inicia o app se pegar a sessão
@@ -25,6 +35,11 @@ export function useAuthState() {
 
     const { data: { subscription } } = observarMudancasAuth((_event, session) => {
       console.log("RootLayout: AuthState changed:", _event);
+
+      const novoUsuarioId = session?.user?.id ?? null;
+      if (idUsuarioConhecido.current !== novoUsuarioId) limparCache();
+      idUsuarioConhecido.current = novoUsuarioId;
+
       setProfileComplete(session ? null : false);
       setSession(session);
     });

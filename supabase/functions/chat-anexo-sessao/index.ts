@@ -18,6 +18,8 @@
 // Deploy: `supabase functions deploy chat-anexo-sessao`
 // Secret: já usa `GEMINI_API_KEY` (mesma da `analisar-anexo-sessao` e `gerar-quiz-foco`).
 
+import { consumirCota, cotaDisponivel, respostaDeCotaEsgotada } from "../_shared/cota.ts";
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -148,6 +150,14 @@ Deno.serve(async (req: Request) => {
       const base64 = corpo?.base64 as string | undefined;
       if (!base64) return jsonResponse({ error: "Arquivo não informado." }, 400);
 
+      // O upload custa (Files API do Gemini) mas nao e a unidade cobrada: aqui so
+      // CONSULTAMOS a cota, para o plano Gratis — que nao tem chat — nao conseguir subir
+      // arquivo e so levar 429 na pergunta, depois do custo ja ter acontecido.
+      const cotaUpload = await cotaDisponivel(req, "chat");
+      if (cotaUpload && !cotaUpload.permitido) {
+        return respostaDeCotaEsgotada("chat", cotaUpload, CORS_HEADERS);
+      }
+
       const mimeType = mimeValido(corpo?.mimeType);
       try {
         const { fileUri, expiraEm } = await subirArquivoParaGemini(chaveGemini, base64ParaBytes(base64), mimeType);
@@ -163,6 +173,12 @@ Deno.serve(async (req: Request) => {
       const pergunta = (corpo?.pergunta as string | undefined)?.trim();
       if (!fileUri) return jsonResponse({ error: "Referência do arquivo não informada." }, 400);
       if (!pergunta) return jsonResponse({ error: "Pergunta vazia." }, 400);
+
+      // A pergunta e a unidade cobrada do chat de anexo.
+      const cota = await consumirCota(req, "chat");
+      if (cota && !cota.permitido) {
+        return respostaDeCotaEsgotada("chat", cota, CORS_HEADERS);
+      }
 
       const mimeType = mimeValido(corpo?.mimeType);
       const historico = Array.isArray(corpo?.historico) ? (corpo.historico as MensagemHistorico[]) : [];

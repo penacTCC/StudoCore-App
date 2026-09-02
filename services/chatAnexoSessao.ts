@@ -23,7 +23,7 @@ export async function buscarMensagensChat(anexoId: string): Promise<MensagemChat
   pra usar. Baixa e sobe de novo só quando não há referência salva ou ela já expirou (~48h) —
   na maioria das mensagens do chat isso é um no-op que só lê `arquivos`.
 */
-async function garantirArquivoNoChat(anexo: AnexoSessao): Promise<{ fileUri: string; mimeType: string } | null> {
+async function garantirArquivoNoChat(anexo: AnexoSessao): Promise<{ fileUri: string; mimeType: string; erro?: string } | null> {
     const mimeType = tipoDoArquivo(anexo.titulo);
     const aindaValido =
         anexo.gemini_file_uri &&
@@ -42,7 +42,7 @@ async function garantirArquivoNoChat(anexo: AnexoSessao): Promise<{ fileUri: str
     const { data: upload, error: erroUpload } = await subirAnexoParaChat({ base64, mimeType });
     if (!upload) {
         console.error("Erro ao subir anexo pro chat:", erroUpload);
-        return null;
+        return { fileUri: "", mimeType, erro: erroUpload ?? "Não foi possível preparar o arquivo para o chat." };
     }
 
     await supabase
@@ -68,6 +68,7 @@ export async function enviarMensagemChatAnexo(params: {
 
     const arquivoNoChat = await garantirArquivoNoChat(anexo);
     if (!arquivoNoChat) return { sucesso: false, erro: "Não foi possível preparar o arquivo para o chat." };
+    if (arquivoNoChat.erro) return { sucesso: false, erro: arquivoNoChat.erro };
 
     const { data: textoResposta, error } = await perguntarSobreAnexo({
         fileUri: arquivoNoChat.fileUri,

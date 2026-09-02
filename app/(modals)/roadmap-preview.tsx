@@ -12,6 +12,7 @@ import { normalizarNomeMateria } from "@/services/materias";
 import { aceitarRoadmapPessoal, publicarRoadmapGrupo } from "@/services/roadmapIA";
 import { formatarDuracao } from "@/utils/tempo";
 import { toast } from "@/services/toast";
+import { mostrarPaywallProSeLimite } from "@/services/paywall";
 import type { BlocoRoadmapProposta, EscopoRoadmap, RoadmapProposta } from "@/types/roadmap";
 
 const DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
@@ -115,6 +116,7 @@ export default function RoadmapPreviewScreen() {
             if (ehGrupo && grupoId) {
                 const resultado = await publicarRoadmapGrupo(userId, grupoId, { ...proposta, blocos });
                 if (!resultado.sucesso) {
+                    if (mostrarPaywallProSeLimite(resultado.erro)) return;
                     toast.error(resultado.erro ?? "Não foi possível publicar o roadmap.");
                     return;
                 }
@@ -129,6 +131,7 @@ export default function RoadmapPreviewScreen() {
 
             const resultado = await aceitarRoadmapPessoal(userId, { ...proposta, blocos });
             if (!resultado.sucesso) {
+                if (mostrarPaywallProSeLimite(resultado.erro)) return;
                 toast.error(resultado.erro ?? "Não foi possível salvar o roadmap.");
                 return;
             }

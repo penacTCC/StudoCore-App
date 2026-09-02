@@ -3,7 +3,8 @@ import { uploadFileToB2, getAuthenticatedDownloadUrl } from "@/services/backblaz
 import { tipoDoArquivo } from "@/services/visualizarArquivo";
 import { File as FileClass, Paths } from "expo-file-system";
 import { decode } from "base64-arraybuffer";
-import { ArquivoDetalhe, ArquivoGrupoLink, DeletaRegistroProps, UploadArquivoParams } from "@/types/archives";
+import { ArquivoDetalhe, ArquivoGrupoLink, UploadArquivoParams } from "@/types/archives";
+import { buscarEstadoDoPlano, mensagemDeLimite, MENSAGEM_DE_LIMITE } from "@/services/assinatura";
 
 
 export async function uploadArquivo({
@@ -13,6 +14,25 @@ export async function uploadArquivo({
   gruposIds,
   publico = false,
 }: UploadArquivoParams) {
+    /*
+      Pré-checagem só para feedback rápido na UI. O bloqueio real acontece na Edge Function
+      `arquivos-b2`, que cria a reserva em `arquivos` antes de subir qualquer byte ao B2.
+    */
+    if (arquivo.size) {
+      const { limites, uso } = await buscarEstadoDoPlano();
+
+      if (limites.arquivoBytesMax !== null && arquivo.size > limites.arquivoBytesMax) {
+        throw new Error(MENSAGEM_DE_LIMITE.tamanho_do_arquivo);
+      }
+
+      if (
+        limites.armazenamentoBytes !== null &&
+        uso.armazenamentoBytes + arquivo.size > limites.armazenamentoBytes
+      ) {
+        throw new Error(MENSAGEM_DE_LIMITE.armazenamento);
+      }
+    }
+
     console.log("1 - lendo arquivo");
     const objetoArquivo = new FileClass(arquivo.uri); // Cria o objeto do arquivo
     console.log("2 - convertendo base64");
@@ -30,27 +50,30 @@ export async function uploadArquivo({
         decode(base64),
     );
 
-    // O fetch do Backblaze retorna uma Response. Precisamos extrair o JSON dela:
+    // A Edge Function já reservou a linha em `arquivos`; aqui finalizamos os metadados
+    // editáveis de produto. Tamanho, path e fileId ficam sob controle do servidor.
     const uploadData = await upload.json();
 
     console.log("6 - salvando no Supabase");
     const { data: novoArquivo, error: dbError } = await supabase
     .from("arquivos")
-    .insert({
-      user_id: userId,
+    .update({
       titulo: nomeFormatado,
       disciplina: disciplina,
-      storage_path: caminhoArquivo,
-      backblaze_file_id: uploadData.fileId,
       publico,
-      // O card do feed mostra o peso do arquivo, e o tamanho só existe aqui, no picker:
-      // depois do upload seria preciso baixar o arquivo pra descobrir.
-      tamanho_bytes: arquivo.size ?? null,
+      pendente_upload: false,
     })
+    .eq("id", uploadData.id)
+    .eq("user_id", userId)
     .select()
     .single();
 
-    if (dbError) throw dbError;
+    // Rede de segurança: se a checagem acima passou mas o trigger recusou (upload
+    // concorrente, cota estourada entre uma coisa e outra), traduz antes de propagar.
+    if (dbError) {
+      const limite = await mensagemDeLimite(dbError);
+      throw limite ? new Error(limite) : dbError;
+    }
 
     if (gruposIds.length > 0) {
       const relations = gruposIds.map((groupId) => ({
@@ -99,15 +122,14 @@ export async function adicionarArquivoDaComunidadeAosMeus(
 
   const { data: novoArquivo, error } = await supabase
     .from("arquivos")
-    .insert({
-      user_id: userId,
+    .update({
       titulo: nomeFormatado,
       disciplina,
-      storage_path: caminhoArquivo,
-      backblaze_file_id: uploadData.fileId,
       publico: false,
-      tamanho_bytes: baixado.size ?? null,
+      pendente_upload: false,
     })
+    .eq("id", uploadData.id)
+    .eq("user_id", userId)
     .select()
     .single();
 
@@ -132,13 +154,6 @@ export const alternarArquivoPublico = async (arquivoId: string, publico: boolean
   if (error) throw new Error(error.message);
 };
 
-export const deletaRegistro = async ({arquivoId}: DeletaRegistroProps) => {
-  return await supabase
-  .from("arquivos") // Nome da sua tabela
-  .delete() // Operação de deleção
-  .eq("id", arquivoId); // Condição: onde o ID for igual ao ID do arquivo atual
-}
-
 export const buscarArquivosVisiveis = async (userId: string) => {
   const { data: userGroups } = await supabase
     .from("membros")
@@ -150,7 +165,8 @@ export const buscarArquivosVisiveis = async (userId: string) => {
   const { data: myFilesData } = await supabase
     .from("arquivos")
     .select("*, profiles(nome_usuario), arquivos_grupos(grupo_id)")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("pendente_upload", false);
 
   const myFiles = (myFilesData || []) as ArquivoDetalhe[];
 
@@ -163,7 +179,7 @@ export const buscarArquivosVisiveis = async (userId: string) => {
 
     groupFiles = ((groupLinks || []) as ArquivoGrupoLink[])
       .flatMap(link => Array.isArray(link.arquivos) ? link.arquivos : [link.arquivos])
-      .filter((arquivo): arquivo is ArquivoDetalhe => Boolean(arquivo));
+      .filter((arquivo): arquivo is ArquivoDetalhe => Boolean(arquivo && !(arquivo as any).pendente_upload));
   }
 
   const uniqueMap = new Map<string, ArquivoDetalhe>();
