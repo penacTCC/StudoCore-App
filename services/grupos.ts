@@ -171,7 +171,7 @@ export const usuarioParticipaDoGrupo = async (userId: string, grupoId: string) =
 export const inserirGrupo = async (nome: string, descricao: string, publico: boolean, metaSemanal: number, linkConvite: string, urlImagem: string | null) => {
   return await supabase
     .from('grupos')
-    .upsert({ //upsert é uma função que insere ou atualiza um registro
+    .insert({ //upsert é uma função que insere ou atualiza um registro
       nome_grupo: nome.trim(),
       descricao: descricao.trim(),
       publico,
