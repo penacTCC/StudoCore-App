@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { carregarSnapshotSessao } from "@/services/armazenamentoOffline";
-import { fecharSessoesAbandonadas } from "@/services/sessions";
+import { fecharSessoesAbandonadas, sincronizarFinalizacoesPendentes } from "@/services/sessions";
 
 /**
  * Fecha, ao abrir o app, as sessões de foco que ficaram penduradas de uma vez em que ele
@@ -34,6 +34,8 @@ export const useRecuperarSessoesAbandonadas = (userId?: string | null) => {
             const emAndamento = [snapshot?.sessaoId].filter((id): id is string => !!id);
 
             await fecharSessoesAbandonadas(userId, emAndamento);
+            // Reenvia finalizações que falharam por falha transitória (ver stopSession em focus.tsx).
+            await sincronizarFinalizacoesPendentes();
         };
 
         recuperar();
@@ -59,6 +61,8 @@ export const useRecuperarSessoesAbandonadas = (userId?: string | null) => {
             const emAndamento = [snapshot?.sessaoId].filter((id): id is string => !!id);
 
             await fecharSessoesAbandonadas(userId, emAndamento);
+            // Reenvia finalizações que falharam por falha transitória (ver stopSession em focus.tsx).
+            await sincronizarFinalizacoesPendentes();
         });
 
         return () => inscricao.remove();

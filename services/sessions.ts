@@ -5,6 +5,10 @@ import { SessaoFocoInsert, SessaoFocoRow, SessionCardItem } from "@/types/sessio
 import type { ParticipanteResumido } from "@/types/sala";
 import { paraDataISO, pegarIntervaloSemanaAtual } from "@/utils/tempo";
 import { escalarSegundos, garantirFatorCarregado } from "@/services/modoTeste";
+import {
+    listarFinalizacoesSessaoPendentes,
+    removerFinalizacaoSessaoPendente,
+} from "@/services/armazenamentoOffline";
 
 /**
  * `true` quando o erro é "essa coluna não existe" para a coluna informada — 42703 vem do
@@ -144,6 +148,26 @@ export const atualizarSessaoFoco = async (id: string, updatesRecebidos: Partial<
 
     // Retorna o resultado original quando a migration já foi aplicada ou quando há outro erro real.
     return result;
+};
+
+/**
+ * Reaplica finalizações de sessão que falharam ao serem enviadas na hora (rede caiu, banco
+ * engasgou) e ficaram enfileiradas no aparelho (ver `enfileirarFinalizacaoSessaoPendente` em
+ * `armazenamentoOffline.ts`).
+ *
+ * Seguro para chamar repetidas vezes: `atualizarSessaoFoco` só faz UPDATE por `id`, então
+ * tentar de novo um item que já foi sincronizado por outro caminho (ex.: pela varredura de
+ * `fecharSessoesAbandonadas`) apenas regrava o mesmo estado final, sem duplicar nada.
+ */
+export const sincronizarFinalizacoesPendentes = async () => {
+    const pendentes = await listarFinalizacoesSessaoPendentes();
+
+    for (const pendente of pendentes) {
+        const { error } = await atualizarSessaoFoco(pendente.id, pendente.updates);
+        if (!error) {
+            await removerFinalizacaoSessaoPendente(pendente.id);
+        }
+    }
 };
 
 // ───── DELETE (descartar sessão, ex.: formulário pendente que não vai ser refeito) ─────
