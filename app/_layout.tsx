@@ -22,6 +22,7 @@ import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { ToastHost } from "@/components/ui/Toast";
 import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
 import { ProBottomSheetHost } from "@/components/ui/ProBottomSheet";
+import { CompraPlayHost } from "@/components/ui/CompraPlayHost";
 import { HADES } from "@/constants/hades";
 import MedalAlert from "@/components/MedalAlert";
 import { validarSessaoPorCodigo } from "@/services/auth";
@@ -139,6 +140,7 @@ export default function RootLayout() {
                     <ToastHost />
                     <ConfirmDialogHost />
                     <ProBottomSheetHost />
+                    <CompraPlayHost />
                     <OfflineBanner />
                     <Stack
                         screenOptions={{

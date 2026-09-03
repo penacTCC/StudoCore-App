@@ -185,3 +185,7 @@ vite.config.ts.timestamp-*
 
 # Local Netlify folder
 .netlify
+
+# testes de carga: contas semeadas no Supabase local (recriáveis com scripts/load/seed.mjs)
+scripts/load/.seed.local.json
+scripts/load/resultado-*.json
