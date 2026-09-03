@@ -221,24 +221,6 @@ export default function LoginScreen() {
                         </View>
                         <Text style={{ fontSize: 14, fontWeight: "700", color: "#ffffff" }}>Google</Text>
                     </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={{
-                            flex: 1,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 8,
-                            backgroundColor: "#24292e",
-                            borderRadius: 14,
-                            paddingVertical: 13,
-                            borderWidth: 1,
-                            borderColor: "rgba(255,255,255,0.08)",
-                        }}
-                    >
-                        <Github size={18} color="#ffffff" />
-                        <Text style={{ fontSize: 14, fontWeight: "700", color: "#ffffff" }}>GitHub</Text>
-                    </TouchableOpacity>
                 </View>
 
                 {/* Sign Up link */}
