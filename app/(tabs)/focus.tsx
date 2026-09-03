@@ -267,7 +267,11 @@ export default function FocusScreen() {
     const salaId = salaFixa ?? salaParaEntrar?.id;
 
     // Participantes da sala, sincronizados em tempo real (ver hooks/useParticipantesDaSala).
-    const { participantes, recarregar: recarregarParticipantes } = useParticipantesDaSala(salaId);
+    const {
+        participantes,
+        recarregar: recarregarParticipantes,
+        pronto: salaPronta,
+    } = useParticipantesDaSala(salaId);
 
     /*
       Cronograma que a sessão em grupo segue: a fila de focos e descansos publicada na linha
@@ -1563,6 +1567,19 @@ export default function FocusScreen() {
         if (!session?.id) {
             console.error("Nenhuma sessão foi encontrada:", session);
             if (isPaused) toast.error("Não foi possível retomar a sessão.");
+            return;
+        }
+
+        /*
+          Sessão em sala: pausar/retomar escreve em `tab_sessao_membros`, e é esse o evento
+          que os colegas recebem pelo canal de participantes (ver useParticipantesDaSala).
+          Numa sala com muita gente entrando ao mesmo tempo, disparar isso antes do PRÓPRIO
+          canal confirmar a inscrição foi o que derrubou a entrega no teste de carga (30% em
+          vez de 100%) — esperar aqui é o que dá tempo do Realtime se estabilizar antes da
+          primeira rajada de ações.
+        */
+        if (isPublicSession && salaId && !salaPronta) {
+            toast.info("Só um instante, conectando à sala...");
             return;
         }
 
