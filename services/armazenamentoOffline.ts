@@ -107,6 +107,75 @@ export const limparSnapshotSessao = async () => {
   }
 };
 
+const FINALIZACAO_PENDENTE_KEY = '@sessoes_finalizacao_pendente';
+
+type FinalizacaoSessaoPendente = {
+  id: string;
+  updates: Record<string, unknown>;
+  criadaEm: number;
+};
+
+const listarFilaBruta = async (userId: string): Promise<FinalizacaoSessaoPendente[]> => {
+  const valorJson = await AsyncStorage.getItem(`${FINALIZACAO_PENDENTE_KEY}:${userId}`);
+  if (!valorJson) return [];
+
+  try {
+    const dados = JSON.parse(valorJson);
+    return Array.isArray(dados) ? dados : [];
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Guarda no aparelho um UPDATE de finalização de sessão que falhou ao ser enviado ao banco,
+ * para que outro momento (retomar o app, voltar do background) possa tentar de novo.
+ *
+ * `atualizarSessaoFoco` só faz UPDATE por `id` — nunca insere — então reaplicar o mesmo
+ * payload várias vezes é seguro: a linha final é sempre a mesma, não importa quantas vezes
+ * a fila tentar. Uma nova chamada para o mesmo `id` substitui a pendência anterior em vez de
+ * empilhar (o payload mais recente é sempre o que vale).
+ */
+export const enfileirarFinalizacaoSessaoPendente = async (id: string, updates: Record<string, unknown>) => {
+  try {
+    const userId = await idDoUsuarioAtual();
+    if (!userId) return;
+
+    const fila = await listarFilaBruta(userId);
+    const semDuplicata = fila.filter((item) => item.id !== id);
+    semDuplicata.push({ id, updates, criadaEm: Date.now() });
+
+    await AsyncStorage.setItem(`${FINALIZACAO_PENDENTE_KEY}:${userId}`, JSON.stringify(semDuplicata));
+  } catch (erro) {
+    console.error('Erro ao enfileirar finalização de sessão pendente:', erro);
+  }
+};
+
+export const listarFinalizacoesSessaoPendentes = async (): Promise<FinalizacaoSessaoPendente[]> => {
+  try {
+    const userId = await idDoUsuarioAtual();
+    if (!userId) return [];
+
+    return await listarFilaBruta(userId);
+  } catch (erro) {
+    console.error('Erro ao ler a fila de finalizações de sessão pendentes:', erro);
+    return [];
+  }
+};
+
+export const removerFinalizacaoSessaoPendente = async (id: string) => {
+  try {
+    const userId = await idDoUsuarioAtual();
+    if (!userId) return;
+
+    const fila = await listarFilaBruta(userId);
+    const restante = fila.filter((item) => item.id !== id);
+    await AsyncStorage.setItem(`${FINALIZACAO_PENDENTE_KEY}:${userId}`, JSON.stringify(restante));
+  } catch (erro) {
+    console.error('Erro ao remover finalização de sessão pendente da fila:', erro);
+  }
+};
+
 /**
  * Cache local da agenda já resolvida de um dia.
  *

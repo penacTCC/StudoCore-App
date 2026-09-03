@@ -261,7 +261,21 @@ Regra que orientou os quatro: **travar mostrando, nunca escondendo.** Quem não 
 
 **O que ainda NÃO tem enforcement:** `duelos_criados_por_dia` e `sala_foco_max` seguem só declarados em `planos_limites` (as features correspondentes ainda não existem / não têm limite aplicado). A restrição de "comparação básica só com membros do próprio grupo" também não foi implementada — hoje o corte é por métrica, não por relação entre os usuários.
 
-**Tela de plano:** `app/(modals)/plano.tsx`, acessível por Configurações → Conta → Meu plano. Mostra plano vigente e consumo de cada cota a partir de `uso_do_plano()`. Ainda **sem botão de compra** — o Play Billing não existe; o comentário no código marca onde o checkout encaixa.
+**Tela de plano:** `app/(modals)/plano.tsx`, acessível por Configurações → Conta → Meu plano. Mostra plano vigente e consumo de cada cota a partir de `uso_do_plano()`. Tem botão de compra real, via Google Play Billing (seção 8.4.1) — a ideia anterior de checkout pelo site foi abandonada por risco de política da Play Store (link de compra externo pra conteúdo digital consumido no próprio app).
+
+#### 8.4.1 Compra via Google Play Billing
+
+Migration `20260903100000_google_play_billing.sql` acrescenta `purchase_token`/`order_id`/`product_id` em `assinaturas`. Duas Edge Functions (`confirmar-compra-play`, `sincronizar-assinatura-play`) e o helper `supabase/functions/_shared/googlePlay.ts` falam com a Android Publisher API (service account, sem SDK — JWT assinado na mão com Web Crypto, igual ao `backblaze.ts`). Cliente: `services/comprasPlay.ts` (`react-native-iap`) + `components/ui/CompraPlayHost.tsx` montado em `app/_layout.tsx`, que mantém o listener de compra sempre vivo.
+
+**Decisão:** sincronização por reconciliação, não webhook em tempo real (RTDN). `sincronizar-assinatura-play` é chamada quando a tela de plano abre; sem RTDN/Pub/Sub, um cancelamento/expiração só reflete quando o usuário reabre o app — aceito para o v1 de um app solo, RTDN fica como melhoria futura.
+
+**Falta para funcionar de ponta a ponta (fora do Claude Code, no Google):**
+1. Criar o app no Play Console (`com.studocore.app`) e o produto de assinatura `pro_mensal` (plano base mensal recorrente, preço a definir).
+2. Play Console → Acesso à API: linkar projeto GCP, criar service account, conceder permissão de dados financeiros + gerenciar pedidos/assinaturas.
+3. Ativar a Android Publisher API no GCP; gerar chave JSON da service account.
+4. `supabase secrets set GOOGLE_PLAY_CLIENT_EMAIL=... GOOGLE_PLAY_PRIVATE_KEY=... GOOGLE_PLAY_PACKAGE_NAME=com.studocore.app` e deployar as duas functions.
+5. Testar via testes de licença / trilha de teste interno antes de qualquer compra real — build de debug sideloaded não compra contra um app registrado na Play Console.
+6. Confirmar contra a doc atual do Google o endpoint de acknowledge de `subscriptionsv2` (anotado como ponto a revalidar no código).
 
 ### 8.5 Roadmap das features Pro
 

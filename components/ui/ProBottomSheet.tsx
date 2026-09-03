@@ -2,7 +2,6 @@ import React, { ComponentType, useEffect, useRef, useState } from "react";
 import {
     Animated,
     Dimensions,
-    Linking,
     Modal,
     Pressable,
     ScrollView,
@@ -33,7 +32,6 @@ import {
     Users,
     X,
 } from "@/components/ui/icons";
-import { WEBSITE_PRICING_URL } from "@/services/assinatura";
 import { subscribePaywallPro, type PaywallProOptions } from "@/services/paywall";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -168,11 +166,6 @@ export function ProBottomSheet({ visible, onClose, recurso, mensagem }: ProBotto
     const contexto = (recurso && CONTEXTO_DO_RECURSO[recurso]) || CONTEXTO_PADRAO;
     const Icone = contexto.icone;
 
-    const abrirSite = () => {
-        closeSheet();
-        Linking.openURL(WEBSITE_PRICING_URL).catch(() => {});
-    };
-
     const verPlano = () => {
         closeSheet();
         router.push("/(modals)/plano");
@@ -250,9 +243,10 @@ export function ProBottomSheet({ visible, onClose, recurso, mensagem }: ProBotto
                         </View>
                     </ScrollView>
 
-                    {/* CTA — redireciona para o site, onde a assinatura é feita de fato */}
+                    {/* CTA — leva para a tela de plano, onde fica o botão de compra real */}
                     <View style={{ paddingTop: 12, paddingHorizontal: 20, paddingBottom: 12 }}>
                         <Pressable
+                            onPress={verPlano}
                             style={{
                                 height: 54,
                                 borderRadius: 15,

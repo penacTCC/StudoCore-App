@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     View,
     Text,
@@ -6,6 +6,8 @@ import {
     TouchableOpacity,
     RefreshControl,
     Image,
+    ActivityIndicator,
+    Pressable,
 } from "react-native";
 import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { router } from "expo-router";
@@ -16,6 +18,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { HADES } from "@/constants/hades";
 import { useDadosCache } from "@/hooks/useDadosCache";
 import { buscarEstadoDoPlano, buscarLimitesDePlano, restante, type EstadoDoPlano } from "@/services/assinatura";
+import { iniciarCompraPro, verificarAssinaturaAtual } from "@/services/comprasPlay";
 
 const ICONE_PLANO_GRATIS = require("../../assets/plan/coroa-gratis.png");
 const ICONE_PLANO_PRO = require("../../assets/plan/coroa-pro.png");
@@ -47,6 +50,14 @@ export default function PlanoScreen() {
 
     const aoAtualizar = useCallback(() => {
         recarregar();
+    }, [recarregar]);
+
+    // Reconciliação sem webhook: toda vez que a tela abre, reconfere a assinatura direto
+    // com o Google (renovação, cancelamento, expiração) — ver services/comprasPlay.ts.
+    useEffect(() => {
+        verificarAssinaturaAtual().then(({ alterado }) => {
+            if (alterado) recarregar();
+        });
     }, [recarregar]);
 
     const ehPro = estado?.plano === "pro";
@@ -144,7 +155,7 @@ export default function PlanoScreen() {
                             />
                         </Secao>
 
-                        {!ehPro && <ConviteParaOPro />}
+                        {!ehPro && <ConviteParaOPro recarregar={recarregar} />}
 
                         <Text
                             style={{
@@ -335,7 +346,7 @@ function LinhaDeUso({
  * O que muda ao assinar. Mostrado só para quem está no Grátis — para quem já é Pro, listar
  * o que ele tem não informa nada e ainda parece anúncio.
  */
-function ConviteParaOPro() {
+function ConviteParaOPro({ recarregar }: { recarregar: () => void }) {
     /*
       Os números vêm da linha do PRO em `planos_limites`, não do plano atual de quem está
       olhando — senão a lista de vantagens exibiria os limites do Grátis. Buscar da tabela
@@ -343,6 +354,28 @@ function ConviteParaOPro() {
       realmente aplica.
     */
     const { dados: pro } = useDadosCache("plano:limites:pro", () => buscarLimitesDePlano("pro"));
+    const [comprando, setComprando] = useState(false);
+    const [erroCompra, setErroCompra] = useState<string | null>(null);
+
+    const assinarPro = async () => {
+        setErroCompra(null);
+        setComprando(true);
+        try {
+            await iniciarCompraPro();
+            // O resultado real chega pelo listener em `CompraPlayHost` (confirma no
+            // servidor e finaliza a compra); aqui só recarregamos o estado do plano depois
+            // de um tempo curto para refletir o que o listener já deve ter gravado.
+            setTimeout(() => recarregar(), 1500);
+        } catch (erro) {
+            const mensagem = (erro as { message?: string } | null)?.message ?? "";
+            // Cancelar a compra não é erro — o usuário só mudou de ideia.
+            if (!/cancel/i.test(mensagem)) {
+                setErroCompra("Não foi possível iniciar a compra. Tente de novo em instantes.");
+            }
+        } finally {
+            setComprando(false);
+        }
+    };
 
     const vantagens = [
         "Quiz por IA ilimitado",
@@ -382,21 +415,39 @@ function ConviteParaOPro() {
                 </View>
             ))}
 
-            {/*
-              Sem botão de compra: o fluxo de pagamento (Play Billing) ainda não existe, e
-              um botão que não leva a lugar nenhum é pior do que nenhum botão. Quando o
-              checkout entrar, é aqui que ele encaixa.
-            */}
-            <Text
+            <Pressable
+                onPress={assinarPro}
+                disabled={comprando}
                 style={{
-                    fontSize: 12,
-                    color: HADES.settingsTextMuted,
                     marginTop: 8,
-                    lineHeight: 17,
+                    height: 50,
+                    borderRadius: 14,
+                    backgroundColor: HADES.accentSolid,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: comprando ? 0.7 : 1,
                 }}
             >
-                A assinatura ainda não está disponível para compra no app.
-            </Text>
+                {comprando ? (
+                    <ActivityIndicator color="#000" />
+                ) : (
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: "#000" }}>Assinar Pro</Text>
+                )}
+            </Pressable>
+
+            {erroCompra && (
+                <Text
+                    style={{
+                        fontSize: 12,
+                        color: HADES.red,
+                        marginTop: 8,
+                        lineHeight: 17,
+                        textAlign: "center",
+                    }}
+                >
+                    {erroCompra}
+                </Text>
+            )}
         </View>
     );
 }

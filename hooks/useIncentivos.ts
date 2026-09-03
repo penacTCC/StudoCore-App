@@ -33,6 +33,13 @@ export const useIncentivos = (sessaoId?: string | null) => {
     const [carregando, setCarregando] = useState(true);
     // Guarda para quem está indo uma requisição agora, para travar só aquele botão.
     const [enviandoPara, setEnviandoPara] = useState<string | null>(null);
+    /*
+      `true` sem sessão e enquanto o canal de incentivos ainda não confirmou a inscrição.
+      Mandar força antes disso não falha (a Edge Function grava do mesmo jeito), mas o INSERT
+      pode não chegar de volta pelo realtime para ninguém na sala ainda inscrevendo — ver o
+      mesmo raciocínio em `useParticipantesDaSala`.
+    */
+    const [pronto, setPronto] = useState(!sessaoId);
     // Tick de 1s só pra recalcular a contagem regressiva do cooldown na tela.
     const [tick, setTick] = useState(0);
 
@@ -93,9 +100,12 @@ export const useIncentivos = (sessaoId?: string | null) => {
 
     // Mantém a torcida ao vivo enquanto a tela estiver aberta.
     useEffect(() => {
+        setPronto(!sessaoId);
         if (!sessaoId) return;
 
-        return observarIncentivosDaSala(sessaoId, aplicarNovoIncentivo);
+        return observarIncentivosDaSala(sessaoId, aplicarNovoIncentivo, (status) => {
+            if (status === "SUBSCRIBED") setPronto(true);
+        });
     }, [sessaoId, aplicarNovoIncentivo]);
 
     useEffect(() => {
@@ -124,10 +134,14 @@ export const useIncentivos = (sessaoId?: string | null) => {
         [incentivos]
     );
 
-    /** Quem pode receber minha força: qualquer participante que não seja eu. */
+    /**
+     * Quem pode receber minha força: qualquer participante que não seja eu, e só depois que
+     * o canal de incentivos confirmar a inscrição (ver `pronto` acima). O botão de torcer
+     * some enquanto isso — reaparece assim que a sala termina de se estabilizar.
+     */
     const podeTorcerPor = useCallback(
-        (destinatarioId?: string | null) => !!destinatarioId && !!userId && destinatarioId !== userId,
-        [userId]
+        (destinatarioId?: string | null) => pronto && !!destinatarioId && !!userId && destinatarioId !== userId,
+        [pronto, userId]
     );
 
     /** Minhas forças pra essa pessoa dentro da janela de 15min, da mais antiga pra mais nova. */
@@ -209,6 +223,7 @@ export const useIncentivos = (sessaoId?: string | null) => {
         total: incentivos.length,
         torcedores,
         carregando,
+        pronto,
         enviandoPara,
         contarPara,
         podeTorcerPor,

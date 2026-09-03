@@ -268,7 +268,15 @@ export type EventoParticipanteDaSala = {
  */
 export const observarParticipantesDaSala = (
     salaId: string,
-    aoMudar: (evento: EventoParticipanteDaSala) => void
+    aoMudar: (evento: EventoParticipanteDaSala) => void,
+    /*
+      Sem isso, quem chama não sabia se o canal já estava com a inscrição confirmada pelo
+      Realtime (status "SUBSCRIBED") ou ainda de passagem — os testes de carga mostraram que
+      disparar ações ao vivo (pausar/retomar) antes disso, com muita gente entrando na sala
+      ao mesmo tempo, faz a entrega desabar (30% em vez de 100%). Quem chama usa isso para
+      liberar as ações só depois que a própria inscrição estiver de pé.
+    */
+    aoStatusMudar?: (status: string) => void
 ) => {
     contadorDeCanais += 1;
 
@@ -289,7 +297,7 @@ export const observarParticipantesDaSala = (
                 })
         );
 
-    canal.subscribe();
+    canal.subscribe((status) => aoStatusMudar?.(status));
 
     return () => {
         supabase.removeChannel(canal);

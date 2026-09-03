@@ -67,7 +67,10 @@ let contadorDeCanais = 0;
  */
 export const observarIncentivosDaSala = (
     salaId: string,
-    aoMudar: (novoIncentivo: Incentivo) => void
+    aoMudar: (novoIncentivo: Incentivo) => void,
+    // Ver o mesmo parâmetro em `observarParticipantesDaSala` (services/salas.ts): permite
+    // liberar o botão de torcer só depois que o canal confirmar a inscrição.
+    aoStatusMudar?: (status: string) => void
 ) => {
     contadorDeCanais += 1;
 
@@ -84,7 +87,7 @@ export const observarIncentivosDaSala = (
             (payload) => aoMudar(payload.new as Incentivo)
         );
 
-    canal.subscribe();
+    canal.subscribe((status) => aoStatusMudar?.(status));
 
     return () => {
         supabase.removeChannel(canal);

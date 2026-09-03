@@ -23,6 +23,7 @@ import {
     carregarSnapshotSessao,
     limparSnapshotSessao,
     salvarSnapshotSessao,
+    enfileirarFinalizacaoSessaoPendente,
 } from "@/services/armazenamentoOffline";
 import { resolverAgendaDoDia } from "@/services/agenda";
 import { gerarSequenciaPomodoro, posicaoNaFila, inicioDoItemMs } from "@/utils/pomodoroSequence";
@@ -133,6 +134,8 @@ export default function FocusScreen() {
     // Presente só quando a fila tem mais de uma matéria (encadeamento de plano) — cada
     // matéria vira sua própria linha em sessoes_foco, todas com este mesmo valor.
     const execucaoIdRef = useRef<string | null>(null);
+    // Trava simples de reentrância para `stopSession` (ver comentário na função).
+    const encerrandoSessaoRef = useRef(false);
 
     const { userId, user } = useAuth();
     const { prefs, carregando: carregandoPrefs } = usePreferencias(userId);
@@ -264,7 +267,11 @@ export default function FocusScreen() {
     const salaId = salaFixa ?? salaParaEntrar?.id;
 
     // Participantes da sala, sincronizados em tempo real (ver hooks/useParticipantesDaSala).
-    const { participantes, recarregar: recarregarParticipantes } = useParticipantesDaSala(salaId);
+    const {
+        participantes,
+        recarregar: recarregarParticipantes,
+        pronto: salaPronta,
+    } = useParticipantesDaSala(salaId);
 
     /*
       Cronograma que a sessão em grupo segue: a fila de focos e descansos publicada na linha
@@ -1563,6 +1570,19 @@ export default function FocusScreen() {
             return;
         }
 
+        /*
+          Sessão em sala: pausar/retomar escreve em `tab_sessao_membros`, e é esse o evento
+          que os colegas recebem pelo canal de participantes (ver useParticipantesDaSala).
+          Numa sala com muita gente entrando ao mesmo tempo, disparar isso antes do PRÓPRIO
+          canal confirmar a inscrição foi o que derrubou a entrega no teste de carga (30% em
+          vez de 100%) — esperar aqui é o que dá tempo do Realtime se estabilizar antes da
+          primeira rajada de ações.
+        */
+        if (isPublicSession && salaId && !salaPronta) {
+            toast.info("Só um instante, conectando à sala...");
+            return;
+        }
+
         const nowIso = new Date().toISOString();
 
         if (isPaused) {
@@ -1658,6 +1678,24 @@ export default function FocusScreen() {
      * estado local e navegar (evita finalizar a mesma linha duas vezes, com tempo errado).
      */
     const stopSession = async (opcoes?: { jaFinalizado?: boolean }) => {
+        /*
+          Guarda contra clique duplo/toque acidental repetido: sem isso, dois toques quase
+          simultâneos no botão "Encerrar sessão" disparavam duas execuções concorrentes desta
+          função (transferir anfitrião, sair da sala, finalizar a linha), correndo uma contra
+          a outra. A aba nunca desmonta entre uma sessão e outra, então o ref precisa ser
+          liberado no fim, não só na desmontagem.
+        */
+        if (encerrandoSessaoRef.current) return;
+        encerrandoSessaoRef.current = true;
+
+        try {
+            await executarStopSession(opcoes);
+        } finally {
+            encerrandoSessaoRef.current = false;
+        }
+    };
+
+    const executarStopSession = async (opcoes?: { jaFinalizado?: boolean }) => {
         setFocusState("config");
 
         // Salva uma cópia dos valores antes de resetar
@@ -1733,13 +1771,21 @@ export default function FocusScreen() {
             }
 
             if (currentSessionId) {
-                const { error: updateSessionError } = await atualizarSessaoFoco(currentSessionId, {
+                const finalizacao = {
                     tempo_minutos: await calculateFocusSessionMinutes(finalDuration),
                     concluido_em: new Date().toISOString(),
                     status: "salvo",
-                });
+                };
+                const { error: updateSessionError } = await atualizarSessaoFoco(currentSessionId, finalizacao);
                 if (updateSessionError) {
                     console.error("Erro ao finalizar sessão de foco:", updateSessionError);
+                    /*
+                      Não deixa a sessão morrer pendurada por falha transitória (rede caiu,
+                      banco engasgou): fica na fila local e é reaplicada quando o app reabrir
+                      ou voltar do background (ver useRecuperarSessoesAbandonadas). Como
+                      `atualizarSessaoFoco` só faz UPDATE por id, reaplicar depois é seguro.
+                    */
+                    await enfileirarFinalizacaoSessaoPendente(currentSessionId, finalizacao);
                 }
 
                 if (currentBlocoPlanoId && currentPlanoId) {

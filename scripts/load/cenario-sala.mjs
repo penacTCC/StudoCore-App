@@ -26,6 +26,7 @@ const PULSOS = Number(process.env.PULSOS ?? 10);
 const INTERVALO_PULSO_MS = Number(process.env.INTERVALO_PULSO_MS ?? 500);
 const ESPERA_MS = Number(process.env.ESPERA_MS ?? 3000);
 const PARALELISMO = Number(process.env.PARALELISMO ?? 4);
+const SEM_FILTRO_SALA_DB = process.env.SEM_FILTRO_SALA_DB === "1";
 
 async function main() {
   const ambiente = carregarAmbiente();
@@ -64,19 +65,32 @@ async function main() {
     const eventosParticipacao = [];
     const eventosIncentivo = [];
 
+    // Por default usa o mesmo filtro do app. `SEM_FILTRO_SALA_DB=1` existe só para
+    // diagnóstico: recebe a tabela publicada inteira e descarta eventos de outra sala aqui.
+    const filtroMembros = SEM_FILTRO_SALA_DB
+      ? { event: "*", schema: "public", table: "tab_sessao_membros" }
+      : { event: "*", schema: "public", table: "tab_sessao_membros", filter: `sala_id=eq.${sala.id}` };
+    const filtroIncentivos = SEM_FILTRO_SALA_DB
+      ? { event: "INSERT", schema: "public", table: "incentivos" }
+      : { event: "INSERT", schema: "public", table: "incentivos", filter: `sala_id=eq.${sala.id}` };
+
     const canalMembros = client
       .channel(`sala_membros:${sala.id}:${i}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "tab_sessao_membros", filter: `sala_id=eq.${sala.id}` },
-        (payload) => eventosParticipacao.push({ em: Date.now(), linha: payload.new })
+        filtroMembros,
+        (payload) => {
+          if (payload.new?.sala_id === sala.id) eventosParticipacao.push({ em: Date.now(), linha: payload.new });
+        }
       );
     const canalIncentivos = client
       .channel(`incentivos:${sala.id}:${i}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "incentivos", filter: `sala_id=eq.${sala.id}` },
-        (payload) => eventosIncentivo.push({ em: Date.now(), linha: payload.new })
+        filtroIncentivos,
+        (payload) => {
+          if (payload.new?.sala_id === sala.id) eventosIncentivo.push({ em: Date.now(), linha: payload.new });
+        }
       );
 
     const [a1, a2] = await Promise.all([assinarCanal(canalMembros), assinarCanal(canalIncentivos)]);
@@ -214,7 +228,7 @@ async function main() {
   });
 
   // Limpeza: encerra a sala pela RPC de produção e apaga as linhas do teste.
-  await admin.rpc("encerrar_sala", { p_sala_id: sala.id });
+  await anfitriao?.client.rpc("encerrar_sala", { p_sala_id: sala.id });
   await admin.from("incentivos").delete().eq("sala_id", sala.id);
   await admin.from("tab_sessao_membros").delete().eq("sala_id", sala.id);
   await admin.from("sessoes_foco").delete().like("disciplina", "[carga]%");

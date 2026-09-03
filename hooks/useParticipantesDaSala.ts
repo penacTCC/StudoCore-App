@@ -20,6 +20,14 @@ import type { ParticipanteDaSala } from "@/types/sala";
 export const useParticipantesDaSala = (salaId?: string | null) => {
     const [participantes, setParticipantes] = useState<ParticipanteDaSala[]>([]);
     const [carregando, setCarregando] = useState(true);
+    /*
+      `true` sem sala (nada de realtime para esperar) e enquanto o canal ainda não confirmou
+      a inscrição (status "SUBSCRIBED"). Ver o comentário em `observarParticipantesDaSala`
+      (services/salas.ts) sobre por que isso importa: numa sala com muita gente entrando ao
+      mesmo tempo, pausar/retomar antes da inscrição se firmar faz a entrega do evento para
+      os outros cair bastante.
+    */
+    const [pronto, setPronto] = useState(!salaId);
 
     const recarregar = useCallback(async () => {
         if (!salaId) {
@@ -79,9 +87,12 @@ export const useParticipantesDaSala = (salaId?: string | null) => {
     );
 
     useEffect(() => {
+        setPronto(!salaId);
         if (!salaId) return;
 
-        return observarParticipantesDaSala(salaId, aplicarEvento);
+        return observarParticipantesDaSala(salaId, aplicarEvento, (status) => {
+            if (status === "SUBSCRIBED") setPronto(true);
+        });
     }, [salaId, aplicarEvento]);
 
     /*
@@ -101,5 +112,5 @@ export const useParticipantesDaSala = (salaId?: string | null) => {
         return () => clearInterval(id);
     }, [salaId, recarregar]);
 
-    return { participantes, carregando, recarregar };
+    return { participantes, carregando, pronto, recarregar };
 };

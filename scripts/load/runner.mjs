@@ -7,6 +7,9 @@
 //   node scripts/load/runner.mjs conexoes 25 50 100 200
 //   node scripts/load/runner.mjs sala 4 8 12 25
 //   node scripts/load/runner.mjs sessoes 10 30 60
+//   node scripts/load/runner.mjs login 10 30 60
+//   node scripts/load/runner.mjs ranking 25 50 100
+//   node scripts/load/runner.mjs volumetria 1000 5000 10000
 //
 // Entre uma rampa e outra o runner espera (PAUSA_MS, default 15s) para o stack assentar:
 // medir a rampa seguinte enquanto a anterior ainda está se desconectando mistura as duas.
@@ -18,6 +21,9 @@ const CENARIOS = {
   conexoes: { script: "cenario-conexoes.mjs", variavel: "USUARIOS", rotulo: "usuários simultâneos" },
   sala: { script: "cenario-sala.mjs", variavel: "PARTICIPANTES", rotulo: "participantes na sala" },
   sessoes: { script: "cenario-sessoes.mjs", variavel: "CONCURRENCY", rotulo: "sessões simultâneas" },
+  login: { script: "cenario-login.mjs", variavel: "CONCURRENCY", rotulo: "logins simultâneos" },
+  ranking: { script: "cenario-ranking.mjs", variavel: "CONCURRENCY", rotulo: "consultas simultâneas ao ranking" },
+  volumetria: { script: "cenario-volumetria.mjs", variavel: "REGISTROS", rotulo: "registros armazenados" },
 };
 
 const [nome, ...tamanhos] = process.argv.slice(2);
@@ -69,11 +75,29 @@ if (nome === "conexoes") {
   for (const r of resultados) {
     linhas.push(`| ${r.participantes} | ${r.dentro} | ${ms(r.assinaturaMs)} | ${ms(r.entradaMs)} | ${ms(r.participacaoMs)} | ${pct(r.entregaParticipacao)} |`);
   }
-} else {
+} else if (nome === "sessoes") {
   linhas.push("| Sessões simultâneas | INSERT ok | INSERT p50/p95 (ms) | UPDATE p50/p95 (ms) | Vazão (req/s) |");
   linhas.push("| ---: | ---: | ---: | ---: | ---: |");
   for (const r of resultados) {
     linhas.push(`| ${r.concorrencia} | ${pct(r.taxaInsert)} | ${ms(r.insertMs)} | ${ms(r.updateMs)} | ${r.vazao.toFixed(1)} |`);
+  }
+} else if (nome === "login") {
+  linhas.push("| Logins simultâneos | Sucesso | Login p50/p95 (ms) | Vazão (logins/s) |");
+  linhas.push("| ---: | ---: | ---: | ---: |");
+  for (const r of resultados) {
+    linhas.push(`| ${r.concorrencia} | ${pct(r.taxaSucesso)} | ${ms(r.loginMs)} | ${r.vazao.toFixed(1)} |`);
+  }
+} else if (nome === "ranking") {
+  linhas.push("| Consultas simultâneas | Sucesso | Ranking p50/p95 (ms) | Linhas p50/p95 | Vazão (consultas/s) |");
+  linhas.push("| ---: | ---: | ---: | ---: | ---: |");
+  for (const r of resultados) {
+    linhas.push(`| ${r.concorrencia} | ${pct(r.taxaSucesso)} | ${ms(r.rankingMs)} | ${ms(r.linhas)} | ${r.vazao.toFixed(1)} |`);
+  }
+} else if (nome === "volumetria") {
+  linhas.push("| Registros de carga | Registros totais | Tamanho do banco | Histórico p50/p95 (ms) | Feed p50/p95 (ms) | Ranking p50/p95 (ms) |");
+  linhas.push("| ---: | ---: | ---: | ---: | ---: | ---: |");
+  for (const r of resultados) {
+    linhas.push(`| ${r.registros} | ${r.registrosTotais ?? "?"} | ${r.tamanhoBanco ?? "—"} | ${ms(r.historicoMs)} | ${ms(r.feedMs)} | ${ms(r.rankingMs)} |`);
   }
 }
 

@@ -14,12 +14,6 @@ import { supabase } from "@/repositories/supabase";
  * Tabela de planos: seção 8 do `docs/project-context.md`.
  */
 
-/**
- * Onde a assinatura Pro é de fato comprada — o app nunca cobra nada, só linka pra cá.
- * TODO: trocar pelo domínio definitivo quando a página de planos do site for publicada.
- */
-export const WEBSITE_PRICING_URL = "https://studocore.app/planos";
-
 export type Plano = "gratis" | "pro";
 
 /** `null` em qualquer limite numérico significa ILIMITADO; `0` significa bloqueado no plano. */
