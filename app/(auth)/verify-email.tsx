@@ -262,7 +262,6 @@ export default function VerifyEmailScreen() {
                             alignSelf: "stretch",
                         }}
                     >
-                        <CheckCircle size={16} color={HADES.green} />
                         <Text style={{ fontSize: 13, color: HADES.textSecondary, flex: 1 }}>
                             Verifique também sua pasta de spam caso não encontre o e-mail.
                         </Text>

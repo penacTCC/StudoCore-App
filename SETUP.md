@@ -41,7 +41,12 @@ O `.env` é ignorado pelo git — peça as variáveis para quem já tem o projet
 ```
 EXPO_PUBLIC_SUPABASE_URL=...
 EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+EXPO_PUBLIC_SENTRY_DSN=...
 ```
+
+`EXPO_PUBLIC_SENTRY_DSN` é opcional: sem ela, o Sentry fica desligado (no-op) e o app
+funciona normalmente. Crie um projeto grátis em sentry.io (plataforma React Native) e
+cole o DSN aí para passar a receber crash reports de builds reais.
 
 As credenciais do Backblaze B2 não entram no `.env` do app. Configure-as como secrets do
 Supabase antes de publicar a função de arquivos:

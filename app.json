@@ -65,7 +65,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-build-properties"
+      "expo-build-properties",
+      "@sentry/react-native/expo"
     ],
     "extra": {
       "router": {},

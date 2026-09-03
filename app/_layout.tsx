@@ -18,6 +18,7 @@ import { useAberturaAutomaticaWrapped } from "@/hooks/useAberturaAutomaticaWrapp
 import { useAberturaPorNotificacao } from "@/hooks/useAberturaPorNotificacao";
 import { useRecuperarSessoesAbandonadas } from "@/hooks/useRecuperarSessoesAbandonadas";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { ToastHost } from "@/components/ui/Toast";
 import { ConfirmDialogHost } from "@/components/ui/ConfirmDialog";
@@ -29,10 +30,20 @@ import { validarSessaoPorCodigo } from "@/services/auth";
 import { carregarModoTeste } from "@/services/modoTeste";
 import { ligarInvalidacaoDeCache } from "@/services/invalidacaoCache";
 import { toast } from "@/services/toast";
+import { iniciarSentry } from "@/lib/sentry";
 
 SplashScreen.preventAutoHideAsync();
+iniciarSentry();
 
 export default function RootLayout() {
+    return (
+        <ErrorBoundary>
+            <RootLayoutInner />
+        </ErrorBoundary>
+    );
+}
+
+function RootLayoutInner() {
     const router = useRouter();
     const [processandoLinkAuth, setProcessandoLinkAuth] = useState(true);
     const linksAuthProcessados = useRef(new Set<string>());
