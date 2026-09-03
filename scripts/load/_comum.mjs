@@ -82,11 +82,15 @@ export function assinarToken(userId, jwtSecret, email = `${userId}@carga.local`)
  */
 export function criarClienteDoUsuario(ambiente, userId, opcoes = {}) {
   const token = assinarToken(userId, ambiente.jwtSecret);
-  return createClient(ambiente.url, ambiente.anonKey, {
+  const client = createClient(ambiente.url, ambiente.anonKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     accessToken: async () => token,
     realtime: { params: { eventsPerSecond: opcoes.eventsPerSecond ?? 10 } },
   });
+  // Evita corrida no subscribe(): o Realtime só envia o JWT no join payload se
+  // `accessTokenValue` já estiver preenchido antes de `channel.subscribe()`.
+  client.__cargaRealtimeAuth = client.realtime.setAuth(token);
+  return client;
 }
 
 export function criarClienteAdmin(ambiente) {
@@ -116,6 +120,15 @@ export const formatarEstat = (e) =>
 
 export const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
+export function dataLocalISO(data = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(data);
+}
+
 /** Executa `tarefa` sobre `itens` com no máximo `limite` em voo — evita afogar o Node. */
 export async function emLotes(itens, limite, tarefa) {
   const resultados = new Array(itens.length);
@@ -134,7 +147,8 @@ export async function emLotes(itens, limite, tarefa) {
  * Assina um canal e devolve quanto tempo levou até SUBSCRIBED (ou o erro).
  * Todo cenário mede isso do mesmo jeito, então a comparação entre eles é justa.
  */
-export function assinarCanal(canal, timeoutMs = 20000) {
+export async function assinarCanal(canal, timeoutMs = 20000) {
+  await canal.socket?._authPromise?.catch(() => {});
   const t0 = Date.now();
   return new Promise((resolve) => {
     let resolvido = false;

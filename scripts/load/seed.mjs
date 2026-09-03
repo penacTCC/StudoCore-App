@@ -122,6 +122,19 @@ async function main() {
     process.exit(1);
   }
 
+  const { error: erroPreferencias } = await admin.from("preferencias_cronograma").upsert(
+    criados.map((u) => ({
+      usuario_id: u.id,
+      feed_publico: true,
+      aparecer_no_ranking: true,
+    })),
+    { onConflict: "usuario_id" }
+  );
+  if (erroPreferencias) {
+    console.error("Falha criando preferências de privacidade do seed:", erroPreferencias.message);
+    process.exit(1);
+  }
+
   // Um plano só do teste de carga, sem nenhum teto, para o limite medido ser o da
   // infraestrutura e não o comercial. Fica no banco local; nunca vai para produção.
   if (PLANO === "carga") {
