@@ -376,8 +376,25 @@ type LinhaComentario = {
     user_id: string;
     texto: string;
     criado_em: string;
-    profiles: { nome_usuario: string | null; foto_usuario: string | null } | null;
 };
+
+type PerfilIdentidade = { id: string; nome_usuario: string | null; foto_usuario: string | null };
+
+/**
+ * `profiles` só é legível pelo dono (RLS); identidade de outra pessoa vem da view
+ * `perfis_identidade`, que nunca expõe celular/data_nascimento/estatística.
+ */
+async function buscarIdentidades(userIds: string[]): Promise<Map<string, PerfilIdentidade>> {
+    const unicos = Array.from(new Set(userIds));
+    if (unicos.length === 0) return new Map();
+
+    const { data } = await supabase
+        .from("perfis_identidade")
+        .select("id, nome_usuario, foto_usuario")
+        .in("id", unicos);
+
+    return new Map((data ?? []).map((p) => [p.id, p as PerfilIdentidade]));
+}
 
 export async function buscarComentarios(
     ref: ReferenciaPublicacao,
@@ -387,7 +404,7 @@ export async function buscarComentarios(
         usuarioAtual(),
         supabase
             .from("comunidade_comentarios")
-            .select("id, user_id, texto, criado_em, profiles(nome_usuario, foto_usuario)")
+            .select("id, user_id, texto, criado_em")
             .eq("origem", ref.origem)
             .eq("referencia_id", ref.referenciaId)
             .order("criado_em", { ascending: true }),
@@ -395,18 +412,24 @@ export async function buscarComentarios(
 
     if (resposta.error) throw new Error(resposta.error.message);
 
-    return ((resposta.data ?? []) as unknown as LinhaComentario[]).map((linha) => ({
-        id: linha.id,
-        autor: {
-            id: linha.user_id,
-            nome: linha.profiles?.nome_usuario || "Sem nome",
-            foto: linha.profiles?.foto_usuario ?? null,
-        },
-        texto: linha.texto,
-        criadoEm: linha.criado_em,
-        meu: linha.user_id === userId,
-        doAutorDaPublicacao: !!donoDaPublicacaoId && linha.user_id === donoDaPublicacaoId,
-    }));
+    const linhas = (resposta.data ?? []) as LinhaComentario[];
+    const identidades = await buscarIdentidades(linhas.map((l) => l.user_id));
+
+    return linhas.map((linha) => {
+        const perfil = identidades.get(linha.user_id);
+        return {
+            id: linha.id,
+            autor: {
+                id: linha.user_id,
+                nome: perfil?.nome_usuario || "Sem nome",
+                foto: perfil?.foto_usuario ?? null,
+            },
+            texto: linha.texto,
+            criadoEm: linha.criado_em,
+            meu: linha.user_id === userId,
+            doAutorDaPublicacao: !!donoDaPublicacaoId && linha.user_id === donoDaPublicacaoId,
+        };
+    });
 }
 
 export async function publicarComentario(
@@ -424,7 +447,7 @@ export async function publicarComentario(
             referencia_id: ref.referenciaId,
             texto: texto.trim(),
         })
-        .select("id, user_id, texto, criado_em, profiles(nome_usuario, foto_usuario)")
+        .select("id, user_id, texto, criado_em")
         .single();
 
     if (error) throw new Error(error.message);
@@ -432,13 +455,14 @@ export async function publicarComentario(
     // O gatilho do INSERT já pôs a notificação na caixa de quem publicou; falta o push.
     avisarInteracao(ref, "comentario");
 
-    const linha = data as unknown as LinhaComentario;
+    const linha = data as LinhaComentario;
+    const perfil = (await buscarIdentidades([linha.user_id])).get(linha.user_id);
     return {
         id: linha.id,
         autor: {
             id: linha.user_id,
-            nome: linha.profiles?.nome_usuario || "Você",
-            foto: linha.profiles?.foto_usuario ?? null,
+            nome: perfil?.nome_usuario || "Você",
+            foto: perfil?.foto_usuario ?? null,
         },
         texto: linha.texto,
         criadoEm: linha.criado_em,
@@ -501,23 +525,28 @@ export async function desbloquearAutor(autorId: string): Promise<void> {
 export async function listarBloqueados(): Promise<AutorBloqueado[]> {
     const { data, error } = await supabase
         .from("comunidade_bloqueios")
-        .select("bloqueado_id, criado_em, profiles!comunidade_bloqueios_bloqueado_id_fkey(nome_usuario, foto_usuario)")
+        .select("bloqueado_id, criado_em")
         .order("criado_em", { ascending: false });
 
     if (error) throw new Error(error.message);
 
-    return ((data ?? []) as unknown as LinhaBloqueio[]).map((linha) => ({
-        id: linha.bloqueado_id,
-        nome: linha.profiles?.nome_usuario || "Sem nome",
-        foto: linha.profiles?.foto_usuario ?? null,
-        bloqueadoEm: linha.criado_em,
-    }));
+    const linhas = (data ?? []) as LinhaBloqueio[];
+    const identidades = await buscarIdentidades(linhas.map((l) => l.bloqueado_id));
+
+    return linhas.map((linha) => {
+        const perfil = identidades.get(linha.bloqueado_id);
+        return {
+            id: linha.bloqueado_id,
+            nome: perfil?.nome_usuario || "Sem nome",
+            foto: perfil?.foto_usuario ?? null,
+            bloqueadoEm: linha.criado_em,
+        };
+    });
 }
 
 type LinhaBloqueio = {
     bloqueado_id: string;
     criado_em: string;
-    profiles: { nome_usuario: string | null; foto_usuario: string | null } | null;
 };
 
 export type AutorBloqueado = {

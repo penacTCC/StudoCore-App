@@ -164,7 +164,7 @@ export const buscarArquivosVisiveis = async (userId: string) => {
 
   const { data: myFilesData } = await supabase
     .from("arquivos")
-    .select("*, profiles(nome_usuario), arquivos_grupos(grupo_id)")
+    .select("*, arquivos_grupos(grupo_id)")
     .eq("user_id", userId)
     .eq("pendente_upload", false);
 
@@ -174,7 +174,7 @@ export const buscarArquivosVisiveis = async (userId: string) => {
   if (groupIds.length > 0) {
     const { data: groupLinks } = await supabase
       .from("arquivos_grupos")
-      .select("grupo_id, arquivos(*, profiles(nome_usuario), arquivos_grupos(grupo_id))")
+      .select("grupo_id, arquivos(*, arquivos_grupos(grupo_id))")
       .in("grupo_id", groupIds);
 
     groupFiles = ((groupLinks || []) as ArquivoGrupoLink[])
@@ -189,6 +189,22 @@ export const buscarArquivosVisiveis = async (userId: string) => {
     }
   });
 
-  return Array.from(uniqueMap.values())
+  const arquivosUnicos = Array.from(uniqueMap.values());
+
+  // `profiles` só é legível pelo dono (RLS); nome de quem enviou vem da view
+  // `perfis_identidade`, então o JOIN vira uma consulta separada em vez de embed.
+  const autorIds = Array.from(new Set(arquivosUnicos.map(a => a.user_id)));
+  if (autorIds.length > 0) {
+    const { data: perfis } = await supabase
+      .from("perfis_identidade")
+      .select("id, nome_usuario")
+      .in("id", autorIds);
+    const perfilPorId = new Map((perfis ?? []).map(p => [p.id, { nome_usuario: p.nome_usuario }]));
+    arquivosUnicos.forEach(arquivo => {
+      arquivo.profiles = perfilPorId.get(arquivo.user_id) ?? null;
+    });
+  }
+
+  return arquivosUnicos
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 };

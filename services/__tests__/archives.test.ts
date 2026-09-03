@@ -51,6 +51,7 @@ describe("buscarArquivosVisiveis", () => {
                     error: null,
                 });
             }
+            if (tabela === "perfis_identidade") return criarQueryBuilderMock({ data: [], error: null });
             throw new Error(`tabela inesperada: ${tabela}`);
         });
 
@@ -67,6 +68,7 @@ describe("buscarArquivosVisiveis", () => {
         fromMock.mockImplementation((tabela: string) => {
             if (tabela === "membros") return criarQueryBuilderMock({ data: [], error: null });
             if (tabela === "arquivos") return criarQueryBuilderMock({ data: [antigo, novo], error: null });
+            if (tabela === "perfis_identidade") return criarQueryBuilderMock({ data: [], error: null });
             throw new Error(`tabela inesperada: ${tabela}`);
         });
 
@@ -84,6 +86,7 @@ describe("buscarArquivosVisiveis", () => {
                 arquivosGruposMock();
                 return criarQueryBuilderMock({ data: [], error: null });
             }
+            if (tabela === "perfis_identidade") return criarQueryBuilderMock({ data: [], error: null });
             throw new Error(`tabela inesperada: ${tabela}`);
         });
 
@@ -102,6 +105,7 @@ describe("buscarArquivosVisiveis", () => {
                 // O join do Supabase pode devolver um objeto solto em vez de array de 1 item.
                 return criarQueryBuilderMock({ data: [{ grupo_id: "g1", arquivos: arquivoDoGrupo }], error: null });
             }
+            if (tabela === "perfis_identidade") return criarQueryBuilderMock({ data: [], error: null });
             throw new Error(`tabela inesperada: ${tabela}`);
         });
 

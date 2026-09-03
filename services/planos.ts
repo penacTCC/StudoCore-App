@@ -130,7 +130,32 @@ function paraPlano(
 }
 
 const SELECT_PLANO_COM_PROGRESSO =
-    "*, planos_blocos(id, duracao_min, tipo, dia_semana, hora_inicio, topico, materias_usuario(nome_exibicao, cor)), importado_de:profiles!planos_importado_de_usuario_id_fkey(nome_usuario)";
+    "*, planos_blocos(id, duracao_min, tipo, dia_semana, hora_inicio, topico, materias_usuario(nome_exibicao, cor))";
+
+/**
+ * `profiles` só é legível pelo dono (RLS); nome de quem originou o plano importado vem da
+ * view `perfis_identidade`, então o antigo embed `profiles!planos_importado_de_usuario_id_fkey`
+ * virou uma consulta em lote separada.
+ */
+async function comNomesDeImportado<T extends { importado_de_usuario_id: string | null }>(
+    linhas: T[]
+): Promise<(T & { importado_de: { nome_usuario: string | null } | null })[]> {
+    const ids = Array.from(new Set(linhas.map((l) => l.importado_de_usuario_id).filter((id): id is string => !!id)));
+    const nomePorId = ids.length
+        ? new Map(
+              ((await supabase.from("perfis_identidade").select("id, nome_usuario").in("id", ids)).data ?? []).map(
+                  (p) => [p.id, p.nome_usuario]
+              )
+          )
+        : new Map<string, string | null>();
+
+    return linhas.map((linha) => ({
+        ...linha,
+        importado_de: linha.importado_de_usuario_id
+            ? { nome_usuario: nomePorId.get(linha.importado_de_usuario_id) ?? null }
+            : null,
+    }));
+}
 
 /**
  * Busca os planos do usuário com progresso (blocos concluídos, próximo bloco, matérias e
@@ -154,10 +179,10 @@ export async function buscarPlanos(usuarioId: string): Promise<Plano[]> {
     }
 
     const hojeDia = diaSemanaDe(paraDataISO(new Date()));
-    return (data as (PlanoRow & {
-        planos_blocos: BlocoParaProgresso[];
-        importado_de: { nome_usuario: string | null } | null;
-    })[]).map((row) => paraPlano(row, row.planos_blocos, concluidos, hojeDia));
+    const linhas = await comNomesDeImportado(
+        data as (PlanoRow & { planos_blocos: BlocoParaProgresso[] })[]
+    );
+    return linhas.map((row) => paraPlano(row, row.planos_blocos, concluidos, hojeDia));
 }
 
 /** Todos os blocos que o usuário já marcou como concluídos, em qualquer plano dele. */
@@ -251,10 +276,9 @@ export async function atualizarPlano(
         return { sucesso: false, erro: "Erro inesperado ao atualizar plano." };
     }
 
-    const row = data as PlanoRow & {
-        planos_blocos: BlocoParaProgresso[];
-        importado_de: { nome_usuario: string | null } | null;
-    };
+    const row = (await comNomesDeImportado([
+        data as PlanoRow & { planos_blocos: BlocoParaProgresso[] },
+    ]))[0];
     const concluidos = await buscarBlocosConcluidosDoUsuario(row.usuario_id);
     return { sucesso: true, plano: paraPlano(row, row.planos_blocos, concluidos) };
 }
@@ -273,10 +297,9 @@ export async function buscarPlanoPorId(planoId: string): Promise<Plano | null> {
         return null;
     }
 
-    const row = data as PlanoRow & {
-        planos_blocos: BlocoParaProgresso[];
-        importado_de: { nome_usuario: string | null } | null;
-    };
+    const row = (await comNomesDeImportado([
+        data as PlanoRow & { planos_blocos: BlocoParaProgresso[] },
+    ]))[0];
     const concluidos = await buscarBlocosConcluidosDoUsuario(row.usuario_id);
     return paraPlano(row, row.planos_blocos, concluidos);
 }
@@ -343,10 +366,9 @@ export async function aplicarPlanoData(
 
     await ressincronizarLembretesDoPlano(planoId);
 
-    const linha = row as PlanoRow & {
-        planos_blocos: BlocoParaProgresso[];
-        importado_de: { nome_usuario: string | null } | null;
-    };
+    const linha = (await comNomesDeImportado([
+        row as PlanoRow & { planos_blocos: BlocoParaProgresso[] },
+    ]))[0];
     const concluidos = await buscarBlocosConcluidosDoUsuario(linha.usuario_id);
     return { sucesso: true, plano: paraPlano(linha, linha.planos_blocos, concluidos) };
 }
@@ -382,10 +404,9 @@ export async function fixarPlanoEmDias(planoId: string, dias: number[]): Promise
 
     await ressincronizarLembretesDoPlano(planoId);
 
-    const linha = row as PlanoRow & {
-        planos_blocos: BlocoParaProgresso[];
-        importado_de: { nome_usuario: string | null } | null;
-    };
+    const linha = (await comNomesDeImportado([
+        row as PlanoRow & { planos_blocos: BlocoParaProgresso[] },
+    ]))[0];
     const concluidos = await buscarBlocosConcluidosDoUsuario(linha.usuario_id);
     return { sucesso: true, plano: paraPlano(linha, linha.planos_blocos, concluidos) };
 }

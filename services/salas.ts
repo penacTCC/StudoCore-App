@@ -18,7 +18,7 @@ import type { SalaFoco, ParticipanteDaSala } from "@/types/sala";
 const COLUNAS_SALA = "id, grupo_id, anfitriao_id, is_public, modo, fila, fila_inicio_em, criada_em, encerrada_em";
 
 const COLUNAS_PARTICIPANTE =
-    "sala_id, membro_id, funcao, ultimo_inicio, tempo_segundos, status, profiles:membro_id (nome_real, nome_usuario, foto_usuario)";
+    "sala_id, membro_id, funcao, ultimo_inicio, tempo_segundos, status";
 
 /** Abre uma sala. Só sessão pública em grupo cria uma — estudo solo não tem sala. */
 export const criarSala = async (params: {
@@ -104,7 +104,22 @@ export const buscarParticipantesDaSala = async (salaId: string) => {
         .select(COLUNAS_PARTICIPANTE)
         .eq("sala_id", salaId);
 
-    return { data: (data ?? []) as unknown as ParticipanteDaSala[], error };
+    if (error || !data) return { data: (data ?? []) as unknown as ParticipanteDaSala[], error };
+
+    // `profiles` só é legível pelo dono (RLS); identidade de outra pessoa vem da view
+    // `perfis_identidade`, que nunca expõe celular/data_nascimento/estatística.
+    const membroIds = Array.from(new Set(data.map((linha: any) => linha.membro_id)));
+    const { data: perfis } = membroIds.length
+        ? await supabase
+              .from("perfis_identidade")
+              .select("id, nome_real, nome_usuario, foto_usuario")
+              .in("id", membroIds)
+        : { data: [] as { id: string; nome_real: string | null; nome_usuario: string | null; foto_usuario: string | null }[] };
+
+    const perfilPorId = new Map((perfis ?? []).map((p) => [p.id, p]));
+    const comIdentidade = data.map((linha: any) => ({ ...linha, profiles: perfilPorId.get(linha.membro_id) ?? null }));
+
+    return { data: comIdentidade as unknown as ParticipanteDaSala[], error: null };
 };
 
 /**
@@ -306,8 +321,10 @@ export const observarParticipantesDaSala = (
 
 /** Busca só o perfil resumido de uma pessoa — usado para completar quem acabou de entrar. */
 export const buscarPerfilResumidoParaSala = async (membroId: string) => {
+    // `profiles` só é legível pelo dono (RLS); identidade de outra pessoa vem da view
+    // `perfis_identidade`, que nunca expõe celular/data_nascimento/estatística.
     const { data } = await supabase
-        .from("profiles")
+        .from("perfis_identidade")
         .select("nome_real, nome_usuario, foto_usuario")
         .eq("id", membroId)
         .maybeSingle();

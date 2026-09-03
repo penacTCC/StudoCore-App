@@ -99,22 +99,37 @@ describe("buscarGruposPublicosDisponiveis", () => {
 });
 
 describe("buscarMembrosGrupo / buscarMembrosDosGrupos", () => {
-    const membroBase = (gamificacao: any) => ({
-        user_id: "m1",
-        grupo_id: "g1",
-        profiles: { id: "m1", nome_usuario: "Fulano", gamificacoes: gamificacao },
-    });
-
-    it("calcula a ofensiva vigente e aceita gamificacoes como objeto ou array", async () => {
-        fromMock.mockReturnValue(
-            criarQueryBuilderMock({
-                data: [
-                    membroBase({ ofensiva: 3, ultima_data_estudo: "2026-08-15" }), // objeto
-                    { ...membroBase(null), user_id: "m2", profiles: { id: "m2", gamificacoes: [{ ofensiva: 2, ultima_data_estudo: "2026-08-10" }] } }, // array, quebrada
-                ],
-                error: null,
-            })
-        );
+    it("calcula a ofensiva vigente a partir de `perfis_identidade` + `gamificacoes` (consultas separadas, sem embed de `profiles`)", async () => {
+        fromMock.mockImplementation((tabela: string) => {
+            if (tabela === "membros") {
+                return criarQueryBuilderMock({
+                    data: [
+                        { user_id: "m1", grupo_id: "g1" },
+                        { user_id: "m2", grupo_id: "g1" },
+                    ],
+                    error: null,
+                });
+            }
+            if (tabela === "perfis_identidade") {
+                return criarQueryBuilderMock({
+                    data: [
+                        { id: "m1", nome_usuario: "Fulano", foto_usuario: null },
+                        { id: "m2", nome_usuario: "Ciclano", foto_usuario: null },
+                    ],
+                    error: null,
+                });
+            }
+            if (tabela === "gamificacoes") {
+                return criarQueryBuilderMock({
+                    data: [
+                        { user_id: "m1", ofensiva: 3, ultima_data_estudo: "2026-08-15" },
+                        { user_id: "m2", ofensiva: 2, ultima_data_estudo: "2026-08-10" }, // sequência quebrada
+                    ],
+                    error: null,
+                });
+            }
+            throw new Error(`tabela inesperada: ${tabela}`);
+        });
 
         const membros = await buscarMembrosGrupo("g1");
 

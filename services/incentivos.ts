@@ -32,18 +32,26 @@ export const mandarForca = async (salaId: string, destinatarioId: string) => {
 export const buscarIncentivosDaSala = async (salaId: string) => {
     const { data, error } = await supabase
         .from("incentivos")
-        .select(`
-            *,
-            profiles:remetente_id (
-                nome_real,
-                nome_usuario,
-                foto_usuario
-            )
-        `)
+        .select(`*`)
         .eq("sala_id", salaId)
         .order("created_at", { ascending: true });
 
-    return { data: (data || []) as Incentivo[], error };
+    if (error || !data) return { data: (data || []) as Incentivo[], error };
+
+    // `profiles` só é legível pelo dono (RLS); identidade de quem mandou vem da view
+    // `perfis_identidade`, que nunca expõe celular/data_nascimento/estatística.
+    const remetenteIds = Array.from(new Set(data.map((linha: any) => linha.remetente_id)));
+    const { data: perfis } = remetenteIds.length
+        ? await supabase
+              .from("perfis_identidade")
+              .select("id, nome_real, nome_usuario, foto_usuario")
+              .in("id", remetenteIds)
+        : { data: [] as { id: string; nome_real: string | null; nome_usuario: string | null; foto_usuario: string | null }[] };
+
+    const perfilPorId = new Map((perfis ?? []).map((p) => [p.id, p]));
+    const comIdentidade = data.map((linha: any) => ({ ...linha, profiles: perfilPorId.get(linha.remetente_id) ?? null }));
+
+    return { data: comIdentidade as Incentivo[], error: null };
 };
 
 /*
@@ -96,8 +104,10 @@ export const observarIncentivosDaSala = (
 
 /** Busca só o perfil de quem mandou a força — usado para completar o payload do realtime. */
 export const buscarPerfilRemetenteDoIncentivo = async (remetenteId: string) => {
+    // `profiles` só é legível pelo dono (RLS); identidade de outra pessoa vem da view
+    // `perfis_identidade`, que nunca expõe celular/data_nascimento/estatística.
     const { data } = await supabase
-        .from("profiles")
+        .from("perfis_identidade")
         .select("nome_real, nome_usuario, foto_usuario")
         .eq("id", remetenteId)
         .maybeSingle();
@@ -137,7 +147,7 @@ export const observarForcasRecebidas = (
                 // O payload do realtime não traz o JOIN com profiles — busca o nome de quem
                 // mandou pra montar o texto da notificação.
                 const { data: perfil } = await supabase
-                    .from("profiles")
+                    .from("perfis_identidade")
                     .select("nome_usuario, nome_real")
                     .eq("id", incentivo.remetente_id)
                     .maybeSingle();

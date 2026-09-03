@@ -22,6 +22,25 @@ const isMissingColumnError = (error: any, coluna: string) => {
 
 const isMissingGroupColumnError = (error: any) => isMissingColumnError(error, "grupo_id");
 
+/**
+ * `profiles` só é legível pelo dono (RLS); identidade de outra pessoa vem da view
+ * `perfis_identidade`, que nunca expõe celular/data_nascimento/estatística. Substitui o
+ * antigo embed `profiles:user_id (...)` do PostgREST por uma consulta em lote + merge em JS.
+ */
+async function anexarIdentidades<T extends { user_id: string }>(linhas: T[]): Promise<(T & Pick<SessionCardItem, "profiles">)[]> {
+    const userIds = Array.from(new Set(linhas.map((l) => l.user_id)));
+    if (userIds.length === 0) return linhas as (T & Pick<SessionCardItem, "profiles">)[];
+
+    const { data: perfis } = await supabase
+        .from("perfis_identidade")
+        .select("id, nome_real, nome_usuario, foto_usuario")
+        .in("id", userIds);
+
+    const perfilPorId = new Map((perfis ?? []).map((p) => [p.id, { nome_real: p.nome_real, nome_usuario: p.nome_usuario, foto_usuario: p.foto_usuario }]));
+
+    return linhas.map((linha) => ({ ...linha, profiles: perfilPorId.get(linha.user_id) }));
+}
+
 const removeGroupIdFromPayload = <T extends Partial<SessaoFocoInsert>>(payload: T) => {
     // Cria uma cópia para não mutar o objeto original recebido pela tela ou hook.
     const payloadWithoutGroupId = { ...payload };
@@ -233,18 +252,16 @@ export const fetchFocusSession = async (id: string) => {
 }
 
 export const fetchSessionById = async (id: string) => {
-    return await supabase
+    const { data, error } = await supabase
         .from("sessoes_foco")
-        .select(`
-            *,
-            profiles:user_id (
-                nome_real,
-                nome_usuario,
-                foto_usuario
-            )
-        `)
+        .select(`*`)
         .eq("id", id)
         .maybeSingle();
+
+    if (error || !data) return { data, error };
+
+    const [comIdentidade] = await anexarIdentidades([data as SessionCardItem]);
+    return { data: comIdentidade, error: null };
 };
 
 /**
@@ -303,18 +320,12 @@ export const compilarSessoesPorExecucao = (linhas: SessionCardItem[]): SessionCa
 export const buscarSessoesPorExecucao = async (execucaoId: string) => {
     const { data, error } = await supabase
         .from("sessoes_foco")
-        .select(`
-            *,
-            profiles:user_id (
-                nome_real,
-                nome_usuario,
-                foto_usuario
-            )
-        `)
+        .select(`*`)
         .eq("execucao_id", execucaoId)
         .order("created_at", { ascending: true });
 
-    return { data: (data || []) as SessionCardItem[], error };
+    const comIdentidade = await anexarIdentidades((data || []) as SessionCardItem[]);
+    return { data: comIdentidade as SessionCardItem[], error };
 };
 
 // ───── SELECT (feed público, só sessões públicas, status salvo e score > 7) ─────
@@ -326,14 +337,7 @@ const buscarSessoesRecentesBrutas = async (limit: number = 20, groupId?: string 
     // quem acertou tudo, já que a nota fica dividida entre as matérias.
     let query = supabase
         .from("sessoes_foco")
-        .select(`
-            *,
-            profiles:user_id (
-                nome_real,
-                nome_usuario,
-                foto_usuario
-            )
-        `)
+        .select(`*`)
         .eq("is_public", true)
         .eq("status", "salvo");
 
@@ -367,25 +371,22 @@ const buscarSessoesRecentesBrutas = async (limit: number = 20, groupId?: string 
         }
 
         // Busca o feed antigo filtrando por membros do grupo; fica perfeito após aplicar a migration.
-        return await supabase
+        const fallback = await supabase
             .from("sessoes_foco")
-            .select(`
-                *,
-                profiles:user_id (
-                    nome_real,
-                    nome_usuario,
-                    foto_usuario
-                )
-            `)
+            .select(`*`)
             .eq("is_public", true)
             .eq("status", "salvo")
             .in("user_id", memberIds)
             .order("created_at", { ascending: false })
             .limit(limit);
+
+        if (fallback.error || !fallback.data) return fallback;
+        return { data: await anexarIdentidades(fallback.data as SessionCardItem[]), error: null };
     }
 
     // Retorna a query principal quando o schema já tem `grupo_id`.
-    return result;
+    if (result.error || !result.data) return result;
+    return { data: await anexarIdentidades(result.data as SessionCardItem[]), error: null };
 };
 
 /** "Destaque" = mais de 70% de acerto no quiz (equivale ao corte antigo de >7 em 10). */
@@ -433,14 +434,7 @@ export const buscarSessoesAoVivo = async (limit: number = 20, groupId?: string |
     const montarQuery = () => {
         let query = supabase
             .from("sessoes_foco")
-            .select(`
-                *,
-                profiles:user_id (
-                    nome_real,
-                    nome_usuario,
-                    foto_usuario
-                )
-            `)
+            .select(`*`)
             // Sessão privada é estudo solo: não entra no feed de ninguém.
             .eq("is_public", true)
             .in("status", ["ativo", "pausado"])
@@ -474,16 +468,9 @@ export const buscarSessoesAoVivo = async (limit: number = 20, groupId?: string |
             return { data: [], error: null };
         }
 
-        return await supabase
+        const fallback = await supabase
             .from("sessoes_foco")
-            .select(`
-                *,
-                profiles:user_id (
-                    nome_real,
-                    nome_usuario,
-                    foto_usuario
-                )
-            `)
+            .select(`*`)
             .eq("is_public", true)
             .in("status", ["ativo", "pausado"])
             .is("concluido_em", null)
@@ -491,28 +478,27 @@ export const buscarSessoesAoVivo = async (limit: number = 20, groupId?: string |
             .in("user_id", memberIds)
             .order("created_at", { ascending: false })
             .limit(limit);
+
+        if (fallback.error || !fallback.data) return fallback;
+        return { data: await anexarIdentidades(fallback.data as SessionCardItem[]), error: null };
     }
 
-    return result;
+    if (result.error || !result.data) return result;
+    return { data: await anexarIdentidades(result.data as SessionCardItem[]), error: null };
 };
 
 // ───── SELECT (sessões de um usuário específico) ─────
 export const buscarSessoesPorUsuario = async (userId: string, limit?: number) => {
     const query = supabase
         .from("sessoes_foco")
-        .select(`
-            *,
-            profiles:user_id (
-                nome_real,
-                nome_usuario,
-                foto_usuario
-            )
-        `)
+        .select(`*`)
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
     // Sem limite explícito, traz todas as sessões (necessário para análises que olham até 1 ano+ para trás).
-    return await (limit !== undefined ? query.limit(limit) : query);
+    const result = await (limit !== undefined ? query.limit(limit) : query);
+    if (result.error || !result.data) return result;
+    return { ...result, data: await anexarIdentidades(result.data as SessionCardItem[]) };
 };
 
 // ───── SELECT (só a contagem de formulários pendentes) ─────
@@ -762,7 +748,7 @@ export const buscarParticipantesDasSalas = async (salaIds: string[]) => {
 
     const { data, error } = await supabase
         .from("tab_sessao_membros")
-        .select("sala_id, membro_id, funcao, profiles:membro_id (nome_real, nome_usuario, foto_usuario)")
+        .select("sala_id, membro_id, funcao")
         .in("sala_id", salaIds);
 
     // Uma falha aqui só custa a pilha de avatares: o card continua válido sem ela.
@@ -771,8 +757,20 @@ export const buscarParticipantesDasSalas = async (salaIds: string[]) => {
         return porSessao;
     }
 
-    for (const linha of (data ?? []) as any[]) {
-        const perfil = Array.isArray(linha.profiles) ? linha.profiles[0] : linha.profiles;
+    const membroIds = Array.from(new Set((data ?? []).map((linha) => linha.membro_id)));
+    // `profiles` só é legível pelo dono (RLS); identidade de outra pessoa vem da view
+    // `perfis_identidade`, então o JOIN vira duas consultas em vez de embed do PostgREST.
+    const { data: perfis } = membroIds.length
+        ? await supabase
+              .from("perfis_identidade")
+              .select("id, nome_real, nome_usuario, foto_usuario")
+              .in("id", membroIds)
+        : { data: [] as { id: string; nome_real: string | null; nome_usuario: string | null; foto_usuario: string | null }[] };
+
+    const perfilPorId = new Map((perfis ?? []).map((p) => [p.id, p]));
+
+    for (const linha of data ?? []) {
+        const perfil = perfilPorId.get(linha.membro_id);
         const lista = porSessao.get(linha.sala_id) ?? [];
 
         lista.push({

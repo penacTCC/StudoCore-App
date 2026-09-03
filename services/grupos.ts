@@ -104,23 +104,37 @@ export const buscarGruposPublicosDisponiveis = async () => {
   })) || [];
 };
 
+/**
+ * `profiles` só é legível pelo dono (RLS); identidade de outros membros vem da view
+ * `perfis_identidade`. `gamificacoes` continua de leitura livre pra autenticado, então
+ * dá pra buscar as duas em paralelo e remontar o mesmo formato que o embed antigo devolvia
+ * (`profiles: { id, nome_usuario, foto_usuario, gamificacoes }`).
+ */
+const buscarIdentidadesComGamificacao = async (userIds: string[]) => {
+  const unicos = Array.from(new Set(userIds));
+  if (unicos.length === 0) return new Map<string, any>();
+
+  const [{ data: perfis }, { data: gamificacoes }] = await Promise.all([
+    supabase.from("perfis_identidade").select("id, nome_usuario, foto_usuario").in("id", unicos),
+    supabase.from("gamificacoes").select("user_id, ofensiva, ultima_data_estudo").in("user_id", unicos),
+  ]);
+
+  const gamificacaoPorId = new Map((gamificacoes ?? []).map((g) => [g.user_id, g]));
+
+  return new Map(
+    (perfis ?? []).map((p) => [
+      p.id,
+      { ...p, gamificacoes: gamificacaoPorId.get(p.id) ?? null },
+    ])
+  );
+};
+
 export const buscarMembrosGrupo = async (grupoId: string) => {
   if (!grupoId) return [];
 
   const { data: usuarioMembro, error } = await supabase
     .from("membros")
-    .select(`
-      *,
-      profiles:user_id (
-        id,
-        nome_usuario,
-        foto_usuario,
-        gamificacoes (
-          ofensiva,
-          ultima_data_estudo
-        )
-      )
-    `)
+    .select("*")
     .eq("grupo_id", grupoId);
 
   if (error) {
@@ -129,16 +143,18 @@ export const buscarMembrosGrupo = async (grupoId: string) => {
     return [];
   }
 
+  const identidades = await buscarIdentidadesComGamificacao((usuarioMembro ?? []).map((m) => m.user_id));
+
   return ((usuarioMembro || []) as MembroGrupoComPerfil[]).map((membro) => {
-    // `gamificacoes` vem como relação 1:1 (user_id é PK), mas o PostgREST pode devolver objeto ou array de 1 item.
-    const gamificacao = membro.profiles?.gamificacoes;
+    const perfil = identidades.get(membro.user_id);
     // Ofensiva gravada só vale se a pessoa estudou hoje ou ontem — senão o card do grupo
     // continuaria exibindo o foguinho de quem já quebrou a sequência.
-    const ofensiva = ofensivaVigente(Array.isArray(gamificacao) ? gamificacao[0] : gamificacao);
+    const ofensiva = ofensivaVigente(perfil?.gamificacoes);
 
     return {
       ...membro,
-      userData: membro.profiles,
+      userData: perfil ?? null,
+      profiles: perfil ?? null,
       ofensiva,
     };
   });
@@ -531,18 +547,7 @@ export const buscarMembrosDosGrupos = async (gruposIds: string[]): Promise<Recor
 
   const { data: usuarioMembro, error } = await supabase
     .from("membros")
-    .select(`
-      *,
-      profiles:user_id (
-        id,
-        nome_usuario,
-        foto_usuario,
-        gamificacoes (
-          ofensiva,
-          ultima_data_estudo
-        )
-      )
-    `)
+    .select("*")
     .in("grupo_id", gruposIds);
 
   if (error) {
@@ -551,16 +556,18 @@ export const buscarMembrosDosGrupos = async (gruposIds: string[]): Promise<Recor
     return {};
   }
 
+  const identidades = await buscarIdentidadesComGamificacao((usuarioMembro ?? []).map((m) => m.user_id));
+
   return ((usuarioMembro || []) as MembroGrupoComPerfil[]).reduce((porGrupo, membro) => {
-    // `gamificacoes` vem como relação 1:1 (user_id é PK), mas o PostgREST pode devolver objeto ou array de 1 item.
-    const gamificacao = membro.profiles?.gamificacoes;
+    const perfil = identidades.get(membro.user_id);
     // Ofensiva gravada só vale se a pessoa estudou hoje ou ontem — senão o card do grupo
     // continuaria exibindo o foguinho de quem já quebrou a sequência.
-    const ofensiva = ofensivaVigente(Array.isArray(gamificacao) ? gamificacao[0] : gamificacao);
+    const ofensiva = ofensivaVigente(perfil?.gamificacoes);
 
     const membroTratado: MembroGrupoComPerfil = {
       ...membro,
-      userData: membro.profiles,
+      userData: perfil ?? null,
+      profiles: perfil ?? null,
       ofensiva,
     };
 
