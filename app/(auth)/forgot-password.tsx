@@ -1,12 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 //Componentes do React Native
 import { View, Text, TextInput, KeyboardAvoidingView, Platform, StatusBar, Dimensions } from "react-native";
 
 //Componentes do Expo
 import { router, useLocalSearchParams } from "expo-router";
-import * as Linking from "expo-linking";
-import * as QueryParams from "expo-auth-session/build/QueryParams";
 
 import { Mail, CheckCircle, LockKeyhole } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
@@ -20,7 +18,6 @@ import {
     deslogarUsuario,
     recuperarSenha,
     redefinirSenha,
-    validarSessaoPorCodigo,
 } from "@/services/auth";
 import { toast } from "@/services/toast";
 
@@ -30,48 +27,27 @@ import { traduzirErroAuth } from "@/utils/errosAuth";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function ForgotPasswordScreen() {
-    const params = useLocalSearchParams<{ code?: string }>();
+    const params = useLocalSearchParams<{ recoveryReady?: string }>();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const [isValidatingLink, setIsValidatingLink] = useState(false);
     const [sent, setSent] = useState(false);
-    const [canResetPassword, setCanResetPassword] = useState(false);
-    const linkHandled = useRef(false);
+    const canResetPassword = params.recoveryReady === "true";
 
-    useEffect(() => {
-        const handleRecoveryUrl = async (url?: string | null) => {
-            if (linkHandled.current) return;
-
-            const queryParams = url ? QueryParams.getQueryParams(url).params : params;
-            const code = typeof queryParams.code === "string" ? queryParams.code : undefined;
-
-            if (!code) return;
-
-            linkHandled.current = true;
-            setIsValidatingLink(true);
-
-            const { error } = await validarSessaoPorCodigo(code);
-
-            setIsValidatingLink(false);
-
+    const voltarAoLogin = async () => {
+        // O link de recuperação cria uma sessão temporária. Se a pessoa abandonar a
+        // troca de senha, encerramos essa sessão antes de mostrar o login novamente.
+        if (canResetPassword) {
+            const { error } = await deslogarUsuario();
             if (error) {
-                toast.error(traduzirErroAuth(error.message), "Link inválido");
-                router.replace("/(auth)/login");
+                toast.error("Não foi possível encerrar a recuperação. Tente novamente.");
                 return;
             }
-
-            setCanResetPassword(true);
-            setSent(false);
-        };
-
-        Linking.getInitialURL().then(handleRecoveryUrl);
-
-        if (params.code) {
-            handleRecoveryUrl();
         }
-    }, [params]);
+
+        router.replace("/(auth)/login");
+    };
 
     const handleSendReset = async () => {
         if (!email.trim()) {
@@ -105,15 +81,24 @@ export default function ForgotPasswordScreen() {
 
         setIsLoading(true);
         const { error } = await redefinirSenha(password);
-        setIsLoading(false);
 
         if (error) {
+            setIsLoading(false);
             toast.error(traduzirErroAuth(error.message));
             return;
         }
 
+        const { error: erroAoSair } = await deslogarUsuario();
+        setIsLoading(false);
+        if (erroAoSair) {
+            toast.error(
+                "A senha foi alterada, mas não foi possível encerrar a sessão. Tente novamente.",
+                "Senha alterada",
+            );
+            return;
+        }
+
         toast.success("Agora você já pode entrar com a nova senha.", "Senha alterada");
-        await deslogarUsuario();
         router.replace("/(auth)/login");
     };
 
@@ -135,7 +120,7 @@ export default function ForgotPasswordScreen() {
                 }}
             >
                 <DotPattern />
-                <BackButton top={52} />
+                <BackButton top={52} onPress={voltarAoLogin} />
                 <LogoMark size={88} borderRadius={24} />
 
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -163,33 +148,7 @@ export default function ForgotPasswordScreen() {
             >
                 <DragHandle marginBottom={26} />
 
-                {isValidatingLink ? (
-                    <View style={{ alignItems: "center", paddingTop: 24 }}>
-                        <Text
-                            style={{
-                                fontSize: 22,
-                                fontWeight: "800",
-                                color: HADES.text,
-                                textAlign: "center",
-                                marginBottom: 10,
-                                letterSpacing: -0.3,
-                            }}
-                        >
-                            Validando link...
-                        </Text>
-                        <Text
-                            style={{
-                                fontSize: 14,
-                                color: HADES.textMuted,
-                                textAlign: "center",
-                                lineHeight: 22,
-                                marginBottom: 28,
-                            }}
-                        >
-                            Aguarde enquanto preparamos a redefinição da sua senha.
-                        </Text>
-                    </View>
-                ) : canResetPassword ? (
+                {canResetPassword ? (
                     <>
                         <Text style={{ fontSize: 22, fontWeight: "800", color: HADES.text, marginBottom: 8, letterSpacing: -0.3 }}>
                             Nova senha
@@ -278,7 +237,7 @@ export default function ForgotPasswordScreen() {
                             {"\n"}e siga as instruções para redefinir sua senha.
                         </Text>
 
-                        <PrimaryButton label="VOLTAR AO LOGIN" onPress={() => router.back()} hades style={{ width: "100%" }} />
+                        <PrimaryButton label="VOLTAR AO LOGIN" onPress={voltarAoLogin} hades style={{ width: "100%" }} />
                     </View>
                 ) : (
                     /* ── Form state ── */
@@ -319,7 +278,7 @@ export default function ForgotPasswordScreen() {
                         <View style={{ flexDirection: "row", justifyContent: "center", gap: 4 }}>
                             <Text style={{ fontSize: 14, color: HADES.textFaint }}>Lembrou a senha?</Text>
                             <Text
-                                onPress={() => router.back()}
+                                onPress={voltarAoLogin}
                                 style={{ fontSize: 14, color: HADES.accentSolid, fontWeight: "700" }}
                             >
                                 Voltar ao login

@@ -154,23 +154,39 @@ export const atualizarSessaoFoco = async (id: string, updatesRecebidos: Partial<
  * services/fotosSessao.ts), então só apaga o arquivo se nenhuma sessão irmã ainda apontar
  * pra ele — mesma checagem que `removerFotoDaSessao` já faz ao desvincular manualmente.
  */
-export const excluirSessaoFoco = async (id: string) => {
+export const excluirSessaoFoco = async (id: string, userId: string) => {
     const { data: sessao } = await supabase
         .from("sessoes_foco")
         .select("foto_path")
         .eq("id", id)
+        .eq("user_id", userId)
         .maybeSingle();
 
-    const result = await supabase.from("sessoes_foco").delete().eq("id", id);
+    // O filtro pelo dono protege a operação mesmo em um ambiente cuja RLS esteja
+    // desatualizada. Pedir a linha apagada também evita tratar "0 linhas" como sucesso.
+    const result = await supabase
+        .from("sessoes_foco")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", userId)
+        .select("id")
+        .maybeSingle();
+
+    if (!result.error && !result.data) {
+        return {
+            ...result,
+            error: new Error("Sessão não encontrada ou não pertence ao usuário."),
+        };
+    }
 
     const fotoPath = sessao?.foto_path as string | null | undefined;
     if (!result.error && fotoPath) {
-        const { count } = await supabase
+        const { count, error: erroContagem } = await supabase
             .from("sessoes_foco")
             .select("id", { count: "exact", head: true })
             .eq("foto_path", fotoPath);
 
-        if (!count) {
+        if (!erroContagem && count === 0) {
             const { error: erroStorage } = await supabase.storage.from(BUCKET_FOTOS_SESSAO).remove([fotoPath]);
             if (erroStorage) {
                 console.warn("Sessão apagada, mas o arquivo da foto continuou no bucket:", erroStorage.message);

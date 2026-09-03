@@ -47,29 +47,34 @@ export default function AbaMeuGrupo() {
     const {groupId,} = useLocalSearchParams(); //<- os parametros
 
     /*
-      Dados do grupo e progresso da semana vêm juntos, do cache.
+      O grupo é o dado mínimo para liberar a home. Ele não pode ficar preso ao cálculo das
+      horas semanais, que ainda precisa buscar membros e sessões antes de terminar.
 
-      Eram três efeitos separados — um para o grupo, dois quase idênticos para as horas
-      (um na montagem, outro no foco) — e todos começavam do zero a cada vez que a home
-      voltava, o que deixava a meta piscando. Uma chave só, buscada em paralelo, resolve
-      as duas coisas.
+      `buscarGrupoPorId` mantém o contrato antigo de devolver null, usado por outras telas.
+      Aqui null precisa virar erro: se entrar no cache como um sucesso vazio, `!grupo`
+      mantém o skeleton para sempre e a tentativa automática abaixo nunca é acionada.
     */
-    const { dados: dadosGrupo, recarregar: recarregarGrupo, erro: erroGrupo } = useDadosCache(
+    const { dados: grupoCarregado, recarregar: recarregarGrupo, erro: erroGrupo } = useDadosCache(
         groupId ? `grupo-home:${groupId}` : null,
         async () => {
-            const [grupo, horas] = await Promise.all([
-                buscarGrupoPorId(groupId as string),
-                horasSemanaisGrupo(groupId as string),
-            ]);
-            return { grupo, horas };
+            const grupo = await buscarGrupoPorId(groupId as string);
+            if (!grupo) throw new Error("Não foi possível carregar os dados do grupo.");
+            return grupo;
         },
-        // O progresso muda a cada sessão encerrada por qualquer membro — inclusive a que o
-        // próprio usuário acabou de fazer antes de voltar pra home. Revalida sempre.
+        // Nome, foto e meta podem mudar enquanto a pessoa está em outra tela.
         { tempoFresco: 0 }
     );
 
-    const grupo = dadosGrupo?.grupo ?? null;
-    const horasSemanaGrupo = dadosGrupo?.horas ?? 0;
+    const grupo = grupoCarregado ?? null;
+
+    // O progresso chega em segundo plano e atualiza apenas a seção da meta; não bloqueia
+    // mais o restante da tela inicial.
+    const { dados: horasCarregadas, recarregar: recarregarHoras } = useDadosCache(
+        groupId ? `grupo-horas-semana:${groupId}` : null,
+        () => horasSemanaisGrupo(groupId as string),
+        { tempoFresco: 0 }
+    );
+    const horasSemanaGrupo = horasCarregadas ?? 0;
 
     /*
       Sem isto, uma primeira busca que falhava (rede ainda instável logo depois do login,
@@ -201,6 +206,7 @@ export default function AbaMeuGrupo() {
         try {
             await Promise.all([
                 recarregarGrupo(),
+                recarregarHoras(),
                 recarregarMembros(),
                 recarregarRoadmap(),
                 refreshSessions(),
@@ -209,7 +215,7 @@ export default function AbaMeuGrupo() {
         } finally {
             setAtualizandoTela(false);
         }
-    }, [groupId, recarregarGrupo, recarregarMembros, recarregarRoadmap, refreshSessions, refreshAoVivo]);
+    }, [groupId, recarregarGrupo, recarregarHoras, recarregarMembros, recarregarRoadmap, refreshSessions, refreshAoVivo]);
 
     //Cálculo do progresso do grupo
     const metaPorMembro = Number(Array.isArray(grupo?.meta_horas) ? grupo.meta_horas[0] : grupo?.meta_horas) || 0

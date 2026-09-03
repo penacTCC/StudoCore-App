@@ -147,13 +147,19 @@ export default function BrainScreen() {
             confirmText: "Excluir",
             destructive: true,
             onConfirm: async () => {
-                const { error } = await excluirSessaoFoco(form.id);
+                if (!userId) {
+                    toast.error("Não foi possível identificar sua conta.");
+                    return;
+                }
+
+                const { error } = await excluirSessaoFoco(form.id, userId);
                 if (error) {
-                    console.error("Erro ao excluir sessão pendente:", error);
+                    console.error("Erro ao excluir formulário:", error);
                     toast.error("Não foi possível excluir esse registro.");
                     return;
                 }
                 await refreshAnalisePessoal();
+                toast.success("Formulário pendente excluído.");
             },
         });
     };
@@ -682,6 +688,8 @@ export default function BrainScreen() {
                                                     <TouchableOpacity
                                                         onPress={() => excluirPendente(form)}
                                                         activeOpacity={0.7}
+                                                        accessibilityRole="button"
+                                                        accessibilityLabel={`Excluir formulário pendente de ${form.disciplina}`}
                                                         style={{
                                                             width: 38,
                                                             height: 38,

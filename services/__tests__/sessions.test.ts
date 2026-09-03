@@ -1,4 +1,4 @@
-import { criarQueryBuilderMock } from "@/test/helpers/supabaseQueryMock";
+import { criarQueryBuilderMock, criarStorageBuilderMock } from "@/test/helpers/supabaseQueryMock";
 
 jest.mock("@/repositories/supabase", () => ({
     supabase: { from: jest.fn(), storage: { from: jest.fn() } },
@@ -10,14 +10,68 @@ import {
     calculateFocusSessionMinutes,
     compilarSessoesPorExecucao,
     ehSessaoDestaque,
+    excluirSessaoFoco,
     salvarSessaoFoco,
 } from "@/services/sessions";
 import type { SessionCardItem } from "@/types/sessions";
 
 const fromMock = supabase.from as jest.Mock;
+const storageFromMock = supabase.storage.from as jest.Mock;
 
 beforeEach(() => {
     fromMock.mockReset();
+    storageFromMock.mockReset();
+});
+
+describe("excluirSessaoFoco", () => {
+    it.each(["pendente", "salvo"])("exclui um formulário com status %s", async (status) => {
+        const busca = criarQueryBuilderMock({ data: { foto_path: null, status }, error: null });
+        const exclusao = criarQueryBuilderMock({ data: { id: "s1" }, error: null });
+        fromMock.mockReturnValueOnce(busca).mockReturnValueOnce(exclusao);
+
+        const resultado = await excluirSessaoFoco("s1", "u1");
+
+        expect(resultado.error).toBeNull();
+        expect(exclusao.delete).toHaveBeenCalled();
+        expect(exclusao.eq).toHaveBeenCalledWith("id", "s1");
+        expect(exclusao.eq).toHaveBeenCalledWith("user_id", "u1");
+    });
+
+    it("não informa sucesso quando nenhuma sessão foi apagada", async () => {
+        fromMock
+            .mockReturnValueOnce(criarQueryBuilderMock({ data: null, error: null }))
+            .mockReturnValueOnce(criarQueryBuilderMock({ data: null, error: null }));
+
+        const resultado = await excluirSessaoFoco("inexistente", "u1");
+
+        expect(resultado.error).toBeInstanceOf(Error);
+    });
+
+    it("remove do storage uma foto que não é mais usada por outra sessão", async () => {
+        const remove = jest.fn().mockResolvedValue({ error: null });
+        storageFromMock.mockReturnValue({ ...criarStorageBuilderMock({ error: null }), remove });
+        fromMock
+            .mockReturnValueOnce(criarQueryBuilderMock({ data: { foto_path: "u1/s1.jpg" }, error: null }))
+            .mockReturnValueOnce(criarQueryBuilderMock({ data: { id: "s1" }, error: null }))
+            .mockReturnValueOnce(criarQueryBuilderMock({ count: 0, error: null }));
+
+        await excluirSessaoFoco("s1", "u1");
+
+        expect(remove).toHaveBeenCalledWith(["u1/s1.jpg"]);
+    });
+
+    it("preserva no storage uma foto compartilhada por outra linha da execução", async () => {
+        const remove = jest.fn().mockResolvedValue({ error: null });
+        storageFromMock.mockReturnValue({ ...criarStorageBuilderMock({ error: null }), remove });
+        fromMock
+            .mockReturnValueOnce(criarQueryBuilderMock({ data: { foto_path: "u1/exec.jpg" }, error: null }))
+            .mockReturnValueOnce(criarQueryBuilderMock({ data: { id: "s1" }, error: null }))
+            .mockReturnValueOnce(criarQueryBuilderMock({ count: 1, error: null }));
+
+        await excluirSessaoFoco("s1", "u1");
+
+        expect(remove).not.toHaveBeenCalled();
+    });
 });
 
 describe("calculateFocusSessionMinutes", () => {

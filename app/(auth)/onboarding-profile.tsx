@@ -36,12 +36,14 @@ import { HADES } from "@/constants/hades";
 //Componentes do Projeto
 import { InputField } from "@/components/form";
 import { ImagePickerAvatar, WheelPicker } from "@/components/ui";
+import { confirm } from "@/services/confirm";
 import { toast } from "@/services/toast";
 
 //Serviços da aplicação
 import { useAuth } from "@/hooks/useAuth";
 import {
     obterSessaoAtual,
+    excluirConta,
     refreshSessao,
     salvarDadosPerfil,
     validarSessaoGoogle,
@@ -310,9 +312,43 @@ export default function OnboardingCarousel() {
     const current = slides[step];
     const total = slides.length;
 
+    const cancelarOnboarding = () => {
+        if (loading) return;
+
+        confirm({
+            title: "Cancelar criação da conta?",
+            message:
+                "Seu e-mail já foi confirmado. Ao voltar agora, a conta criada será excluída permanentemente.",
+            confirmText: "Excluir e voltar",
+            cancelText: "Continuar cadastro",
+            destructive: true,
+            onConfirm: async () => {
+                setLoading(true);
+                const { data: { session } } = await obterSessaoAtual();
+
+                // Sem sessão não existe uma conta autenticada que o app consiga excluir.
+                // Ainda assim usamos replace, pois este fluxo pode não ter histórico anterior.
+                if (!session) {
+                    setLoading(false);
+                    router.replace("/(auth)/onboarding-welcome");
+                    return;
+                }
+
+                const { error } = await excluirConta();
+                if (error) {
+                    setLoading(false);
+                    toast.error(error, "Não foi possível excluir a conta");
+                    return;
+                }
+
+                router.replace("/(auth)/onboarding-welcome");
+            },
+        });
+    };
+
     const goBack = () => {
         if (step === 0) {
-            router.back();
+            cancelarOnboarding();
             return;
         }
         setStep((s) => s - 1);
@@ -423,7 +459,11 @@ export default function OnboardingCarousel() {
 
             <View style={{ flex: 1, paddingTop: 56, paddingHorizontal: 26 }}>
                 {/* Voltar + progresso */}
-                <TouchableOpacity onPress={goBack} style={{ paddingTop: 6, width: 40 }}>
+                <TouchableOpacity
+                    onPress={goBack}
+                    disabled={loading}
+                    style={{ paddingTop: 6, width: 40, opacity: loading ? 0.5 : 1 }}
+                >
                     <ArrowLeft size={26} color={HADES.text} />
                 </TouchableOpacity>
                 <ProgressSegments total={total} active={step} />

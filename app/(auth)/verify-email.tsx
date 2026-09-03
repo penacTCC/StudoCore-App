@@ -8,7 +8,7 @@ import {
 } from "react-native";
 
 //Componentes do Expo Router
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 
 //Componentes do Lucide React Native
 import { ArrowLeft, Mail, RefreshCw, CheckCircle } from "@/components/ui/icons";
@@ -22,12 +22,16 @@ import { useEffect, useState } from "react";
 
 //Serviços
 import { confirmarCodigoCadastro, obtemEmailUsuario, reenviarEmailConfirmacao } from "@/services/auth";
+import { confirm } from "@/services/confirm";
 import { toast } from "@/services/toast";
 
 //Utilitários
 import { traduzirErroAuth } from "@/utils/errosAuth";
 
+const TAMANHO_CODIGO = 8;
+
 export default function VerifyEmailScreen() {
+    const params = useLocalSearchParams<{ email?: string | string[] }>();
     const [code, setCode] = useState("");
     const [email, setEmail] = useState("");
     const [isChecking, setIsChecking] = useState(false);
@@ -38,8 +42,18 @@ export default function VerifyEmailScreen() {
     const [esperaReenvio, setEsperaReenvio] = useState(0);
 
     useEffect(() => {
+        const emailDaRota = Array.isArray(params.email) ? params.email[0] : params.email;
+        const emailNormalizado = emailDaRota?.trim().toLowerCase();
+
+        if (emailNormalizado) {
+            setEmail(emailNormalizado);
+            return;
+        }
+
+        // Fallback para quem chegou aqui pelo guard com uma sessão ainda não confirmada.
+        // No cadastro normal não há sessão antes do OTP, por isso o e-mail vem pela rota.
         obtemEmailUsuario().then(({ email }) => setEmail(email));
-    }, []);
+    }, [params.email]);
 
     useEffect(() => {
         if (esperaReenvio <= 0) return;
@@ -47,9 +61,20 @@ export default function VerifyEmailScreen() {
         return () => clearTimeout(relogio);
     }, [esperaReenvio]);
 
+    const handleBack = () => {
+        confirm({
+            title: "Cancelar confirmação?",
+            message: "Seu e-mail ainda não foi confirmado. Se voltar, será necessário iniciar o cadastro novamente.",
+            confirmText: "Voltar ao início",
+            cancelText: "Continuar aqui",
+            destructive: true,
+            onConfirm: () => router.replace("/(auth)/onboarding-welcome"),
+        });
+    };
+
     const handleConfirmed = async () => {
-        if (code.trim().length !== 6) {
-            toast.warning("Digite o código de 6 dígitos enviado para seu e-mail.", "Código incompleto");
+        if (code.trim().length !== TAMANHO_CODIGO) {
+            toast.warning(`Digite o código de ${TAMANHO_CODIGO} dígitos enviado para seu e-mail.`, "Código incompleto");
             return;
         }
         if (!email) {
@@ -59,7 +84,7 @@ export default function VerifyEmailScreen() {
 
         setIsChecking(true);
 
-        //Verifica o código de 6 dígitos enviado por email
+        //Verifica o código de 8 dígitos enviado por email
         const { error } = await confirmarCodigoCadastro(email, code.trim());
 
         if (error) {
@@ -77,24 +102,21 @@ export default function VerifyEmailScreen() {
         if (esperaReenvio > 0) return;
         setIsResending(true);
 
-        //Obtém o email do usuário
-        const { email: currentEmail } = await obtemEmailUsuario();
-
-        if (!currentEmail) {
+        if (!email) {
             toast.error("Não foi possível obter o e-mail. Volte e tente novamente.");
             setIsResending(false);
             return;
         }
 
         //Reenvia o email com o código de confirmação
-        const { error } = await reenviarEmailConfirmacao(currentEmail);
+        const { error } = await reenviarEmailConfirmacao(email);
 
         if (error) {
             toast.error(traduzirErroAuth(error.message), "Erro ao reenviar");
         } else {
             setCode("");
             setEsperaReenvio(60);
-            toast.success("Um novo código foi enviado para " + currentEmail + ".", "Código reenviado!");
+            toast.success("Um novo código foi enviado para " + email + ".", "Código reenviado!");
         }
         setIsResending(false);
     };
@@ -115,7 +137,7 @@ export default function VerifyEmailScreen() {
             >
                 {/* Back button */}
                 <TouchableOpacity
-                    onPress={() => router.back()}
+                    onPress={handleBack}
                     style={{
                         position: "absolute",
                         left: 20,
@@ -198,17 +220,17 @@ export default function VerifyEmailScreen() {
                             Enviamos um código{"\n"}de confirmação
                         </Text>
                         <Text style={{ fontSize: 14, color: HADES.textSecondary, textAlign: "center", lineHeight: 21 }}>
-                            Digite abaixo o código de 6 dígitos que enviamos para {email || "seu e-mail"}.
+                            Digite abaixo o código de {TAMANHO_CODIGO} dígitos que enviamos para {email || "seu e-mail"}.
                         </Text>
                     </View>
 
                     {/* Code input */}
                     <TextInput
                         value={code}
-                        onChangeText={(v) => setCode(v.replace(/[^0-9]/g, "").slice(0, 6))}
+                        onChangeText={(v) => setCode(v.replace(/[^0-9]/g, "").slice(0, TAMANHO_CODIGO))}
                         keyboardType="number-pad"
-                        maxLength={6}
-                        placeholder="000000"
+                        maxLength={TAMANHO_CODIGO}
+                        placeholder="00000000"
                         placeholderTextColor={HADES.textFaint}
                         style={{
                             alignSelf: "stretch",
@@ -218,9 +240,9 @@ export default function VerifyEmailScreen() {
                             borderRadius: 14,
                             paddingVertical: 16,
                             textAlign: "center",
-                            fontSize: 26,
+                            fontSize: 24,
                             fontWeight: "800",
-                            letterSpacing: 10,
+                            letterSpacing: 6,
                             color: HADES.text,
                         }}
                     />

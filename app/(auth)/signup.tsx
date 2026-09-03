@@ -121,8 +121,11 @@ export default function SignUpScreen() {
         }
 
         // Vai direto para a confirmação: o perfil só pode ser gravado depois que existe
-        // sessão, e sessão só existe depois do código de 6 dígitos.
-        router.replace("/(auth)/verify-email");
+        // sessão, e sessão só existe depois do código de 8 dígitos.
+        router.replace({
+            pathname: "/(auth)/verify-email",
+            params: { email: emailLimpo },
+        });
     };
 
     return (

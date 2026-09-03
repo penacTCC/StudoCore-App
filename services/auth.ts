@@ -29,7 +29,12 @@ export const validarSessaoGoogle = async (code: string) => {
 //Recuperação de Senha
 export const recuperarSenha = async (email: string) => {
   return await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: Linking.createURL("/forgot-password"),
+    // Callback estável para Auth: sem explicitar scheme/triple slash, o Expo pode gerar
+    // uma URL diferente conforme estiver em Expo Go, dev client ou build de produção.
+    redirectTo: Linking.createURL("forgot-password", {
+      scheme: "studocore",
+      isTripleSlashed: true,
+    }),
   });
 };
 
@@ -186,7 +191,7 @@ export const cadastrarUsuario = async (
    * No lugar disso responde 200 com um usuário falso, sem sessão e com `identities` vazio.
    *
    * Sem olhar esse array o app tratava tudo como sucesso e mandava a pessoa para a tela do
-   * código de 6 dígitos, onde o e-mail nunca chegava e o reenvio também falhava.
+   * código de confirmação, onde o e-mail nunca chegava e o reenvio também falhava.
    */
   const emailJaCadastrado =
     !resposta.error &&
@@ -202,9 +207,9 @@ export const reenviarEmailConfirmacao = async (email: string) => {
   return await supabase.auth.resend({ type: "signup", email });
 };
 
-//Confirmar cadastro via código de 6 dígitos enviado por email
+//Confirmar cadastro via código de 8 dígitos enviado por email
 export const confirmarCodigoCadastro = async (email: string, token: string) => {
-  return await supabase.auth.verifyOtp({ email, token, type: "signup" });
+  return await supabase.auth.verifyOtp({ email, token, type: "email" });
 };
 
 //Buscar usuário logado

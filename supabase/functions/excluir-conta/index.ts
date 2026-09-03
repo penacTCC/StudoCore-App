@@ -20,7 +20,12 @@
 // Storage do Supabase também não cascateia, então as fotos de sessão do bucket
 // `sessao-fotos` são apagadas na mão pelo mesmo motivo.
 //
-// Deploy: `supabase functions deploy excluir-conta` (usa os secrets B2_* que a
+// Antes de apagar o usuário, a função chama `sair_do_grupo` para cada grupo do qual ele
+// participa. Essa RPC promove outro administrador quando necessário e apaga o grupo se o
+// usuário era o último membro. Fazer isso antes do deleteUser é essencial: o CASCADE da
+// FK em `membros` removeria apenas o vínculo e deixaria um grupo vazio para trás.
+//
+// Deploy: `supabase functions deploy excluir-conta --use-api` (usa os secrets B2_* que a
 // `arquivos-b2` já configurou; secrets são do projeto, não da função).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -39,6 +44,43 @@ const TABELAS_SEM_CASCADE: { tabela: string; coluna: string }[] = [
   { tabela: "sclass_professores_turmas", coluna: "user_id" },
   { tabela: "sclass_progresso_roadmaps", coluna: "user_id" },
 ];
+
+/**
+ * Retira a pessoa de todos os grupos antes de excluir a conta.
+ *
+ * A lista é lida com o client administrativo para não depender das policies de SELECT,
+ * mas cada saída roda como o próprio usuário: `sair_do_grupo` usa `auth.uid()` para
+ * transferir a administração ou apagar o grupo que ficou sem membros.
+ */
+async function sairDeTodosOsGrupos(
+  admin: ReturnType<typeof createClient>,
+  clienteUsuario: ReturnType<typeof createClient>,
+  userId: string
+) {
+  const { data: vinculos, error: erroVinculos } = await admin
+    .from("membros")
+    .select("grupo_id")
+    .eq("user_id", userId);
+
+  if (erroVinculos) {
+    console.error("Erro ao listar grupos antes da exclusão da conta:", erroVinculos);
+    return false;
+  }
+
+  for (const vinculo of vinculos ?? []) {
+    const { error } = await clienteUsuario.rpc("sair_do_grupo", {
+      p_grupo_id: vinculo.grupo_id,
+      p_novo_admin_id: null,
+    });
+
+    if (error) {
+      console.error(`Erro ao sair do grupo ${vinculo.grupo_id}:`, error);
+      return false;
+    }
+  }
+
+  return true;
+}
 
 /**
  * Apaga do B2 e do banco os arquivos que a pessoa NÃO compartilhou com nenhum grupo.
@@ -156,6 +198,20 @@ Deno.serve(async (req: Request) => {
         console.error(`Erro ao limpar ${tabela}:`, error);
         return jsonResponse({ ok: false, error: "Não foi possível limpar seus dados." }, 500);
       }
+    }
+
+    /*
+      Não deixar este trabalho para o CASCADE de auth.users. A remoção explícita passa
+      pela regra de domínio de cada grupo: transfere a administração quando há outros
+      membros e apaga o grupo quando esta era a última pessoa.
+
+      Também precisa acontecer antes de `limparArquivosExclusivos`: ao apagar um grupo
+      vazio, os vínculos em arquivos_grupos caem por CASCADE e os arquivos que deixaram de
+      ser compartilhados podem ser reconhecidos e limpos corretamente.
+    */
+    const saiuDosGrupos = await sairDeTodosOsGrupos(admin, clienteUsuario, user.id);
+    if (!saiuDosGrupos) {
+      return jsonResponse({ ok: false, error: "Não foi possível remover você dos seus grupos." }, 500);
     }
 
     // Storage não tem CASCADE com o Postgres: sem isto, a foto de cada sessão de foco

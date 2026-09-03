@@ -61,7 +61,16 @@ A UI foi migrada (2026-07) para um design system próprio chamado **HADES**, cob
 - `ranking-completo.tsx` — Ranking expandido do grupo.
 
 ### Autenticação (`app/(auth)/`)
-- `login.tsx`, `signup.tsx`, `forgot-password.tsx`, `verify-email.tsx`.
+- `login.tsx`, `signup.tsx`, `forgot-password.tsx`, `verify-email.tsx`. No cadastro por e-mail,
+  `signup.tsx` passa o endereço informado diretamente para `verify-email.tsx`: antes da
+  confirmação por OTP o Supabase não cria sessão, portanto a tela não pode depender de
+  `auth.getSession()` para descobrir a qual e-mail confirmar ou reenviar o código.
+  As setas de retorno não usam o histórico: antes do OTP voltam explicitamente à tela inicial
+  após confirmação; depois do OTP, abandonar o onboarding exclui a conta autenticada pela
+  Edge Function `excluir-conta` antes de voltar à tela inicial.
+  Na recuperação de senha, o layout raiz troca o código PKCE do deep link uma única vez
+  e abre `forgot-password.tsx` com a sessão temporária pronta. Salvar a senha ou abandonar
+  o formulário encerra essa sessão e leva explicitamente ao login.
 - `onboarding-welcome.tsx` (legado), `onboarding-profile.tsx` (carrossel HADES, ver seção 3).
 
 ### Modais (`app/(modals)/`)
@@ -284,7 +293,7 @@ Tudo que é IA continua atrás de Edge Function com a chave só no servidor (reg
 - **Cache de navegação é módulo próprio, não `@tanstack/react-query`:** ganho de UX é o mesmo; a escolha foi zero dependência nova e o mecanismo ser explicável na defesa do TCC. Migrar depois é mecânico se o app crescer a ponto de precisar invalidação em cascata.
 - **Push remoto voltou a existir (Expo→FCM/APNs)** depois de uma primeira tentativa ter sido revertida por falta de credencial Firebase; hoje é best-effort com fallback local, então nunca é a única forma de uma notificação chegar.
 - **"Perfil público" hoje só esconde dado na UI** — a policy de SELECT de `profiles` continua liberando a linha inteira a qualquer usuário autenticado. Não é privacidade real; se o TCC exigir isso, precisa de view/coluna restrita antes de prometer na tela.
-- **Exclusão de conta** (`excluir-conta`, Edge Function) apaga manualmente tabelas sem `CASCADE` (ex: as do SClass, `alunos_turmas`) porque usam `ON DELETE NO ACTION`. Toda tabela nova referenciando usuário sem CASCADE precisa entrar nessa lista.
+- **Exclusão de conta** (`excluir-conta`, Edge Function) primeiro retira o usuário de todos os grupos pela RPC `sair_do_grupo` — transferindo a administração quando há outros membros e apagando grupos que ficam vazios — e só depois remove o usuário do Auth. Também apaga manualmente tabelas sem `CASCADE` (ex: as do SClass, `alunos_turmas`) porque usam `ON DELETE NO ACTION`. Toda tabela nova referenciando usuário sem CASCADE precisa entrar nessa lista.
 - **Fantasma de sessão entre contas:** "último grupo" ficava salvo por *aparelho*, não por conta — corrigido em três camadas independentes (armazenamento local com dono, descarte de `grupo_id` de não-membro ao salvar sessão, agregações cruzando com `membros`). Nunca confiar em `grupo_id` puro numa agregação de grupo.
 
 ---

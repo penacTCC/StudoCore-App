@@ -1,5 +1,5 @@
 import "../global.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SplashScreen, Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View } from "react-native";
@@ -34,6 +34,7 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
     const router = useRouter();
     const [processandoLinkAuth, setProcessandoLinkAuth] = useState(true);
+    const linksAuthProcessados = useRef(new Set<string>());
 
     //Busca a sessão e perfil do usuário
     const { isInitialized, session, profileComplete } = useAuthState();
@@ -91,25 +92,40 @@ export default function RootLayout() {
             if (!url) return;
             if (url.startsWith("studocore://login")) return;
 
-            const { params } = QueryParams.getQueryParams(url);
+            const { params, errorCode } = QueryParams.getQueryParams(url);
             const isForgotPasswordUrl = url.includes("forgot-password");
             const isRecoveryLink =
                 params.type === "recovery" ||
-                (isForgotPasswordUrl && typeof params.code === "string");
+                isForgotPasswordUrl;
 
             if (!isRecoveryLink) return;
+            if (linksAuthProcessados.current.has(url)) return;
+            linksAuthProcessados.current.add(url);
 
-            if (typeof params.code === "string") {
-                const { error } = await validarSessaoPorCodigo(params.code);
-                if (error) {
-                    console.error("Erro ao validar código de recuperação:", error);
-                    toast.error("Este link de recuperação é inválido ou expirou.");
-                }
+            const erroNoLink =
+                errorCode ||
+                (typeof params.error_code === "string" ? params.error_code : undefined) ||
+                (typeof params.error_description === "string" ? params.error_description : undefined);
+
+            if (erroNoLink || typeof params.code !== "string") {
+                toast.error("Este link de recuperação é inválido ou expirou.");
+                router.replace("/(auth)/login");
+                return;
+            }
+
+            const { error } = await validarSessaoPorCodigo(params.code);
+            if (error) {
+                console.error("Erro ao validar código de recuperação:", error);
+                toast.error("Este link de recuperação é inválido ou expirou.");
+                router.replace("/(auth)/login");
+                return;
             }
 
             router.replace({
                 pathname: "/(auth)/forgot-password",
-                params,
+                // Não repassa o código de uso único. A tela recebe apenas a confirmação
+                // de que a sessão temporária de recuperação já está pronta.
+                params: { recoveryReady: "true" },
             });
         };
 

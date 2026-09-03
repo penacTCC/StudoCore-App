@@ -3,6 +3,10 @@ jest.mock("@/repositories/supabase", () => ({
         auth: {
             signInWithPassword: jest.fn(),
             signUp: jest.fn(),
+            verifyOtp: jest.fn(),
+            resetPasswordForEmail: jest.fn(),
+            exchangeCodeForSession: jest.fn(),
+            updateUser: jest.fn(),
             getUser: jest.fn(),
             getSession: jest.fn(),
             signOut: jest.fn(),
@@ -15,12 +19,21 @@ jest.mock("@/services/armazenamentoOffline", () => ({
 jest.mock("@/services/pushTokens", () => ({
     removerTokenPush: jest.fn(),
 }));
-jest.mock("expo-linking", () => ({ createURL: jest.fn(() => "studocore://forgot-password") }));
+jest.mock("expo-linking", () => ({ createURL: jest.fn(() => "studocore:///forgot-password") }));
 
 import { supabase } from "@/repositories/supabase";
 import { limparUltimoGrupoLocalmente } from "@/services/armazenamentoOffline";
 import { removerTokenPush } from "@/services/pushTokens";
-import { buscarUsuarioLogado, cadastrarUsuario, deslogarUsuario } from "@/services/auth";
+import * as Linking from "expo-linking";
+import {
+    buscarUsuarioLogado,
+    cadastrarUsuario,
+    confirmarCodigoCadastro,
+    deslogarUsuario,
+    recuperarSenha,
+    redefinirSenha,
+    validarSessaoPorCodigo,
+} from "@/services/auth";
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -62,6 +75,53 @@ describe("cadastrarUsuario — detecção de e-mail já cadastrado", () => {
         const resultado = await cadastrarUsuario("x@exemplo.com", "123");
 
         expect(resultado.emailJaCadastrado).toBe(false);
+    });
+});
+
+describe("confirmarCodigoCadastro", () => {
+    it("valida o código como OTP de e-mail", async () => {
+        (supabase.auth.verifyOtp as jest.Mock).mockResolvedValue({ data: {}, error: null });
+
+        await confirmarCodigoCadastro("novo@exemplo.com", "12345678");
+
+        expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({
+            email: "novo@exemplo.com",
+            token: "12345678",
+            type: "email",
+        });
+    });
+});
+
+describe("recuperação de senha", () => {
+    it("envia o link com retorno para a tela de nova senha", async () => {
+        (supabase.auth.resetPasswordForEmail as jest.Mock).mockResolvedValue({ data: {}, error: null });
+
+        await recuperarSenha("pessoa@exemplo.com");
+
+        expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith(
+            "pessoa@exemplo.com",
+            { redirectTo: "studocore:///forgot-password" },
+        );
+        expect(Linking.createURL).toHaveBeenCalledWith("forgot-password", {
+            scheme: "studocore",
+            isTripleSlashed: true,
+        });
+    });
+
+    it("troca o código PKCE por sessão", async () => {
+        (supabase.auth.exchangeCodeForSession as jest.Mock).mockResolvedValue({ data: {}, error: null });
+
+        await validarSessaoPorCodigo("codigo-unico");
+
+        expect(supabase.auth.exchangeCodeForSession).toHaveBeenCalledWith("codigo-unico");
+    });
+
+    it("atualiza a senha da sessão de recuperação", async () => {
+        (supabase.auth.updateUser as jest.Mock).mockResolvedValue({ data: {}, error: null });
+
+        await redefinirSenha("nova-senha-segura");
+
+        expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: "nova-senha-segura" });
     });
 });
 
