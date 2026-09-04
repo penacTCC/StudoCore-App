@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal } from "react-native";
 import { SafeAreaView } from "@/components/ui/TelaSegura";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { X, Lightbulb, CheckCheck, Trophy, RotateCw, Lock, Send, Bookmark, Clock, Check, AlertTriangle } from "@/components/ui/icons";
+import { X, Lightbulb, CheckCheck, Trophy, RotateCw, Lock, Send, Bookmark, Clock, Check } from "@/components/ui/icons";
 import { HADES } from "@/constants/hades";
 import { useAuth } from "@/hooks/useAuth";
 import { salvarSessaoFoco, atualizarSessaoFoco, calculateFocusSessionMinutes, buscarSessoesPorExecucao } from "@/services/sessions";
@@ -11,6 +11,8 @@ import { registrarSessaoConcluida } from "@/services/gamificacao";
 import { registrarOfensivaGrupo } from "@/services/grupos";
 import { buscarPerfil } from "@/services/auth";
 import { gerarQuizIA } from "@/services/quizIA";
+import { buscarPlano } from "@/services/assinatura";
+import { confirm } from "@/services/confirm";
 import { toast } from "@/services/toast";
 import type { QuizPergunta } from "@/types/quiz";
 import type { SessionCardItem } from "@/types/sessions";
@@ -69,32 +71,12 @@ export default function FocusFeedbackModal() {
     // existe, pra distribuir os acertos de volta pra cada matéria ao salvar o resultado.
     const [linhasExecucao, setLinhasExecucao] = useState<SessionCardItem[]>([]);
 
-    /*
-      Quiz fixo de último recurso, usado só quando a IA falha (rede, cota, resposta
-      inválida). Encerrar a sessão nunca pode travar por causa do quiz — mas quando ele
-      entra, `motivoFallback` guarda o porquê e a tela avisa, em vez de passar questões de
-      fração como se fossem geradas sobre o que a pessoa estudou.
-    */
-    const perguntasGenericas: QuizPergunta[] = [
-        { id: 1, text: "Qual é o resultado da soma de 1/2 e 1/4?", options: ["3/4", "1/6", "2/6", "1/8"], correctAnswer: "3/4" },
-        { id: 2, text: "Qual a forma irredutível da fração 8/12?", options: ["2/3", "4/6", "3/4", "1/2"], correctAnswer: "2/3" },
-        { id: 3, text: "Qual destas frações é a maior?", options: ["2/5", "1/3", "3/4", "4/7"], correctAnswer: "3/4" },
-        { id: 4, text: "Como se escreve a fração 3/5 em número decimal?", options: ["0,6", "0,3", "0,5", "3,5"], correctAnswer: "0,6" },
-        { id: 5, text: "Quanto é 1/3 de 60?", options: ["20", "15", "30", "10"], correctAnswer: "20" },
-        { id: 6, text: "Qual é o resultado da multiplicação de 2/3 por 3/4?", options: ["1/2", "5/12", "5/7", "8/9"], correctAnswer: "1/2" },
-        { id: 7, text: "O que é uma fração imprópria?", options: ["O numerador é maior que o denominador", "O denominador é maior que o numerador", "Ambos são iguais", "Possui um número inteiro"], correctAnswer: "O numerador é maior que o denominador" },
-        { id: 8, text: "Qual é o resultado de 3/4 menos 1/2?", options: ["1/4", "2/6", "1/8", "1/2"], correctAnswer: "1/4" },
-        { id: 9, text: "Como se escreve o número misto 2 e 1/2 em fração imprópria?", options: ["5/2", "3/2", "2/2", "4/2"], correctAnswer: "5/2" },
-        { id: 10, text: "Se eu comi 3/8 de uma pizza, que fração da pizza sobrou?", options: ["5/8", "3/8", "1/8", "8/8"], correctAnswer: "5/8" },
-    ];
-
     // Aqui guardamos no STATE a versão final (e já embaralhada) das perguntas. Começa `null`
     // porque elas sempre vêm da IA (assíncrono); só troca UMA VEZ, quando a
     // geração termina, para as opções não mudarem de lugar depois que o usuário já respondeu.
     const [shuffledQuestions, setShuffledQuestions] = useState<QuizPergunta[] | null>(null);
     const [carregandoQuiz, setCarregandoQuiz] = useState(true);
-    // Motivo da queda pro quiz genérico (null = as questões vieram da IA).
-    const [motivoFallback, setMotivoFallback] = useState<string | null>(null);
+    const [avisoQuiz, setAvisoQuiz] = useState<{ titulo: string; mensagem: string } | null>(null);
     const perguntasAtuais = shuffledQuestions ?? [];
 
     /*
@@ -104,6 +86,7 @@ export default function FocusFeedbackModal() {
       primeiro render em que a sessão de auth já está resolvida.
     */
     const quizIniciado = useRef(false);
+    const quizEncerrado = useRef(false);
 
     useEffect(() => {
         // Espera a auth resolver: cair no quiz genérico só porque o `userId` ainda não
@@ -113,11 +96,16 @@ export default function FocusFeedbackModal() {
 
         let cancelado = false;
 
-        const aplicarPerguntas = (perguntas: QuizPergunta[], motivo: string | null = null) => {
-            if (cancelado) return;
+        const aplicarPerguntas = (perguntas: QuizPergunta[]) => {
+            if (cancelado || quizEncerrado.current) return;
             setShuffledQuestions(perguntas.map((pergunta) => ({ ...pergunta, options: shuffleArray(pergunta.options) })));
-            setMotivoFallback(motivo);
             setCarregandoQuiz(false);
+        };
+
+        const avisarQueQuizSeraIgnorado = (titulo: string, mensagem: string) => {
+            if (cancelado || quizEncerrado.current) return;
+            setCarregandoQuiz(false);
+            setAvisoQuiz({ titulo, mensagem });
         };
 
         const carregarQuiz = async () => {
@@ -125,7 +113,35 @@ export default function FocusFeedbackModal() {
             // seguem o mesmo caminho: os dois têm matéria e conteúdo (ver startSession em
             // app/(tabs)/focus.tsx), então os dois geram quiz por IA.
             if (!userId) {
-                aplicarPerguntas(perguntasGenericas, "Sessão expirada — não deu para personalizar o quiz.");
+                avisarQueQuizSeraIgnorado(
+                    "Questionário indisponível",
+                    "Sua sessão expirou e não foi possível criar o questionário. Toque em OK para continuar."
+                );
+                return;
+            }
+
+            let linhas: SessionCardItem[] = [];
+            if (execucaoId) {
+                // Encadeamento de plano: busca cada matéria estudada e combina num quiz só.
+                const resultado = await buscarSessoesPorExecucao(execucaoId);
+                linhas = resultado.data;
+                if (!cancelado) setLinhasExecucao(linhas);
+
+                if (resultado.error || linhas.length === 0) {
+                    avisarQueQuizSeraIgnorado(
+                        "Questionário indisponível",
+                        "Não foi possível recuperar as matérias desta sessão para criar o questionário. Toque em OK para continuar."
+                    );
+                    return;
+                }
+            }
+
+            const plano = await buscarPlano();
+            if (plano !== "pro") {
+                avisarQueQuizSeraIgnorado(
+                    "Questionário exclusivo do Pro",
+                    "Seu plano não inclui este questionário. Ele será ignorado e sua sessão continuará normalmente."
+                );
                 return;
             }
 
@@ -138,43 +154,40 @@ export default function FocusFeedbackModal() {
                 dificuldade: perfil?.dificuldade ?? null,
             };
 
-            if (execucaoId) {
-                // Encadeamento de plano: busca cada matéria estudada e combina num quiz só.
-                const { data: linhas, error } = await buscarSessoesPorExecucao(execucaoId);
-                if (!cancelado) setLinhasExecucao(linhas);
-
-                if (error || linhas.length === 0) {
-                    aplicarPerguntas(perguntasGenericas, "Não foi possível recuperar as matérias desta execução.");
-                    return;
-                }
-
-                const { data: perguntasGeradas, error: erroIA } = await gerarQuizIA({
-                    ...perfilComum,
-                    maxQuestoes: MAX_QUESTOES_EXECUCAO,
-                    materias: linhas.map((linha) => ({
+            const { data: perguntasGeradas, error: erroIA } = await gerarQuizIA({
+                ...perfilComum,
+                ...(execucaoId ? { maxQuestoes: MAX_QUESTOES_EXECUCAO } : {}),
+                materias: execucaoId
+                    ? linhas.map((linha) => ({
                         materia: linha.disciplina,
                         conteudo: linha.conteudo_especifico || null,
                         minutosEstudados: linha.tempo_minutos,
-                    })),
-                });
+                    }))
+                    : [{
+                        materia: (params.subject as string) || "Estudo Geral",
+                        conteudo: (params.content as string) || null,
+                    }],
+            });
 
-                aplicarPerguntas(perguntasGeradas ?? perguntasGenericas, perguntasGeradas ? null : erroIA);
+            if (!perguntasGeradas) {
+                console.warn("Questionário ignorado porque a geração falhou:", erroIA);
+                avisarQueQuizSeraIgnorado(
+                    "Não foi possível criar o questionário",
+                    "O questionário será ignorado, mas sua sessão continuará normalmente."
+                );
                 return;
             }
 
-            const { data: perguntasGeradas, error: erroIA } = await gerarQuizIA({
-                ...perfilComum,
-                materias: [{
-                    materia: (params.subject as string) || "Estudo Geral",
-                    conteudo: (params.content as string) || null,
-                }],
-            });
-
-            // Falha ou resposta vazia da IA nunca pode travar o encerramento da sessão.
-            aplicarPerguntas(perguntasGeradas ?? perguntasGenericas, perguntasGeradas ? null : erroIA);
+            aplicarPerguntas(perguntasGeradas);
         };
 
-        carregarQuiz();
+        carregarQuiz().catch((erro) => {
+            console.warn("Questionário ignorado por uma falha inesperada:", erro);
+            avisarQueQuizSeraIgnorado(
+                "Não foi possível criar o questionário",
+                "O questionário será ignorado, mas sua sessão continuará normalmente."
+            );
+        });
         return () => {
             cancelado = true;
         };
@@ -190,6 +203,8 @@ export default function FocusFeedbackModal() {
     const [saving, setSaving] = useState(false);
     // Guarda o ID da sessão assim que ela é inserida no banco (evita duplicatas ao refazer)
     const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+    const savedSessionIdRef = useRef<string | null>(null);
+    const [ignorandoQuiz, setIgnorandoQuiz] = useState(false);
 
     /*
       Etapas opcionais mostradas depois que a sessão já foi gravada, nesta ordem:
@@ -307,7 +322,7 @@ export default function FocusFeedbackModal() {
         const sessionMinutes = await calculateFocusSessionMinutes(durationSecs);
 
         // Usa o ID vindo do Brain ou o ID recém-criado nesta tela para atualizar em vez de duplicar.
-        const existingId = (params.sessionId as string) || savedSessionId;
+        const existingId = (params.sessionId as string) || savedSessionIdRef.current;
 
         // Guarda erro em variável única para tratar insert e update do mesmo jeito.
         let dbError = null;
@@ -348,7 +363,10 @@ export default function FocusFeedbackModal() {
             // Guarda o ID retornado para que refazer ou salvar depois atualize a mesma sessão.
             if (!error && data) {
                 const inserted = (data as any)[0];
-                if (inserted?.id) setSavedSessionId(inserted.id);
+                if (inserted?.id) {
+                    savedSessionIdRef.current = inserted.id;
+                    setSavedSessionId(inserted.id);
+                }
             }
         }
 
@@ -416,7 +434,7 @@ export default function FocusFeedbackModal() {
 
             // Usa o ID de um param (sessão de revisão/refazer vindo do Brain Hub)
             // OU o ID que foi guardado ao salvar pela primeira vez nesta sessão
-            const existingId = (params.sessionId as string) || savedSessionId;
+            const existingId = (params.sessionId as string) || savedSessionIdRef.current;
 
             if (existingId) {
                 // Atualiza o registro existente (refazer, revisão ou segunda tentativa)
@@ -454,6 +472,7 @@ export default function FocusFeedbackModal() {
                     // Guarda o ID para que um eventual "refazer" não insira duplicata
                     const inserted = (data as any)[0];
                     if (inserted?.id) {
+                        savedSessionIdRef.current = inserted.id;
                         setSavedSessionId(inserted.id);
                         // Guardado também numa variável local: o setState só vale no próximo
                         // render, e a etapa de anotações precisa do ID agora.
@@ -491,6 +510,45 @@ export default function FocusFeedbackModal() {
 
     // "Bom desempenho" = mais de 70% de acerto (equivale ao corte antigo de >7 em 10).
     const isHighScore = totalQuestoes > 0 && score / totalQuestoes > 0.7;
+
+    /** Salva a sessão sem respostas e segue para foto/anotações, sem encerrar o fluxo inteiro. */
+    const concluirSemQuiz = async () => {
+        if (ignorandoQuiz || saving) return;
+
+        quizEncerrado.current = true;
+        setIgnorandoQuiz(true);
+        const salvo = await persistFocusSession("salvo");
+        setIgnorandoQuiz(false);
+
+        if (!salvo) return;
+
+        setAvisoQuiz(null);
+        concluirFluxo(
+            execucaoId
+                ? linhasExecucao.map((linha) => linha.id)
+                : [(params.sessionId as string) || savedSessionIdRef.current]
+        );
+    };
+
+    const idsAtuaisDaSessao = () =>
+        execucaoId
+            ? linhasExecucao.map((linha) => linha.id)
+            : [(params.sessionId as string) || savedSessionIdRef.current];
+
+    /** O X pula apenas o questionário; a confirmação evita um toque acidental. */
+    const confirmarPuloDoQuiz = () => {
+        if (ignorandoQuiz || saving) return;
+
+        confirm({
+            title: showResults ? "Continuar sem revisar?" : "Pular questionário?",
+            message: showResults
+                ? "Seu resultado já foi salvo. Você continuará para as próximas etapas da sessão."
+                : "Suas respostas não serão contabilizadas. A sessão será salva e você continuará para as próximas etapas.",
+            confirmText: showResults ? "Continuar" : "Pular",
+            cancelText: "Continuar respondendo",
+            onConfirm: showResults ? () => concluirFluxo(idsAtuaisDaSessao()) : concluirSemQuiz,
+        });
+    };
 
     /*
       Etapas finais opcionais. A sessão JÁ está gravada quando estas telas aparecem — pular
@@ -572,10 +630,61 @@ export default function FocusFeedbackModal() {
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: HADES.bg }} edges={["top", "bottom"]}>
+            <Modal visible={!!avisoQuiz} transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
+                <View
+                    style={{
+                        flex: 1,
+                        backgroundColor: "rgba(0,0,0,0.68)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingHorizontal: 28,
+                    }}
+                >
+                    <View
+                        style={{
+                            width: "100%",
+                            maxWidth: 340,
+                            padding: 20,
+                            borderRadius: 20,
+                            borderWidth: 1,
+                            borderColor: HADES.borderStrong,
+                            backgroundColor: HADES.surfaceRaised,
+                        }}
+                    >
+                        <Text style={{ color: HADES.text, fontSize: 17, fontWeight: "700", textAlign: "center" }}>
+                            {avisoQuiz?.titulo}
+                        </Text>
+                        <Text style={{ color: HADES.textSecondary, fontSize: 13.5, lineHeight: 19, textAlign: "center", marginTop: 10 }}>
+                            {avisoQuiz?.mensagem}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={concluirSemQuiz}
+                            disabled={ignorandoQuiz}
+                            activeOpacity={0.85}
+                            style={{
+                                height: 46,
+                                borderRadius: 12,
+                                backgroundColor: HADES.accentSolid,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                marginTop: 18,
+                                opacity: ignorandoQuiz ? 0.65 : 1,
+                            }}
+                        >
+                            {ignorandoQuiz ? (
+                                <ActivityIndicator size="small" color="#000" />
+                            ) : (
+                                <Text style={{ color: "#000", fontSize: 14.5, fontWeight: "700" }}>OK</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
             {/* Top bar */}
             <View style={{ paddingHorizontal: 14, paddingTop: 4, paddingBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <TouchableOpacity
-                    onPress={() => router.back()}
+                    onPress={confirmarPuloDoQuiz}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: HADES.surfaceRaised, alignItems: "center", justifyContent: "center" }}
                 >
@@ -607,26 +716,6 @@ export default function FocusFeedbackModal() {
                 contentContainerStyle={{ paddingBottom: 24 }}
                 showsVerticalScrollIndicator={false}
             >
-                {/*
-                    Aviso do quiz genérico: sem ele o aluno respondia questões de fração
-                    achando que a IA tinha gerado sobre a matéria dele. Aparece nas duas
-                    fases (respondendo e resultado) porque o placar sai desse quiz.
-                */}
-                {!carregandoQuiz && motivoFallback && (
-                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 9, backgroundColor: "rgba(240,85,107,0.12)", borderWidth: 1, borderColor: "rgba(240,85,107,0.28)", borderRadius: 12, padding: 14, marginBottom: 16 }}>
-                        <AlertTriangle size={18} color={HADES.red} />
-                        <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 13, color: HADES.text, fontWeight: "700", lineHeight: 18 }}>
-                                Quiz genérico de treino
-                            </Text>
-                            <Text style={{ fontSize: 12.5, color: HADES.textMuted, lineHeight: 17, marginTop: 3 }}>
-                                Não deu para gerar as perguntas sobre o que você estudou, então estas são de
-                                exemplo. {motivoFallback}
-                            </Text>
-                        </View>
-                    </View>
-                )}
-
                 {!showResults ? (
                     carregandoQuiz ? (
                         <View style={{ alignItems: "center", paddingVertical: 6, paddingBottom: 22 }}>
